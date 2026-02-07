@@ -3,12 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { ThingsApi } from "@/lib/api-client";
 import type { ThingRecord } from "@/lib/api-client";
 import { fromJsonLd } from "@/lib/thing-serializer";
-import type {
-  InboxItem,
-  Action,
-  Project,
-  ReferenceMaterial,
-} from "@/model/gtd-types";
+import type { Thing, Project, ReferenceMaterial } from "@/model/gtd-types";
+import { isThing } from "@/model/gtd-types";
 
 // ---------------------------------------------------------------------------
 // Shared query key + fetcher
@@ -43,28 +39,45 @@ export function useThings() {
 }
 
 // ---------------------------------------------------------------------------
-// Derived hooks: filter + deserialize by @type
+// Derived hooks: filter + deserialize
 // ---------------------------------------------------------------------------
 
-export function useInboxItems() {
+/** All Things (inbox + action buckets). */
+export function useAllThings() {
   const query = useThings();
-  const items = useMemo<InboxItem[]>(
+  const items = useMemo<Thing[]>(
     () =>
       query.data
-        ?.filter((r) => r.thing["@type"] === "gtd:InboxItem")
-        .map((r) => fromJsonLd(r) as InboxItem) ?? [],
+        ?.filter(
+          (r) =>
+            r.thing["@type"] === "gtd:InboxItem" ||
+            r.thing["@type"] === "gtd:Action",
+        )
+        .map((r) => {
+          const item = fromJsonLd(r);
+          return isThing(item) ? item : undefined;
+        })
+        .filter((x): x is Thing => x !== undefined) ?? [],
     [query.data],
   );
   return { ...query, data: items };
 }
 
+/** Things with bucket="inbox". */
+export function useInboxItems() {
+  const query = useAllThings();
+  const items = useMemo<Thing[]>(
+    () => query.data.filter((t) => t.bucket === "inbox"),
+    [query.data],
+  );
+  return { ...query, data: items };
+}
+
+/** Things with action buckets (next, waiting, calendar, someday). */
 export function useActions() {
-  const query = useThings();
-  const items = useMemo<Action[]>(
-    () =>
-      query.data
-        ?.filter((r) => r.thing["@type"] === "gtd:Action")
-        .map((r) => fromJsonLd(r) as Action) ?? [],
+  const query = useAllThings();
+  const items = useMemo<Thing[]>(
+    () => query.data.filter((t) => t.bucket !== "inbox"),
     [query.data],
   );
   return { ...query, data: items };

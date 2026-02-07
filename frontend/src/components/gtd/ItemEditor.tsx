@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
+import { AutoGrowTextarea } from "@/components/ui/AutoGrowTextarea";
 import type {
   ItemEditableFields,
   Project,
   EnergyLevel,
 } from "@/model/gtd-types";
+import type { CanonicalId } from "@/model/canonical-id";
 
 export interface ItemEditorProps {
   values: ItemEditableFields;
@@ -21,6 +23,7 @@ export function ItemEditor({
   className,
 }: ItemEditorProps) {
   const [contextInput, setContextInput] = useState("");
+  const notesRef = useRef<HTMLTextAreaElement>(null);
 
   const addContext = () => {
     const trimmed = contextInput.trim();
@@ -45,6 +48,28 @@ export function ItemEditor({
         className,
       )}
     >
+      {/* Notes */}
+      <div>
+        <label className="mb-1 flex items-center gap-1 text-xs text-text-muted">
+          <Icon name="description" size={10} />
+          Notes
+        </label>
+        <AutoGrowTextarea
+          ref={notesRef}
+          aria-label="Notes"
+          submitOnEnter={false}
+          defaultValue={values.notes ?? ""}
+          onBlur={(e) => {
+            const val = e.currentTarget.value;
+            if (val !== (values.notes ?? "")) {
+              onChange({ notes: val || undefined });
+            }
+          }}
+          placeholder="Add notes..."
+          className="w-full rounded-[var(--radius-sm)] border border-border bg-surface px-2 py-1 text-xs"
+        />
+      </div>
+
       {/* Project assignment */}
       {projects.length > 0 && (
         <div>
@@ -60,7 +85,9 @@ export function ItemEditor({
             aria-label="Assign to project"
             value={values.projectId ?? ""}
             onChange={(e) =>
-              onChange({ projectId: (e.target.value as any) || undefined })
+              onChange({
+                projectId: (e.target.value as CanonicalId) || undefined,
+              })
             }
             className="w-full rounded-[var(--radius-sm)] border border-border bg-surface px-2 py-1 text-xs"
           >
@@ -88,7 +115,9 @@ export function ItemEditor({
           aria-label="Date"
           type="date"
           value={values.scheduledDate ?? ""}
-          onChange={(e) => onChange({ scheduledDate: e.target.value || undefined })}
+          onChange={(e) =>
+            onChange({ scheduledDate: e.target.value || undefined })
+          }
           className="w-full rounded-[var(--radius-sm)] border border-border bg-surface px-2 py-1 text-xs"
         />
       </div>
@@ -135,6 +164,7 @@ export function ItemEditor({
               }
             }}
             placeholder="@phone, @office..."
+            aria-label="Add label or context"
             className="flex-1 rounded-[var(--radius-sm)] border border-border bg-surface px-2 py-1 text-xs"
           />
           <button

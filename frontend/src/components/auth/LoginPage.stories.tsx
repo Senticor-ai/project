@@ -39,9 +39,7 @@ export const ToggleModes: Story = {
     expect(canvas.getByLabelText("Username")).toBeInTheDocument();
 
     // Switch back to login — click the "Sign in" link (not the heading)
-    await userEvent.click(
-      canvas.getByRole("button", { name: "Sign in" }),
-    );
+    await userEvent.click(canvas.getByRole("button", { name: "Sign in" }));
     expect(canvas.queryByLabelText("Username")).not.toBeInTheDocument();
   },
 };
@@ -50,11 +48,12 @@ export const FillAndSubmitLogin: Story = {
   play: async ({ canvas, userEvent, args }) => {
     await userEvent.type(canvas.getByLabelText("Email"), "test@example.com");
     await userEvent.type(canvas.getByLabelText("Password"), "password123");
-    await userEvent.click(
-      canvas.getByRole("button", { name: "Sign in" }),
-    );
+    await userEvent.click(canvas.getByRole("button", { name: "Sign in" }));
 
-    expect(args.onLogin).toHaveBeenCalledWith("test@example.com", "password123");
+    expect(args.onLogin).toHaveBeenCalledWith(
+      "test@example.com",
+      "password123",
+    );
   },
 };
 

@@ -1,14 +1,8 @@
 import { useCallback } from "react";
 import { BucketView } from "./BucketView";
-import {
-  useInboxItems,
-  useActions,
-  useProjects,
-  useReferences,
-} from "@/hooks/use-things";
+import { useAllThings, useProjects, useReferences } from "@/hooks/use-things";
 import {
   useCaptureInbox,
-  useTriageItem,
   useAddAction,
   useCompleteAction,
   useToggleFocus,
@@ -19,7 +13,7 @@ import {
   useAddProjectAction,
 } from "@/hooks/use-mutations";
 import { Icon } from "@/components/ui/Icon";
-import type { InboxItem, Action, TriageResult } from "@/model/gtd-types";
+import type { ThingBucket, ItemEditableFields } from "@/model/gtd-types";
 import type { CanonicalId } from "@/model/canonical-id";
 import { cn } from "@/lib/utils";
 
@@ -37,13 +31,11 @@ export function ConnectedBucketView({
   onBucketChange,
   className,
 }: ConnectedBucketViewProps) {
-  const inboxQuery = useInboxItems();
-  const actionsQuery = useActions();
+  const thingsQuery = useAllThings();
   const projectsQuery = useProjects();
   const referencesQuery = useReferences();
 
   const captureMutation = useCaptureInbox();
-  const triageMutation = useTriageItem();
   const addActionMutation = useAddAction();
   const completeMutation = useCompleteAction();
   const focusMutation = useToggleFocus();
@@ -54,37 +46,25 @@ export function ConnectedBucketView({
   const addProjectActionMutation = useAddProjectAction();
 
   const isLoading =
-    inboxQuery.isLoading ||
-    actionsQuery.isLoading ||
+    thingsQuery.isLoading ||
     projectsQuery.isLoading ||
     referencesQuery.isLoading;
   const isFetching =
-    inboxQuery.isFetching ||
-    actionsQuery.isFetching ||
+    thingsQuery.isFetching ||
     projectsQuery.isFetching ||
     referencesQuery.isFetching;
   const error =
-    inboxQuery.error ??
-    actionsQuery.error ??
-    projectsQuery.error ??
-    referencesQuery.error;
+    thingsQuery.error ?? projectsQuery.error ?? referencesQuery.error;
 
-  const handleCapture = useCallback(
-    (text: string) => captureMutation.mutate(text),
-    [captureMutation],
-  );
-
-  const handleTriage = useCallback(
-    (item: InboxItem, result: TriageResult) =>
-      triageMutation.mutate({ item, result }),
-    [triageMutation],
-  );
-
-  const handleAddAction = useCallback(
-    (title: string, bucket: Action["bucket"]) => {
-      addActionMutation.mutate({ title, bucket });
+  const handleAddThing = useCallback(
+    (title: string, bucket: ThingBucket) => {
+      if (bucket === "inbox") {
+        captureMutation.mutate(title);
+      } else {
+        addActionMutation.mutate({ title, bucket });
+      }
     },
-    [addActionMutation],
+    [captureMutation, addActionMutation],
   );
 
   const handleComplete = useCallback(
@@ -98,9 +78,14 @@ export function ConnectedBucketView({
   );
 
   const handleMove = useCallback(
-    (id: CanonicalId, bucket: Action["bucket"]) =>
+    (id: CanonicalId, bucket: ThingBucket) =>
       moveMutation.mutate({ canonicalId: id, bucket }),
     [moveMutation],
+  );
+
+  const handleArchive = useCallback(
+    (id: CanonicalId) => archiveRefMutation.mutate(id),
+    [archiveRefMutation],
   );
 
   const handleAddReference = useCallback(
@@ -119,6 +104,12 @@ export function ConnectedBucketView({
         canonicalId: id,
         patch: { title: newTitle },
       }),
+    [updateItemMutation],
+  );
+
+  const handleEditItem = useCallback(
+    (id: CanonicalId, fields: Partial<ItemEditableFields>) =>
+      updateItemMutation.mutate({ canonicalId: id, patch: fields }),
     [updateItemMutation],
   );
 
@@ -147,8 +138,7 @@ export function ConnectedBucketView({
         <p className="mt-2 text-sm text-text-muted">Failed to load data</p>
         <button
           onClick={() => {
-            inboxQuery.refetch();
-            actionsQuery.refetch();
+            thingsQuery.refetch();
           }}
           className="mt-3 rounded-[var(--radius-md)] border border-border px-3 py-1.5 text-xs hover:bg-paper-100"
         >
@@ -169,22 +159,22 @@ export function ConnectedBucketView({
         />
       )}
       <BucketView
-        inboxItems={inboxQuery.data ?? []}
-        actions={actionsQuery.data ?? []}
+        things={thingsQuery.data ?? []}
         referenceItems={referencesQuery.data ?? []}
         projects={projectsQuery.data ?? []}
         requestedBucket={requestedBucket}
         onBucketChange={onBucketChange}
-        onCaptureInbox={handleCapture}
-        onTriageInbox={handleTriage}
-        onAddAction={handleAddAction}
-        onCompleteAction={handleComplete}
+        onAddThing={handleAddThing}
+        onCompleteThing={handleComplete}
         onToggleFocus={handleToggleFocus}
-        onMoveAction={handleMove}
+        onMoveThing={handleMove}
+        onArchiveThing={handleArchive}
+        onEditThing={handleEditItem}
+        onUpdateTitle={handleUpdateTitle}
         onAddReference={handleAddReference}
         onArchiveReference={handleArchiveReference}
         onAddProjectAction={handleAddProjectAction}
-        onUpdateTitle={handleUpdateTitle}
+        onEditReference={handleEditItem}
       />
     </div>
   );

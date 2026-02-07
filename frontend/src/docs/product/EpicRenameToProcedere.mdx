@@ -1,0 +1,198 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Product/Epics/Rename to Procedere" />
+
+# Epic: Rename Project to Procedere
+
+**Status:** Deferred (until MVP is functional)
+**Priority:** Post-MVP
+
+## Context
+
+Another idea: Fluxkron
+Full rebrand from "TerminAndoYo" (TAY) to "Procedere". The "Tay" persona is removed (never shipped). Cookie names, DB names, and k8s namespace all change.
+
+**Design goal:** Centralize the display name so future renames are trivial — one constant per stack, env-overridable per customer.
+
+**Naming conventions:**
+
+- Display: **Procedere** (title case)
+- Technical: **procedere** (lowercase)
+- K8s namespace: **procedere-\{env\}** (e.g. `procedere-dev`)
+
+---
+
+## Phase 1: Frontend (unit tests green throughout)
+
+### 1a. RED — Write tests for centralized app config
+
+Create `frontend/src/lib/app-config.test.ts`:
+
+- Test that `APP_NAME` defaults to `"Procedere"`
+- Test that `APP_NAME` respects `VITE_APP_NAME` env override (mock `import.meta.env`)
+
+Update existing tests:
+
+- `frontend/src/hooks/use-user-preferences.test.ts` — change expected storage key to `"procedere-user-preferences"`
+
+These tests should **fail** at this point (old name still in code).
+
+### 1b. GREEN — Implement centralized app config + rename
+
+1. Create `frontend/src/lib/app-config.ts`:
+
+   ```ts
+   export const APP_NAME = import.meta.env.VITE_APP_NAME ?? "Procedere";
+   ```
+
+2. `frontend/src/App.tsx`:
+   - Import `APP_NAME` from `@/lib/app-config`
+   - `src="/tay-logo.svg"` → `src="/logo.svg"`, `alt="TAY"` → `alt=\{APP_NAME\}`
+   - Hardcoded `terminandoyo` → `\{APP_NAME\}`
+
+3. `frontend/src/components/auth/LoginPage.tsx` — same pattern as App.tsx
+
+4. Rename asset: `frontend/public/tay-logo.svg` → `frontend/public/logo.svg`
+
+5. `frontend/src/hooks/use-user-preferences.ts` — `"tay-user-preferences"` → `"procedere-user-preferences"`
+
+6. `frontend/index.html` — `<title>Procedere</title>`
+
+7. `frontend/package.json` — `"name": "procedere"`, then `npm install` to regen lock
+
+### 1c. VERIFY
+
+```bash
+cd frontend && npx tsc --noEmit
+cd frontend && CI=1 npx vitest run --project=unit
+cd frontend && npx eslint src/
+```
+
+---
+
+## Phase 2: Storybook & E2E (stories render, docs build)
+
+### 2a. RED — Update E2E selectors
+
+- `frontend/e2e/fixtures/auth.fixture.ts` — `text=terminandoyo` → `text=Procedere`
+- `frontend/e2e/tests/nirvana-import.spec.ts` — same
+
+### 2b. GREEN — Update MDX docs and stories
+
+1. `frontend/src/docs/design/DesignPhilosophy.mdx` — `TerminAndoYo (TAY)` → `Procedere`, table refs
+2. `frontend/src/docs/product/ProductVision.mdx` — title, body, remove Tay agent section entirely
+3. Any stories that reference the old name in titles or args
+
+### 2c. VERIFY
+
+```bash
+cd frontend && npx storybook build
+cd frontend && npx tsc --noEmit
+```
+
+---
+
+## Phase 3: Backend (pytest green throughout)
+
+### 3a. RED — Write/update backend tests
+
+- `backend/tests/test_auth_refresh.py` — cookie name `"terminandoyo_session"` → `"procedere_session"`
+- `backend/tests/conftest.py` — DB defaults `"terminandoyo"` → `"procedere"`
+- Add a new test in config tests that asserts `settings.app_name` exists and defaults to `"Procedere"`
+
+### 3b. GREEN — Implement backend rename
+
+1. `backend/app/config.py`:
+   - Add `app_name: str` field to `Settings`
+   - In `load_settings()`: `app_name=_get_env("APP_NAME", "Procedere") or "Procedere"`
+   - DB user default: `"terminandoyo"` → `"procedere"`
+   - DB name default: `"terminandoyo"` → `"procedere"`
+   - Cookie defaults: `terminandoyo_*` → `procedere_*`
+
+2. `backend/app/main.py` — `title="TerminAndoYo API"` → `title=f"\{settings.app_name\} API"`
+
+3. `backend/pyproject.toml` — `name = "procedere-backend"`, then `uv lock`
+
+### 3c. VERIFY
+
+```bash
+cd backend && uv run ruff check .
+cd backend && uv run mypy app/
+cd backend && uv run python -m pytest
+```
+
+---
+
+## Phase 4: Config & Infrastructure (no runtime tests, manual verify)
+
+### 4a. Environment files
+
+- `.env.example` — cookie names `terminandoyo_*` → `procedere_*`, add `APP_NAME=Procedere` and `VITE_APP_NAME=Procedere`
+- `.env` (local) — update DB user, DB name, DATABASE_URL, cookie names
+
+### 4b. Docker
+
+- `infra/docker-compose.yml` — defaults `terminandoyo` → `procedere`
+
+### 4c. Kubernetes (environment-aware)
+
+All files in `infra/k8s/minimal/` — namespace `terminandoyo` → `procedere-dev`, images `terminandoyo-*` → `procedere-*`:
+namespace.yaml, configmap.yaml, secret.yaml, postgres.yaml, backend.yaml, frontend.yaml, pvc-backend-files.yaml, ingress.yaml, job-db-init.yaml
+
+### 4d. Documentation
+
+- `README.md` — title, DB examples
+- `CONTRIBUTING.md` — project name
+- `backend/README.md` — cookie name examples
+- `infra/k8s/README.md` — cluster name, image names, namespace commands (→ `procedere-dev`)
+
+### 4e. Project meta
+
+- `.claude/projects/` MEMORY.md — update all "TerminAndoYo"/"TAY"/"Tay" → "Procedere"
+
+### 4f. VERIFY
+
+```bash
+# Final sweep for stale references
+grep -ri "terminandoyo|TerminAndoYo|tay-logo" \
+  --include="*.ts" --include="*.tsx" --include="*.py" \
+  --include="*.yaml" --include="*.md" --include="*.mdx" \
+  --include="*.toml" --include="*.html" .
+# Expected: no matches (except auto-generated files)
+```
+
+---
+
+## Phase 5: Manual steps (outside repo)
+
+- Rename directory: `mv ~/workspace/terminandoyo ~/workspace/procedere`
+- Rename GitHub repo via settings (if applicable)
+- Recreate local PostgreSQL database + user as `procedere`
+- Claude Code project memory auto-recreates after folder rename
+
+---
+
+## Future rename coverage
+
+| What                     | Protected by                                            |
+| ------------------------ | ------------------------------------------------------- |
+| Display name consistency | `app-config.test.ts` asserts `APP_NAME` default         |
+| Backend app name         | pytest asserts `settings.app_name`                      |
+| Cookie names             | `test_auth_refresh.py` asserts cookie names from config |
+| Storage key              | `use-user-preferences.test.ts` asserts key string       |
+| E2E login flow           | `auth.fixture.ts` waits for display name text           |
+| Storybook/MDX build      | `storybook build` catches broken doc references         |
+
+To rename in the future: change `APP_NAME` default in `app-config.ts` + `config.py`, update package names, run test suite, fix any failures.
+
+---
+
+## Files touched (~35 files)
+
+**Frontend:** `package.json`, `index.html`, `src/lib/app-config.ts` (new), `src/App.tsx`, `src/components/auth/LoginPage.tsx`, `src/hooks/use-user-preferences.ts`, `src/hooks/use-user-preferences.test.ts`, `src/docs/design/DesignPhilosophy.mdx`, `src/docs/product/ProductVision.mdx`, `public/tay-logo.svg` → `public/logo.svg`, `e2e/fixtures/auth.fixture.ts`, `e2e/tests/nirvana-import.spec.ts`
+
+**Backend:** `app/config.py`, `app/main.py`, `pyproject.toml`, `tests/conftest.py`, `tests/test_auth_refresh.py`
+
+**Config/Infra:** `.env.example`, `.env`, `infra/docker-compose.yml`, 9 k8s manifest files
+
+**Docs:** `README.md`, `CONTRIBUTING.md`, `backend/README.md`, `infra/k8s/README.md`

@@ -1,7 +1,7 @@
 import type { ThingRecord } from "./api-client";
 import type {
-  InboxItem,
-  Action,
+  Thing,
+  ThingBucket,
   Project,
   ReferenceMaterial,
   GtdItem,
@@ -28,14 +28,29 @@ const TYPE_MAP = {
   reference: "gtd:Reference",
 } as const;
 
-type JsonLdType = (typeof TYPE_MAP)[keyof typeof TYPE_MAP];
-
 // ---------------------------------------------------------------------------
 // toJsonLd — Frontend GTD entity → JSON-LD dict for the backend
 // ---------------------------------------------------------------------------
 
+function serializeThingFields(
+  result: Record<string, unknown>,
+  thing: Thing,
+): void {
+  result.contexts = thing.contexts;
+  result.projectId = thing.projectId ?? null;
+  result.delegatedTo = thing.delegatedTo ?? null;
+  result.scheduledDate = thing.scheduledDate ?? null;
+  result.scheduledTime = thing.scheduledTime ?? null;
+  result.dueDate = thing.dueDate ?? null;
+  result.startDate = thing.startDate ?? null;
+  result.isFocused = thing.isFocused;
+  result.recurrence = thing.recurrence ?? null;
+  result.completedAt = thing.completedAt ?? null;
+  result.sequenceOrder = thing.sequenceOrder ?? null;
+}
+
 export function toJsonLd(
-  item: InboxItem | Action | Project | ReferenceMaterial,
+  item: Thing | Project | ReferenceMaterial,
 ): Record<string, unknown> {
   const base: Record<string, unknown> = {
     "@id": item.id,
@@ -54,7 +69,8 @@ export function toJsonLd(
 
   if (item.bucket === "inbox") {
     base["@type"] = TYPE_MAP.inbox;
-    base.rawCapture = (item as InboxItem).rawCapture;
+    base.rawCapture = (item as Thing).rawCapture ?? (item as Thing).title;
+    serializeThingFields(base, item as Thing);
   } else if (
     item.bucket === "next" ||
     item.bucket === "waiting" ||
@@ -62,18 +78,7 @@ export function toJsonLd(
     item.bucket === "someday"
   ) {
     base["@type"] = TYPE_MAP.action;
-    const action = item as Action;
-    base.contexts = action.contexts;
-    base.projectId = action.projectId ?? null;
-    base.delegatedTo = action.delegatedTo ?? null;
-    base.scheduledDate = action.scheduledDate ?? null;
-    base.scheduledTime = action.scheduledTime ?? null;
-    base.dueDate = action.dueDate ?? null;
-    base.startDate = action.startDate ?? null;
-    base.isFocused = action.isFocused;
-    base.recurrence = action.recurrence ?? null;
-    base.completedAt = action.completedAt ?? null;
-    base.sequenceOrder = action.sequenceOrder ?? null;
+    serializeThingFields(base, item as Thing);
   } else if (item.bucket === "project") {
     base["@type"] = TYPE_MAP.project;
     const project = item as Project;
@@ -123,9 +128,24 @@ export function fromJsonLd(record: ThingRecord): GtdItem {
     confidence: (t.confidence as "high" | "medium" | "low") ?? "low",
   };
 
+  const thingFields = {
+    contexts: (t.contexts as CanonicalId[]) ?? [],
+    projectId: (t.projectId as CanonicalId) || undefined,
+    delegatedTo: (t.delegatedTo as string) || undefined,
+    scheduledDate: (t.scheduledDate as string) || undefined,
+    scheduledTime: (t.scheduledTime as string) || undefined,
+    dueDate: (t.dueDate as string) || undefined,
+    startDate: (t.startDate as string) || undefined,
+    isFocused: (t.isFocused as boolean) ?? false,
+    recurrence: t.recurrence as Thing["recurrence"],
+    completedAt: (t.completedAt as string) || undefined,
+    sequenceOrder: (t.sequenceOrder as number) || undefined,
+  };
+
   if (type === TYPE_MAP.inbox) {
     return {
       ...base,
+      ...thingFields,
       bucket: "inbox" as const,
       rawCapture: (t.rawCapture as string) ?? base.title,
     };
@@ -134,18 +154,9 @@ export function fromJsonLd(record: ThingRecord): GtdItem {
   if (type === TYPE_MAP.action) {
     return {
       ...base,
-      bucket: (t.bucket as Action["bucket"]) ?? "next",
-      contexts: (t.contexts as CanonicalId[]) ?? [],
-      projectId: (t.projectId as CanonicalId) || undefined,
-      delegatedTo: (t.delegatedTo as string) || undefined,
-      scheduledDate: (t.scheduledDate as string) || undefined,
-      scheduledTime: (t.scheduledTime as string) || undefined,
-      dueDate: (t.dueDate as string) || undefined,
-      startDate: (t.startDate as string) || undefined,
-      isFocused: (t.isFocused as boolean) ?? false,
-      recurrence: t.recurrence as Action["recurrence"],
-      completedAt: (t.completedAt as string) || undefined,
-      sequenceOrder: (t.sequenceOrder as number) || undefined,
+      ...thingFields,
+      bucket: (t.bucket as Exclude<ThingBucket, "inbox">) ?? "next",
+      rawCapture: (t.rawCapture as string) || undefined,
     };
   }
 
@@ -175,6 +186,7 @@ export function fromJsonLd(record: ThingRecord): GtdItem {
   // Fallback: treat unknown types as inbox items
   return {
     ...base,
+    ...thingFields,
     bucket: "inbox" as const,
     rawCapture: (t.rawCapture as string) ?? base.title,
   };
@@ -185,7 +197,7 @@ export function fromJsonLd(record: ThingRecord): GtdItem {
 // ---------------------------------------------------------------------------
 
 export function buildTriagePatch(
-  item: InboxItem,
+  item: Thing,
   result: TriageResult,
 ): Record<string, unknown> {
   if (result.targetBucket === "reference") {
@@ -197,10 +209,13 @@ export function buildTriagePatch(
     };
   }
 
-  // All other triage targets produce an Action — include all required fields
-  // so the deep-merge with the existing InboxItem produces a valid Action.
+  // All other triage targets produce an action Thing — include all required fields
+  // so the deep-merge with the existing inbox Thing produces a valid action.
   const ports = result.energyLevel
-    ? [...(item.ports ?? []), { kind: "computation", energyLevel: result.energyLevel }]
+    ? [
+        ...(item.ports ?? []),
+        { kind: "computation", energyLevel: result.energyLevel },
+      ]
     : (item.ports ?? []);
 
   return {

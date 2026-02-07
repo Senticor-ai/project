@@ -115,6 +115,78 @@ export const RapidEntry: Story = {
   },
 };
 
+/** Toggle archived references visible/hidden. */
+export const ToggleArchivedInteractive: Story = {
+  render: function ToggleArchived() {
+    const [refs] = useState<ReferenceMaterial[]>([
+      createReferenceMaterial({ title: "Active ref one" }),
+      createReferenceMaterial({ title: "Active ref two" }),
+      createReferenceMaterial({
+        title: "Archived ref one",
+        provenance: {
+          createdAt: "2025-04-01T10:00:00Z",
+          updatedAt: "2025-04-01T10:00:00Z",
+          archivedAt: "2025-06-01T10:00:00Z",
+          history: [{ timestamp: "2025-04-01T10:00:00Z", action: "created" }],
+        },
+      }),
+      createReferenceMaterial({
+        title: "Archived ref two",
+        provenance: {
+          createdAt: "2025-03-01T10:00:00Z",
+          updatedAt: "2025-03-01T10:00:00Z",
+          archivedAt: "2025-05-15T10:00:00Z",
+          history: [{ timestamp: "2025-03-01T10:00:00Z", action: "created" }],
+        },
+      }),
+    ]);
+
+    return (
+      <ReferenceList
+        references={refs}
+        onAdd={fn()}
+        onArchive={fn()}
+        onSelect={fn()}
+      />
+    );
+  },
+  play: async ({ canvas, userEvent, step }) => {
+    // Default: archived items hidden
+    await expect(canvas.getByText("Active ref one")).toBeInTheDocument();
+    await expect(canvas.getByText("Active ref two")).toBeInTheDocument();
+    await expect(
+      canvas.queryByText("Archived ref one"),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.queryByText("Archived ref two"),
+    ).not.toBeInTheDocument();
+    await expect(canvas.getByText("2 references")).toBeInTheDocument();
+
+    await step("Show archived", async () => {
+      await userEvent.click(canvas.getByLabelText("Show archived"));
+    });
+
+    // Archived items now visible
+    await expect(canvas.getByText("Archived ref one")).toBeInTheDocument();
+    await expect(canvas.getByText("Archived ref two")).toBeInTheDocument();
+    await expect(canvas.getByText("2 archived")).toBeInTheDocument();
+    await expect(canvas.getByText("(+2 archived)")).toBeInTheDocument();
+
+    await step("Hide archived", async () => {
+      await userEvent.click(canvas.getByLabelText("Hide archived"));
+    });
+
+    // Back to hidden
+    await expect(
+      canvas.queryByText("Archived ref one"),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.queryByText("Archived ref two"),
+    ).not.toBeInTheDocument();
+    await expect(canvas.getByText("2 references")).toBeInTheDocument();
+  },
+};
+
 /** Archive a reference item — it disappears from the list. */
 export const ArchiveFromList: Story = {
   render: function ArchiveDemo() {

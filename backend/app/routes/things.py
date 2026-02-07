@@ -85,6 +85,10 @@ def _build_thing_response(row) -> ThingResponse:
     )
 
 
+def _dump_response_model(payload) -> dict:
+    return payload.model_dump(mode="json", by_alias=True)
+
+
 def _deep_merge(base: dict, patch: dict) -> dict:
     merged = dict(base)
     for key, value in patch.items():
@@ -198,7 +202,7 @@ def list_things(
 
     response = [_build_thing_response(row) for row in rows]
     return JSONResponse(
-        content=[item.model_dump() for item in response],
+        content=[_dump_response_model(item) for item in response],
         headers={"ETag": etag, "Last-Modified": last_modified},
     )
 
@@ -328,7 +332,7 @@ def sync_things(
     )
 
     return JSONResponse(
-        content=response.model_dump(),
+        content=response.model_dump(mode="json"),
         headers={"ETag": etag, "Last-Modified": last_modified},
     )
 
@@ -376,7 +380,7 @@ def get_thing(
 
     payload = _build_thing_response(row)
     return JSONResponse(
-        content=payload.model_dump(),
+        content=_dump_response_model(payload),
         headers={"ETag": etag, "Last-Modified": last_modified},
     )
 
@@ -414,10 +418,11 @@ def update_thing(
 ):
     org_id = current_org["org_id"]
     if idempotency_key:
+        request_payload = payload.model_dump(mode="json", by_alias=True, exclude_unset=True)
         request_hash = compute_request_hash(
             "PATCH",
             f"/things/{thing_id}",
-            payload.model_dump(),
+            request_payload,
         )
         cached = get_idempotent_response(org_id, idempotency_key, request_hash)
         if cached:
@@ -448,10 +453,12 @@ def update_thing(
     if existing is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thing not found")
 
-    if "@id" in payload.thing and payload.thing["@id"] != existing["canonical_id"]:
+    patch_payload = payload.thing.model_dump(mode="json", by_alias=True, exclude_unset=True)
+
+    if "@id" in patch_payload and patch_payload["@id"] != existing["canonical_id"]:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="@id cannot be changed")
 
-    merged = _deep_merge(existing["schema_jsonld"], payload.thing)
+    merged = _deep_merge(existing["schema_jsonld"], patch_payload)
     merged_id = merged.get("@id")
     if merged_id is None:
         merged["@id"] = existing["canonical_id"]
@@ -515,12 +522,12 @@ def update_thing(
             org_id,
             idempotency_key,
             request_hash,
-            response.model_dump(),
+            _dump_response_model(response),
             status.HTTP_200_OK,
         )
 
     return JSONResponse(
-        content=response.model_dump(),
+        content=_dump_response_model(response),
         status_code=status.HTTP_200_OK,
         headers={
             "ETag": _build_etag([row["content_hash"]]),
@@ -606,7 +613,11 @@ def create_thing(
 ):
     org_id = current_org["org_id"]
     if idempotency_key:
-        request_hash = compute_request_hash("POST", "/things", payload.model_dump())
+        request_hash = compute_request_hash(
+            "POST",
+            "/things",
+            payload.model_dump(mode="json", by_alias=True),
+        )
         cached = get_idempotent_response(org_id, idempotency_key, request_hash)
         if cached:
             return JSONResponse(
@@ -614,7 +625,7 @@ def create_thing(
                 status_code=cached["status_code"],
             )
 
-    thing = payload.thing
+    thing = payload.thing.model_dump(mode="json", by_alias=True)
     canonical_id = thing.get("@id")
     if not canonical_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="@id is required")
@@ -688,11 +699,11 @@ def create_thing(
                             org_id,
                             idempotency_key,
                             request_hash,
-                            response.model_dump(),
+                            _dump_response_model(response),
                             status.HTTP_200_OK,
                         )
                     return JSONResponse(
-                        content=response.model_dump(),
+                        content=_dump_response_model(response),
                         status_code=status.HTTP_200_OK,
                         headers={
                             "ETag": _build_etag([existing["content_hash"]]),
@@ -702,7 +713,7 @@ def create_thing(
 
                 conflict_payload = {
                     "detail": "Conflict: canonical_id already exists",
-                    "existing": _build_thing_response(existing).model_dump(),
+                    "existing": _dump_response_model(_build_thing_response(existing)),
                 }
                 if idempotency_key:
                     store_idempotent_response(
@@ -731,12 +742,12 @@ def create_thing(
             org_id,
             idempotency_key,
             request_hash,
-            response.model_dump(),
+            _dump_response_model(response),
             status.HTTP_201_CREATED,
         )
 
     return JSONResponse(
-        content=response.model_dump(),
+        content=_dump_response_model(response),
         status_code=status.HTTP_201_CREATED,
         headers={
             "ETag": _build_etag([row["content_hash"]]),

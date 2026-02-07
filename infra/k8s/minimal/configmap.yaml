@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: terminandoyo
+data:
+  POSTGRES_DB: terminandoyo
+  POSTGRES_USER: terminandoyo
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: "5432"
+  CORS_ORIGINS: http://localhost:8080,http://127.0.0.1:8080
+  SESSION_COOKIE_SECURE: "false"
+  SESSION_COOKIE_SAMESITE: lax
+  SESSION_BIND_IP: "false"
+  TRUST_PROXY_HEADERS: "true"
+  CSRF_ENABLED: "false"
+  FILE_STORAGE_PATH: /data/storage
+  LOG_FORMAT: console

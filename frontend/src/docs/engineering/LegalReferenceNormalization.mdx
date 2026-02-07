@@ -1,0 +1,296 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Engineering/Legal Reference Normalization" />
+
+# Legal Reference Normalization for German Law
+
+> Translated from the German position paper
+> (_Positionspapier: Rechtsreferenz-Normalisierung f&uuml;r den deutschen Rechtsraum_).
+> German legal terms and examples are preserved for precision.
+
+Germany lacks a unified, machine-readable infrastructure for legal references. This
+makes AI-powered legal information systems practically impossible, costs thousands
+of work hours daily, and prevents equal access to structured legal information.
+This paper proposes an open, community-maintained data product — funded and supported
+by public institutions, academia, and the legal tech sector.
+
+For how this normalization scheme maps to canonical IDs in TAY, see
+[Data Model](?path=/docs/engineering-data-model--docs).
+For the FRBR hierarchy that organizes document identity, see
+[FRBR Architecture](?path=/docs/engineering-frbr-architecture--docs).
+For typed cross-references, see
+[LexCEL Architecture](?path=/docs/engineering-lexcel-architecture--docs).
+
+---
+
+## The Problem: Why AI Systems Fail with German Law
+
+### Problem 1: Inconsistent Citation Formats
+
+The same norm is cited in different ways:
+
+- `SGB III`, `SGB 3`, `Drittes Buch Sozialgesetzbuch`
+- `&sect; 159 Abs. 1 S. 2`, `&sect;159 Absatz 1 Satz 2`, `&sect; 159 I 2`
+
+**Impact**:
+
+- **For lawyers**: Systematic research is difficult; manual follow-up costs 30-45 minutes per complex case
+- **For AI systems**: No search engine reliably finds all variants; automated reference resolution fails
+- **For citizens**: Different representations across portals cause confusion
+
+### Problem 2: Ambiguous References Without Explicit Context
+
+Verwaltungsvorschriften (administrative guidelines), Weisungen (directives), and
+court decisions often reference incompletely:
+
+> _"Die Aufhebung nach &sect; 44 Absatz 2 ist nur zul&auml;ssig..."_
+> ("The revocation under &sect; 44 para. 2 is only permissible...")
+
+This means &sect; 44 SGB X (revocation of favorable administrative acts). But &sect; 44
+exists in SGB I (duty to cooperate), SGB III (benefit restrictions), SGB V, VI, VII...
+— each with entirely different content.
+
+**Legal context is implicit**: Humans infer from "Aufhebung" + "beg&uuml;nstigend" &rarr; SGB X.
+Machines need structured context information or disambiguation strategies with
+confidence scores.
+
+### Problem 3: Missing Validity Information and Versioning
+
+Laws change constantly, but:
+
+- No machine-readable metadata for validity status (`eli:in_force`),
+  entry into force (`eli:date_applicability`)
+- Repealed norms (`(weggefallen)`) are still cited in legacy documents
+- AI systems cannot distinguish whether a norm is currently valid or repealed
+
+**Risk**: Erroneous legal application through reliance on outdated/repealed norms.
+Particularly critical for AI chatbots without structured validation.
+
+### Problem 4: Missing Central Term Definitions
+
+Central legal concepts are defined differently across laws — without a central,
+machine-readable terminology register:
+
+**Example "Arbeitslosigkeit" (unemployment)**:
+
+- **SGB III &sect; 119**: Definition for unemployment benefits (availability,
+  job-seeking efforts, registration)
+- **SGB II &sect; 7**: Different definition for basic income support (employability,
+  need for assistance)
+
+Different criteria lead to different legal consequences. Lawyers know from experience
+which definition applies in which context. **AI systems cannot distinguish without
+structured typing.**
+
+---
+
+## Infrastructure Gaps
+
+The German legal information system suffers from a fundamental structural gap,
+describable using the **FRBR model** (Functional Requirements for Bibliographic Records):
+
+| FRBR Level        | Description                     | Example                                    |
+| ----------------- | ------------------------------- | ------------------------------------------ |
+| **Work**          | A law as an abstract idea       | "Bundesreisekostengesetz (BRKG)"           |
+| **Expression**    | A version with amendment status | "BRKG i.d.F. vom 28.6.2021"                |
+| **Manifestation** | Concrete publication form       | Bundesanzeiger, Gesetze-im-Internet, juris |
+
+**The gaps**:
+
+1. **Bundesanzeiger** (official source): No API, no structured data, no machine readability
+2. **Gesetze-im-Internet** (BMJV): XML files available, but without canonical URN/ELI
+   identifiers or machine-readable reference structures
+3. **Commercial databases** (juris, beck-online): Proprietary, expensive, incompatible.
+   Vendor lock-in prevents interoperability
+4. **XÖV standards** (IT-Planungsrat): Good intentions with XJustiz, but no
+   widespread implementation or canonical URNs in practice
+
+### Format Fragmentation
+
+Every jurisdictional level uses different formats without shared structure:
+
+- **Federal laws** (Gesetze-im-Internet): XML available but inconsistently structured
+- **Verwaltungsvorschriften** (BA-Weisungen): Markdown without standardized structure.
+  Measured: 56% more LLM processing overhead due to missing structure
+- **16 L&auml;nder** (federal states): Each operates its own legal portal with its own format
+
+**Multiplier effect**: Not one problem, but 17+ different implementations (federal +
+16 states) that must each be solved individually.
+
+### ID System Chaos
+
+Germany uses **multiple competing identification systems** for legal norms — without
+central mapping or translation service:
+
+| ID System                                            | Status                                                                        |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------- |
+| **ELI** (European Legislation Identifier)            | EU-wide standard, not consistently implemented in Germany                     |
+| **NorM-ID**                                          | Planned German norm identifier (discussed since 2019), not yet operational    |
+| **XML-IDs** (Gesetze-im-Internet)                    | Internal identifiers, not persistent across changes                           |
+| **Proprietary IDs** (juris, beck-online, lexisnexis) | Mutually incompatible                                                         |
+| **No IDs**                                           | Verwaltungsvorschriften and BA-Weisungen often have no persistent identifiers |
+
+**What's missing**: A central, publicly maintained registry that maps between ID
+systems — analogous to ISSNs and ISBNs in library science.
+
+---
+
+## Canonical URN/ELI Identifiers
+
+**Principle**: Every legal norm receives a unique, human-readable URN following
+ELI principles.
+
+**Examples**:
+
+```
+urn:de:sgb:3:159                    # § 159 SGB III
+urn:de:sgb:3:159:1                  # § 159 Absatz 1
+urn:de:sgb:3:159:1:2                # § 159 Abs. 1 Satz 2
+urn:de:sgb:3:159:1:2:1              # § 159 Abs. 1 Satz 2 Nr. 1
+```
+
+**Normalization rules**:
+
+- Roman &rarr; Arabic numerals (`SGB III` &rarr; `sgb:3`)
+- Remove year suffixes (`BRKG 2005` &rarr; `brkg`, see Year Suffix section)
+- Unicode harmonization, whitespace normalization
+- Letter suffixes supported (`&sect; 54a` &rarr; `54a`)
+
+**Benefit**: Regardless of citation format in the source text, the system identifies the
+intended norm.
+
+---
+
+## 5-Level Disambiguation with Confidence Scores
+
+| Strategy                          | Confidence | Example                                                                     |
+| --------------------------------- | ---------- | --------------------------------------------------------------------------- |
+| **1. Explicit match**             | 0.95       | "&sect; 159 SGB III" &rarr; direct resolution                               |
+| **2. Same-document inference**    | 0.90       | Reference within SGB III without law name &rarr; infer from source document |
+| **3. Context window analysis**    | 0.85       | "&sect; 159" + context "Sperrzeit" + "SGB III" nearby &rarr; SGB III        |
+| **4. Domain scope inference**     | 0.85       | BA-Weisung with scope "SGB III" &rarr; infer incomplete references          |
+| **5. Statistical prioritization** | 0.70-0.80  | "&sect; 44 Abs. 2" &rarr; most frequent in case law: SGB X                  |
+
+**Fallback**: When confidence &lt; 0.90, a placeholder node is created with candidates
+and context for later resolution.
+
+---
+
+## Intelligent Placeholders and Versioning
+
+### Placeholder System
+
+Unresolvable references are stored as structured placeholders:
+
+- Candidates with scores (`urn:de:sgb:10:44:2` &rarr; 50%, `urn:de:sgb:3:44:2` &rarr; 30%)
+- Context information for later LLM-based resolution
+- Automatic merging when missing documents are loaded
+
+### Validity Status (per ELI)
+
+```json
+{
+  "@id": "urn:de:sgb:3:159",
+  "eli:in_force": true,
+  "eli:date_publication": "1997-03-24",
+  "eli:last_modified": "2024-11-01",
+  "eli:version": "2024-11-01",
+  "lc:repealed": false
+}
+```
+
+### Year Suffix Special Case
+
+**Problem**: Laws like `BRKG 2005`, `AufenthG 2004` have year suffixes in their titles
+(year of enactment), but references in the text use only the abbreviation (`&sect; 4 BRKG`).
+
+```
+XML metadata:     <jurabk>BRKG 2005</jurabk>
+Generated IRI:    urn:de:brkg:2005:5  ← Year interpreted as "book number"!
+Reference in text: "§ 4 BRKG"
+Expected IRI:     urn:de:brkg:4
+→ Mismatch! Internal references not resolvable (100% orphaned)
+```
+
+**Solution**: Regex-based year suffix removal before IRI construction:
+
+```javascript
+normalized = normalized.replace(/\s+\d{4}$/, ""); // "BRKG 2005" → "BRKG"
+```
+
+**Result**: ~100% resolution of internal references (previously: 0%).
+
+---
+
+## Practical Reality: PoC Measurements
+
+Measurements from an actual proof-of-concept reveal the scale of these challenges:
+
+**Reference resolution is complex** — despite 5 strategies, ~20% remain unresolved.
+Not due to technical shortcomings, but because source documents are structurally
+ambiguous.
+
+**Scaling is resource-intensive**:
+
+- SGB III + 10 BA-Weisungen: 349 nodes needing LLM enrichment &rarr; 5-10 min processing
+- Full catalog (all SGB books + all Weisungen): estimated hours to days
+- Cost: ~\$100+ for 10,000 Weisungen without optimization; ~\$80 with optimization
+  (56% reduction in LLM calls through document-level skipping and metadata filtering)
+
+**Cross-document references require namespace translation**:
+
+- Weisung IRI: `urn:de:ba:weisung:202511001:section:0`
+- Statute IRI: `urn:de:sgb:3:159`
+- Solution: manual scope metadata propagation — each Weisung must be annotated with
+  its application scope
+
+> "The biggest surprise was not the technical complexity — but the realization that
+> German legal texts are structurally optimized for human readers, not for machines."
+
+---
+
+## Roadmap
+
+| Phase                   | Timeframe   | Scope                                                                                  |
+| ----------------------- | ----------- | -------------------------------------------------------------------------------------- |
+| **Foundation**          | Months 1-6  | PoC successful (SGB III, BA-Weisungen, >85% confidence). Extend to SGB I, II, X        |
+| **Expansion**           | Months 7-12 | Further SGB books (IV-XII), BGB, StGB. First state as pilot. REST-API, SPARQL endpoint |
+| **Professionalization** | Year 2      | All federal laws (~2,000). 3-5 states. ML models for automatic extraction              |
+| **Sustainability**      | Year 3+     | Complete coverage federal + state. Historical versions. EU law integration             |
+
+### Proposed Data Product Components
+
+1. **Open Data Hub**: All federal laws with canonical URNs. Format: JSON-LD, RDF/Turtle,
+   Parquet (for ML). Hosting: Hugging Face Data Hub
+2. **Schemata and Validation**: JSON-Schema, SHACL shapes, CI/CD quality checks
+3. **Test Suites and Benchmarks**: Legally verified reference cases (edge cases,
+   ambiguous references)
+4. **Tools and APIs**: Python/JavaScript libraries for IRI normalization, SPARQL
+   endpoint, REST-API
+
+---
+
+## Impact
+
+**For public administration**:
+
+- 30-40% time savings in case processing
+- Error reduction through structured references
+- E-Justice integration
+
+**For legal tech**:
+
+- Market access without months of data acquisition
+- Interoperability through shared standards
+- Level playing field instead of vendor lock-in
+
+**For research**:
+
+- Empirical legal research (citation networks, comparative law)
+- Reproducible research on a unified data basis
+
+**For citizens**:
+
+- Transparent, interconnected legal information
+- Free access
+- Reduction of AI hallucinations through structured data

@@ -7,7 +7,9 @@ function createFile(name: string, size: number, type: string): File {
   return new File([content], name, { type });
 }
 
-function createDropEvent(files: File[]): { dataTransfer: { files: File[]; types: string[] } } {
+function createDropEvent(files: File[]): {
+  dataTransfer: { files: File[]; types: string[] };
+} {
   return {
     dataTransfer: {
       files,
@@ -84,7 +86,11 @@ describe("FileDropZone", () => {
     render(<FileDropZone onFilesDropped={onFilesDropped} maxSizeMb={1} />);
     const zone = screen.getByTestId("file-drop-zone");
 
-    const largeFile = createFile("huge.pdf", 2 * 1024 * 1024, "application/pdf");
+    const largeFile = createFile(
+      "huge.pdf",
+      2 * 1024 * 1024,
+      "application/pdf",
+    );
     fireEvent.drop(zone, createDropEvent([largeFile]));
 
     expect(onFilesDropped).not.toHaveBeenCalled();
@@ -105,7 +111,9 @@ describe("FileDropZone", () => {
     fireEvent.drop(zone, createDropEvent([wrongFile]));
 
     expect(onFilesDropped).not.toHaveBeenCalled();
-    expect(screen.getByText(/photo\.png.*type not allowed/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/photo\.png.*type not allowed/),
+    ).toBeInTheDocument();
   });
 
   it("supports wildcard type matching", () => {
@@ -130,7 +138,11 @@ describe("FileDropZone", () => {
     render(<FileDropZone onFilesDropped={onFilesDropped} maxSizeMb={1} />);
     const zone = screen.getByTestId("file-drop-zone");
 
-    const largeFile = createFile("huge.pdf", 2 * 1024 * 1024, "application/pdf");
+    const largeFile = createFile(
+      "huge.pdf",
+      2 * 1024 * 1024,
+      "application/pdf",
+    );
     fireEvent.drop(zone, createDropEvent([largeFile]));
 
     expect(screen.getByText(/huge\.pdf.*too large/)).toBeInTheDocument();

@@ -61,6 +61,9 @@ CORS_ORIGINS=http://localhost:5173,http://localhost:6006
 
 FILE_STORAGE_PATH=storage
 UPLOAD_CHUNK_SIZE=5242880
+IMPORT_JOB_QUEUE_TIMEOUT_SECONDS=300
+OUTBOX_WORKER_POLL_SECONDS=1.0
+PUSH_WORKER_POLL_SECONDS=1.0
 
 VAPID_PUBLIC_KEY=<your-vapid-public-key>
 VAPID_PRIVATE_KEY=<your-vapid-private-key>
@@ -137,7 +140,7 @@ uv run uvicorn app.main:app --reload --port 8000
 
 ```
 cd backend
-uv run python -m app.worker
+uv run python -m app.worker --loop --interval 1 --batch-size 25
 ```
 
 ## Reindex Search
@@ -167,7 +170,7 @@ success or failure.
 
 ```
 cd backend
-uv run python -m app.push_worker
+uv run python -m app.push_worker --loop --interval 1 --batch-size 10
 ```
 
 ## Code Hygiene
@@ -258,6 +261,11 @@ uploads for a blob store without changing the client contract.
 - `GET /files/{file_id}` (ETags)
 - `GET /files/{file_id}/meta` (ETags)
 - `GET /files/{file_id}/index-status`
+- `POST /imports/nirvana` (sync bulk import, supports `dry_run=true`)
+- `POST /imports/nirvana/inspect` (validate uploaded file)
+- `POST /imports/nirvana/from-file` (queue async import job)
+- `GET /imports/jobs` (list current user's jobs; filter with `?status=queued&status=running`)
+- `GET /imports/jobs/{job_id}` (single job status for current user)
 - `GET /search` (Meilisearch-backed)
 - `GET /search/ocr-config`
 - `PUT /search/ocr-config`

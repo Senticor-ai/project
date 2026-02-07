@@ -21,11 +21,7 @@ describe("FilePreviewCard", () => {
   it("renders file name", () => {
     const file = createFile("report.pdf", 2048, "application/pdf");
     render(
-      <FilePreviewCard
-        file={file}
-        onConfirm={vi.fn()}
-        onDiscard={vi.fn()}
-      />,
+      <FilePreviewCard file={file} onConfirm={vi.fn()} onDiscard={vi.fn()} />,
     );
     expect(screen.getByText("report.pdf")).toBeInTheDocument();
   });
@@ -33,11 +29,7 @@ describe("FilePreviewCard", () => {
   it("renders formatted file size", () => {
     const file = createFile("doc.pdf", 1536 * 1024, "application/pdf");
     render(
-      <FilePreviewCard
-        file={file}
-        onConfirm={vi.fn()}
-        onDiscard={vi.fn()}
-      />,
+      <FilePreviewCard file={file} onConfirm={vi.fn()} onDiscard={vi.fn()} />,
     );
     expect(screen.getByText("1.5 MB")).toBeInTheDocument();
   });
@@ -45,11 +37,7 @@ describe("FilePreviewCard", () => {
   it("renders KB for small files", () => {
     const file = createFile("small.txt", 2048, "text/plain");
     render(
-      <FilePreviewCard
-        file={file}
-        onConfirm={vi.fn()}
-        onDiscard={vi.fn()}
-      />,
+      <FilePreviewCard file={file} onConfirm={vi.fn()} onDiscard={vi.fn()} />,
     );
     expect(screen.getByText("2.0 KB")).toBeInTheDocument();
   });
@@ -57,11 +45,7 @@ describe("FilePreviewCard", () => {
   it("pre-fills title with filename without extension", () => {
     const file = createFile("annual-report.pdf", 1024, "application/pdf");
     render(
-      <FilePreviewCard
-        file={file}
-        onConfirm={vi.fn()}
-        onDiscard={vi.fn()}
-      />,
+      <FilePreviewCard file={file} onConfirm={vi.fn()} onDiscard={vi.fn()} />,
     );
     const input = screen.getByLabelText("Title") as HTMLInputElement;
     expect(input.value).toBe("annual-report");
@@ -71,11 +55,7 @@ describe("FilePreviewCard", () => {
     const user = userEvent.setup();
     const file = createFile("doc.pdf", 1024, "application/pdf");
     render(
-      <FilePreviewCard
-        file={file}
-        onConfirm={vi.fn()}
-        onDiscard={vi.fn()}
-      />,
+      <FilePreviewCard file={file} onConfirm={vi.fn()} onDiscard={vi.fn()} />,
     );
     const input = screen.getByLabelText("Title") as HTMLInputElement;
     await user.clear(input);
@@ -87,11 +67,7 @@ describe("FilePreviewCard", () => {
     const user = userEvent.setup();
     const file = createFile("doc.pdf", 1024, "application/pdf");
     render(
-      <FilePreviewCard
-        file={file}
-        onConfirm={vi.fn()}
-        onDiscard={vi.fn()}
-      />,
+      <FilePreviewCard file={file} onConfirm={vi.fn()} onDiscard={vi.fn()} />,
     );
     const textarea = screen.getByLabelText("Notes") as HTMLTextAreaElement;
     await user.type(textarea, "Some notes about this file");
@@ -103,11 +79,7 @@ describe("FilePreviewCard", () => {
     const file = createFile("doc.pdf", 1024, "application/pdf");
     const onConfirm = vi.fn();
     render(
-      <FilePreviewCard
-        file={file}
-        onConfirm={onConfirm}
-        onDiscard={vi.fn()}
-      />,
+      <FilePreviewCard file={file} onConfirm={onConfirm} onDiscard={vi.fn()} />,
     );
     await user.click(screen.getByText("Add to Reference"));
     expect(onConfirm).toHaveBeenCalledWith({
@@ -124,11 +96,7 @@ describe("FilePreviewCard", () => {
     const file = createFile("doc.pdf", 1024, "application/pdf");
     const onDiscard = vi.fn();
     render(
-      <FilePreviewCard
-        file={file}
-        onConfirm={vi.fn()}
-        onDiscard={onDiscard}
-      />,
+      <FilePreviewCard file={file} onConfirm={vi.fn()} onDiscard={onDiscard} />,
     );
     await user.click(screen.getByText("Discard"));
     expect(onDiscard).toHaveBeenCalled();
@@ -163,11 +131,7 @@ describe("FilePreviewCard", () => {
   it("shows image thumbnail for image files", () => {
     const file = createFile("photo.jpg", 1024, "image/jpeg");
     render(
-      <FilePreviewCard
-        file={file}
-        onConfirm={vi.fn()}
-        onDiscard={vi.fn()}
-      />,
+      <FilePreviewCard file={file} onConfirm={vi.fn()} onDiscard={vi.fn()} />,
     );
     const img = screen.getByAltText("Preview");
     expect(img).toBeInTheDocument();
@@ -177,11 +141,7 @@ describe("FilePreviewCard", () => {
   it("does not show image thumbnail for non-image files", () => {
     const file = createFile("doc.pdf", 1024, "application/pdf");
     render(
-      <FilePreviewCard
-        file={file}
-        onConfirm={vi.fn()}
-        onDiscard={vi.fn()}
-      />,
+      <FilePreviewCard file={file} onConfirm={vi.fn()} onDiscard={vi.fn()} />,
     );
     expect(screen.queryByAltText("Preview")).not.toBeInTheDocument();
   });
@@ -191,11 +151,7 @@ describe("FilePreviewCard", () => {
     const file = createFile("doc.pdf", 1024, "application/pdf");
     const onConfirm = vi.fn();
     render(
-      <FilePreviewCard
-        file={file}
-        onConfirm={onConfirm}
-        onDiscard={vi.fn()}
-      />,
+      <FilePreviewCard file={file} onConfirm={onConfirm} onDiscard={vi.fn()} />,
     );
     const tagInput = screen.getByLabelText("Add tag");
     await user.type(tagInput, "important{Enter}");

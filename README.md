@@ -32,6 +32,9 @@ POSTGRES_PORT=5432
 DATABASE_URL=postgresql://terminandoyo:<your-password>@localhost:5432/terminandoyo
 CORS_ORIGINS=http://localhost:5173,http://localhost:6006
 FILE_STORAGE_PATH=storage
+IMPORT_JOB_QUEUE_TIMEOUT_SECONDS=300
+OUTBOX_WORKER_POLL_SECONDS=1.0
+PUSH_WORKER_POLL_SECONDS=1.0
 ```
 
 ### 3) Start dependencies
@@ -80,6 +83,23 @@ cd backend
 uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
+### 6b) Run workers (required for async imports/uploads)
+
+In separate terminals:
+
+```bash
+cd backend
+uv run python -m app.worker --loop --interval 1 --batch-size 25
+```
+
+```bash
+cd backend
+uv run python -m app.push_worker --loop --interval 1 --batch-size 10
+```
+
+`app.worker` is required for async Nirvana import jobs (`/imports/nirvana/from-file`) and outbox processing.
+`app.push_worker` is required only for Web Push delivery.
+
 ### 7) Verify backend is healthy
 
 ```bash
@@ -112,14 +132,14 @@ Run projection worker:
 
 ```bash
 cd backend
-uv run python -m app.worker
+uv run python -m app.worker --loop --interval 1 --batch-size 25
 ```
 
 Run push worker:
 
 ```bash
 cd backend
-uv run python -m app.push_worker
+uv run python -m app.push_worker --loop --interval 1 --batch-size 10
 ```
 
 ## Frontend

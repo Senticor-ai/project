@@ -1,0 +1,374 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { ThingRow, type ThingRowProps } from "./ThingRow";
+import { createThing } from "@/model/factories";
+import { resetFactoryCounter } from "@/model/factories";
+
+// dnd-kit stub
+vi.mock("@dnd-kit/core", () => ({
+  useDraggable: () => ({
+    attributes: {},
+    listeners: {},
+    setNodeRef: vi.fn(),
+    isDragging: false,
+  }),
+}));
+
+function renderRow(overrides: Partial<ThingRowProps> = {}) {
+  const thing = overrides.thing ?? createThing({ title: "Buy milk" });
+  const props: ThingRowProps = {
+    thing,
+    onComplete: vi.fn(),
+    onToggleFocus: vi.fn(),
+    onMove: vi.fn(),
+    onArchive: vi.fn(),
+    ...overrides,
+  };
+  const result = render(<ThingRow {...props} />);
+  return { ...result, props };
+}
+
+beforeEach(() => {
+  resetFactoryCounter();
+});
+
+// ---------------------------------------------------------------------------
+// Rendering
+// ---------------------------------------------------------------------------
+
+describe("ThingRow rendering", () => {
+  it("renders title", () => {
+    renderRow({ thing: createThing({ title: "Call dentist" }) });
+    expect(screen.getByText("Call dentist")).toBeInTheDocument();
+  });
+
+  it("renders drag handle", () => {
+    renderRow({ thing: createThing({ title: "Task" }) });
+    expect(screen.getByLabelText("Drag Task")).toBeInTheDocument();
+  });
+
+  it("renders checkbox", () => {
+    renderRow({ thing: createThing({ title: "Task" }) });
+    expect(screen.getByLabelText("Complete Task")).toBeInTheDocument();
+  });
+
+  it("renders focus star", () => {
+    renderRow({ thing: createThing({ title: "Task" }) });
+    expect(screen.getByLabelText("Focus Task")).toBeInTheDocument();
+  });
+
+  it("shows strikethrough when completed", () => {
+    const thing = createThing({
+      title: "Done task",
+      completedAt: new Date().toISOString(),
+    });
+    renderRow({ thing });
+    expect(screen.getByLabelText("Completed: Done task")).toBeInTheDocument();
+    expect(screen.getByText("Done task")).toHaveClass("line-through");
+  });
+
+  it("shows filled star when focused", () => {
+    const thing = createThing({ title: "Starred", isFocused: true });
+    renderRow({ thing });
+    expect(screen.getByLabelText("Unfocus Starred")).toBeInTheDocument();
+  });
+
+  it("shows source subtitle for non-thought sources", () => {
+    const thing = createThing({
+      title: "Follow-up",
+      captureSource: { kind: "email", subject: "Re: meeting" },
+    });
+    renderRow({ thing });
+    expect(screen.getByText("via email")).toBeInTheDocument();
+  });
+
+  it("does not show subtitle for thought sources", () => {
+    renderRow({ thing: createThing({ title: "Thought" }) });
+    expect(screen.queryByText(/via /)).not.toBeInTheDocument();
+  });
+
+  it("shows note indicator when notes exist", () => {
+    const thing = createThing({ title: "Task", notes: "Some notes" });
+    renderRow({ thing });
+    expect(screen.getByLabelText("Show notes for Task")).toBeInTheDocument();
+  });
+
+  it("hides note indicator when no notes", () => {
+    renderRow({ thing: createThing({ title: "Task" }) });
+    expect(
+      screen.queryByLabelText("Show notes for Task"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows due date when set", () => {
+    const thing = createThing({
+      title: "Task",
+      bucket: "next",
+      dueDate: "2099-12-31",
+    });
+    renderRow({ thing });
+    expect(screen.getByText("2099-12-31")).toBeInTheDocument();
+  });
+
+  it("shows overdue styling for past due dates", () => {
+    const thing = createThing({
+      title: "Task",
+      bucket: "next",
+      dueDate: "2020-01-01",
+    });
+    renderRow({ thing });
+    const dueDateEl = screen.getByText(/2020-01-01/);
+    expect(dueDateEl).toHaveClass("text-red-600");
+  });
+
+  it("shows bucket badge when showBucket is true", () => {
+    const thing = createThing({ title: "Task", bucket: "next" });
+    renderRow({ thing, showBucket: true });
+    expect(screen.getByText("Next")).toBeInTheDocument();
+  });
+
+  it("hides bucket badge by default", () => {
+    const thing = createThing({ title: "Task", bucket: "next" });
+    renderRow({ thing });
+    // "Next" text should only not be in the main row (it may be in the menu)
+    // Check for BucketBadge specifically — it has a specific className
+    const badges = screen.queryAllByText("Next");
+    // Should not have a visible badge in the row itself
+    expect(badges.filter((el) => el.closest("[class*=bg-gtd]"))).toHaveLength(
+      0,
+    );
+  });
+
+  it("shows edit button when onToggleExpand provided", () => {
+    renderRow({
+      thing: createThing({ title: "Task" }),
+      onToggleExpand: vi.fn(),
+    });
+    expect(screen.getByLabelText("Edit Task")).toBeInTheDocument();
+  });
+
+  it("hides edit button when onToggleExpand not provided", () => {
+    renderRow({ thing: createThing({ title: "Task" }) });
+    expect(screen.queryByLabelText("Edit Task")).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Interactions
+// ---------------------------------------------------------------------------
+
+describe("ThingRow interactions", () => {
+  it("calls onComplete when checkbox clicked", async () => {
+    const user = userEvent.setup();
+    const { props } = renderRow({
+      thing: createThing({ title: "Task" }),
+    });
+    await user.click(screen.getByLabelText("Complete Task"));
+    expect(props.onComplete).toHaveBeenCalledWith(props.thing.id);
+  });
+
+  it("calls onToggleFocus when star clicked", async () => {
+    const user = userEvent.setup();
+    const { props } = renderRow({
+      thing: createThing({ title: "Task" }),
+    });
+    await user.click(screen.getByLabelText("Focus Task"));
+    expect(props.onToggleFocus).toHaveBeenCalledWith(props.thing.id);
+  });
+
+  it("calls onToggleExpand when title clicked", async () => {
+    const user = userEvent.setup();
+    const onToggleExpand = vi.fn();
+    renderRow({
+      thing: createThing({ title: "Task" }),
+      onToggleExpand,
+    });
+    await user.click(screen.getByText("Task"));
+    expect(onToggleExpand).toHaveBeenCalled();
+  });
+
+  it("calls onToggleExpand when edit button clicked", async () => {
+    const user = userEvent.setup();
+    const onToggleExpand = vi.fn();
+    renderRow({
+      thing: createThing({ title: "Task" }),
+      onToggleExpand,
+    });
+    await user.click(screen.getByLabelText("Edit Task"));
+    expect(onToggleExpand).toHaveBeenCalled();
+  });
+
+  it("calls onToggleExpand when notes icon clicked", async () => {
+    const user = userEvent.setup();
+    const onToggleExpand = vi.fn();
+    renderRow({
+      thing: createThing({ title: "Task", notes: "Details" }),
+      onToggleExpand,
+    });
+    await user.click(screen.getByLabelText("Show notes for Task"));
+    expect(onToggleExpand).toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Move menu
+// ---------------------------------------------------------------------------
+
+describe("ThingRow move menu", () => {
+  it("opens move menu on click", async () => {
+    const user = userEvent.setup();
+    renderRow({ thing: createThing({ title: "Task", bucket: "next" }) });
+    await user.click(screen.getByLabelText("Move Task"));
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+  });
+
+  it("excludes current bucket from menu", async () => {
+    const user = userEvent.setup();
+    renderRow({ thing: createThing({ title: "Task", bucket: "next" }) });
+    await user.click(screen.getByLabelText("Move Task"));
+    const menu = screen.getByRole("menu");
+    expect(within(menu).queryByText("Move to Next")).not.toBeInTheDocument();
+    expect(within(menu).getByText("Move to Inbox")).toBeInTheDocument();
+    expect(within(menu).getByText("Move to Waiting")).toBeInTheDocument();
+  });
+
+  it("calls onMove when menu item clicked", async () => {
+    const user = userEvent.setup();
+    const { props } = renderRow({
+      thing: createThing({ title: "Task", bucket: "next" }),
+    });
+    await user.click(screen.getByLabelText("Move Task"));
+    await user.click(screen.getByText("Move to Someday"));
+    expect(props.onMove).toHaveBeenCalledWith(props.thing.id, "someday");
+  });
+
+  it("calls onArchive from menu", async () => {
+    const user = userEvent.setup();
+    const { props } = renderRow({
+      thing: createThing({ title: "Task", bucket: "next" }),
+    });
+    await user.click(screen.getByLabelText("Move Task"));
+    await user.click(screen.getByText("Archive"));
+    expect(props.onArchive).toHaveBeenCalledWith(props.thing.id);
+  });
+
+  it("closes menu after selection", async () => {
+    const user = userEvent.setup();
+    renderRow({ thing: createThing({ title: "Task", bucket: "next" }) });
+    await user.click(screen.getByLabelText("Move Task"));
+    await user.click(screen.getByText("Move to Someday"));
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Expanded state
+// ---------------------------------------------------------------------------
+
+describe("ThingRow expanded", () => {
+  it("shows ItemEditor when expanded and onEdit provided", () => {
+    renderRow({
+      thing: createThing({ title: "Task" }),
+      isExpanded: true,
+      onEdit: vi.fn(),
+      onToggleExpand: vi.fn(),
+    });
+    expect(screen.getByLabelText("Notes")).toBeInTheDocument();
+  });
+
+  it("hides ItemEditor when collapsed", () => {
+    renderRow({
+      thing: createThing({ title: "Task" }),
+      isExpanded: false,
+      onEdit: vi.fn(),
+    });
+    expect(screen.queryByLabelText("Notes")).not.toBeInTheDocument();
+  });
+
+  it("shows triage buttons when expanded and bucket is inbox", () => {
+    renderRow({
+      thing: createThing({ title: "Inbox task", bucket: "inbox" }),
+      isExpanded: true,
+      onToggleExpand: vi.fn(),
+    });
+    expect(screen.getByLabelText("Move to Next")).toBeInTheDocument();
+    expect(screen.getByLabelText("Move to Waiting")).toBeInTheDocument();
+    expect(screen.getByLabelText("Move to Calendar")).toBeInTheDocument();
+    expect(screen.getByLabelText("Move to Someday")).toBeInTheDocument();
+    expect(screen.getByLabelText("Archive")).toBeInTheDocument();
+  });
+
+  it("hides triage buttons for non-inbox buckets", () => {
+    renderRow({
+      thing: createThing({ title: "Action", bucket: "next" }),
+      isExpanded: true,
+      onEdit: vi.fn(),
+      onToggleExpand: vi.fn(),
+    });
+    expect(screen.queryByLabelText("Move to Next")).not.toBeInTheDocument();
+  });
+
+  it("calls onMove when triage button clicked", async () => {
+    const user = userEvent.setup();
+    const { props } = renderRow({
+      thing: createThing({ title: "Inbox task", bucket: "inbox" }),
+      isExpanded: true,
+      onToggleExpand: vi.fn(),
+    });
+    await user.click(screen.getByLabelText("Move to Next"));
+    expect(props.onMove).toHaveBeenCalledWith(props.thing.id, "next");
+  });
+
+  it("calls onArchive from triage archive button", async () => {
+    const user = userEvent.setup();
+    const { props } = renderRow({
+      thing: createThing({ title: "Inbox task", bucket: "inbox" }),
+      isExpanded: true,
+      onToggleExpand: vi.fn(),
+    });
+    await user.click(screen.getByLabelText("Archive"));
+    expect(props.onArchive).toHaveBeenCalledWith(props.thing.id);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Title editing
+// ---------------------------------------------------------------------------
+
+describe("ThingRow title editing", () => {
+  it("saves title on Enter", async () => {
+    const user = userEvent.setup();
+    const onUpdateTitle = vi.fn();
+    const thing = createThing({ title: "Old title" });
+    renderRow({
+      thing,
+      isExpanded: true,
+      onToggleExpand: vi.fn(),
+      onUpdateTitle,
+    });
+
+    const textarea = screen.getByDisplayValue("Old title");
+    await user.clear(textarea);
+    await user.type(textarea, "New title{Enter}");
+    expect(onUpdateTitle).toHaveBeenCalledWith(thing.id, "New title");
+  });
+
+  it("reverts title on Escape", async () => {
+    const user = userEvent.setup();
+    const onUpdateTitle = vi.fn();
+    const onToggleExpand = vi.fn();
+    renderRow({
+      thing: createThing({ title: "Original" }),
+      isExpanded: true,
+      onToggleExpand,
+      onUpdateTitle,
+    });
+
+    const textarea = screen.getByDisplayValue("Original");
+    await user.clear(textarea);
+    await user.type(textarea, "Changed{Escape}");
+    expect(onUpdateTitle).not.toHaveBeenCalled();
+    expect(onToggleExpand).toHaveBeenCalled();
+  });
+});

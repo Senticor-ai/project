@@ -1,4 +1,4 @@
-import { useRef, useEffect } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
 
 export interface EditableTitleProps {
@@ -18,15 +18,19 @@ export function EditableTitle({
   completed = false,
   className,
 }: EditableTitleProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const optimisticRef = useRef<string | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [optimistic, setOptimistic] = useState<string | null>(null);
+  const [prevTitle, setPrevTitle] = useState(title);
 
-  // Clear optimistic value once the prop catches up
-  if (optimisticRef.current !== null && optimisticRef.current === title) {
-    optimisticRef.current = null;
+  // Clear optimistic value once the prop catches up (derived state pattern)
+  if (prevTitle !== title) {
+    setPrevTitle(title);
+    if (optimistic !== null && optimistic === title) {
+      setOptimistic(null);
+    }
   }
 
-  const displayTitle = optimisticRef.current ?? title;
+  const displayTitle = optimistic ?? title;
 
   useEffect(() => {
     if (isEditing) {
@@ -37,7 +41,7 @@ export function EditableTitle({
   const saveIfChanged = () => {
     const trimmed = inputRef.current?.value.trim();
     if (trimmed && trimmed !== displayTitle) {
-      optimisticRef.current = trimmed;
+      setOptimistic(trimmed);
       onSave?.(trimmed);
     }
   };
@@ -46,11 +50,21 @@ export function EditableTitle({
     saveIfChanged();
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
+  const grow = useCallback((el: HTMLTextAreaElement) => {
+    el.style.height = "auto";
+    el.style.height = el.scrollHeight + "px";
+  }, []);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey && !e.altKey) {
       e.preventDefault();
       saveIfChanged();
       onToggleEdit();
+    } else if (e.key === "Enter") {
+      // Shift+Enter or Alt+Enter: allow newline, then grow
+      requestAnimationFrame(() => {
+        if (inputRef.current) grow(inputRef.current);
+      });
     } else if (e.key === "Escape") {
       e.preventDefault();
       if (inputRef.current) {
@@ -62,14 +76,17 @@ export function EditableTitle({
 
   if (isEditing) {
     return (
-      <input
+      <textarea
         key={displayTitle}
         ref={inputRef}
+        rows={1}
         defaultValue={displayTitle}
+        aria-label={`Edit title: ${displayTitle}`}
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
+        onInput={(e) => grow(e.currentTarget)}
         className={cn(
-          "flex-1 bg-transparent text-sm font-medium text-text outline-none",
+          "flex-1 resize-none bg-transparent text-sm font-medium text-text outline-none",
           className,
         )}
       />
@@ -80,7 +97,7 @@ export function EditableTitle({
     <button
       onClick={onToggleEdit}
       className={cn(
-        "flex-1 truncate text-left text-sm text-text",
+        "flex-1 whitespace-pre-wrap text-left text-sm text-text",
         completed ? "font-normal text-text-muted line-through" : "font-medium",
         className,
       )}

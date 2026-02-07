@@ -6,7 +6,7 @@ import {
   buildNewReferenceJsonLd,
   buildTriagePatch,
 } from "@/lib/thing-serializer";
-import type { Action, InboxItem, TriageResult } from "@/model/gtd-types";
+import type { Thing, ThingBucket, TriageResult } from "@/model/gtd-types";
 import type { CanonicalId } from "@/model/canonical-id";
 import { THINGS_QUERY_KEY } from "./use-things";
 
@@ -51,7 +51,7 @@ export function useTriageItem() {
       item,
       result,
     }: {
-      item: InboxItem;
+      item: Thing;
       result: TriageResult;
     }) => {
       const thingId = findThingId(
@@ -191,7 +191,7 @@ export function useAddAction() {
       bucket,
     }: {
       title: string;
-      bucket: Action["bucket"];
+      bucket: ThingBucket;
     }) => {
       const jsonLd = buildNewInboxJsonLd(title);
       jsonLd["@type"] = "gtd:Action";

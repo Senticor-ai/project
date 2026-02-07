@@ -5,8 +5,8 @@ def test_action_requires_bucket(auth_client):
     payload = {
         "thing": {
             "@id": f"urn:task:{uuid.uuid4()}",
-            "@type": "schema:Action",
-            "name": "Missing bucket",
+            "@type": "gtd:Action",
+            "title": "Missing bucket",
         },
         "source": "manual",
     }
@@ -17,9 +17,9 @@ def test_action_requires_bucket(auth_client):
 def test_patch_deep_merge_and_archive(auth_client):
     thing = {
         "@id": f"urn:task:{uuid.uuid4()}",
-        "@type": "schema:Action",
+        "@type": "gtd:Action",
         "bucket": "next",
-        "name": "Deep merge task",
+        "title": "Deep merge task",
         "meta": {
             "level": 1,
             "nested": {"a": 1, "b": 2},
@@ -29,11 +29,11 @@ def test_patch_deep_merge_and_archive(auth_client):
     assert response.status_code == 201
     thing_id = response.json()["thing_id"]
 
-    patch = {"thing": {"meta": {"nested": {"c": 3}}, "name": "Updated name"}}
+    patch = {"thing": {"meta": {"nested": {"c": 3}}, "title": "Updated name"}}
     response = auth_client.patch(f"/things/{thing_id}", json=patch)
     assert response.status_code == 200
     updated = response.json()
-    assert updated["thing"]["name"] == "Updated name"
+    assert updated["thing"]["title"] == "Updated name"
     assert updated["thing"]["meta"]["nested"] == {"a": 1, "b": 2, "c": 3}
 
     response = auth_client.patch(

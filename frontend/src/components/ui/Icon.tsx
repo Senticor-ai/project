@@ -10,15 +10,13 @@ export interface IconProps {
   className?: string;
 }
 
-export function Icon({
-  name,
-  size = 20,
-  fill = false,
-  className,
-}: IconProps) {
+export function Icon({ name, size = 20, fill = false, className }: IconProps) {
   return (
     <span
-      className={cn("material-symbols-outlined select-none leading-none", className)}
+      className={cn(
+        "material-symbols-outlined select-none leading-none",
+        className,
+      )}
       style={{
         fontSize: size,
         fontVariationSettings: `'FILL' ${fill ? 1 : 0}`,

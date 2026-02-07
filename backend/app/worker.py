@@ -1,3 +1,5 @@
+import argparse
+import time
 from datetime import UTC, datetime
 
 from .config import settings
@@ -73,6 +75,7 @@ def _process_import_job(payload: dict) -> None:
     job_id = payload.get("job_id")
     if not job_id:
         raise ValueError("missing job_id")
+    logger.info("import_job.worker_started", job_id=str(job_id))
 
     with db_conn() as job_conn:
         with job_conn.cursor() as cur:
@@ -98,6 +101,11 @@ def _process_import_job(payload: dict) -> None:
                 raise ValueError("import job not found")
 
             if job["status"] in {"completed", "failed"}:
+                logger.info(
+                    "import_job.worker_skipped_terminal",
+                    job_id=str(job_id),
+                    status=job["status"],
+                )
                 return
 
             cur.execute(
@@ -109,6 +117,13 @@ def _process_import_job(payload: dict) -> None:
                 WHERE job_id = %s
                 """,
                 (datetime.now(UTC), datetime.now(UTC), job_id),
+            )
+            logger.info(
+                "import_job.running",
+                job_id=str(job_id),
+                org_id=str(job["org_id"]),
+                file_id=str(job["file_id"]),
+                source=job["source"],
             )
         job_conn.commit()
 
@@ -165,6 +180,14 @@ def _process_import_job(payload: dict) -> None:
                 ),
             )
         job_conn.commit()
+    logger.info(
+        "import_job.completed",
+        job_id=str(job_id),
+        org_id=str(job["org_id"]),
+        file_id=str(job["file_id"]),
+        source=job["source"],
+        summary=summary.model_dump(),
+    )
 
 
 def _mark_import_failed(job_id: str | None, error: str) -> None:
@@ -190,11 +213,13 @@ def _mark_import_failed(job_id: str | None, error: str) -> None:
                     ),
                 )
             job_conn.commit()
+        logger.error("import_job.failed", job_id=str(job_id), error=error[:500])
     except Exception:  # noqa: BLE001
         logger.exception("import_job.mark_failed", job_id=job_id)
 
 
 def process_batch(limit: int = 25) -> int:
+    logger.info("outbox.batch_start", limit=limit)
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -209,12 +234,15 @@ def process_batch(limit: int = 25) -> int:
                 (limit,),
             )
             events = cur.fetchall()
+        logger.info("outbox.batch_fetched", fetched=len(events), limit=limit)
 
         processed = 0
         for event in events:
             event_id = event["event_id"]
             event_type = event["event_type"]
             payload = event["payload"] or {}
+            started_at = time.monotonic()
+            logger.info("outbox.event_start", event_id=str(event_id), event_type=event_type)
 
             entity_type = None
             entity_id = None
@@ -374,6 +402,12 @@ def process_batch(limit: int = 25) -> int:
 
                 _mark_processed(conn, event_id)
                 processed += 1
+                logger.info(
+                    "outbox.event_processed",
+                    event_id=str(event_id),
+                    event_type=event_type,
+                    duration_ms=int((time.monotonic() - started_at) * 1000),
+                )
             except Exception as exc:  # noqa: BLE001
                 logger.exception("outbox.process_failed", event_id=str(event_id))
                 if event_type == "nirvana_import_job":
@@ -397,11 +431,62 @@ def process_batch(limit: int = 25) -> int:
                         target_user_id=target_user_id,
                     )
                 _mark_failed(conn, event_id, str(exc))
+                logger.error(
+                    "outbox.event_failed",
+                    event_id=str(event_id),
+                    event_type=event_type,
+                    duration_ms=int((time.monotonic() - started_at) * 1000),
+                    error=str(exc)[:500],
+                )
 
         conn.commit()
+        logger.info("outbox.batch_done", fetched=len(events), processed=processed, limit=limit)
         return processed
 
 
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Process outbox events")
+    parser.add_argument(
+        "--loop",
+        action="store_true",
+        help="Run continuously and poll for new outbox events.",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=25,
+        help="Number of outbox events to process per batch.",
+    )
+    parser.add_argument(
+        "--interval",
+        type=float,
+        default=settings.outbox_worker_poll_seconds,
+        help="Poll interval in seconds when looping.",
+    )
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = _parse_args()
+    batch_size = max(1, args.batch_size)
+    interval = max(0.1, float(args.interval))
+
+    if not args.loop:
+        count = process_batch(limit=batch_size)
+        logger.info("outbox.processed", count=count, batch_size=batch_size)
+        return
+
+    logger.info("outbox.loop_started", batch_size=batch_size, interval_seconds=interval)
+    try:
+        while True:
+            count = process_batch(limit=batch_size)
+            logger.info("outbox.processed", count=count, batch_size=batch_size)
+            # If we did not fill a full batch, pause briefly before polling again.
+            if count < batch_size:
+                time.sleep(interval)
+    except KeyboardInterrupt:
+        logger.info("outbox.loop_stopped")
+
+
 if __name__ == "__main__":
-    count = process_batch()
-    logger.info("outbox.processed", count=count)
+    main()

@@ -1,4 +1,6 @@
+import argparse
 import json
+import time
 from datetime import UTC, datetime
 
 from pywebpush import WebPushException, webpush
@@ -25,6 +27,7 @@ def process_batch(limit: int = 10) -> int:
         logger.error("push_worker.missing_vapid_key")
         return 0
 
+    logger.info("push_worker.batch_start", limit=limit)
     processed = 0
     with db_conn() as conn:
         with conn.cursor() as cur:
@@ -40,11 +43,18 @@ def process_batch(limit: int = 10) -> int:
                 (limit,),
             )
             outbox = cur.fetchall()
+        logger.info("push_worker.batch_fetched", fetched=len(outbox), limit=limit)
 
         for entry in outbox:
             push_id = entry["push_id"]
             target_user_id = entry["target_user_id"]
             payload = entry["payload"]
+            started_at = time.monotonic()
+            logger.info(
+                "push_worker.event_start",
+                push_id=str(push_id),
+                target_user_id=str(target_user_id) if target_user_id else None,
+            )
 
             try:
                 with conn.cursor() as cur:
@@ -104,6 +114,11 @@ def process_batch(limit: int = 10) -> int:
                         (datetime.now(UTC), push_id),
                     )
                 processed += 1
+                logger.info(
+                    "push_worker.event_processed",
+                    push_id=str(push_id),
+                    duration_ms=int((time.monotonic() - started_at) * 1000),
+                )
             except Exception as exc:  # noqa: BLE001
                 logger.exception(
                     "push_worker.process_failed",
@@ -118,12 +133,61 @@ def process_batch(limit: int = 10) -> int:
                         """,
                         (str(exc)[:500], push_id),
                     )
+                logger.error(
+                    "push_worker.event_failed",
+                    push_id=str(push_id),
+                    duration_ms=int((time.monotonic() - started_at) * 1000),
+                    error=str(exc)[:500],
+                )
 
         conn.commit()
 
+    logger.info("push_worker.batch_done", fetched=len(outbox), processed=processed, limit=limit)
     return processed
 
 
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Process push notification outbox events")
+    parser.add_argument(
+        "--loop",
+        action="store_true",
+        help="Run continuously and poll for new push events.",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=10,
+        help="Number of push outbox events to process per batch.",
+    )
+    parser.add_argument(
+        "--interval",
+        type=float,
+        default=settings.push_worker_poll_seconds,
+        help="Poll interval in seconds when looping.",
+    )
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = _parse_args()
+    batch_size = max(1, args.batch_size)
+    interval = max(0.1, float(args.interval))
+
+    if not args.loop:
+        count = process_batch(limit=batch_size)
+        logger.info("push_worker.processed", count=count, batch_size=batch_size)
+        return
+
+    logger.info("push_worker.loop_started", batch_size=batch_size, interval_seconds=interval)
+    try:
+        while True:
+            count = process_batch(limit=batch_size)
+            logger.info("push_worker.processed", count=count, batch_size=batch_size)
+            if count < batch_size:
+                time.sleep(interval)
+    except KeyboardInterrupt:
+        logger.info("push_worker.loop_stopped")
+
+
 if __name__ == "__main__":
-    count = process_batch()
-    logger.info("push_worker.processed", count=count)
+    main()

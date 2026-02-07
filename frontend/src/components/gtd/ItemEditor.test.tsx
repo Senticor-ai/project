@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ItemEditor } from "./ItemEditor";
 import type { ItemEditableFields } from "@/model/gtd-types";
+import type { CanonicalId } from "@/model/canonical-id";
 
 const defaults: ItemEditableFields = {
   contexts: [],
@@ -126,8 +127,8 @@ describe("ItemEditor", () => {
         values={defaults}
         onChange={onChange}
         projects={[
-          { id: "p-1" as any, title: "Project A" },
-          { id: "p-2" as any, title: "Project B" },
+          { id: "p-1" as CanonicalId, title: "Project A" },
+          { id: "p-2" as CanonicalId, title: "Project B" },
         ]}
       />,
     );
@@ -139,7 +140,9 @@ describe("ItemEditor", () => {
     const onChange = vi.fn();
     render(<ItemEditor values={defaults} onChange={onChange} />);
 
-    expect(screen.queryByLabelText("Assign to project")).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Assign to project"),
+    ).not.toBeInTheDocument();
   });
 
   it("calls onChange with projectId on project selection", async () => {
@@ -149,15 +152,73 @@ describe("ItemEditor", () => {
       <ItemEditor
         values={defaults}
         onChange={onChange}
-        projects={[{ id: "p-1" as any, title: "Project A" }]}
+        projects={[{ id: "p-1" as CanonicalId, title: "Project A" }]}
       />,
     );
 
-    await user.selectOptions(
-      screen.getByLabelText("Assign to project"),
-      "p-1",
-    );
+    await user.selectOptions(screen.getByLabelText("Assign to project"), "p-1");
     expect(onChange).toHaveBeenCalledWith({ projectId: "p-1" });
+  });
+
+  // -----------------------------------------------------------------------
+  // Notes field
+  // -----------------------------------------------------------------------
+
+  it("renders notes textarea with placeholder", () => {
+    render(<ItemEditor values={defaults} onChange={vi.fn()} />);
+    expect(screen.getByPlaceholderText("Add notes...")).toBeInTheDocument();
+  });
+
+  it("renders notes textarea with existing value", () => {
+    render(
+      <ItemEditor
+        values={{ ...defaults, notes: "Some existing notes" }}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByLabelText("Notes")).toHaveValue("Some existing notes");
+  });
+
+  it("calls onChange with notes on blur", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<ItemEditor values={defaults} onChange={onChange} />);
+
+    const textarea = screen.getByLabelText("Notes");
+    await user.click(textarea);
+    await user.type(textarea, "New notes content");
+    await user.tab();
+
+    expect(onChange).toHaveBeenCalledWith({ notes: "New notes content" });
+  });
+
+  it("does not call onChange on blur when notes unchanged", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <ItemEditor
+        values={{ ...defaults, notes: "Existing" }}
+        onChange={onChange}
+      />,
+    );
+
+    const textarea = screen.getByLabelText("Notes");
+    await user.click(textarea);
+    await user.tab();
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("allows multiline input in notes (Enter inserts newline)", async () => {
+    const user = userEvent.setup();
+    render(<ItemEditor values={defaults} onChange={vi.fn()} />);
+
+    const textarea = screen.getByLabelText("Notes") as HTMLTextAreaElement;
+    await user.click(textarea);
+    await user.type(textarea, "line1{Enter}line2");
+
+    expect(textarea.value).toContain("line1");
+    expect(textarea.value).toContain("line2");
   });
 
   it("prevents duplicate contexts", async () => {

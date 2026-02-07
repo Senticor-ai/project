@@ -106,3 +106,31 @@ export const SelectReference: Story = {
     await expect(args.onSelect).toHaveBeenCalledWith(basicRef.id);
   },
 };
+
+// ---------------------------------------------------------------------------
+// Notes & expanded editor
+// ---------------------------------------------------------------------------
+
+/** Expanded — shows inline ItemEditor with notes visible. */
+export const ExpandedWithNotes: Story = {
+  args: {
+    reference: urlRef,
+    isExpanded: true,
+    onToggleExpand: fn(),
+    onEdit: fn(),
+  },
+};
+
+/** Click the notes icon to expand. */
+export const ClickNotesIcon: Story = {
+  args: {
+    reference: urlRef,
+    onToggleExpand: fn(),
+  },
+  play: async ({ canvas, userEvent, args }) => {
+    await userEvent.click(
+      canvas.getByLabelText(`Show notes for ${urlRef.title}`),
+    );
+    await expect(args.onToggleExpand).toHaveBeenCalledOnce();
+  },
+};

@@ -3,21 +3,24 @@ from __future__ import annotations
 import hashlib
 import json
 from collections import Counter
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from fastapi import APIRouter, Body, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
 
+from ..config import settings
 from ..db import db_conn, jsonb
 from ..deps import get_current_org, get_current_user
 from ..models import (
     ImportJobResponse,
+    ImportJobStatus,
     NirvanaImportFromFileRequest,
     NirvanaImportInspectRequest,
     NirvanaImportRequest,
     NirvanaImportSummary,
 )
+from ..observability import get_logger
 from ..outbox import enqueue_event
 
 router = APIRouter(
@@ -25,8 +28,10 @@ router = APIRouter(
     tags=["imports"],
     dependencies=[Depends(get_current_user)],
 )
+logger = get_logger("imports")
 
 _SCHEMA_VERSION = 1
+_SOURCE_METADATA_SCHEMA_VERSION = 1
 _TYPE_MAP = {
     "inbox": "gtd:InboxItem",
     "action": "gtd:Action",
@@ -42,6 +47,48 @@ _DEFAULT_STATE_BUCKET_MAP = {
     4: "someday",
     7: "next",
     9: "calendar",
+}
+
+_IMPORT_JOB_STALE_ERROR = "Import job timed out in queue; worker appears unavailable"
+
+_IMPORT_JOB_EXAMPLE_RUNNING = {
+    "job_id": "2851209e-3a01-4684-8fae-dd27db05e0aa",
+    "status": "running",
+    "file_id": "8b9d7e3a-7b8b-4b8d-9b6c-8cf7e6d7d111",
+    "source": "nirvana",
+    "created_at": "2026-02-07T11:14:42.778617Z",
+    "updated_at": "2026-02-07T11:14:43.101903Z",
+    "started_at": "2026-02-07T11:14:43.101820Z",
+    "finished_at": None,
+    "summary": None,
+    "error": None,
+}
+_IMPORT_JOB_EXAMPLE_COMPLETED = {
+    "job_id": "2851209e-3a01-4684-8fae-dd27db05e0aa",
+    "status": "completed",
+    "file_id": "8b9d7e3a-7b8b-4b8d-9b6c-8cf7e6d7d111",
+    "source": "nirvana",
+    "created_at": "2026-02-07T11:14:42.778617Z",
+    "updated_at": "2026-02-07T11:14:44.190500Z",
+    "started_at": "2026-02-07T11:14:43.101820Z",
+    "finished_at": "2026-02-07T11:14:44.190499Z",
+    "summary": {
+        "total": 7,
+        "created": 7,
+        "updated": 0,
+        "skipped": 0,
+        "errors": 0,
+        "bucket_counts": {
+            "project": 1,
+            "next": 1,
+            "waiting": 1,
+            "calendar": 2,
+            "someday": 1,
+            "inbox": 1,
+        },
+        "sample_errors": [],
+    },
+    "error": None,
 }
 
 
@@ -174,8 +221,9 @@ def _build_base_entity(
     updated_at: datetime,
     source: str,
     ports: list[dict],
+    source_metadata: dict | None = None,
 ) -> dict:
-    return {
+    entity = {
         "@id": canonical_id,
         "_schemaVersion": _SCHEMA_VERSION,
         "title": title,
@@ -191,6 +239,28 @@ def _build_base_entity(
         "ports": ports,
         "needsEnrichment": False,
         "confidence": "medium",
+    }
+    if source_metadata:
+        entity["sourceMetadata"] = source_metadata
+    return entity
+
+
+def _build_nirvana_source_metadata(
+    *,
+    source: str,
+    raw_id: str,
+    type_value: int,
+    state_value: int,
+    raw_item: dict,
+) -> dict:
+    # Keep complete source payload for high-fidelity imports and future remapping.
+    return {
+        "schemaVersion": _SOURCE_METADATA_SCHEMA_VERSION,
+        "provider": source,
+        "rawId": raw_id,
+        "rawType": type_value,
+        "rawState": state_value,
+        "raw": raw_item,
     }
 
 
@@ -211,6 +281,23 @@ def _derive_bucket(state: int | None, state_map: dict[int, str], default_bucket:
     if state is None:
         return default_bucket
     return state_map.get(state, default_bucket)
+
+
+def _normalize_state_bucket_map(state_bucket_map: dict | None) -> dict[int, str]:
+    if not state_bucket_map:
+        return {}
+    normalized: dict[int, str] = {}
+    for raw_key, raw_bucket in state_bucket_map.items():
+        try:
+            key = int(raw_key)
+        except Exception:  # noqa: BLE001
+            continue
+        if not isinstance(raw_bucket, str):
+            continue
+        bucket = raw_bucket.strip()
+        if bucket:
+            normalized[key] = bucket
+    return normalized
 
 
 def _build_nirvana_thing(
@@ -247,8 +334,21 @@ def _build_nirvana_thing(
     notes = item.get("note") or None
     ports = _build_ports(item.get("energy"), item.get("etime"))
     bucket = _derive_bucket(state_value, state_map, default_bucket)
+    source_metadata = _build_nirvana_source_metadata(
+        source=source,
+        raw_id=raw_id,
+        type_value=type_value,
+        state_value=state_value,
+        raw_item=item,
+    )
 
-    is_focused = False
+    focus_order = item.get("seqt")
+    try:
+        focus_order = int(focus_order)
+    except Exception:  # noqa: BLE001
+        focus_order = 0
+
+    is_focused = focus_order > 0
     if bucket == "focus":
         bucket = "next"
         is_focused = True
@@ -275,6 +375,7 @@ def _build_nirvana_thing(
             updated_at=updated_dt,
             source=source,
             ports=ports,
+            source_metadata=source_metadata,
         )
         thing.update(
             {
@@ -301,6 +402,7 @@ def _build_nirvana_thing(
             updated_at=updated_dt,
             source=source,
             ports=ports,
+            source_metadata=source_metadata,
         )
         thing.update(
             {
@@ -322,6 +424,7 @@ def _build_nirvana_thing(
             updated_at=updated_dt,
             source=source,
             ports=ports,
+            source_metadata=source_metadata,
         )
         thing.update(
             {
@@ -351,8 +454,12 @@ def _build_nirvana_thing(
                 next_date = None
         start_date = _parse_yyyymmdd(next_date) or start_date
 
-    if bucket == "calendar" and not start_date and due_date:
-        start_date = due_date
+    if bucket == "calendar":
+        if not start_date and due_date:
+            start_date = due_date
+        if not due_date and start_date:
+            # Calendar items should always carry a date visible to date-centric UI lists.
+            due_date = start_date
 
     sequence_order = item.get("seq")
     try:
@@ -373,6 +480,7 @@ def _build_nirvana_thing(
         updated_at=updated_dt,
         source=source,
         ports=ports,
+        source_metadata=source_metadata,
     )
     thing.update(
         {
@@ -443,8 +551,7 @@ def run_nirvana_import(
         )
 
     state_map = dict(_DEFAULT_STATE_BUCKET_MAP)
-    if state_bucket_map:
-        state_map.update(state_bucket_map)
+    state_map.update(_normalize_state_bucket_map(state_bucket_map))
 
     project_children: dict[str, list[str]] = {}
     for item in items:
@@ -632,13 +739,86 @@ def _build_job_response(row: dict) -> ImportJobResponse:
         status=row["status"],
         file_id=str(row["file_id"]),
         source=row["source"],
-        created_at=row["created_at"].isoformat(),
-        updated_at=row["updated_at"].isoformat(),
-        started_at=row["started_at"].isoformat() if row.get("started_at") else None,
-        finished_at=row["finished_at"].isoformat() if row.get("finished_at") else None,
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+        started_at=row.get("started_at"),
+        finished_at=row.get("finished_at"),
         summary=row.get("summary"),
         error=row.get("error"),
     )
+
+
+def _queue_timeout_cutoff() -> datetime:
+    timeout_seconds = max(0, settings.import_job_queue_timeout_seconds)
+    return datetime.now(UTC) - timedelta(seconds=timeout_seconds)
+
+
+def _fail_stale_queued_jobs(
+    *,
+    org_id: str,
+    conn=None,
+    file_id: str | None = None,
+    source: str | None = None,
+    options: dict | None = None,
+) -> int:
+    if settings.import_job_queue_timeout_seconds <= 0:
+        return 0
+
+    clauses = [
+        "org_id = %s",
+        "status = 'queued'",
+        "created_at <= %s",
+    ]
+    params: list = [org_id, _queue_timeout_cutoff()]
+    if file_id:
+        clauses.append("file_id = %s")
+        params.append(file_id)
+    if source:
+        clauses.append("source = %s")
+        params.append(source)
+    if options is not None:
+        clauses.append("options = %s")
+        params.append(jsonb(options))
+
+    sql = f"""
+        UPDATE import_jobs
+        SET status = 'failed',
+            error = %s,
+            finished_at = %s,
+            updated_at = %s
+        WHERE {' AND '.join(clauses)}
+    """
+    now = datetime.now(UTC)
+    final_params = [_IMPORT_JOB_STALE_ERROR, now, now, *params]
+
+    if conn is not None:
+        with conn.cursor() as cur:
+            cur.execute(sql, final_params)
+            updated = cur.rowcount
+        if updated:
+            logger.warning(
+                "import_jobs.marked_stale_failed",
+                count=updated,
+                org_id=org_id,
+                file_id=file_id,
+                source=source,
+            )
+        return updated
+
+    with db_conn() as local_conn:
+        with local_conn.cursor() as cur:
+            cur.execute(sql, final_params)
+            updated = cur.rowcount
+        local_conn.commit()
+    if updated:
+        logger.warning(
+            "import_jobs.marked_stale_failed",
+            count=updated,
+            org_id=org_id,
+            file_id=file_id,
+            source=source,
+        )
+    return updated
 
 
 @router.post(
@@ -648,7 +828,8 @@ def _build_job_response(row: dict) -> ImportJobResponse:
     description=(
         "Accepts a NirvanaHQ JSON export payload and upserts items into the GTD store. "
         "Use dry_run=true for validate-only imports and custom state-to-bucket mappings "
-        "for client-side tuning."
+        "for client-side tuning. Imported things also include `thing.sourceMetadata` "
+        "with raw Nirvana payload fields for high-fidelity round-tripping."
     ),
 )
 def import_nirvana(
@@ -841,6 +1022,40 @@ def inspect_nirvana(
     summary="Queue Nirvana import job from file",
     description="Queues an async import job for a previously uploaded Nirvana JSON export.",
     status_code=status.HTTP_202_ACCEPTED,
+    responses={
+        202: {
+            "description": "Import job queued or existing active job reused.",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "queued": {
+                            "summary": "New queued job",
+                            "value": {
+                                "job_id": "2851209e-3a01-4684-8fae-dd27db05e0aa",
+                                "status": "queued",
+                                "file_id": "8b9d7e3a-7b8b-4b8d-9b6c-8cf7e6d7d111",
+                                "source": "nirvana",
+                                "created_at": "2026-02-07T11:14:42.778617Z",
+                                "updated_at": "2026-02-07T11:14:42.778617Z",
+                                "started_at": None,
+                                "finished_at": None,
+                                "summary": None,
+                                "error": None,
+                            },
+                        },
+                        "reused": {
+                            "summary": "Existing running job reused",
+                            "value": _IMPORT_JOB_EXAMPLE_RUNNING,
+                        },
+                    }
+                }
+            },
+        },
+        404: {
+            "description": "File not found in active org",
+            "content": {"application/json": {"example": {"detail": "File not found"}}},
+        },
+    },
 )
 def import_nirvana_from_file(
     payload: NirvanaImportFromFileRequest = Body(
@@ -871,22 +1086,25 @@ def import_nirvana_from_file(
         "default_bucket": payload.default_bucket,
     }
 
+    lock_token = (
+        f"nirvana-import:{org_id}:{file_row['file_id']}:{payload.source}:{_hash_payload(options)}"
+    )
+    enqueue_import = False
+
     with db_conn() as conn:
         with conn.cursor() as cur:
+            cur.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (lock_token,))
+            _fail_stale_queued_jobs(
+                org_id=org_id,
+                conn=conn,
+                file_id=str(file_row["file_id"]),
+                source=payload.source,
+                options=options,
+            )
+
             cur.execute(
                 """
-                INSERT INTO import_jobs (
-                    org_id,
-                    owner_id,
-                    file_id,
-                    source,
-                    status,
-                    options,
-                    created_at,
-                    updated_at
-                )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                RETURNING
+                SELECT
                     job_id,
                     file_id,
                     source,
@@ -897,41 +1115,145 @@ def import_nirvana_from_file(
                     finished_at,
                     summary,
                     error
+                FROM import_jobs
+                WHERE org_id = %s
+                  AND file_id = %s
+                  AND source = %s
+                  AND options = %s
+                  AND status IN ('queued', 'running')
+                ORDER BY created_at ASC
+                LIMIT 1
                 """,
                 (
                     org_id,
-                    current_user["id"],
                     file_row["file_id"],
                     payload.source,
-                    "queued",
                     jsonb(options),
-                    datetime.now(UTC),
-                    datetime.now(UTC),
                 ),
             )
             row = cur.fetchone()
+
+            if row is None:
+                cur.execute(
+                    """
+                    INSERT INTO import_jobs (
+                        org_id,
+                        owner_id,
+                        file_id,
+                        source,
+                        status,
+                        options,
+                        created_at,
+                        updated_at
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING
+                        job_id,
+                        file_id,
+                        source,
+                        status,
+                        created_at,
+                        updated_at,
+                        started_at,
+                        finished_at,
+                        summary,
+                        error
+                    """,
+                    (
+                        org_id,
+                        current_user["id"],
+                        file_row["file_id"],
+                        payload.source,
+                        "queued",
+                        jsonb(options),
+                        datetime.now(UTC),
+                        datetime.now(UTC),
+                    ),
+                )
+                row = cur.fetchone()
+                enqueue_import = True
+
         conn.commit()
 
-    enqueue_event(
-        "nirvana_import_job",
-        {"job_id": str(row["job_id"]), "org_id": org_id},
-    )
+    if enqueue_import:
+        logger.info(
+            "import_job.queued",
+            job_id=str(row["job_id"]),
+            org_id=org_id,
+            file_id=str(row["file_id"]),
+            source=row["source"],
+        )
+        enqueue_event(
+            "nirvana_import_job",
+            {"job_id": str(row["job_id"]), "org_id": org_id},
+        )
+    else:
+        logger.info(
+            "import_job.reused_active",
+            job_id=str(row["job_id"]),
+            org_id=org_id,
+            file_id=str(row["file_id"]),
+            source=row["source"],
+            status=row["status"],
+        )
 
     response = _build_job_response(row)
-    return JSONResponse(content=response.model_dump(), status_code=status.HTTP_202_ACCEPTED)
+    return JSONResponse(
+        content=response.model_dump(mode="json"),
+        status_code=status.HTTP_202_ACCEPTED,
+    )
 
 
 @router.get(
-    "/jobs/{job_id}",
-    response_model=ImportJobResponse,
-    summary="Get import job status",
+    "/jobs",
+    response_model=list[ImportJobResponse],
+    summary="List import jobs for current user",
+    description=(
+        "Returns recent import jobs for the authenticated user in the active org. "
+        "Use repeated `status` query parameters to filter "
+        "(e.g. `?status=queued&status=running`)."
+    ),
+    responses={
+        200: {
+            "description": "Recent jobs owned by current user.",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "active_and_done": {
+                            "summary": "Mixed job states",
+                            "value": [
+                                _IMPORT_JOB_EXAMPLE_RUNNING,
+                                _IMPORT_JOB_EXAMPLE_COMPLETED,
+                            ],
+                        }
+                    }
+                }
+            },
+        }
+    },
 )
-def get_import_job(
-    job_id: str,
+def list_import_jobs(
+    statuses: list[ImportJobStatus] | None = Query(
+        default=None,
+        alias="status",
+        description="Optional status filters. Repeat the query param to provide multiple values.",
+        examples=["queued", "running"],
+    ),
+    limit: int = Query(default=50, ge=1, le=200),
+    current_user=Depends(get_current_user),
     current_org=Depends(get_current_org),
 ):
     org_id = current_org["org_id"]
+    user_id = current_user["id"]
+    status_filter = [value.value for value in statuses] if statuses else [
+        ImportJobStatus.QUEUED.value,
+        ImportJobStatus.RUNNING.value,
+        ImportJobStatus.COMPLETED.value,
+        ImportJobStatus.FAILED.value,
+    ]
+
     with db_conn() as conn:
+        _fail_stale_queued_jobs(org_id=org_id, conn=conn)
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -947,14 +1269,100 @@ def get_import_job(
                     summary,
                     error
                 FROM import_jobs
-                WHERE job_id = %s AND org_id = %s
+                WHERE org_id = %s
+                  AND owner_id = %s
+                  AND status = ANY(%s)
+                ORDER BY created_at DESC
+                LIMIT %s
                 """,
-                (job_id, org_id),
+                (org_id, user_id, status_filter, limit),
+            )
+            rows = cur.fetchall()
+        conn.commit()
+
+    logger.info(
+        "import_jobs.listed",
+        org_id=org_id,
+        user_id=user_id,
+        requested_status=status_filter,
+        count=len(rows),
+        limit=limit,
+    )
+    return [_build_job_response(row) for row in rows]
+
+
+@router.get(
+    "/jobs/{job_id}",
+    response_model=ImportJobResponse,
+    summary="Get import job status",
+    description="Returns a single import job owned by the authenticated user in the active org.",
+    responses={
+        200: {
+            "description": "Job status snapshot.",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "running": {
+                            "summary": "Job in progress",
+                            "value": _IMPORT_JOB_EXAMPLE_RUNNING,
+                        },
+                        "completed": {
+                            "summary": "Job completed",
+                            "value": _IMPORT_JOB_EXAMPLE_COMPLETED,
+                        },
+                    }
+                }
+            },
+        },
+        404: {
+            "description": "Job not found (wrong id, org, or owner).",
+            "content": {"application/json": {"example": {"detail": "Job not found"}}},
+        },
+    },
+)
+def get_import_job(
+    job_id: str,
+    current_user=Depends(get_current_user),
+    current_org=Depends(get_current_org),
+):
+    org_id = current_org["org_id"]
+    user_id = current_user["id"]
+    with db_conn() as conn:
+        _fail_stale_queued_jobs(org_id=org_id, conn=conn)
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    job_id,
+                    file_id,
+                    source,
+                    status,
+                    created_at,
+                    updated_at,
+                    started_at,
+                    finished_at,
+                    summary,
+                    error
+                FROM import_jobs
+                WHERE job_id = %s
+                  AND org_id = %s
+                  AND owner_id = %s
+                """,
+                (job_id, org_id, user_id),
             )
             row = cur.fetchone()
+        conn.commit()
 
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
 
+    logger.info(
+        "import_job.polled",
+        job_id=str(row["job_id"]),
+        org_id=org_id,
+        status=row["status"],
+        started_at=row["started_at"].isoformat() if row.get("started_at") else None,
+        finished_at=row["finished_at"].isoformat() if row.get("finished_at") else None,
+    )
     response = _build_job_response(row)
-    return JSONResponse(content=response.model_dump())
+    return JSONResponse(content=response.model_dump(mode="json"))

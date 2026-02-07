@@ -14,7 +14,7 @@ import {
   resetFactoryCounter,
 } from "@/model/factories";
 import type { ThingRecord } from "./api-client";
-import type { InboxItem, Action, Project, ReferenceMaterial } from "@/model/gtd-types";
+import type { Thing, Project, ReferenceMaterial } from "@/model/gtd-types";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -122,7 +122,7 @@ describe("fromJsonLd", () => {
       confidence: "low",
     });
 
-    const item = fromJsonLd(record) as InboxItem;
+    const item = fromJsonLd(record) as Thing;
     expect(item.bucket).toBe("inbox");
     expect(item.id).toBe("urn:gtd:inbox:abc-123");
     expect(item.title).toBe("Buy milk");
@@ -151,7 +151,7 @@ describe("fromJsonLd", () => {
       confidence: "high",
     });
 
-    const action = fromJsonLd(record) as Action;
+    const action = fromJsonLd(record) as Thing;
     expect(action.bucket).toBe("next");
     expect(action.isFocused).toBe(true);
     expect(action.dueDate).toBe("2025-06-01");
@@ -221,7 +221,7 @@ describe("fromJsonLd", () => {
 
     const ld = toJsonLd(original);
     const record = wrapAsThingRecord(ld);
-    const restored = fromJsonLd(record) as Action;
+    const restored = fromJsonLd(record) as Thing;
 
     expect(restored.id).toBe(original.id);
     expect(restored.title).toBe(original.title);
@@ -350,15 +350,15 @@ describe("buildItemEditPatch", () => {
   });
 
   it("maps projectId to patch", () => {
-    const patch = buildItemEditPatch({ projectId: "urn:gtd:project:p-1" as any });
+    const patch = buildItemEditPatch({
+      projectId: "urn:gtd:project:p-1" as any,
+    });
     expect(patch.projectId).toBe("urn:gtd:project:p-1");
   });
 
   it("maps energyLevel to computation port", () => {
     const patch = buildItemEditPatch({ energyLevel: "high" });
-    expect(patch.ports).toEqual([
-      { kind: "computation", energyLevel: "high" },
-    ]);
+    expect(patch.ports).toEqual([{ kind: "computation", energyLevel: "high" }]);
   });
 
   it("nulls dueDate when empty string", () => {

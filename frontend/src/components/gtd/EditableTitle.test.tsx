@@ -26,7 +26,7 @@ describe("EditableTitle", () => {
     );
     const input = screen.getByDisplayValue("My title");
     expect(input).toBeInTheDocument();
-    expect(input.tagName).toBe("INPUT");
+    expect(input.tagName).toBe("TEXTAREA");
   });
 
   it("calls onToggleEdit when button clicked", async () => {
@@ -236,6 +236,19 @@ describe("EditableTitle", () => {
 
     // Input should show the saved value, not the stale prop
     expect(screen.getByDisplayValue("Saved value")).toBeInTheDocument();
+  });
+
+  it("preserves line breaks in collapsed view", () => {
+    render(
+      <EditableTitle
+        title={"Line one\nLine two"}
+        isEditing={false}
+        onToggleEdit={vi.fn()}
+      />,
+    );
+    const button = screen.getByText(/Line one/);
+    expect(button.textContent).toBe("Line one\nLine two");
+    expect(button.className).toContain("whitespace-pre-wrap");
   });
 
   it("applies line-through when completed", () => {

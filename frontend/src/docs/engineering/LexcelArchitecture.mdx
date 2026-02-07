@@ -1,0 +1,318 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Engineering/LexCEL Architecture" />
+
+# LexCEL: Hybrid Graph+Rule Architecture
+
+**LexCEL** is a hybrid architecture that treats the legal corpus as a modular program:
+laws as **modules**, Verwaltungsvorschriften/Weisungen as **overlays**, and interfaces
+to periphery as narrow, typed **ports**. A document-centric RDF graph provides identity,
+versioning, and evidence anchors; a rule layer compiled from the graph provides
+deterministic decisions and proof traces.
+
+The architecture combines **Schema.org**, **ELI/LegalDocML (Akoma Ntoso)**, and
+**Web Annotation** to capture identity, versioning, and typed renvoi (cross-references)
+for German social law (Sozialrecht).
+
+For how LexCEL maps to the GTD data model, see
+[Data Model](?path=/docs/engineering-data-model--docs).
+For the FRBR hierarchy that underpins document identity, see
+[FRBR Architecture](?path=/docs/engineering-frbr-architecture--docs).
+For the canonical ID and normalization layer, see
+[Legal Reference Normalization](?path=/docs/engineering-legal-reference-normalization--docs).
+
+---
+
+## Core Concepts
+
+### NormBlocks
+
+Atomic, executable units — one effect with its conditions and exceptions.
+
+- `lc:NormBlock` — executable unit with decision mode (`must|may|discretion`),
+  conditions, exceptions, effect, procedure.
+- `lc:Clause` — normalized clause with text and optional structured predicate (AST).
+- `lc:Effect` — `grant|deny|compute|oblige|authorize|suspend` with optional outputs.
+
+### Typed Renvoi
+
+Cross-references modeled as **typed edges** that encode _what the reference does_.
+Each renvoi also carries qualifiers: `renvoiMode` (static or dynamic) and,
+when applicable, a `paramMap`.
+
+### Ports
+
+Module interfaces: each law module exports a small set of typed ports
+(see Typed Ports section below).
+
+### Overlays
+
+VV/Weisungen in separate **named graphs** that reference statute blocks via
+`lc:interprets`/`lc:implements` and are constrained not to alter statutory
+`lc:Effect.kind`.
+
+---
+
+## Data Model
+
+### Entities and Properties
+
+| Entity         | Description                                                               |
+| -------------- | ------------------------------------------------------------------------- |
+| `lc:NormBlock` | Executable unit: decision mode, conditions, exceptions, effect, procedure |
+| `lc:Clause`    | Normalized clause with text and optional structured predicate (AST)       |
+| `lc:Effect`    | `grant\|deny\|compute\|oblige\|authorize\|suspend` with optional outputs  |
+| `lc:refersTo`  | Typed renvoi with `lc:refType` and `lc:renvoiMode`                        |
+| `lc:Port`      | `DefinitionPort`, `PredicatePort`, `ComputationPort`, `ProcedurePort`     |
+
+### Provenance
+
+- `prov:wasDerivedFrom` links to statute/VV expression IRIs
+- `oa:hasSelector` anchors quoted spans (Web Annotation)
+- Content hashes ensure integrity
+
+---
+
+## Typed Renvoi Taxonomy
+
+| Renvoi Type              | Semantics                                                    | Example Pattern                                      |
+| ------------------------ | ------------------------------------------------------------ | ---------------------------------------------------- |
+| `defines`                | Imports or aligns a legal definition                         | "im Sinne des &sect;...", "Begriff nach &sect;..."   |
+| `incorporates`           | Wholesale incorporation of a rule or fragment                | Direct inclusion without adaptation                  |
+| `appliesCorrespondingly` | Parameterized reuse; requires explicit `paramMap`            | "gilt entsprechend/sinngem&auml;&szlig;"             |
+| `delegates`              | Procedural or decisional delegation                          | "nach Ma&szlig;gabe des &sect;..."                   |
+| `exceptionOf`            | Exception/override; compiled as UNLESS-guards                | "abweichend von &sect;...", "sofern nicht &sect;..." |
+| `modifies`               | Amendment/patch to a specific fragment                       | Direct text modification                             |
+| `prevailsOver`           | Precedence (lex specialis/posterior) for conflict resolution | Priority declaration                                 |
+| `interprets`             | VV/Weisung narrows discretion or clarifies meaning           | Must not change statutory effect kind                |
+| `implements`             | Operationalization: procedures, thresholds, validations      | Supplied by VV/Weisungen/VO                          |
+
+Each renvoi carries:
+
+- `renvoiMode`: `static` (freeze version) or `dynamic` (track latest)
+- `paramMap`: explicit parameter mapping for `appliesCorrespondingly`
+
+---
+
+## Typed Ports and Program Composition
+
+Each law module exports a small set of ports:
+
+| Port Type           | Example                   | Purpose                    |
+| ------------------- | ------------------------- | -------------------------- |
+| **DefinitionPort**  | Arbeitslosigkeit          | Enriches Tatbestand typing |
+| **PredicatePort**   | `has_sperrzeit`           | Guards (IF/UNLESS)         |
+| **ComputationPort** | `compute_travel_cost_cap` | Used in effects            |
+| **ProcedurePort**   | `receipt_check`           | Operational steps          |
+
+Consumers import ports with parameter maps and renvoi mode (static preferred for
+determinism). This yields a build-time **evaluation DAG** that respects precedence
+(law > VV > Weisung) and resolves cycles via adapter cut-points.
+
+---
+
+## Evidence Anchors
+
+For every renvoi and clause, evidence anchors ensure explanations are verifiable:
+
+- **Source anchoring**: the IRI of the legal expression plus a Web Annotation selector
+  (TextQuote and/or TextPosition) pointing to the exact span
+- **Integrity**: a content hash (SHA-256) over the canonicalized span
+- **Trace linkage**: compiled CEL retains pointers to these anchors, enabling
+  step-by-step proofs
+
+---
+
+## System Architecture
+
+**Ingest** parses statutes/VV/Weisungen and creates expression-level IRIs
+(ELI/LegalDocML). **Extraction** uses an LLM to propose NormBlocks, clauses,
+typed renvoi, ports, and parameter mappings (JSON). **Validation** applies
+JSON Schema/SHACL. **Linking** resolves cross-references and materializes overlays
+in named graphs. **Compilation** emits CEL (optionally OPA for deployment) with
+SHACL validation. **Runtime** evaluates policy and records proof traces.
+
+### Compiler Sketch
+
+Given a connected subgraph `G` rooted at a `lc:NormBlock`:
+
+1. Inline **DefinitionPorts** into the block's condition AST (retain provenance)
+2. For each `appliesCorrespondingly`, obtain/verify explicit **paramMap**; expand as
+   parameterized call
+3. Wrap **exceptions** as UNLESS guards; add overlay thresholds/caps as ComputationPorts
+4. Linearize to an evaluation DAG; memoize imported predicates; cut cycles
+5. Emit **CEL**: `precond && unless => effect` with explicit evidence pointers to
+   IRIs/selectors
+
+### Deep Links and Clause-Level Evidence Anchors
+
+Stable URIs at multiple granularities (work/expression/version/fragment) using
+ELI/LegalDocML plus fragment identifiers for paragraphs/clauses. For every clause
+and renvoi edge:
+
+- **Stable links** to documents and granular anchors (paragraph, sentence, token range)
+- **Web Annotation selectors** (TextQuote/TextPosition/XPath/CFI)
+- **Integrity hashes** (SHA-256) over canonicalized spans
+
+### Status Updates and Periodic Reviews
+
+- **Versioned builds**: every compilation tagged with source graph versions, timestamps,
+  and change sets
+- **Change detection (drift)**: when upstream texts or renvoi targets change, recompute
+  affected blocks and surface deltas in the proof trace
+- **History**: append-only logs of executions (inputs, outputs, evidence)
+- **Reproducibility manifests**: capture model versions, prompts, SHACL shapes, and
+  CEL code used for each run
+
+### Configurable Human-in-the-Loop Workflows
+
+- **Low-confidence extraction**: clauses/renvoi typed below threshold routed to expert review
+- **Param-map approval**: every `appliesCorrespondingly` carries a reviewed parameter map
+- **Exception scrutiny**: new or modified `exceptionOf` edges trigger targeted review
+- **SHACL gating**: only blocks passing shapes and reviews are eligible for compilation
+- **Provenance stamps**: reviewer decisions recorded and linked to affected edges
+
+---
+
+## Implementation Stack
+
+| Layer         | Technology                            | Role                                                                      |
+| ------------- | ------------------------------------- | ------------------------------------------------------------------------- |
+| Extraction    | Python + LangGraph                    | Segment into NormBlocks, classify renvoi, propose ports                   |
+| Graph         | Node.js + N3.js                       | Named graphs, typed renvoi edges, subgraph export                         |
+| Validation    | SHACL (pySHACL or rdf-validate-shacl) | Structural constraints (paramMap completeness, overlay limits)            |
+| Execution     | CEL (JS or cel-go sidecar)            | Single source of executable truth                                         |
+| Proof logging | Runtime                               | Which clauses/ports fired, variable bindings, IRI/selector justifications |
+
+No Neo4j is required; triples are stored and queried within N3.js (with serialization
+to Turtle/JSON-LD for persistence and exchange).
+
+---
+
+## Evaluation Metrics
+
+**Scope**: 4-10 SGB laws (SGB I, II, III, X), 10 VV, 20 Weisungen; three focal tasks:
+Fahrkosten, Mobbing-related support, and Sperrfristen.
+
+| Metric                             | Formula                               | Description                                                       |
+| ---------------------------------- | ------------------------------------- | ----------------------------------------------------------------- |
+| **Trace Completeness (TC)**        | `TC = \|E_linked\| / \|E_total\|`     | Proportion of decision steps with linked evidence                 |
+| **Structural Goto-Ness (SGN)**     | `SGN = a*d_out + b*r_depth + g*s_SCC` | Composite of out-degree, renvoi depth, SCC size (lower is better) |
+| **Compilation Success Rate (CSR)** | `CSR = \|B_compiled\| / \|B_total\|`  | Fraction of blocks compiling to CEL without manual edits          |
+| **Factual Consistency (FC)**       | `FC = (Sum f_i) / N`                  | Human-judged alignment of output with cited spans                 |
+| **Review Effort (RE)**             | `RE = (Sum t_j) / B_reviewed`         | Minutes of human validation per block                             |
+
+**Baselines**: (i) RAG-only LLM (no executable rules); (ii) hand-crafted policy
+without graph provenance.
+
+---
+
+## Case Studies
+
+### Fahrkosten (Travel Cost Reimbursement)
+
+Statute block requires mandatory appointment participation and actual necessary
+expenses; exception when third party covers costs. A VV overlay defines caps;
+a Weisung adds receipt-check procedure.
+
+Compiled rule: _IF mandatory appointment AND costs > 0 UNLESS third-party-covered
+THEN grant min(cost, cap)_ with linked citations.
+
+### Mobbing-related Support
+
+Cross-cuts benefit eligibility and counseling provisions; imports definitions of
+workplace harassment and procedure ports for documentation/verification. Overlays
+restrict discretion, requiring specific evidence patterns.
+
+### Sperrfristen (Suspension Periods)
+
+Modeled as guards that suspend otherwise-granted benefits for _t_ days, with
+documented exceptions (hardship). Predicate port `has_suspension(person, cause)`
+feeds into UNLESS clause; timers and notices emitted via procedure ports.
+
+---
+
+## Appendices
+
+### Appendix A: Turtle Sketch (Conceptual)
+
+```turtle
+@prefix schema: <https://schema.org/> .
+@prefix eli:    <http://data.europa.eu/eli/ontology#> .
+@prefix lc:     <https://kg.example.org/lexcel#> .
+@prefix prov:   <http://www.w3.org/ns/prov#> .
+@prefix oa:     <http://www.w3.org/ns/oa#> .
+
+<#sgb3_44_expr> a schema:Legislation ;
+  schema:identifier "§ 44 SGB III" ;
+  eli:version_date "2025-01-01" ;
+  lc:hasBlock <#b1> .
+
+<#b1> a lc:NormBlock ;
+  lc:decisionMode lc:must ;
+  lc:hasCondition <#c1>, <#c2> ;
+  lc:hasException <#e1> ;
+  lc:hasEffect <#eff1> ;
+  lc:refersTo [ lc:refType lc:appliesCorrespondingly ;
+                lc:renvoiMode lc:static ;
+                lc:target <#sgb1_def_Arbeitslosigkeit> ] .
+```
+
+### Appendix B: JSON-LD Context (Excerpt)
+
+```json
+{
+  "@context": {
+    "schema": "https://schema.org/",
+    "eli": "http://data.europa.eu/eli/ontology#",
+    "lc": "https://kg.example.org/lexcel#",
+    "prov": "http://www.w3.org/ns/prov#",
+    "oa": "http://www.w3.org/ns/oa#",
+    "NormBlock": "lc:NormBlock",
+    "Clause": "lc:Clause",
+    "Effect": "lc:Effect",
+    "refersTo": { "@id": "lc:refersTo", "@type": "@id" },
+    "refType": { "@id": "lc:refType" },
+    "renvoiMode": { "@id": "lc:renvoiMode" }
+  }
+}
+```
+
+### Appendix C: Example CEL Snippet (Conceptual)
+
+```cel
+precond: appointment.type in ['pflichtig'] && costs.travel_eur > 0
+unless:  third_party_reimbursement == true
+effect:  grant('fahrkosten', min(costs.travel_eur, POLICY_MAX))
+```
+
+### Appendix D: Program Manifest (Excerpt)
+
+```json
+{
+  "id": "urn:program:de:sozialrecht-core@2025-11-09",
+  "modules": [
+    "urn:module:de:sgb3@2025-01-01",
+    "urn:module:de:sgb2@2025-07-01",
+    "urn:module:de:sgb1-adapter@2025-01-01",
+    "urn:module:de:sgb3-vv@2025-02-15",
+    "urn:module:de:sgb3-weisung@2025-03-01"
+  ],
+  "compile": ["cel"]
+}
+```
+
+---
+
+## References
+
+- [European Legislation Identifier (ELI) Ontology](https://data.europa.eu/eli/ontology)
+- [LegalDocML / Akoma Ntoso (OASIS)](https://www.oasis-open.org/committees/legaldocml/)
+- [Schema.org: Legislation](https://schema.org/Legislation)
+- [Web Annotation Data Model (W3C)](https://www.w3.org/TR/annotation-model/)
+- [Shapes Constraint Language (SHACL)](https://www.w3.org/TR/shacl/)
+- [Open Policy Agent (OPA)](https://www.openpolicyagent.org/docs/)
+- [Common Expression Language (CEL)](https://github.com/google/cel-spec)
+- [N3.js (RDF/JS)](https://github.com/rdfjs/N3.js)
+- [pySHACL](https://github.com/RDFLib/pySHACL)
+- [rdf-validate-shacl](https://github.com/zazuko/rdf-validate-shacl)

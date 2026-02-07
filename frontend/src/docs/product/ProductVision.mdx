@@ -10,7 +10,9 @@ A **GTD-native task management system** that brings David Allen's
 Getting Things Done methodology into a modern, evidence-first workspace.
 
 Inspired by **ThinkingRock**'s discipline and **NirvanaHQ**'s elegance,
-grounded in concepts from knowledge graph architecture (FRBR, LexCEL).
+grounded in concepts from knowledge graph architecture
+([FRBR](?path=/docs/engineering-frbr-architecture--docs),
+[LexCEL](?path=/docs/engineering-lexcel-architecture--docs)).
 
 ---
 
@@ -18,26 +20,26 @@ grounded in concepts from knowledge graph architecture (FRBR, LexCEL).
 
 ### The 5 Phases
 
-| Phase | Action | Description |
-|-------|--------|-------------|
-| **Capture** | Collect | Everything goes into the Inbox |
-| **Clarify** | Process | Is it actionable? What's the next action? |
-| **Organize** | Route | Assign to the correct bucket |
-| **Reflect** | Review | Weekly review of all lists |
-| **Engage** | Do | Execute from context-aware lists |
+| Phase        | Action  | Description                               |
+| ------------ | ------- | ----------------------------------------- |
+| **Capture**  | Collect | Everything goes into the Inbox            |
+| **Clarify**  | Process | Is it actionable? What's the next action? |
+| **Organize** | Route   | Assign to the correct bucket              |
+| **Reflect**  | Review  | Weekly review of all lists                |
+| **Engage**   | Do      | Execute from context-aware lists          |
 
 ### The Buckets
 
-| Bucket | Purpose | Color |
-|--------|---------|-------|
-| **Inbox** | Unprocessed captures | Warm amber |
-| **Next Actions** | Immediately actionable, context-tagged | Green |
-| **Projects** | Multi-step outcomes | Blueprint blue |
-| **Waiting For** | Delegated or dependent items | Purple |
-| **Someday/Maybe** | Deferred aspirations | Cool cyan |
-| **Calendar** | Time-specific commitments | Red-orange |
-| **Reference** | Supporting materials | Muted olive |
-| **Focus** | Filtered priority view (NirvanaHQ) | Bold orange |
+| Bucket            | Purpose                                | Color          |
+| ----------------- | -------------------------------------- | -------------- |
+| **Inbox**         | Unprocessed captures                   | Warm amber     |
+| **Next Actions**  | Immediately actionable, context-tagged | Green          |
+| **Projects**      | Multi-step outcomes                    | Blueprint blue |
+| **Waiting For**   | Delegated or dependent items           | Purple         |
+| **Someday/Maybe** | Deferred aspirations                   | Cool cyan      |
+| **Calendar**      | Time-specific commitments              | Red-orange     |
+| **Reference**     | Supporting materials                   | Muted olive    |
+| **Focus**         | Filtered priority view (NirvanaHQ)     | Bold orange    |
 
 ---
 
@@ -69,12 +71,12 @@ graph architecture, mapping their concepts to GTD:
 
 ### FRBR Hierarchy → GTD Item Identity
 
-| FRBR Level | GTD Mapping | Example |
-|------------|-------------|---------|
-| **Work** | Project | "Launch website redesign" |
-| **Expression** | Action | "Draft wireframes for homepage" |
+| FRBR Level        | GTD Mapping  | Example                             |
+| ----------------- | ------------ | ----------------------------------- |
+| **Work**          | Project      | "Launch website redesign"           |
+| **Expression**    | Action       | "Draft wireframes for homepage"     |
 | **Manifestation** | Context view | Same action shown in @computer list |
-| **Item** | Execution | Doing it right now, this instance |
+| **Item**          | Execution    | Doing it right now, this instance   |
 
 **Evidence-first principle**: Always create the full hierarchy with placeholders.
 Items enter as raw captures and get progressively enriched through clarification.
@@ -83,32 +85,32 @@ Items enter as raw captures and get progressively enriched through clarification
 
 Actions connect to each other via **typed references** (not just plain links):
 
-| Reference Type | GTD Meaning | Example |
-|----------------|-------------|---------|
-| `blocks` | This item blocks another | "Get approval" blocks "Start development" |
-| `depends_on` | Cannot start until dependency completes | "Deploy" depends_on "Pass tests" |
-| `delegates_to` | Assigned to someone else | "Review PR" delegates_to "@sarah" |
-| `refers_to` | Cross-reference | "Budget doc" refers_to "Q4 Plan" |
-| `part_of` | Sub-action of a project | "Write tests" part_of "Launch redesign" |
-| `follows` | Sequential ordering | Step 2 follows Step 1 |
-| `waiting_on` | External dependency | "Waiting on vendor response" |
+| Reference Type | GTD Meaning                             | Example                                   |
+| -------------- | --------------------------------------- | ----------------------------------------- |
+| `blocks`       | This item blocks another                | "Get approval" blocks "Start development" |
+| `depends_on`   | Cannot start until dependency completes | "Deploy" depends_on "Pass tests"          |
+| `delegates_to` | Assigned to someone else                | "Review PR" delegates_to "@sarah"         |
+| `refers_to`    | Cross-reference                         | "Budget doc" refers_to "Q4 Plan"          |
+| `part_of`      | Sub-action of a project                 | "Write tests" part_of "Launch redesign"   |
+| `follows`      | Sequential ordering                     | Step 2 follows Step 1                     |
+| `waiting_on`   | External dependency                     | "Waiting on vendor response"              |
 
 ### LexCEL Ports → Action Attributes
 
-| Port Type | GTD Usage | Example |
-|-----------|-----------|---------|
-| **DefinitionPort** | What does "done" mean? | "Homepage wireframes approved by team" |
-| **PredicatePort** | What conditions must be true to start? | "Design system tokens finalized" |
-| **ComputationPort** | Effort/time/energy estimates | 2hr, high energy |
-| **ProcedurePort** | Checklists / sub-steps | [ ] Header, [ ] Nav, [ ] Hero |
+| Port Type           | GTD Usage                              | Example                                |
+| ------------------- | -------------------------------------- | -------------------------------------- |
+| **DefinitionPort**  | What does "done" mean?                 | "Homepage wireframes approved by team" |
+| **PredicatePort**   | What conditions must be true to start? | "Design system tokens finalized"       |
+| **ComputationPort** | Effort/time/energy estimates           | 2hr, high energy                       |
+| **ProcedurePort**   | Checklists / sub-steps                 | [ ] Header, [ ] Nav, [ ] Hero          |
 
 ### Three-Phase Processing → Capture-Clarify-Enrich
 
-| Phase | Paper Concept | GTD Implementation |
-|-------|--------------|-------------------|
-| Phase 1 | Heuristic classification | Capture: item enters inbox, auto-tagged with source |
+| Phase   | Paper Concept               | GTD Implementation                                      |
+| ------- | --------------------------- | ------------------------------------------------------- |
+| Phase 1 | Heuristic classification    | Capture: item enters inbox, auto-tagged with source     |
 | Phase 2 | Hierarchy with placeholders | Clarify: create project/action structure, mark unknowns |
-| Phase 3 | Optional enrichment | Enrich: fill in missing context, effort, done criteria |
+| Phase 3 | Optional enrichment         | Enrich: fill in missing context, effort, done criteria  |
 
 ### Confidence Scores
 
@@ -167,9 +169,9 @@ Users cannot delete items. This is a core design principle for audit compliance:
 
 ### Language Policy
 
-| Context | Language |
-|---------|----------|
-| Code (variables, functions) | English |
-| UI strings | German (de) + English (en) via i18n |
-| Domain terms, test fixtures | German |
-| Documentation | English |
+| Context                     | Language                            |
+| --------------------------- | ----------------------------------- |
+| Code (variables, functions) | English                             |
+| UI strings                  | German (de) + English (en) via i18n |
+| Domain terms, test fixtures | German                              |
+| Documentation               | English                             |

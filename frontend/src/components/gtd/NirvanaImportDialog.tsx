@@ -186,7 +186,7 @@ export function NirvanaImportDialog({
             {/* Import button */}
             <button
               onClick={handleImport}
-              className="w-full rounded-[var(--radius-md)] bg-blueprint-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blueprint-600"
+              className="w-full rounded-[var(--radius-md)] bg-blueprint-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blueprint-700"
             >
               Import {preview.total - preview.errors} items
             </button>
@@ -308,7 +308,7 @@ export function NirvanaImportDialog({
                           onNavigateToBucket?.("inbox");
                           onClose();
                         }}
-                        className="flex-1 rounded-[var(--radius-md)] bg-blueprint-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blueprint-600"
+                        className="flex-1 rounded-[var(--radius-md)] bg-blueprint-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blueprint-700"
                       >
                         View inbox
                       </button>

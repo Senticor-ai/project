@@ -1,13 +1,21 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
-import type { ReferenceMaterial, ReferenceOrigin } from "@/model/gtd-types";
+import { ItemEditor } from "./ItemEditor";
+import type {
+  ReferenceMaterial,
+  ReferenceOrigin,
+  ItemEditableFields,
+} from "@/model/gtd-types";
 import type { CanonicalId } from "@/model/canonical-id";
 
 export interface ReferenceRowProps {
   reference: ReferenceMaterial;
   onArchive: (id: CanonicalId) => void;
   onSelect: (id: CanonicalId) => void;
+  isExpanded?: boolean;
+  onToggleExpand?: () => void;
+  onEdit?: (id: CanonicalId, fields: Partial<ItemEditableFields>) => void;
   className?: string;
 }
 
@@ -49,14 +57,36 @@ function formatContentType(contentType: string): string {
   );
 }
 
+function referenceToEditorValues(ref: ReferenceMaterial): ItemEditableFields {
+  return {
+    contexts: [],
+    notes: ref.notes,
+  };
+}
+
 export function ReferenceRow({
   reference,
   onArchive,
   onSelect,
+  isExpanded = false,
+  onToggleExpand,
+  onEdit,
   className,
 }: ReferenceRowProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const origin = reference.origin ? originConfig[reference.origin] : null;
+
+  const handleTitleClick = () => {
+    if (onToggleExpand) {
+      onToggleExpand();
+    } else {
+      onSelect(reference.id);
+    }
+  };
+
+  const handleEditorChange = (fields: Partial<ItemEditableFields>) => {
+    onEdit?.(reference.id, fields);
+  };
 
   return (
     <div
@@ -69,8 +99,8 @@ export function ReferenceRow({
     >
       {/* Title — clickable */}
       <button
-        onClick={() => onSelect(reference.id)}
-        className="flex-1 truncate text-left text-sm font-medium text-text"
+        onClick={handleTitleClick}
+        className="flex-1 whitespace-pre-wrap text-left text-sm font-medium text-text"
       >
         {reference.title}
       </button>
@@ -97,9 +127,15 @@ export function ReferenceRow({
 
       {/* Note indicator */}
       {reference.notes && (
-        <span aria-label="Has notes" className="shrink-0 text-text-subtle">
+        <button
+          onClick={() =>
+            onToggleExpand ? onToggleExpand() : onSelect(reference.id)
+          }
+          aria-label={`Show notes for ${reference.title}`}
+          className="shrink-0 text-text-subtle hover:text-text"
+        >
           <Icon name="description" size={14} />
-        </span>
+        </button>
       )}
 
       {/* External URL link */}
@@ -145,6 +181,16 @@ export function ReferenceRow({
           </div>
         )}
       </div>
+
+      {/* Inline editor */}
+      {isExpanded && onEdit && (
+        <div className="mt-1 ml-8">
+          <ItemEditor
+            values={referenceToEditorValues(reference)}
+            onChange={handleEditorChange}
+          />
+        </div>
+      )}
     </div>
   );
 }

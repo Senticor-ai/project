@@ -1,7 +1,7 @@
 import { createCanonicalId } from "./canonical-id";
 import type {
-  InboxItem,
-  Action,
+  Thing,
+  ThingBucket,
   Project,
   ReferenceMaterial,
   Provenance,
@@ -36,41 +36,20 @@ function defaultSource(): CaptureSource {
 }
 
 // ---------------------------------------------------------------------------
-// Inbox Item Factory
+// Thing Factory (unified)
 // ---------------------------------------------------------------------------
 
-export function createInboxItem(
-  overrides: Partial<InboxItem> & { title: string },
-): InboxItem {
-  const id = overrides.id ?? createCanonicalId("inbox", nextId());
+export function createThing(
+  overrides: Partial<Thing> & { title: string },
+): Thing {
+  const bucket: ThingBucket = overrides.bucket ?? "inbox";
+  const entityType = bucket === "inbox" ? "inbox" : "action";
+  const id = overrides.id ?? createCanonicalId(entityType, nextId());
   return {
     id,
-    bucket: "inbox",
+    bucket,
     title: overrides.title,
-    rawCapture: overrides.rawCapture ?? overrides.title,
-    notes: overrides.notes,
-    tags: overrides.tags ?? [],
-    references: overrides.references ?? [],
-    captureSource: overrides.captureSource ?? defaultSource(),
-    provenance: overrides.provenance ?? defaultProvenance(),
-    ports: overrides.ports ?? [],
-    needsEnrichment: overrides.needsEnrichment ?? true,
-    confidence: overrides.confidence ?? "low",
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Action Factory
-// ---------------------------------------------------------------------------
-
-export function createAction(
-  overrides: Partial<Action> & { title: string },
-): Action {
-  const id = overrides.id ?? createCanonicalId("action", nextId());
-  return {
-    id,
-    bucket: overrides.bucket ?? "next",
-    title: overrides.title,
+    rawCapture: overrides.rawCapture,
     notes: overrides.notes,
     tags: overrides.tags ?? [],
     references: overrides.references ?? [],
@@ -78,8 +57,8 @@ export function createAction(
     captureSource: overrides.captureSource ?? defaultSource(),
     provenance: overrides.provenance ?? defaultProvenance(),
     ports: overrides.ports ?? [],
-    needsEnrichment: overrides.needsEnrichment ?? false,
-    confidence: overrides.confidence ?? "high",
+    needsEnrichment: overrides.needsEnrichment ?? bucket === "inbox",
+    confidence: overrides.confidence ?? (bucket === "inbox" ? "low" : "high"),
     isFocused: overrides.isFocused ?? false,
     projectId: overrides.projectId,
     delegatedTo: overrides.delegatedTo,
@@ -91,6 +70,37 @@ export function createAction(
     completedAt: overrides.completedAt,
     sequenceOrder: overrides.sequenceOrder,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Inbox Item Factory (convenience — delegates to createThing)
+// ---------------------------------------------------------------------------
+
+export function createInboxItem(
+  overrides: Partial<Thing> & { title: string },
+): Thing {
+  return createThing({
+    ...overrides,
+    bucket: "inbox",
+    rawCapture: overrides.rawCapture ?? overrides.title,
+    needsEnrichment: overrides.needsEnrichment ?? true,
+    confidence: overrides.confidence ?? "low",
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Action Factory (convenience — delegates to createThing)
+// ---------------------------------------------------------------------------
+
+export function createAction(
+  overrides: Partial<Thing> & { title: string },
+): Thing {
+  return createThing({
+    ...overrides,
+    bucket: overrides.bucket ?? "next",
+    needsEnrichment: overrides.needsEnrichment ?? false,
+    confidence: overrides.confidence ?? "high",
+  });
 }
 
 // ---------------------------------------------------------------------------

@@ -4,7 +4,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
 import { ThingsApi } from "@/lib/api-client";
 import type { ThingRecord, SyncResponse } from "@/lib/api-client";
-import { useThings, useActions, useInboxItems, useProjects, useReferences } from "./use-things";
+import {
+  useThings,
+  useActions,
+  useInboxItems,
+  useProjects,
+  useReferences,
+} from "./use-things";
 
 vi.mock("@/lib/api-client", () => ({
   ThingsApi: {
@@ -24,7 +30,8 @@ function makeRecord(
 ): ThingRecord {
   return {
     thing_id: overrides.thing_id ?? crypto.randomUUID(),
-    canonical_id: overrides.canonical_id ?? `urn:gtd:test:${crypto.randomUUID()}`,
+    canonical_id:
+      overrides.canonical_id ?? `urn:gtd:test:${crypto.randomUUID()}`,
     source: overrides.source ?? "test",
     created_at: overrides.created_at ?? "2026-01-01T00:00:00Z",
     updated_at: overrides.updated_at ?? "2026-01-01T00:00:00Z",
@@ -130,9 +137,7 @@ describe("useThings — cursor-based sync", () => {
       .mockResolvedValueOnce(
         makeSyncPage([INBOX_RECORD], true, "cursor-page-3"),
       )
-      .mockResolvedValueOnce(
-        makeSyncPage([PROJECT_RECORD], false),
-      );
+      .mockResolvedValueOnce(makeSyncPage([PROJECT_RECORD], false));
 
     const { result } = renderHook(() => useThings(), {
       wrapper: createWrapper(),

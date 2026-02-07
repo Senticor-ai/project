@@ -81,8 +81,8 @@ export function FilePreviewCard({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={{ y: 8 }}
+      animate={{ y: 0 }}
       transition={{ duration: 0.25 }}
       className={cn(
         "rounded-[var(--radius-lg)] border border-border bg-surface-raised p-4 shadow-[var(--shadow-card)]",
@@ -183,7 +183,7 @@ export function FilePreviewCard({
         </button>
         <button
           onClick={handleConfirm}
-          className="rounded-[var(--radius-md)] bg-blueprint-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-blueprint-600"
+          className="rounded-[var(--radius-md)] bg-blueprint-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blueprint-700"
         >
           {buttonLabel}
         </button>

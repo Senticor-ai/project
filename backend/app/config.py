@@ -78,6 +78,9 @@ class Settings:
     docling_enabled: bool
     file_storage_path: Path
     upload_chunk_size: int
+    import_job_queue_timeout_seconds: int
+    outbox_worker_poll_seconds: float
+    push_worker_poll_seconds: float
     vapid_public_key: str | None
     vapid_private_key: str | None
     vapid_subject: str | None
@@ -166,13 +169,20 @@ def load_settings() -> Settings:
         meili_timeout_seconds=float(_get_env("MEILI_TIMEOUT_SECONDS", "5") or "5"),
         meili_batch_size=int(_get_env("MEILI_BATCH_SIZE", "500") or "500"),
         meili_document_max_chars=int(_get_env("MEILI_DOCUMENT_MAX_CHARS", "100000") or "100000"),
-        meili_file_text_max_bytes=int(_get_env("MEILI_FILE_TEXT_MAX_BYTES", "5000000") or "5000000"),
+        meili_file_text_max_bytes=int(
+            _get_env("MEILI_FILE_TEXT_MAX_BYTES", "5000000") or "5000000"
+        ),
         meili_file_text_max_chars=int(_get_env("MEILI_FILE_TEXT_MAX_CHARS", "100000") or "100000"),
         docling_enabled=_get_bool_env("DOCLING_ENABLED", True),
         file_storage_path=Path(
             _get_env("FILE_STORAGE_PATH", str(ROOT_DIR / "storage")) or str(ROOT_DIR / "storage")
         ),
         upload_chunk_size=int(_get_env("UPLOAD_CHUNK_SIZE", "5242880") or "5242880"),
+        import_job_queue_timeout_seconds=int(
+            _get_env("IMPORT_JOB_QUEUE_TIMEOUT_SECONDS", "300") or "300"
+        ),
+        outbox_worker_poll_seconds=float(_get_env("OUTBOX_WORKER_POLL_SECONDS", "1.0") or "1.0"),
+        push_worker_poll_seconds=float(_get_env("PUSH_WORKER_POLL_SECONDS", "1.0") or "1.0"),
         vapid_public_key=_get_env("VAPID_PUBLIC_KEY"),
         vapid_private_key=_get_env("VAPID_PRIVATE_KEY"),
         vapid_subject=_get_env("VAPID_SUBJECT", "mailto:admin@example.com"),

@@ -179,12 +179,25 @@ export interface GtdBaseEntity extends Enrichable {
 }
 
 // ---------------------------------------------------------------------------
-// Inbox Item
+// Thing — unified type for inbox items and actions
 // ---------------------------------------------------------------------------
 
-export interface InboxItem extends GtdBaseEntity {
-  bucket: "inbox";
-  rawCapture: string;
+export type ThingBucket = "inbox" | "next" | "waiting" | "calendar" | "someday";
+
+export interface Thing extends GtdBaseEntity {
+  bucket: ThingBucket;
+  rawCapture?: string;
+  contexts: CanonicalId[];
+  projectId?: CanonicalId;
+  delegatedTo?: string;
+  scheduledDate?: string;
+  scheduledTime?: string;
+  dueDate?: string;
+  startDate?: string;
+  isFocused: boolean;
+  recurrence?: RecurrencePattern;
+  completedAt?: string;
+  sequenceOrder?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -214,25 +227,6 @@ export interface ItemEditableFields {
   energyLevel?: EnergyLevel;
   projectId?: CanonicalId;
   notes?: string;
-}
-
-// ---------------------------------------------------------------------------
-// Action
-// ---------------------------------------------------------------------------
-
-export interface Action extends GtdBaseEntity {
-  bucket: "next" | "waiting" | "calendar" | "someday";
-  contexts: CanonicalId[];
-  projectId?: CanonicalId;
-  delegatedTo?: string;
-  scheduledDate?: string;
-  scheduledTime?: string;
-  dueDate?: string;
-  startDate?: string;
-  isFocused: boolean;
-  recurrence?: RecurrencePattern;
-  completedAt?: string;
-  sequenceOrder?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -279,12 +273,7 @@ export interface CalendarEntry extends GtdBaseEntity {
 // Union Types
 // ---------------------------------------------------------------------------
 
-export type GtdItem =
-  | InboxItem
-  | Action
-  | Project
-  | ReferenceMaterial
-  | CalendarEntry;
+export type GtdItem = Thing | Project | ReferenceMaterial | CalendarEntry;
 
 export type GtdBucket =
   | "inbox"
@@ -300,11 +289,17 @@ export type GtdBucket =
 // Type Guards
 // ---------------------------------------------------------------------------
 
-export function isInboxItem(item: GtdItem): item is InboxItem {
+export function isThing(item: GtdItem): item is Thing {
+  return ["inbox", "next", "waiting", "calendar", "someday"].includes(
+    item.bucket,
+  );
+}
+
+export function isInboxItem(item: GtdItem): item is Thing {
   return item.bucket === "inbox";
 }
 
-export function isAction(item: GtdItem): item is Action {
+export function isAction(item: GtdItem): item is Thing {
   return ["next", "waiting", "calendar", "someday"].includes(item.bucket);
 }
 

@@ -121,9 +121,13 @@ describe("NirvanaImportDialog", () => {
     renderDialog();
 
     const fileInput = screen.getByTestId("nirvana-file-input");
-    const file = new File(['[{"id":"1","name":"test","type":0,"state":1}]'], "export.json", {
-      type: "application/json",
-    });
+    const file = new File(
+      ['[{"id":"1","name":"test","type":0,"state":1}]'],
+      "export.json",
+      {
+        type: "application/json",
+      },
+    );
     await user.upload(fileInput, file);
 
     await waitFor(() => {

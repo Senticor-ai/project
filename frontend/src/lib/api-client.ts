@@ -193,12 +193,7 @@ export const FilesApi = {
       }),
     }),
 
-  uploadChunk: (
-    uploadId: string,
-    chunk: Blob,
-    index: number,
-    total: number,
-  ) =>
+  uploadChunk: (uploadId: string, chunk: Blob, index: number, total: number) =>
     request<{ received: number }>(`/files/upload/${uploadId}`, {
       method: "PUT",
       body: chunk,

@@ -6,36 +6,36 @@
   --color-paper-50: oklch(0.99 0.002 90);
   --color-paper-100: oklch(0.97 0.005 90);
   --color-paper-200: oklch(0.94 0.008 85);
-  --color-paper-300: oklch(0.90 0.012 80);
+  --color-paper-300: oklch(0.9 0.012 80);
   --color-paper-400: oklch(0.85 0.015 75);
-  --color-paper-500: oklch(0.75 0.020 70);
+  --color-paper-500: oklch(0.75 0.02 70);
 
   /* @tokens Blueprint (primary) */
   --color-blueprint-50: oklch(0.97 0.015 240);
   --color-blueprint-100: oklch(0.93 0.035 240);
   --color-blueprint-200: oklch(0.85 0.065 240);
-  --color-blueprint-300: oklch(0.75 0.100 238);
-  --color-blueprint-400: oklch(0.65 0.130 236);
-  --color-blueprint-500: oklch(0.55 0.155 234);
-  --color-blueprint-600: oklch(0.48 0.160 232);
-  --color-blueprint-700: oklch(0.40 0.145 230);
-  --color-blueprint-800: oklch(0.33 0.120 228);
+  --color-blueprint-300: oklch(0.75 0.1 238);
+  --color-blueprint-400: oklch(0.65 0.13 236);
+  --color-blueprint-500: oklch(0.52 0.155 234);
+  --color-blueprint-600: oklch(0.48 0.16 232);
+  --color-blueprint-700: oklch(0.4 0.145 230);
+  --color-blueprint-800: oklch(0.33 0.12 228);
   --color-blueprint-900: oklch(0.28 0.095 226);
 
   /* @tokens Industrial (accent) */
-  --color-industrial-50: oklch(0.97 0.020 60);
-  --color-industrial-100: oklch(0.93 0.050 55);
+  --color-industrial-50: oklch(0.97 0.02 60);
+  --color-industrial-100: oklch(0.93 0.05 55);
   --color-industrial-200: oklch(0.85 0.095 50);
-  --color-industrial-300: oklch(0.75 0.140 45);
+  --color-industrial-300: oklch(0.75 0.14 45);
   --color-industrial-400: oklch(0.68 0.165 40);
-  --color-industrial-500: oklch(0.60 0.180 35);
-  --color-industrial-600: oklch(0.52 0.170 33);
+  --color-industrial-500: oklch(0.6 0.18 35);
+  --color-industrial-600: oklch(0.52 0.17 33);
 
   /* @tokens GTD Buckets (WCAG AA: ≥4.5:1 on /15 tint backgrounds) */
-  --color-gtd-inbox: oklch(0.50 0.12 55);
+  --color-gtd-inbox: oklch(0.5 0.12 55);
   --color-gtd-next: oklch(0.45 0.15 145);
   --color-gtd-project: oklch(0.45 0.15 235);
-  --color-gtd-waiting: oklch(0.47 0.10 300);
+  --color-gtd-waiting: oklch(0.47 0.1 300);
   --color-gtd-someday: oklch(0.48 0.08 210);
   --color-gtd-calendar: oklch(0.48 0.13 25);
   --color-gtd-reference: oklch(0.48 0.05 80);
@@ -43,19 +43,35 @@
 
   /* @tokens Confidence (WCAG AA: ≥4.5:1 on white) */
   --color-confidence-high: oklch(0.45 0.15 145);
-  --color-confidence-medium: oklch(0.50 0.12 85);
+  --color-confidence-medium: oklch(0.5 0.12 85);
   --color-confidence-low: oklch(0.48 0.15 25);
-  --color-confidence-enrichment: oklch(0.50 0.12 55);
+  --color-confidence-enrichment: oklch(0.5 0.12 55);
+
+  /* @tokens Semantic colors */
+  --color-surface: var(--color-paper-50);
+  --color-surface-raised: var(--color-paper-100);
+  --color-surface-overlay: var(--color-paper-200);
+  --color-border: var(--color-paper-300);
+  --color-border-strong: var(--color-paper-400);
+  --color-text: oklch(0.25 0.01 260);
+  --color-text-muted: oklch(0.40 0.01 260);
+  --color-text-subtle: oklch(0.43 0.008 260);
+  --color-primary: var(--color-blueprint-600);
+  --color-primary-hover: var(--color-blueprint-700);
+  --color-accent: var(--color-industrial-500);
+  --color-accent-hover: var(--color-industrial-600);
 
   /* @tokens Typography */
   --font-sans: "Inter", "system-ui", sans-serif;
   --font-mono: "JetBrains Mono", "Fira Code", monospace;
 
   /* @tokens Elevation */
-  --shadow-card: 0 1px 3px oklch(0.20 0 0 / 0.08), 0 1px 2px oklch(0.20 0 0 / 0.06);
-  --shadow-card-hover: 0 4px 12px oklch(0.20 0 0 / 0.10), 0 2px 4px oklch(0.20 0 0 / 0.06);
-  --shadow-sheet: 0 8px 30px oklch(0.20 0 0 / 0.12);
-  --shadow-overlay: 0 12px 40px oklch(0.20 0 0 / 0.15);
+  --shadow-card:
+    0 1px 3px oklch(0.2 0 0 / 0.08), 0 1px 2px oklch(0.2 0 0 / 0.06);
+  --shadow-card-hover:
+    0 4px 12px oklch(0.2 0 0 / 0.1), 0 2px 4px oklch(0.2 0 0 / 0.06);
+  --shadow-sheet: 0 8px 30px oklch(0.2 0 0 / 0.12);
+  --shadow-overlay: 0 12px 40px oklch(0.2 0 0 / 0.15);
 
   /* @tokens Radius */
   --radius-sm: 0.25rem;
@@ -70,22 +86,6 @@
   --duration-slow: 400ms;
   --ease-snap: cubic-bezier(0.2, 0.8, 0.2, 1);
   --ease-unfold: cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Semantic color layer */
-:root {
-  --color-surface: var(--color-paper-50);
-  --color-surface-raised: var(--color-paper-100);
-  --color-surface-overlay: var(--color-paper-200);
-  --color-border: var(--color-paper-300);
-  --color-border-strong: var(--color-paper-400);
-  --color-text: oklch(0.25 0.010 260);
-  --color-text-muted: oklch(0.50 0.010 260);
-  --color-text-subtle: oklch(0.65 0.008 260);
-  --color-primary: var(--color-blueprint-500);
-  --color-primary-hover: var(--color-blueprint-600);
-  --color-accent: var(--color-industrial-500);
-  --color-accent-hover: var(--color-industrial-600);
 }
 
 /* Base reset */

@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn } from "storybook/test";
 import { ProjectTree } from "./ProjectTree";
-import type { Action, Project } from "@/model/gtd-types";
+import type { Thing, Project } from "@/model/gtd-types";
 import {
-  createAction,
+  createThing,
   createProject,
   resetFactoryCounter,
 } from "@/model/factories";
@@ -28,36 +28,42 @@ const project3 = createProject({
   status: "completed",
 });
 
-const sampleActions: Action[] = [
-  createAction({
+const sampleActions: Thing[] = [
+  createThing({
     title: "Finalize brand guidelines",
+    bucket: "next",
     projectId: project1.id,
     sequenceOrder: 1,
     completedAt: "2026-01-15T10:00:00Z",
   }),
-  createAction({
+  createThing({
     title: "Design homepage wireframes",
+    bucket: "next",
     projectId: project1.id,
     sequenceOrder: 2,
   }),
-  createAction({
+  createThing({
     title: "Implement responsive layout",
+    bucket: "next",
     projectId: project1.id,
     sequenceOrder: 3,
   }),
-  createAction({
+  createThing({
     title: "Write copy for landing page",
+    bucket: "next",
     projectId: project1.id,
     sequenceOrder: 4,
   }),
-  createAction({
+  createThing({
     title: "Set up CI/CD pipeline",
+    bucket: "next",
     projectId: project2.id,
     sequenceOrder: 1,
     isFocused: true,
   }),
-  createAction({
+  createThing({
     title: "Implement push notifications",
+    bucket: "next",
     projectId: project2.id,
     sequenceOrder: 2,
   }),
@@ -117,6 +123,60 @@ export const NoProjects: Story = {
   args: {
     projects: [],
     actions: [],
+  },
+};
+
+/** Toggle non-active (completed, on-hold) projects visible/hidden. */
+export const ToggleInactiveProjects: Story = {
+  args: {
+    projects: [
+      project1,
+      project2,
+      project3,
+      createProject({
+        title: "Deferred Audit",
+        desiredOutcome: "On hold until Q3",
+        status: "on-hold",
+      }),
+    ],
+    actions: sampleActions,
+  },
+  play: async ({ canvas, userEvent, step }) => {
+    // Default: only active projects shown
+    await expect(canvas.getByText("Website Redesign")).toBeInTheDocument();
+    await expect(canvas.getByText("Mobile App Launch")).toBeInTheDocument();
+    await expect(
+      canvas.queryByText("Internal Tool Migration"),
+    ).not.toBeInTheDocument();
+    await expect(canvas.queryByText("Deferred Audit")).not.toBeInTheDocument();
+    await expect(canvas.getByText("2 projects")).toBeInTheDocument();
+
+    await step("Show all projects", async () => {
+      await userEvent.click(canvas.getByLabelText("Show all projects"));
+    });
+
+    // Non-active projects now visible
+    await expect(
+      canvas.getByText("Internal Tool Migration"),
+    ).toBeInTheDocument();
+    await expect(canvas.getByText("Deferred Audit")).toBeInTheDocument();
+    await expect(canvas.getByText("2 inactive")).toBeInTheDocument();
+    await expect(canvas.getByText("(+2 inactive)")).toBeInTheDocument();
+
+    // Status badges visible
+    await expect(canvas.getByText("completed")).toBeInTheDocument();
+    await expect(canvas.getByText("on-hold")).toBeInTheDocument();
+
+    await step("Show active only", async () => {
+      await userEvent.click(canvas.getByLabelText("Show active only"));
+    });
+
+    // Back to hidden
+    await expect(
+      canvas.queryByText("Internal Tool Migration"),
+    ).not.toBeInTheDocument();
+    await expect(canvas.queryByText("Deferred Audit")).not.toBeInTheDocument();
+    await expect(canvas.getByText("2 projects")).toBeInTheDocument();
   },
 };
 

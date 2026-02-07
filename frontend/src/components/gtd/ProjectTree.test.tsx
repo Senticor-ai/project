@@ -3,11 +3,11 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ProjectTree } from "./ProjectTree";
 import {
-  createAction,
+  createThing,
   createProject,
   resetFactoryCounter,
 } from "@/model/factories";
-import type { Action, Project } from "@/model/gtd-types";
+import type { Thing, Project } from "@/model/gtd-types";
 
 beforeEach(() => resetFactoryCounter());
 
@@ -21,9 +21,13 @@ function makeProject(overrides?: Partial<Project> & { title?: string }) {
   });
 }
 
+function makeAction(overrides: Partial<Thing> & { title: string }) {
+  return createThing({ bucket: "next", ...overrides });
+}
+
 function renderTree(
   projects: Project[] = [],
-  actions: Action[] = [],
+  actions: Thing[] = [],
   overrides: Partial<React.ComponentProps<typeof ProjectTree>> = {},
 ) {
   return render(
@@ -92,7 +96,7 @@ describe("ProjectTree", () => {
   it("expands project on click to show actions", async () => {
     const user = userEvent.setup();
     const project = makeProject({ title: "My Project" });
-    const action = createAction({
+    const action = makeAction({
       title: "Design wireframes",
       projectId: project.id,
       sequenceOrder: 1,
@@ -108,7 +112,7 @@ describe("ProjectTree", () => {
   it("collapses project on second click", async () => {
     const user = userEvent.setup();
     const project = makeProject({ title: "Toggle Me" });
-    const action = createAction({
+    const action = makeAction({
       title: "Task A",
       projectId: project.id,
       sequenceOrder: 1,
@@ -126,12 +130,12 @@ describe("ProjectTree", () => {
     const user = userEvent.setup();
     const p1 = makeProject({ title: "Project Alpha" });
     const p2 = makeProject({ title: "Project Beta" });
-    const a1 = createAction({
+    const a1 = makeAction({
       title: "Alpha task",
       projectId: p1.id,
       sequenceOrder: 1,
     });
-    const a2 = createAction({
+    const a2 = makeAction({
       title: "Beta task",
       projectId: p2.id,
       sequenceOrder: 1,
@@ -150,18 +154,18 @@ describe("ProjectTree", () => {
   it("shows next action at full opacity and future actions dimmed", async () => {
     const user = userEvent.setup();
     const project = makeProject({ title: "Sequential" });
-    const completed = createAction({
+    const completed = makeAction({
       title: "Done step",
       projectId: project.id,
       sequenceOrder: 1,
       completedAt: new Date().toISOString(),
     });
-    const nextAction = createAction({
+    const nextAction = makeAction({
       title: "Current step",
       projectId: project.id,
       sequenceOrder: 2,
     });
-    const future = createAction({
+    const future = makeAction({
       title: "Future step",
       projectId: project.id,
       sequenceOrder: 3,
@@ -186,7 +190,7 @@ describe("ProjectTree", () => {
   it("calls onCompleteAction when checkbox clicked", async () => {
     const user = userEvent.setup();
     const project = makeProject({ title: "Complete Test" });
-    const action = createAction({
+    const action = makeAction({
       title: "Completable",
       projectId: project.id,
       sequenceOrder: 1,
@@ -206,7 +210,7 @@ describe("ProjectTree", () => {
   it("calls onToggleFocus when star clicked", async () => {
     const user = userEvent.setup();
     const project = makeProject({ title: "Focus Test" });
-    const action = createAction({
+    const action = makeAction({
       title: "Focusable",
       projectId: project.id,
       sequenceOrder: 1,
@@ -248,7 +252,7 @@ describe("ProjectTree", () => {
   it("disclosure arrow rotates when expanded", async () => {
     const user = userEvent.setup();
     const project = makeProject({ title: "Arrow Test" });
-    const action = createAction({
+    const action = makeAction({
       title: "Some task",
       projectId: project.id,
     });
@@ -263,11 +267,11 @@ describe("ProjectTree", () => {
 
   it("shows action count per project", () => {
     const project = makeProject({ title: "Counted" });
-    const a1 = createAction({
+    const a1 = makeAction({
       title: "One",
       projectId: project.id,
     });
-    const a2 = createAction({
+    const a2 = makeAction({
       title: "Two",
       projectId: project.id,
     });
@@ -275,6 +279,81 @@ describe("ProjectTree", () => {
     renderTree([project], [a1, a2]);
     const row = screen.getByText("Counted").closest("[data-project-id]")!;
     expect(within(row).getByText("2")).toBeInTheDocument();
+  });
+
+  // -----------------------------------------------------------------------
+  // Show all projects toggle
+  // -----------------------------------------------------------------------
+
+  it("does not show toggle when all projects are active", () => {
+    const p1 = makeProject({ title: "Active A" });
+    const p2 = makeProject({ title: "Active B" });
+    renderTree([p1, p2]);
+    expect(
+      screen.queryByLabelText("Show all projects"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows toggle when non-active projects exist", () => {
+    const active = makeProject({ title: "Active" });
+    const completed = makeProject({ title: "Done", status: "completed" });
+    renderTree([active, completed]);
+    expect(screen.getByLabelText("Show all projects")).toBeInTheDocument();
+  });
+
+  it("shows non-active projects after clicking toggle", async () => {
+    const user = userEvent.setup();
+    const active = makeProject({ title: "Active Project" });
+    const completed = makeProject({
+      title: "Completed Project",
+      status: "completed",
+    });
+    const onHold = makeProject({
+      title: "On Hold Project",
+      status: "on-hold",
+    });
+    renderTree([active, completed, onHold]);
+
+    expect(screen.queryByText("Completed Project")).not.toBeInTheDocument();
+    expect(screen.queryByText("On Hold Project")).not.toBeInTheDocument();
+
+    await user.click(screen.getByLabelText("Show all projects"));
+
+    expect(screen.getByText("Completed Project")).toBeInTheDocument();
+    expect(screen.getByText("On Hold Project")).toBeInTheDocument();
+    expect(screen.getByText("2 inactive")).toBeInTheDocument();
+    expect(screen.getByText("(+2 inactive)")).toBeInTheDocument();
+  });
+
+  it("shows status badges on non-active projects", async () => {
+    const user = userEvent.setup();
+    const active = makeProject({ title: "Active" });
+    const completed = makeProject({
+      title: "Done Proj",
+      status: "completed",
+    });
+    renderTree([active, completed]);
+
+    await user.click(screen.getByLabelText("Show all projects"));
+
+    const row = screen.getByText("Done Proj").closest("[data-project-id]")!;
+    expect(within(row).getByText("completed")).toBeInTheDocument();
+  });
+
+  it("hides non-active projects after toggling off", async () => {
+    const user = userEvent.setup();
+    const active = makeProject({ title: "Active" });
+    const completed = makeProject({
+      title: "Completed",
+      status: "completed",
+    });
+    renderTree([active, completed]);
+
+    await user.click(screen.getByLabelText("Show all projects"));
+    expect(screen.getByText("Completed")).toBeInTheDocument();
+
+    await user.click(screen.getByLabelText("Show active only"));
+    expect(screen.queryByText("Completed")).not.toBeInTheDocument();
   });
 
   it("shows desired outcome when expanded", async () => {

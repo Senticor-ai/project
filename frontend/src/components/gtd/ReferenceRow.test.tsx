@@ -2,7 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ReferenceRow } from "./ReferenceRow";
-import { createReferenceMaterial, resetFactoryCounter } from "@/model/factories";
+import {
+  createReferenceMaterial,
+  resetFactoryCounter,
+} from "@/model/factories";
 
 beforeEach(() => resetFactoryCounter());
 
@@ -15,11 +18,7 @@ describe("ReferenceRow", () => {
   it("renders reference title", () => {
     const ref = baseRef();
     render(
-      <ReferenceRow
-        reference={ref}
-        onArchive={vi.fn()}
-        onSelect={vi.fn()}
-      />,
+      <ReferenceRow reference={ref} onArchive={vi.fn()} onSelect={vi.fn()} />,
     );
     expect(screen.getByText("Company style guide")).toBeInTheDocument();
   });
@@ -41,11 +40,7 @@ describe("ReferenceRow", () => {
       contentType: "application/pdf",
     });
     render(
-      <ReferenceRow
-        reference={ref}
-        onArchive={vi.fn()}
-        onSelect={vi.fn()}
-      />,
+      <ReferenceRow reference={ref} onArchive={vi.fn()} onSelect={vi.fn()} />,
     );
     expect(screen.getByText("PDF")).toBeInTheDocument();
   });
@@ -56,11 +51,7 @@ describe("ReferenceRow", () => {
       origin: "triaged",
     });
     render(
-      <ReferenceRow
-        reference={ref}
-        onArchive={vi.fn()}
-        onSelect={vi.fn()}
-      />,
+      <ReferenceRow reference={ref} onArchive={vi.fn()} onSelect={vi.fn()} />,
     );
     expect(screen.getByText("Triaged")).toBeInTheDocument();
   });
@@ -71,11 +62,7 @@ describe("ReferenceRow", () => {
       origin: "file",
     });
     render(
-      <ReferenceRow
-        reference={ref}
-        onArchive={vi.fn()}
-        onSelect={vi.fn()}
-      />,
+      <ReferenceRow reference={ref} onArchive={vi.fn()} onSelect={vi.fn()} />,
     );
     expect(screen.getByText("File")).toBeInTheDocument();
   });
@@ -86,11 +73,7 @@ describe("ReferenceRow", () => {
       externalUrl: "https://example.com/doc",
     });
     render(
-      <ReferenceRow
-        reference={ref}
-        onArchive={vi.fn()}
-        onSelect={vi.fn()}
-      />,
+      <ReferenceRow reference={ref} onArchive={vi.fn()} onSelect={vi.fn()} />,
     );
     const link = screen.getByLabelText("Open external link");
     expect(link).toBeInTheDocument();
@@ -103,13 +86,11 @@ describe("ReferenceRow", () => {
       notes: "Some detailed notes here",
     });
     render(
-      <ReferenceRow
-        reference={ref}
-        onArchive={vi.fn()}
-        onSelect={vi.fn()}
-      />,
+      <ReferenceRow reference={ref} onArchive={vi.fn()} onSelect={vi.fn()} />,
     );
-    expect(screen.getByLabelText("Has notes")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Show notes for Ref with notes"),
+    ).toBeInTheDocument();
   });
 
   it("shows archive menu and calls onArchive", async () => {
@@ -125,20 +106,90 @@ describe("ReferenceRow", () => {
     expect(onArchive).toHaveBeenCalledWith(ref.id);
   });
 
-  it("does not render checkbox or focus star", () => {
-    const ref = baseRef();
+  // -----------------------------------------------------------------------
+  // Expand + ItemEditor
+  // -----------------------------------------------------------------------
+
+  it("clicking notes icon triggers expand", async () => {
+    const user = userEvent.setup();
+    const onToggleExpand = vi.fn();
+    const ref = createReferenceMaterial({
+      title: "Noted ref",
+      notes: "Details here",
+    });
     render(
       <ReferenceRow
         reference={ref}
         onArchive={vi.fn()}
         onSelect={vi.fn()}
+        onToggleExpand={onToggleExpand}
       />,
     );
-    expect(
-      screen.queryByLabelText(/Complete/),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByLabelText(/Focus/),
-    ).not.toBeInTheDocument();
+    await user.click(screen.getByLabelText("Show notes for Noted ref"));
+    expect(onToggleExpand).toHaveBeenCalledOnce();
+  });
+
+  it("title click toggles expand when onToggleExpand provided", async () => {
+    const user = userEvent.setup();
+    const onToggleExpand = vi.fn();
+    const onSelect = vi.fn();
+    const ref = baseRef();
+    render(
+      <ReferenceRow
+        reference={ref}
+        onArchive={vi.fn()}
+        onSelect={onSelect}
+        onToggleExpand={onToggleExpand}
+      />,
+    );
+    await user.click(screen.getByText("Company style guide"));
+    expect(onToggleExpand).toHaveBeenCalledOnce();
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("renders ItemEditor when expanded with onEdit", () => {
+    const ref = createReferenceMaterial({
+      title: "Editable ref",
+      notes: "Some notes",
+    });
+    render(
+      <ReferenceRow
+        reference={ref}
+        onArchive={vi.fn()}
+        onSelect={vi.fn()}
+        isExpanded={true}
+        onToggleExpand={vi.fn()}
+        onEdit={vi.fn()}
+      />,
+    );
+    expect(screen.getByLabelText("Notes")).toBeInTheDocument();
+    expect(screen.getByLabelText("Notes")).toHaveValue("Some notes");
+  });
+
+  it("does not render ItemEditor when collapsed", () => {
+    const ref = createReferenceMaterial({
+      title: "Collapsed ref",
+      notes: "Hidden notes",
+    });
+    render(
+      <ReferenceRow
+        reference={ref}
+        onArchive={vi.fn()}
+        onSelect={vi.fn()}
+        isExpanded={false}
+        onToggleExpand={vi.fn()}
+        onEdit={vi.fn()}
+      />,
+    );
+    expect(screen.queryByLabelText("Notes")).not.toBeInTheDocument();
+  });
+
+  it("does not render checkbox or focus star", () => {
+    const ref = baseRef();
+    render(
+      <ReferenceRow reference={ref} onArchive={vi.fn()} onSelect={vi.fn()} />,
+    );
+    expect(screen.queryByLabelText(/Complete/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Focus/)).not.toBeInTheDocument();
   });
 });

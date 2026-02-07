@@ -135,6 +135,45 @@ if row.get("started_at") and row.get("finished_at"):
 
 ---
 
+## 5. Server-Sent Events for Real-Time Updates (Medium Priority)
+
+**Problem:** The frontend currently polls for data changes. During import, we poll the job endpoint every 2s and invalidate the things cache each cycle so items appear incrementally. For general use (multi-user edits, triage actions), there is no push mechanism — users must refresh to see changes made by others.
+
+**Request:** SSE endpoint for real-time thing change notifications.
+
+**Endpoint:** `GET /things/events` (SSE stream)
+
+**Events:**
+
+```
+event: thing_upserted
+data: {"thing_id": "...", "canonical_id": "urn:gtd:action:TASK-001", "bucket": "next"}
+
+event: thing_archived
+data: {"thing_id": "...", "canonical_id": "urn:gtd:action:TASK-001"}
+
+event: import_progress
+data: {"job_id": "...", "processed_count": 5000, "total_count": 20268}
+
+event: import_completed
+data: {"job_id": "...", "summary": {...}}
+```
+
+**Implementation notes:**
+
+- The outbox table already has `thing_upserted` and `thing_archived` events. These can drive SSE notifications via PostgreSQL `LISTEN/NOTIFY` or by tailing the outbox.
+- Scope events to `org_id` so users only receive their organization's updates.
+- Include `Last-Event-ID` support for reconnection without data loss.
+- FastAPI supports SSE via `StreamingResponse` with `text/event-stream` content type.
+
+**Frontend benefit:**
+
+- Replace polling with push: BucketNav counts update instantly, items appear in lists without manual refresh.
+- During import: real-time progress bar via `import_progress` events instead of polling the job endpoint.
+- Multi-user: changes made by one user appear immediately for others in the same org.
+
+---
+
 ## Priority Summary
 
 | #   | Request                                             | Impact                            | Effort |
@@ -142,4 +181,5 @@ if row.get("started_at") and row.get("finished_at"):
 | 1   | Import progress (`processed_count` / `total_count`) | High — unblocks progress bar      | Medium |
 | 2   | Bucket counts (`GET /things/counts`)                | High — instant sidebar counts     | Small  |
 | 3   | Server-side bucket filter (`?bucket=`)              | Medium — scales to large datasets | Medium |
+| 5   | SSE real-time events (`GET /things/events`)         | Medium — replaces polling         | Large  |
 | 4   | Import duration (`duration_ms`)                     | Low — nice-to-have                | Tiny   |
