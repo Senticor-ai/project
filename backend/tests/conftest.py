@@ -40,7 +40,7 @@ def _with_search_path(database_url: str, schema: str) -> str:
     parsed = urlparse(database_url)
     query = parse_qs(parsed.query)
     options = query.get("options", [])
-    search_option = f"-c search_path={schema}"
+    search_option = f"-c search_path={schema},public"
     if options:
         options[0] = f"{options[0]} {search_option}"
     else:

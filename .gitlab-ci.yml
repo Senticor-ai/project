@@ -2,18 +2,46 @@ include:
   - template: Jobs/SAST.gitlab-ci.yml
 
 stages:
-  - build
   - test
+  - build
+
+schema-drift:
+  stage: test
+  image: python:3.12-slim
+  allow_failure: true
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq nodejs npm > /dev/null
+    - cd backend && pip install -q pydantic
+    - cd frontend && npm ci --ignore-scripts --silent
+  script:
+    - cd backend && python scripts/export_jsonld_schemas.py
+    - |
+      if ! git diff --exit-code schema/ frontend/src/generated/schema/; then
+        echo ""
+        echo "=========================================="
+        echo "  JSON Schema / TypeScript types are stale"
+        echo "=========================================="
+        echo ""
+        echo "  Run:  cd backend && uv run python scripts/export_jsonld_schemas.py"
+        echo "  Then commit the updated files in schema/ and frontend/src/generated/schema/"
+        echo ""
+        exit 1
+      fi
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
 
 build-and-push:
   stage: build
   image: docker:latest
   services:
-    - docker:dind
+    - name: docker:dind
+      command:
+        - --insecure-registry=harbor.100-114-108-51.nip.io:30443
   variables:
     DOCKER_TLS_CERTDIR: "/certs"
   before_script:
-    - docker login -u "$HARBOR_USER" -p "$HARBOR_PASSWORD" harbor.100-114-108-51.nip.io:30443
+    - echo "$HARBOR_PASSWORD" | docker login harbor.100-114-108-51.nip.io:30443 -u "$HARBOR_USER" --password-stdin
   script:
     - docker compose -f docker-compose.build.yml build
     - docker compose -f docker-compose.build.yml push

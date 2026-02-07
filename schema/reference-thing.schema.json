@@ -1,0 +1,209 @@
+{
+  "$defs": {
+    "PropertyValueModel": {
+      "description": "Schema.org PropertyValue for additionalProperty entries.",
+      "properties": {
+        "@type": {
+          "const": "PropertyValue",
+          "default": "PropertyValue",
+          "description": "JSON-LD type (always PropertyValue).",
+          "title": "@Type",
+          "type": "string"
+        },
+        "propertyID": {
+          "description": "Property identifier, e.g. app:bucket.",
+          "title": "Propertyid",
+          "type": "string"
+        },
+        "value": {
+          "description": "Property value (type varies by propertyID).",
+          "title": "Value"
+        }
+      },
+      "required": [
+        "propertyID",
+        "value"
+      ],
+      "title": "PropertyValueModel",
+      "type": "object"
+    },
+    "ThingSourceMetadata": {
+      "properties": {
+        "schemaVersion": {
+          "description": "Metadata schema version.",
+          "title": "Schemaversion",
+          "type": "integer"
+        },
+        "provider": {
+          "description": "Origin provider name, e.g. nirvana.",
+          "title": "Provider",
+          "type": "string"
+        },
+        "rawId": {
+          "description": "Original provider item identifier.",
+          "title": "Rawid",
+          "type": "string"
+        },
+        "rawType": {
+          "description": "Original provider type code.",
+          "title": "Rawtype",
+          "type": "integer"
+        },
+        "rawState": {
+          "description": "Original provider state code.",
+          "title": "Rawstate",
+          "type": "integer"
+        },
+        "raw": {
+          "additionalProperties": true,
+          "description": "Raw provider payload for high-fidelity round-tripping.",
+          "title": "Raw",
+          "type": "object"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "provider",
+        "rawId",
+        "rawType",
+        "rawState",
+        "raw"
+      ],
+      "title": "ThingSourceMetadata",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "schema:CreativeWork \u2014 reference material.",
+  "properties": {
+    "@id": {
+      "description": "Canonical JSON-LD id (urn:app:\u2026).",
+      "title": "@Id",
+      "type": "string"
+    },
+    "@type": {
+      "const": "CreativeWork",
+      "description": "schema.org CreativeWork.",
+      "title": "@Type",
+      "type": "string"
+    },
+    "_schemaVersion": {
+      "default": 2,
+      "description": "Domain schema version for this record.",
+      "title": "Schemaversion",
+      "type": "integer"
+    },
+    "name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Optional deliberate name (schema.org name).",
+      "title": "Name"
+    },
+    "description": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Long-form description.",
+      "title": "Description"
+    },
+    "keywords": {
+      "description": "Free-form tags (schema.org keywords).",
+      "items": {
+        "type": "string"
+      },
+      "title": "Keywords",
+      "type": "array"
+    },
+    "dateCreated": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Creation timestamp (ISO-8601).",
+      "title": "Datecreated"
+    },
+    "dateModified": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Last-modified timestamp (ISO-8601).",
+      "title": "Datemodified"
+    },
+    "additionalProperty": {
+      "description": "App-specific properties as schema.org PropertyValue entries.",
+      "items": {
+        "$ref": "#/$defs/PropertyValueModel"
+      },
+      "title": "Additionalproperty",
+      "type": "array"
+    },
+    "sourceMetadata": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ThingSourceMetadata"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Provider-specific source metadata preserved during imports."
+    },
+    "url": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "External URL.",
+      "title": "Url"
+    },
+    "encodingFormat": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "MIME type (schema.org encodingFormat).",
+      "title": "Encodingformat"
+    }
+  },
+  "required": [
+    "@id",
+    "@type"
+  ],
+  "title": "ReferenceThingJsonLd",
+  "type": "object"
+}

@@ -21,6 +21,65 @@ from ..security import (
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+
+def _create_session(user_id, request: Request, response: Response) -> None:
+    """Create a session and set session + refresh + CSRF cookies."""
+    token = generate_session_token()
+    refresh_token = generate_refresh_token()
+    refresh_token_hash = hash_token(refresh_token)
+    expires_at = utc_now() + timedelta(seconds=settings.session_ttl_seconds)
+    refresh_expires_at = refresh_expiry(settings.session_refresh_ttl_days)
+    client_ip = get_client_ip(request)
+    user_agent = request.headers.get("User-Agent")
+
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO sessions (
+                    user_id, token, refresh_token_hash,
+                    expires_at, refresh_expires_at,
+                    ip_address, user_agent, last_seen_at
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    user_id, token, refresh_token_hash,
+                    expires_at, refresh_expires_at,
+                    client_ip, user_agent, utc_now(),
+                ),
+            )
+            cur.execute(
+                "UPDATE users SET last_login_at = %s WHERE id = %s",
+                (utc_now(), user_id),
+            )
+        conn.commit()
+
+    response.set_cookie(
+        key=settings.session_cookie_name,
+        value=token,
+        httponly=settings.session_cookie_http_only,
+        secure=settings.session_cookie_secure,
+        samesite=settings.session_cookie_samesite,
+        domain=settings.session_cookie_domain,
+        path=settings.session_cookie_path,
+        expires=int(expires_at.timestamp()),
+        max_age=settings.session_ttl_seconds,
+    )
+    response.set_cookie(
+        key=settings.session_refresh_cookie_name,
+        value=refresh_token,
+        httponly=True,
+        secure=settings.session_cookie_secure,
+        samesite=settings.session_cookie_samesite,
+        domain=settings.session_cookie_domain,
+        path=settings.session_cookie_path,
+        expires=int(refresh_expires_at.timestamp()),
+        max_age=settings.session_refresh_ttl_days * 86400,
+    )
+    issue_csrf_token(response)
+
+
 DOMAIN_RE = re.compile(
     r"^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+"
     r"[A-Za-z]{2,63}$",
@@ -86,7 +145,7 @@ def _validate_password(password: str) -> None:
 
 
 @router.post("/register", response_model=UserResponse)
-def register(payload: RegistrationRequest):
+def register(payload: RegistrationRequest, request: Request, response: Response):
     email = _validate_email(payload.email)
     username = _normalize_username(payload.username)
     _validate_password(payload.password)
@@ -145,6 +204,8 @@ def register(payload: RegistrationRequest):
             )
         conn.commit()
 
+    _create_session(user["id"], request, response)
+
     return UserResponse(
         id=str(user["id"]),
         email=user["email"],
@@ -168,70 +229,7 @@ def login(payload: AuthCredentials, request: Request, response: Response):
     if user is None or not verify_password(payload.password, user["password_hash"]):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
-    token = generate_session_token()
-    refresh_token = generate_refresh_token()
-    refresh_token_hash = hash_token(refresh_token)
-    expires_at = utc_now() + timedelta(seconds=settings.session_ttl_seconds)
-    refresh_expires_at = refresh_expiry(settings.session_refresh_ttl_days)
-    client_ip = get_client_ip(request)
-    user_agent = request.headers.get("User-Agent")
-
-    with db_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO sessions (
-                    user_id,
-                    token,
-                    refresh_token_hash,
-                    expires_at,
-                    refresh_expires_at,
-                    ip_address,
-                    user_agent,
-                    last_seen_at
-                )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                """,
-                (
-                    user["id"],
-                    token,
-                    refresh_token_hash,
-                    expires_at,
-                    refresh_expires_at,
-                    client_ip,
-                    user_agent,
-                    utc_now(),
-                ),
-            )
-            cur.execute(
-                "UPDATE users SET last_login_at = %s WHERE id = %s",
-                (utc_now(), user["id"]),
-            )
-        conn.commit()
-
-    response.set_cookie(
-        key=settings.session_cookie_name,
-        value=token,
-        httponly=settings.session_cookie_http_only,
-        secure=settings.session_cookie_secure,
-        samesite=settings.session_cookie_samesite,
-        domain=settings.session_cookie_domain,
-        path=settings.session_cookie_path,
-        expires=int(expires_at.timestamp()),
-        max_age=settings.session_ttl_seconds,
-    )
-    response.set_cookie(
-        key=settings.session_refresh_cookie_name,
-        value=refresh_token,
-        httponly=True,
-        secure=settings.session_cookie_secure,
-        samesite=settings.session_cookie_samesite,
-        domain=settings.session_cookie_domain,
-        path=settings.session_cookie_path,
-        expires=int(refresh_expires_at.timestamp()),
-        max_age=settings.session_refresh_ttl_days * 86400,
-    )
-    issue_csrf_token(response)
+    _create_session(user["id"], request, response)
 
     return UserResponse(
         id=str(user["id"]),

@@ -23,3 +23,8 @@ def test_openapi_things_uses_typed_oneof_models(client):
     assert "additionalProperty" in action_output
     assert "startDate" in action_output
     assert "endDate" in action_output
+
+    patch_req = schemas["ThingPatchRequest"]["properties"]
+    assert "name_source" in patch_req
+    assert "source" in patch_req
+    assert "thing" in patch_req

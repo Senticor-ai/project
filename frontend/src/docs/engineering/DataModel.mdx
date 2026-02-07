@@ -111,7 +111,7 @@ These map 1:1 to schema.org and appear as flat fields on the JSON-LD object:
 
 | Frontend field | JSON-LD property | schema.org type | Notes |
 | --- | --- | --- | --- |
-| `name` | `name` | [name](https://schema.org/name) | All entities |
+| `name` | `name` | [name](https://schema.org/name) | Optional for Thing/Action; required for Project, ReferenceMaterial, Context |
 | `description` | `description` | [description](https://schema.org/description) | All entities |
 | `tags` | `keywords` | [keywords](https://schema.org/keywords) | Array of strings |
 | `provenance.createdAt` | `dateCreated` | [dateCreated](https://schema.org/dateCreated) | ISO 8601 |
@@ -150,6 +150,7 @@ These have no schema.org equivalent and are stored as `PropertyValue` objects:
 | `typedReferences` | `app:typedReferences` | TypedReference[] |
 | `archivedAt` | `app:archivedAt` | ISO timestamp |
 | `provenanceHistory` | `app:provenanceHistory` | ProvenanceEntry[] |
+| (server-managed) | `app:nameProvenance` | `{ setBy: "user" \| "ai" \| "system", setAt: string, source: string }` |
 
 ---
 
@@ -162,7 +163,7 @@ All entities share these fields:
 | Field | Type | Origin |
 | --- | --- | --- |
 | `id` | `CanonicalId` | FRBR/ELI canonical IDs |
-| `name` | `string` | schema.org `name` |
+| `name` | `string?` | schema.org `name` — optional for capture-first entities |
 | `description` | `string?` | schema.org `description` |
 | `tags` | `string[]` | schema.org `keywords` |
 | `references` | `TypedReference[]` | LexCEL typed renvoi |
@@ -192,13 +193,13 @@ in JSON-LD and determines schema.org compatibility.
 ### Raw text capture — `Thing` in inbox
 
 The minimum: user typed a string. `@type` is `Thing` because we don't know what it is yet.
+Note: `name` is **not set** — the raw input lives in `app:rawCapture`.
 
 ```json
 {
   "@id": "urn:app:inbox:def-456",
   "@type": "Thing",
   "_schemaVersion": 2,
-  "name": "Fahrkosten Müller prüfen",
   "dateCreated": "2026-02-07T08:00:00Z",
   "dateModified": "2026-02-07T08:00:00Z",
   "additionalProperty": [
@@ -236,12 +237,14 @@ immediately, but it's still in the inbox bucket until the user triages it.
 
 ### Action (`Action`)
 
+`name` is omitted — the raw capture text lives in `app:rawCapture`. If the user later
+renames this action, `name` would appear as a top-level property.
+
 ```json
 {
   "@id": "urn:app:action:abc-123",
   "@type": "Action",
   "_schemaVersion": 2,
-  "name": "Frau Müller wegen Fahrkosten anrufen",
   "description": "Reisekostenabrechnung vom 15.11.2025 nachverfolgen",
   "dateCreated": "2026-02-01T10:30:00Z",
   "dateModified": "2026-02-05T14:22:00Z",
@@ -250,6 +253,7 @@ immediately, but it's still in the inbox bucket until the user triages it.
   "keywords": ["dringend"],
   "additionalProperty": [
     { "@type": "PropertyValue", "propertyID": "app:bucket", "value": "next" },
+    { "@type": "PropertyValue", "propertyID": "app:rawCapture", "value": "Frau Müller wegen Fahrkosten anrufen" },
     { "@type": "PropertyValue", "propertyID": "app:isFocused", "value": true },
     { "@type": "PropertyValue", "propertyID": "app:energyLevel", "value": "low" },
     { "@type": "PropertyValue", "propertyID": "app:confidence", "value": "high" },
@@ -339,6 +343,47 @@ Clarification moves them to `confidence: "high"`, `needsEnrichment: false`.
 
 ---
 
+## Name vs rawCapture Semantics
+
+`rawCapture` holds the user's original input text. `name` is an optional deliberate label,
+only set when the user (or AI, with provenance) explicitly renames an item.
+
+### Per-entity rules
+
+| Entity type | `name` | `rawCapture` |
+| --- | --- | --- |
+| Thing (inbox) | optional — unset at capture | **required** |
+| Action | optional — unset at capture | **required** |
+| Project | **required** | n/a |
+| ReferenceMaterial | **required** | n/a |
+| Context | **required** | n/a |
+
+### Display logic
+
+```typescript
+// frontend/src/model/types.ts
+getDisplayName(item) → item.name ?? item.rawCapture ?? "Untitled"
+```
+
+### Lifecycle
+
+1. **Capture**: user types "buy bananas" → `rawCapture = "buy bananas"`, `name` is unset
+2. **Triage**: inbox → action — `rawCapture` preserved, `name` stays unset
+3. **Rename**: user explicitly sets title → `name = "Weekly Groceries"`, `rawCapture` preserved
+4. **Display**: `name` if set, otherwise `rawCapture`, otherwise `"Untitled"`
+
+### JSON-LD serialization
+
+- `name` is **omitted** from JSON-LD when unset (not set to `null`)
+- `rawCapture` lives in `additionalProperty` as `app:rawCapture`
+- On read (`fromJsonLd`): `null`, missing, `""`, and whitespace-only `name` all normalize to `undefined`
+
+### Factory enforcement
+
+`createThing()` requires at least one of `{name, rawCapture}`. Projects, references, and contexts require `name`.
+
+---
+
 ## Provenance (No-Delete)
 
 Every state change is recorded in `provenance.history`:
@@ -354,9 +399,36 @@ interface ProvenanceEntry {
 ```
 
 Actions: `created`, `clarified`, `moved`, `updated`, `archived`,
-`enriched`, `completed`, `focused`, `unfocused`.
+`enriched`, `completed`, `focused`, `unfocused`, `renamed`.
 
 **No deletion** — only archiving via `provenance.archivedAt`.
+
+---
+
+## JSON Schema Contract
+
+The machine-readable contract for JSON-LD payloads lives in `schema/*.schema.json` at the
+monorepo root. These files are **generated from the Pydantic models** in `backend/app/models.py`
+and serve as the cross-team agreement between frontend and backend.
+
+**Generate schemas**: `cd backend && uv run python scripts/export_jsonld_schemas.py`
+
+**Generate TypeScript types**: `cd frontend && npm run generate:schema-types`
+
+Generated types land in `frontend/src/generated/schema/` and can be used for compile-time
+validation. The serializer roundtrip tests in `thing-serializer.test.ts` verify that the
+frontend's serialization stays consistent with these schemas.
+
+| Schema file | Pydantic model | Purpose |
+| --- | --- | --- |
+| `inbox-thing.schema.json` | `InboxThingJsonLd` | Inbox capture payload |
+| `action-thing.schema.json` | `ActionThingJsonLd` | Action payload |
+| `project-thing.schema.json` | `ProjectThingJsonLd` | Project payload |
+| `reference-thing.schema.json` | `ReferenceThingJsonLd` | Reference payload |
+| `thing-patch.schema.json` | `ThingPatchModel` | PATCH payload |
+| `property-value.schema.json` | `PropertyValueModel` | PropertyValue shape |
+
+See also: [Backend API Requests](?path=/docs/engineering-backend-api-requests-import-ux--docs) for endpoint documentation.
 
 ---
 
@@ -376,8 +448,12 @@ isReferenceMaterial(item); // item.bucket === "reference"
 **File**: `frontend/src/model/factories.ts`
 
 ```typescript
-createInboxItem({ name: "Anruf bei Frau Müller" });
-createAction({ name: "Deploy", bucket: "next", isFocused: true });
+// Capture-first entities — rawCapture is primary, name is optional
+createThing({ rawCapture: "Anruf bei Frau Müller", bucket: "inbox" });
+createThing({ rawCapture: "Deploy", bucket: "next", isFocused: true });
+createThing({ name: "Weekly Groceries", rawCapture: "buy bananas", bucket: "next" });
+
+// Non-capture entities — name is required
 createProject({ name: "Relaunch", desiredOutcome: "Site live" });
 createReferenceMaterial({ name: "SGB III § 159" });
 createContext({ name: "@computer" });

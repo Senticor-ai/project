@@ -99,6 +99,7 @@ class ProvenanceEntryModel(BaseModel):
         "completed",
         "focused",
         "unfocused",
+        "renamed",
     ] = Field(..., description="Mutation category.")
     from_: str | None = Field(default=None, alias="from")
     to: str | None = None
@@ -245,7 +246,9 @@ class ThingJsonLdBase(BaseModel):
         alias="_schemaVersion",
         description="Domain schema version for this record.",
     )
-    name: str = Field(..., description="Human-readable name (schema.org name).")
+    name: str | None = Field(
+        default=None, description="Optional deliberate name (schema.org name).",
+    )
     description: str | None = Field(default=None, description="Long-form description.")
     keywords: list[str] = Field(
         default_factory=list, description="Free-form tags (schema.org keywords).",
@@ -361,6 +364,10 @@ class ThingCreateRequest(BaseModel):
 
 class ThingPatchRequest(BaseModel):
     source: str | None = None
+    name_source: str | None = Field(
+        default=None,
+        description="Provenance hint for name changes (e.g. 'AI suggested from rawCapture').",
+    )
     thing: ThingPatchModel = Field(
         ...,
         description="Partial JSON-LD GTD object to deep-merge.",

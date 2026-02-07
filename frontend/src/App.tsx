@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { useAuth } from "./lib/auth-context";
+import { useAuth } from "./lib/use-auth";
 import { LoginPage } from "./components/auth/LoginPage";
 import { ConnectedBucketView } from "./components/work/ConnectedBucketView";
 import { NirvanaImportDialog } from "./components/work/NirvanaImportDialog";
@@ -9,9 +9,7 @@ import type { Bucket } from "./model/types";
 function App() {
   const { user, isLoading, login, register, logout } = useAuth();
   const [showImport, setShowImport] = useState(false);
-  const [requestedBucket, setRequestedBucket] = useState<Bucket | null>(
-    null,
-  );
+  const [requestedBucket, setRequestedBucket] = useState<Bucket | null>(null);
 
   const handleNavigateToBucket = useCallback((bucket: Bucket) => {
     setRequestedBucket(bucket);

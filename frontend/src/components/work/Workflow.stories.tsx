@@ -18,11 +18,11 @@ resetFactoryCounter();
 
 const sampleProjects = [
   createProject({
-    title: "Website Redesign",
+    name: "Website Redesign",
     desiredOutcome: "New site live",
   }),
   createProject({
-    title: "Q1 Planning",
+    name: "Q1 Planning",
     desiredOutcome: "Q1 goals defined",
   }),
 ];
@@ -51,7 +51,7 @@ function WorkflowApp({
         setThings((prev) => [
           ...prev,
           createThing({
-            name: title,
+            rawCapture: title,
             bucket: bucket === "focus" ? "next" : (bucket as Thing["bucket"]),
           }),
         ]);
@@ -157,7 +157,7 @@ export const CaptureThreeTodos: Story = {
 export const TriageToNext: Story = {
   render: () => (
     <WorkflowApp
-      initialThings={[createThing({ name: "Review annual budget report" })]}
+      initialThings={[createThing({ rawCapture: "Review annual budget report" })]}
     />
   ),
   play: async ({ canvas, userEvent, step }) => {
@@ -187,7 +187,7 @@ export const TriageToNext: Story = {
 export const TriageToWaiting: Story = {
   render: () => (
     <WorkflowApp
-      initialThings={[createThing({ name: "Call client about Q1 proposal" })]}
+      initialThings={[createThing({ rawCapture: "Call client about Q1 proposal" })]}
     />
   ),
   play: async ({ canvas, userEvent, step }) => {
@@ -213,15 +213,15 @@ export const CompleteFromNextActions: Story = {
       bucket="next"
       initialThings={[
         createThing({
-          name: "Buy groceries",
+          rawCapture: "Buy groceries",
           bucket: "next",
         }),
         createThing({
-          name: "Schedule dentist appointment",
+          rawCapture: "Schedule dentist appointment",
           bucket: "next",
         }),
         createThing({
-          name: "Update resume",
+          rawCapture: "Update resume",
           bucket: "next",
         }),
       ]}

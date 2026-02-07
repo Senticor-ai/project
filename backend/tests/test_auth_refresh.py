@@ -21,7 +21,31 @@ def _register_and_login(client, headers):
     return response.json()
 
 
-def test_session_binding_and_refresh(client):
+def _patch_frozen(request, obj, **kwargs):
+    originals = {k: getattr(obj, k) for k in kwargs}
+    for key, value in kwargs.items():
+        object.__setattr__(obj, key, value)
+
+    def _restore():
+        for key, value in originals.items():
+            object.__setattr__(obj, key, value)
+
+    request.addfinalizer(_restore)
+
+
+def test_session_binding_and_refresh(client, request):
+    from app.config import settings
+
+    _patch_frozen(
+        request,
+        settings,
+        trust_proxy_headers=True,
+        session_bind_ip=True,
+        session_bind_user_agent=True,
+        session_roll_ip_on_refresh=True,
+        session_roll_user_agent_on_refresh=True,
+    )
+
     headers = {"User-Agent": "TestAgent/1.0", "X-Forwarded-For": "1.2.3.4"}
     _register_and_login(client, headers)
 

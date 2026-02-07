@@ -24,56 +24,54 @@ const sampleProjects = [
 ];
 
 const sampleThings: Thing[] = [
-  createThing({ name: "Buy groceries for the week", bucket: "inbox" }),
+  createThing({ rawCapture: "Buy groceries for the week", bucket: "inbox" }),
   createThing({
-    name: "Call client about Q1 proposal",
-    bucket: "inbox",
     rawCapture: "Call client about Q1 proposal",
-  }),
-  createThing({
-    name: "Draft project brief for redesign",
     bucket: "inbox",
-    rawCapture: "Draft project brief for redesign",
   }),
   createThing({
-    name: "Review team performance reports",
+    rawCapture: "Draft project brief for redesign",
+    bucket: "inbox",
+  }),
+  createThing({
+    rawCapture: "Review team performance reports",
     bucket: "next",
     isFocused: true,
   }),
   createThing({
-    name: "Submit expense report",
+    rawCapture: "Submit expense report",
     bucket: "next",
     dueDate: "2026-02-14",
   }),
-  createThing({ name: "Follow up with vendor", bucket: "waiting" }),
-  createThing({ name: "Plan team offsite", bucket: "someday" }),
+  createThing({ rawCapture: "Follow up with vendor", bucket: "waiting" }),
+  createThing({ rawCapture: "Plan team offsite", bucket: "someday" }),
   createThing({
-    name: "Quarterly review meeting",
+    rawCapture: "Quarterly review meeting",
     bucket: "calendar",
     dueDate: "2026-03-01",
   }),
   // Project-linked actions
   createThing({
-    name: "Finalize brand guidelines",
+    rawCapture: "Finalize brand guidelines",
     bucket: "next",
     projectId: sampleProjects[0].id,
     sequenceOrder: 1,
     completedAt: "2026-01-20T10:00:00Z",
   }),
   createThing({
-    name: "Design homepage wireframes",
+    rawCapture: "Design homepage wireframes",
     bucket: "next",
     projectId: sampleProjects[0].id,
     sequenceOrder: 2,
   }),
   createThing({
-    name: "Implement responsive layout",
+    rawCapture: "Implement responsive layout",
     bucket: "next",
     projectId: sampleProjects[0].id,
     sequenceOrder: 3,
   }),
   createThing({
-    name: "Define Q1 OKRs",
+    rawCapture: "Define Q1 OKRs",
     bucket: "next",
     projectId: sampleProjects[1].id,
     sequenceOrder: 1,
@@ -123,7 +121,7 @@ function StatefulBucketView({
       referenceItems={refs}
       projects={projects}
       onAddThing={(title, bucket) => {
-        setThings((prev) => [...prev, createThing({ name: title, bucket })]);
+        setThings((prev) => [...prev, createThing({ rawCapture: title, bucket })]);
       }}
       onCompleteThing={(id) => {
         setThings((prev) =>
@@ -171,7 +169,7 @@ function StatefulBucketView({
       onAddProjectAction={(projectId: CanonicalId, title: string) => {
         setThings((prev) => [
           ...prev,
-          createThing({ name: title, bucket: "next", projectId }),
+          createThing({ rawCapture: title, bucket: "next", projectId }),
         ]);
       }}
       onUpdateTitle={(id, newTitle) => {
@@ -253,7 +251,7 @@ export const NavigateBuckets: Story = {
     />
   ),
   play: async ({ canvas, userEvent, step }) => {
-    const nav = canvas.getByRole("navigation", { name: "GTD buckets" });
+    const nav = canvas.getByRole("navigation", { name: "Buckets" });
     const sidebar = within(nav);
 
     await expect(canvas.getByText(/3 items to process/)).toBeInTheDocument();
@@ -306,15 +304,14 @@ export const InboxToNext: Story = {
     <StatefulBucketView
       initialThings={[
         createThing({
-          name: "Write quarterly report",
-          bucket: "inbox",
           rawCapture: "Write quarterly report",
+          bucket: "inbox",
         }),
       ]}
     />
   ),
   play: async ({ canvas, userEvent, step }) => {
-    const nav = canvas.getByRole("navigation", { name: "GTD buckets" });
+    const nav = canvas.getByRole("navigation", { name: "Buckets" });
     const sidebar = within(nav);
 
     await expect(canvas.getByText(/1 item to process/)).toBeInTheDocument();
@@ -343,8 +340,8 @@ export const CompleteFromNext: Story = {
   render: () => (
     <StatefulBucketView
       initialThings={[
-        createThing({ name: "Task to complete", bucket: "next" }),
-        createThing({ name: "Task to keep", bucket: "next" }),
+        createThing({ rawCapture: "Task to complete", bucket: "next" }),
+        createThing({ rawCapture: "Task to keep", bucket: "next" }),
       ]}
       initialBucket="next"
     />
@@ -369,14 +366,14 @@ export const FocusStar: Story = {
   render: () => (
     <StatefulBucketView
       initialThings={[
-        createThing({ name: "Important task", bucket: "next" }),
-        createThing({ name: "Regular task", bucket: "next" }),
+        createThing({ rawCapture: "Important task", bucket: "next" }),
+        createThing({ rawCapture: "Regular task", bucket: "next" }),
       ]}
       initialBucket="next"
     />
   ),
   play: async ({ canvas, userEvent, step }) => {
-    const nav = canvas.getByRole("navigation", { name: "GTD buckets" });
+    const nav = canvas.getByRole("navigation", { name: "Buckets" });
     const sidebar = within(nav);
 
     await step("Star the first action", async () => {
@@ -400,8 +397,8 @@ export const DragToSomeday: Story = {
   render: () => (
     <StatefulBucketView
       initialThings={[
-        createThing({ name: "Drag me to Someday", bucket: "next" }),
-        createThing({ name: "Stay in Next", bucket: "next" }),
+        createThing({ rawCapture: "Drag me to Someday", bucket: "next" }),
+        createThing({ rawCapture: "Stay in Next", bucket: "next" }),
       ]}
       initialBucket="next"
     />
@@ -414,14 +411,12 @@ export const DragInboxToBucket: Story = {
     <StatefulBucketView
       initialThings={[
         createThing({
-          name: "Drag me to Next Actions",
-          bucket: "inbox",
           rawCapture: "Drag me to Next Actions",
+          bucket: "inbox",
         }),
         createThing({
-          name: "Drag me to Someday",
-          bucket: "inbox",
           rawCapture: "Drag me to Someday",
+          bucket: "inbox",
         }),
       ]}
     />
@@ -432,7 +427,7 @@ export const DragInboxToBucket: Story = {
 export const FullWorkflow: Story = {
   render: () => <StatefulBucketView />,
   play: async ({ canvas, userEvent, step }) => {
-    const nav = canvas.getByRole("navigation", { name: "GTD buckets" });
+    const nav = canvas.getByRole("navigation", { name: "Buckets" });
     const sidebar = within(nav);
 
     await step("Capture a todo", async () => {

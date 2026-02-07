@@ -1,0 +1,200 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Product/Epics/Editable Title & Rename Provenance" />
+
+# Epic: Editable Title & Rename Provenance
+
+**Status:** In progress (backend complete, frontend pending)
+**Priority:** Current
+
+## Context
+
+Things have two text identities: `rawCapture` (the original verbatim input) and `name` (a deliberate, possibly AI-suggested title). Currently the UI conflates them — there is no way to see or edit them separately, and no record of who changed the name or why.
+
+This epic adds:
+
+1. **Rename provenance** — track who changed the name, when, and why
+2. **DB indexes** — support search on `name` and `rawCapture`
+3. **EditableTitle split** — separate "Title" field from read-only "Captured text" in the UI
+
+**Design goal:** Users and AI can both rename things, and provenance makes it clear who did what. The original capture text is always preserved and visible.
+
+---
+
+## What's done (backend)
+
+### Rename provenance in PATCH endpoint
+
+When a PATCH changes `name`, the backend now auto-injects:
+
+- `app:nameProvenance` PropertyValue: `{ setBy: "user" | "ai" | "system", setAt, source }`
+- A `"renamed"` entry appended to `app:provenanceHistory`
+
+Source mapping:
+
+| `payload.source` | `setBy` | default `source` |
+| --- | --- | --- |
+| `null` / `"manual"` | `"user"` | `"user edited"` |
+| contains `"ai"` | `"ai"` | `"AI suggested from rawCapture"` |
+| other | `"system"` | `"{source}"` |
+
+Optional `name_source` field on `ThingPatchRequest` overrides the derived source string.
+
+**Files:** `backend/app/routes/things.py`, `backend/app/models.py`
+
+### DB indexes
+
+Three partial indexes on `schema_jsonld` (filtered `WHERE archived_at IS NULL`):
+
+- `idx_things_name` — B-tree on `(org_id, name)` for exact/prefix lookups
+- `idx_things_name_trgm` — GIN trigram for ILIKE/fuzzy search
+- `idx_things_jsonld_gin` — GIN `jsonb_path_ops` for containment queries (covers `rawCapture`)
+
+**Files:** `backend/db/schema.sql`
+
+### Test coverage (13 tests)
+
+- Name change creates provenance (user, AI, custom source)
+- Same name no-ops
+- Name from `null`, name cleared to `null`
+- No pre-existing `provenanceHistory`
+- Combined PATCH with other property changes
+- No name field skips provenance
+- Multiple renames accumulate history
+- OpenAPI schema includes `name_source`
+
+**Files:** `backend/tests/test_things_patch_delete.py`, `backend/tests/test_openapi_things_schema.py`
+
+### Frontend type + docs
+
+- `"renamed"` added to `ProvenanceAction` union type
+- `app:nameProvenance` documented in DataModel.mdx
+
+**Files:** `frontend/src/model/types.ts`, `frontend/src/docs/engineering/DataModel.mdx`
+
+---
+
+## What's next (frontend)
+
+### Phase 1: Model layer
+
+#### 1a. RED — Tests for nameProvenance deserialization
+
+`frontend/src/lib/thing-serializer.test.ts`:
+
+- Roundtrip: `app:nameProvenance` survives `toJsonLd` / `fromJsonLd`
+- `fromJsonLd` extracts `nameProvenance` into the Thing model
+
+`frontend/src/model/types.ts`:
+
+- Add `NameProvenance` interface: `{ setBy: "user" | "ai" | "system", setAt: string, source: string }`
+- Add optional `nameProvenance?: NameProvenance` to `Thing` base type
+
+#### 1b. GREEN — Implement serializer changes
+
+`frontend/src/lib/thing-serializer.ts`:
+
+- `toJsonLd`: serialize `thing.nameProvenance` as `app:nameProvenance` PropertyValue
+- `fromJsonLd`: deserialize `app:nameProvenance` into `thing.nameProvenance`
+
+#### 1c. VERIFY
+
+```bash
+cd frontend && CI=1 npx vitest run --project=unit
+cd frontend && npx tsc --noEmit
+```
+
+---
+
+### Phase 2: EditableTitle component
+
+#### 2a. RED — Component tests
+
+`frontend/src/components/work/EditableTitle.test.tsx`:
+
+- Renders `name` in an editable input when present
+- Renders `rawCapture` as read-only text below
+- Shows provenance badge ("AI suggested", "user edited") when `nameProvenance` exists
+- Calls `onRename(newName)` on blur/Enter
+- Shows `rawCapture` as the title when `name` is absent
+
+#### 2b. GREEN — Implement component
+
+`frontend/src/components/work/EditableTitle.tsx`:
+
+- Editable `<input>` for `name` (label: "Title (optional)")
+- Read-only display for `rawCapture` (label: "Captured text")
+- Provenance indicator showing `nameProvenance.setBy` and relative time from `nameProvenance.setAt`
+- Calls `onRename` which should PATCH with `name_source: "user renamed in EditableTitle"`
+
+#### 2c. Stories
+
+`frontend/src/components/work/EditableTitle.stories.tsx`:
+
+- Default (name + rawCapture)
+- RawCaptureOnly (no name set yet)
+- AIRenamed (nameProvenance.setBy = "ai")
+- UserRenamed (nameProvenance.setBy = "user")
+- Interaction: rename via typing + Enter
+
+#### 2d. VERIFY
+
+```bash
+cd frontend && CI=1 npx vitest run --project=unit
+cd frontend && npx tsc --noEmit
+cd frontend && npx storybook build
+```
+
+---
+
+### Phase 3: Integration into ThingRow / expanded editor
+
+#### 3a. RED — Update ThingRow tests
+
+- ThingRow renders `EditableTitle` in expanded mode
+- ThingRow passes `onRename` that calls `ThingsApi.update` with `name_source`
+
+#### 3b. GREEN — Wire up
+
+- Replace inline title rendering in ThingRow expanded view with `<EditableTitle>`
+- Connect `onRename` to the PATCH API via `useThings` hook
+
+#### 3c. VERIFY
+
+```bash
+cd frontend && CI=1 npx vitest run --project=unit
+cd frontend && npx tsc --noEmit
+cd frontend && npx storybook build
+```
+
+---
+
+## Files to create/modify
+
+**New files:**
+
+- `frontend/src/components/work/EditableTitle.tsx`
+- `frontend/src/components/work/EditableTitle.test.tsx`
+- `frontend/src/components/work/EditableTitle.stories.tsx`
+
+**Modified files:**
+
+- `frontend/src/model/types.ts` — `NameProvenance` interface
+- `frontend/src/lib/thing-serializer.ts` — serialize/deserialize `nameProvenance`
+- `frontend/src/lib/thing-serializer.test.ts` — roundtrip tests
+- `frontend/src/components/work/ThingRow.tsx` — integrate `EditableTitle`
+- `frontend/src/components/work/ThingRow.stories.tsx` — add renamed variants
+- `frontend/src/lib/api-client.ts` — optional `nameSource` param on `ThingsApi.update`
+
+---
+
+## Verification checklist
+
+- [ ] `nameProvenance` roundtrips through serializer
+- [ ] EditableTitle renders name vs rawCapture separately
+- [ ] Provenance badge shows AI vs user attribution
+- [ ] Rename calls PATCH with `name_source`
+- [ ] Multiple renames accumulate in provenance history
+- [ ] All unit tests pass
+- [ ] TypeScript clean (`tsc --noEmit`)
+- [ ] Storybook builds

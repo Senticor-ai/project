@@ -16,7 +16,8 @@
     "format:check": "prettier --check src/",
     "type-check": "tsc --noEmit",
     "test:e2e": "npx playwright test --config e2e/playwright.config.ts",
-    "test:e2e:headed": "npx playwright test --config e2e/playwright.config.ts --headed"
+    "test:e2e:headed": "npx playwright test --config e2e/playwright.config.ts --headed",
+    "generate:schema-types": "json2ts -i '../schema/*.schema.json' -o 'src/generated/schema/'"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -35,6 +36,7 @@
   "devDependencies": {
     "@chromatic-com/storybook": "^5.0.0",
     "@eslint/js": "^9.39.1",
+    "@playwright/test": "^1.58.1",
     "@storybook/addon-a11y": "^10.2.7",
     "@storybook/addon-docs": "^10.2.7",
     "@storybook/addon-onboarding": "^10.2.7",
@@ -49,13 +51,14 @@
     "@vitejs/plugin-react": "^5.1.1",
     "@vitest/browser-playwright": "^4.0.18",
     "@vitest/coverage-v8": "^4.0.18",
+    "ajv": "^8.17.1",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "eslint-plugin-storybook": "^10.2.7",
     "globals": "^16.5.0",
     "jsdom": "^28.0.0",
-    "@playwright/test": "^1.58.1",
+    "json-schema-to-typescript": "^15.0.4",
     "playwright": "^1.58.1",
     "prettier": "^3.8.1",
     "remark-gfm": "^4.0.1",

@@ -105,7 +105,8 @@ export type SessionRefreshResponse = {
 };
 
 export const AuthApi = {
-  register: async (email: string, username: string, password: string) => {
+  register: async (email: string, password: string) => {
+    const username = email.split("@")[0];
     const user = await request<AuthUser>("/auth/register", {
       method: "POST",
       body: JSON.stringify({ email, username, password }),
@@ -130,8 +131,8 @@ export const AuthApi = {
     setCsrfToken(null);
     return result;
   },
-  me: async () => {
-    const user = await request<AuthUser>("/auth/me");
+  me: async (signal?: AbortSignal) => {
+    const user = await request<AuthUser>("/auth/me", { signal });
     setUserContext(user);
     return user;
   },

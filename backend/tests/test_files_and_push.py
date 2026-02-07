@@ -65,7 +65,20 @@ def test_file_meta_and_idempotent_upload(auth_client):
     assert etag == f'"{meta["sha256"]}"'
 
 
-def test_push_test_endpoint(auth_client, monkeypatch):
+def test_push_test_endpoint(auth_client, monkeypatch, request):
+    from app.config import settings
+
+    originals = {}
+    for key, value in [("vapid_public_key", "test-public"), ("vapid_private_key", "test-private")]:
+        originals[key] = getattr(settings, key)
+        object.__setattr__(settings, key, value)
+
+    def _restore():
+        for k, v in originals.items():
+            object.__setattr__(settings, k, v)
+
+    request.addfinalizer(_restore)
+
     subscription = {
         "endpoint": "https://example.com/push",
         "keys": {"p256dh": "key", "auth": "auth"},

@@ -28,9 +28,8 @@ const sampleProjects = [
 
 const sampleThings: Thing[] = [
   createThing({
-    name: "Antrag von Frau Schmidt bearbeiten",
-    bucket: "inbox",
     rawCapture: "Antrag von Frau Schmidt bearbeiten",
+    bucket: "inbox",
     captureSource: {
       kind: "email",
       subject: "Antrag",
@@ -38,22 +37,20 @@ const sampleThings: Thing[] = [
     },
   }),
   createThing({
-    name: "Protokoll der Abteilungsbesprechung erstellen",
-    bucket: "inbox",
     rawCapture: "Protokoll der Abteilungsbesprechung erstellen",
+    bucket: "inbox",
     captureSource: { kind: "meeting", title: "Abteilungsbesprechung" },
   }),
   createThing({
-    name: "Schulungsunterlagen aktualisieren",
-    bucket: "inbox",
     rawCapture: "Schulungsunterlagen aktualisieren",
+    bucket: "inbox",
   }),
   createThing({
-    name: "Reisekostenabrechnung einreichen",
+    rawCapture: "Reisekostenabrechnung einreichen",
     bucket: "next",
   }),
   createThing({
-    name: "Rückmeldung von Abteilung B abwarten",
+    rawCapture: "Rückmeldung von Abteilung B abwarten",
     bucket: "waiting",
   }),
 ];
@@ -62,7 +59,7 @@ const sampleThings: Thing[] = [
 // Stateful wrapper
 // ---------------------------------------------------------------------------
 
-function GtdScreenApp({ initialThings = [] }: { initialThings?: Thing[] }) {
+function WorkScreenApp({ initialThings = [] }: { initialThings?: Thing[] }) {
   const [things, setThings] = useState<Thing[]>(initialThings);
 
   return (
@@ -71,7 +68,7 @@ function GtdScreenApp({ initialThings = [] }: { initialThings?: Thing[] }) {
       things={things}
       projects={sampleProjects}
       onAddThing={(title, bucket) => {
-        setThings((prev) => [...prev, createThing({ name: title, bucket })]);
+        setThings((prev) => [...prev, createThing({ rawCapture: title, bucket })]);
       }}
       onCompleteThing={(id) => {
         setThings((prev) =>
@@ -133,7 +130,7 @@ type Story = StoryObj<typeof meta>;
 // ---------------------------------------------------------------------------
 
 export const Default: Story = {
-  render: () => <GtdScreenApp initialThings={[...sampleThings]} />,
+  render: () => <WorkScreenApp initialThings={[...sampleThings]} />,
 };
 
 // ---------------------------------------------------------------------------
@@ -142,9 +139,9 @@ export const Default: Story = {
 
 /** Capture an item, move it to Next, navigate to Next Actions, verify counts. */
 export const CaptureTriageNavigate: Story = {
-  render: () => <GtdScreenApp initialThings={[...sampleThings]} />,
+  render: () => <WorkScreenApp initialThings={[...sampleThings]} />,
   play: async ({ canvas, userEvent, step }) => {
-    const nav = canvas.getByRole("navigation", { name: "GTD buckets" });
+    const nav = canvas.getByRole("navigation", { name: "Buckets" });
     const sidebar = within(nav);
 
     await step("Capture a new item via inbox capture", async () => {

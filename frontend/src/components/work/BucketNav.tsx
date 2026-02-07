@@ -97,7 +97,7 @@ export function BucketNav({
   className,
 }: BucketNavProps) {
   return (
-    <nav className={cn("space-y-0.5", className)} aria-label="GTD buckets">
+    <nav className={cn("space-y-0.5", className)} aria-label="Buckets">
       {navItems.map(({ bucket, label, icon }) => (
         <BucketNavItem
           key={bucket}

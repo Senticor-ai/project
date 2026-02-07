@@ -40,8 +40,11 @@ function defaultSource(): CaptureSource {
 // ---------------------------------------------------------------------------
 
 export function createThing(
-  overrides: Partial<Thing> & { name: string },
+  overrides: Partial<Thing> & ({ name: string } | { rawCapture: string }),
 ): Thing {
+  if (!overrides.name && !overrides.rawCapture) {
+    throw new Error("createThing requires at least one of {name, rawCapture}");
+  }
   const bucket: ThingBucket = overrides.bucket ?? "inbox";
   const entityType = bucket === "inbox" ? "inbox" : "action";
   const id = overrides.id ?? createCanonicalId(entityType, nextId());
@@ -77,7 +80,7 @@ export function createThing(
 // ---------------------------------------------------------------------------
 
 export function createInboxItem(
-  overrides: Partial<Thing> & { name: string },
+  overrides: Partial<Thing> & ({ name: string } | { rawCapture: string }),
 ): Thing {
   return createThing({
     ...overrides,
@@ -93,7 +96,7 @@ export function createInboxItem(
 // ---------------------------------------------------------------------------
 
 export function createAction(
-  overrides: Partial<Thing> & { name: string },
+  overrides: Partial<Thing> & ({ name: string } | { rawCapture: string }),
 ): Thing {
   return createThing({
     ...overrides,

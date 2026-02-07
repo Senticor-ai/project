@@ -346,3 +346,11 @@ Adding `?bucket=` and `?type=` params to `GET /things/sync` would avoid loading 
 ### Server-Sent Events
 
 An SSE endpoint (`GET /things/events`) with `thing_upserted`, `thing_archived`, `import_progress`, and `import_completed` events would replace polling entirely and enable real-time multi-user sync.
+
+---
+
+## JSON-LD Payload Schemas
+
+The exact JSON-LD shapes the frontend sends in `POST /things` and `PATCH /things/{id}` requests are documented as machine-readable JSON Schema files in `schema/` at the monorepo root. These are generated from the backend Pydantic models.
+
+See [Data Model — JSON Schema Contract](?path=/docs/engineering-ontology--docs) for the full list of schema files and generation instructions.

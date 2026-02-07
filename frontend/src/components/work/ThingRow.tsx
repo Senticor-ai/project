@@ -5,6 +5,7 @@ import { Icon } from "@/components/ui/Icon";
 import { BucketBadge } from "@/components/paperclip/BucketBadge";
 import { EditableTitle } from "./EditableTitle";
 import { ItemEditor } from "./ItemEditor";
+import { getDisplayName } from "@/model/types";
 import type { Thing, Project, ItemEditableFields } from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
 
@@ -104,6 +105,7 @@ export function ThingRow({
   className,
 }: ThingRowProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const displayName = getDisplayName(thing);
   const isCompleted = !!thing.completedAt;
   const dueDateInfo = thing.dueDate ? formatDueDate(thing.dueDate) : null;
   const isInbox = thing.bucket === "inbox";
@@ -143,7 +145,7 @@ export function ThingRow({
           ref={setNodeRef}
           {...listeners}
           {...attributes}
-          aria-label={`Drag ${thing.name}`}
+          aria-label={`Drag ${displayName}`}
           className="cursor-grab text-text-subtle opacity-0 group-hover:opacity-100"
         >
           <Icon name="drag_indicator" size={14} />
@@ -154,8 +156,8 @@ export function ThingRow({
           onClick={() => onComplete(thing.id)}
           aria-label={
             isCompleted
-              ? `Completed: ${thing.name}`
-              : `Complete ${thing.name}`
+              ? `Completed: ${displayName}`
+              : `Complete ${displayName}`
           }
           className={cn(
             "shrink-0",
@@ -172,7 +174,7 @@ export function ThingRow({
         <button
           onClick={() => onToggleFocus(thing.id)}
           aria-label={
-            thing.isFocused ? `Unfocus ${thing.name}` : `Focus ${thing.name}`
+            thing.isFocused ? `Unfocus ${displayName}` : `Focus ${displayName}`
           }
           className={cn(
             "shrink-0",
@@ -190,7 +192,7 @@ export function ThingRow({
 
         {/* Title — editable when expanded */}
         <EditableTitle
-          title={thing.name}
+          title={displayName}
           isEditing={isExpanded}
           onSave={
             onUpdateTitle
@@ -210,7 +212,7 @@ export function ThingRow({
         {thing.description && (
           <button
             onClick={() => (onToggleExpand ? onToggleExpand() : undefined)}
-            aria-label={`Show notes for ${thing.name}`}
+            aria-label={`Show notes for ${displayName}`}
             className="shrink-0 text-text-subtle hover:text-text"
           >
             <Icon name="description" size={14} />
@@ -233,7 +235,7 @@ export function ThingRow({
         {onToggleExpand && (
           <button
             onClick={onToggleExpand}
-            aria-label={`Edit ${thing.name}`}
+            aria-label={`Edit ${displayName}`}
             className="shrink-0 text-text-subtle opacity-0 hover:text-text group-hover:opacity-100"
           >
             <Icon name="edit" size={16} />
@@ -244,7 +246,7 @@ export function ThingRow({
         <div className="relative">
           <button
             onClick={() => setMenuOpen(!menuOpen)}
-            aria-label={`Move ${thing.name}`}
+            aria-label={`Move ${displayName}`}
             aria-expanded={menuOpen}
             className="shrink-0 text-text-subtle opacity-0 hover:text-text group-hover:opacity-100"
           >

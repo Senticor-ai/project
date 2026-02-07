@@ -4,9 +4,11 @@ import {
   isAction,
   isProject,
   isReferenceMaterial,
+  getDisplayName,
 } from "../types";
 import type { AppItem, TriageResult } from "../types";
 import {
+  createThing,
   createInboxItem,
   createAction,
   createProject,
@@ -36,6 +38,14 @@ describe("InboxItem", () => {
     expect(item.id).toMatch(/^urn:app:inbox:/);
   });
 
+  it("creates with rawCapture only (no name)", () => {
+    const item = createInboxItem({ rawCapture: "Bananen kaufen" });
+    expect(item.bucket).toBe("inbox");
+    expect(item.name).toBeUndefined();
+    expect(item.rawCapture).toBe("Bananen kaufen");
+    expect(getDisplayName(item)).toBe("Bananen kaufen");
+  });
+
   it("records capture source", () => {
     const item = createInboxItem({
       name: "Follow-up from meeting",
@@ -46,6 +56,12 @@ describe("InboxItem", () => {
       },
     });
     expect(item.captureSource.kind).toBe("meeting");
+  });
+
+  it("throws when neither name nor rawCapture is provided", () => {
+    expect(() =>
+      createThing({ bucket: "inbox" } as Parameters<typeof createThing>[0]),
+    ).toThrow();
   });
 
   it("has provenance with created entry", () => {
@@ -65,6 +81,17 @@ describe("Action", () => {
     expect(action.isFocused).toBe(false);
     expect(action.needsEnrichment).toBe(false);
     expect(action.confidence).toBe("high");
+  });
+
+  it("creates an action with rawCapture only (no name)", () => {
+    const action = createAction({
+      rawCapture: "Wireframes erstellen",
+      bucket: "next",
+    });
+    expect(action.bucket).toBe("next");
+    expect(action.name).toBeUndefined();
+    expect(action.rawCapture).toBe("Wireframes erstellen");
+    expect(getDisplayName(action)).toBe("Wireframes erstellen");
   });
 
   it("creates a waiting-for action", () => {
@@ -202,6 +229,42 @@ describe("TriageResult", () => {
   it("represents archive", () => {
     const result: TriageResult = { targetBucket: "archive" };
     expect(result.targetBucket).toBe("archive");
+  });
+});
+
+describe("getDisplayName", () => {
+  it("returns name when set", () => {
+    const item = createInboxItem({ name: "Einkaufen" });
+    expect(getDisplayName(item)).toBe("Einkaufen");
+  });
+
+  it("returns rawCapture when name is undefined", () => {
+    const item = createThing({
+      name: "placeholder",
+      bucket: "inbox",
+      rawCapture: "buy bananas",
+    });
+    // Simulate name being unset (will be the real case after name becomes optional)
+    const unnamed = { ...item, name: undefined };
+    expect(getDisplayName(unnamed as AppItem)).toBe("buy bananas");
+  });
+
+  it("prefers name over rawCapture when both are set", () => {
+    const item = createThing({
+      name: "Weekly Groceries",
+      bucket: "inbox",
+      rawCapture: "buy bananas",
+    });
+    expect(getDisplayName(item)).toBe("Weekly Groceries");
+  });
+
+  it("returns 'Untitled' when neither name nor rawCapture exists", () => {
+    const item = createProject({
+      name: "placeholder",
+      desiredOutcome: "done",
+    });
+    const unnamed = { ...item, name: undefined };
+    expect(getDisplayName(unnamed as AppItem)).toBe("Untitled");
   });
 });
 

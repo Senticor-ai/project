@@ -23,13 +23,13 @@ type Story = StoryObj<typeof meta>;
 
 export const Collapsed: Story = {
   args: {
-    thing: createThing({ name: "Buy milk", bucket: "next" }),
+    thing: createThing({ rawCapture: "Buy milk", bucket: "next" }),
   },
 };
 
 export const Expanded: Story = {
   args: {
-    thing: createThing({ name: "Buy milk", bucket: "next" }),
+    thing: createThing({ rawCapture: "Buy milk", bucket: "next" }),
     isExpanded: true,
     onToggleExpand: fn(),
     onEdit: fn(),
@@ -40,9 +40,8 @@ export const Expanded: Story = {
 export const InboxItem: Story = {
   args: {
     thing: createThing({
-      name: "Anruf bei Frau Müller",
-      bucket: "inbox",
       rawCapture: "Anruf bei Frau Müller",
+      bucket: "inbox",
     }),
     showBucket: true,
   },
@@ -51,9 +50,8 @@ export const InboxItem: Story = {
 export const InboxItemExpanded: Story = {
   args: {
     thing: createThing({
-      name: "Anruf bei Frau Müller",
-      bucket: "inbox",
       rawCapture: "Anruf bei Frau Müller",
+      bucket: "inbox",
     }),
     isExpanded: true,
     onToggleExpand: fn(),
@@ -64,7 +62,7 @@ export const InboxItemExpanded: Story = {
 export const Focused: Story = {
   args: {
     thing: createThing({
-      name: "Wireframes erstellen",
+      rawCapture: "Wireframes erstellen",
       bucket: "next",
       isFocused: true,
     }),
@@ -74,7 +72,7 @@ export const Focused: Story = {
 export const WithDueDate: Story = {
   args: {
     thing: createThing({
-      name: "Steuererklärung abgeben",
+      rawCapture: "Steuererklärung abgeben",
       bucket: "calendar",
       dueDate: "2026-03-15",
     }),
@@ -84,7 +82,7 @@ export const WithDueDate: Story = {
 export const Overdue: Story = {
   args: {
     thing: createThing({
-      name: "Überfällige Aufgabe",
+      rawCapture: "Überfällige Aufgabe",
       bucket: "next",
       dueDate: "2020-01-01",
     }),
@@ -94,7 +92,7 @@ export const Overdue: Story = {
 export const Completed: Story = {
   args: {
     thing: createThing({
-      name: "Erledigtes Todo",
+      rawCapture: "Erledigtes Todo",
       bucket: "next",
       completedAt: new Date().toISOString(),
     }),
@@ -104,7 +102,7 @@ export const Completed: Story = {
 export const WithBucketBadge: Story = {
   args: {
     thing: createThing({
-      name: "Focused action from Next",
+      rawCapture: "Focused action from Next",
       bucket: "next",
       isFocused: true,
     }),
@@ -115,7 +113,7 @@ export const WithBucketBadge: Story = {
 export const EmailSource: Story = {
   args: {
     thing: createThing({
-      name: "Follow-up mit Kunden",
+      rawCapture: "Follow-up mit Kunden",
       bucket: "inbox",
       captureSource: { kind: "email", subject: "Re: Vertrag" },
     }),
@@ -125,7 +123,7 @@ export const EmailSource: Story = {
 export const WithNotesExpanded: Story = {
   args: {
     thing: createThing({
-      name: "Task with notes",
+      rawCapture: "Task with notes",
       bucket: "next",
       description: "Detailed notes about this task\nSecond line",
     }),
@@ -135,13 +133,24 @@ export const WithNotesExpanded: Story = {
   },
 };
 
+/** Item with an explicit name (after user rename). */
+export const NamedItem: Story = {
+  args: {
+    thing: createThing({
+      name: "Weekly Groceries",
+      rawCapture: "buy bananas and stuff",
+      bucket: "next",
+    }),
+  },
+};
+
 // ---------------------------------------------------------------------------
 // Interactive stories with play functions
 // ---------------------------------------------------------------------------
 
 export const CompleteAction: Story = {
   args: {
-    thing: createThing({ name: "Complete me", bucket: "next" }),
+    thing: createThing({ rawCapture: "Complete me", bucket: "next" }),
   },
   play: async ({ canvas, args, userEvent }) => {
     await userEvent.click(canvas.getByLabelText("Complete Complete me"));
@@ -151,7 +160,7 @@ export const CompleteAction: Story = {
 
 export const ToggleFocus: Story = {
   args: {
-    thing: createThing({ name: "Focus me", bucket: "next" }),
+    thing: createThing({ rawCapture: "Focus me", bucket: "next" }),
   },
   play: async ({ canvas, args, userEvent }) => {
     await userEvent.click(canvas.getByLabelText("Focus Focus me"));
@@ -161,7 +170,7 @@ export const ToggleFocus: Story = {
 
 export const MoveToSomeday: Story = {
   args: {
-    thing: createThing({ name: "Move me", bucket: "next" }),
+    thing: createThing({ rawCapture: "Move me", bucket: "next" }),
   },
   play: async ({ canvas, args, userEvent, step }) => {
     await step("Open move menu", async () => {
@@ -178,9 +187,8 @@ export const MoveToSomeday: Story = {
 export const TriageToNext: Story = {
   args: {
     thing: createThing({
-      name: "Triage me",
-      bucket: "inbox",
       rawCapture: "Triage me",
+      bucket: "inbox",
     }),
     isExpanded: true,
     onToggleExpand: fn(),
@@ -194,7 +202,7 @@ export const TriageToNext: Story = {
 export const ClickNotesIcon: Story = {
   args: {
     thing: createThing({
-      name: "Has notes",
+      rawCapture: "Has notes",
       bucket: "next",
       description: "Important details",
     }),
@@ -208,7 +216,7 @@ export const ClickNotesIcon: Story = {
 
 export const ArchiveFromMenu: Story = {
   args: {
-    thing: createThing({ name: "Archive me", bucket: "next" }),
+    thing: createThing({ rawCapture: "Archive me", bucket: "next" }),
   },
   play: async ({ canvas, args, userEvent, step }) => {
     await step("Open menu", async () => {

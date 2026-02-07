@@ -43,7 +43,8 @@ export type ProvenanceAction =
   | "enriched"
   | "completed"
   | "focused"
-  | "unfocused";
+  | "unfocused"
+  | "renamed";
 
 export interface ProvenanceEntry {
   timestamp: string;
@@ -169,7 +170,7 @@ export type FrbrLevel = "work" | "expression" | "manifestation" | "item";
 
 export interface BaseEntity extends Enrichable {
   id: CanonicalId;
-  name: string;
+  name?: string;
   description?: string;
   tags: string[];
   references: TypedReference[];
@@ -309,4 +310,14 @@ export function isProject(item: AppItem): item is Project {
 
 export function isReferenceMaterial(item: AppItem): item is ReferenceMaterial {
   return item.bucket === "reference";
+}
+
+// ---------------------------------------------------------------------------
+// Display Name Helper
+// ---------------------------------------------------------------------------
+
+export function getDisplayName(item: AppItem): string {
+  if (item.name) return item.name;
+  if ("rawCapture" in item && item.rawCapture) return item.rawCapture;
+  return "Untitled";
 }

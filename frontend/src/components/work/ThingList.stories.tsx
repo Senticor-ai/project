@@ -9,39 +9,37 @@ resetFactoryCounter();
 
 const sampleThings: Thing[] = [
   createThing({
-    name: "Call client about Q1 proposal",
+    rawCapture: "Call client about Q1 proposal",
     bucket: "next",
     isFocused: true,
     dueDate: "2026-02-14",
   }),
   createThing({
-    name: "Review team performance reports",
+    rawCapture: "Review team performance reports",
     bucket: "next",
     description: "Include Q4 metrics",
   }),
   createThing({
-    name: "Submit expense report",
+    rawCapture: "Submit expense report",
     bucket: "next",
     dueDate: "2026-01-15",
   }),
   createThing({
-    name: "Plan team offsite agenda",
+    rawCapture: "Plan team offsite agenda",
     bucket: "someday",
     isFocused: true,
   }),
   createThing({
-    name: "Research new CRM tools",
+    rawCapture: "Research new CRM tools",
     bucket: "waiting",
   }),
   createThing({
-    name: "Anruf bei Frau Müller",
-    bucket: "inbox",
     rawCapture: "Anruf bei Frau Müller",
+    bucket: "inbox",
   }),
   createThing({
-    name: "Steuererklärung prüfen",
-    bucket: "inbox",
     rawCapture: "Steuererklärung prüfen",
+    bucket: "inbox",
   }),
 ];
 
@@ -105,13 +103,13 @@ export const CalendarView: Story = {
     bucket: "calendar",
     things: [
       createThing({
-        name: "Steuererklärung abgeben",
+        rawCapture: "Steuererklärung abgeben",
         bucket: "calendar",
         dueDate: "2026-03-15",
         scheduledDate: "2026-03-10",
       }),
       createThing({
-        name: "Team Standup",
+        rawCapture: "Team Standup",
         bucket: "calendar",
         scheduledDate: "2026-02-10",
       }),
@@ -152,21 +150,21 @@ export const WithContextFilters: Story = {
     bucket: "next",
     things: [
       createThing({
-        name: "Call boss",
+        rawCapture: "Call boss",
         bucket: "next",
         contexts: [
           "@phone",
         ] as unknown as import("@/model/canonical-id").CanonicalId[],
       }),
       createThing({
-        name: "Write report",
+        rawCapture: "Write report",
         bucket: "next",
         contexts: [
           "@computer",
         ] as unknown as import("@/model/canonical-id").CanonicalId[],
       }),
       createThing({
-        name: "Email team",
+        rawCapture: "Email team",
         bucket: "next",
         contexts: [
           "@phone",
@@ -220,8 +218,8 @@ export const InboxCapture: Story = {
 export const CompleteFromList: Story = {
   render: function CompleteDemo() {
     const [things, setThings] = useState<Thing[]>([
-      createThing({ name: "Task to complete", bucket: "next" }),
-      createThing({ name: "Task to keep", bucket: "next" }),
+      createThing({ rawCapture: "Task to complete", bucket: "next" }),
+      createThing({ rawCapture: "Task to keep", bucket: "next" }),
     ]);
 
     return (
@@ -261,15 +259,15 @@ export const CompleteFromList: Story = {
 export const ToggleCompletedInteractive: Story = {
   render: function ToggleCompleted() {
     const [things] = useState<Thing[]>([
-      createThing({ name: "Active task one", bucket: "next" }),
-      createThing({ name: "Active task two", bucket: "next" }),
+      createThing({ rawCapture: "Active task one", bucket: "next" }),
+      createThing({ rawCapture: "Active task two", bucket: "next" }),
       createThing({
-        name: "Done task one",
+        rawCapture: "Done task one",
         bucket: "next",
         completedAt: "2026-01-20T10:00:00Z",
       }),
       createThing({
-        name: "Done task two",
+        rawCapture: "Done task two",
         bucket: "next",
         completedAt: "2026-01-18T10:00:00Z",
       }),
@@ -315,8 +313,8 @@ export const ToggleCompletedInteractive: Story = {
 export const FocusFromList: Story = {
   render: function FocusDemo() {
     const [things, setThings] = useState<Thing[]>([
-      createThing({ name: "Unfocused task", bucket: "next" }),
-      createThing({ name: "Will be focused", bucket: "next" }),
+      createThing({ rawCapture: "Unfocused task", bucket: "next" }),
+      createThing({ rawCapture: "Will be focused", bucket: "next" }),
     ]);
 
     return (

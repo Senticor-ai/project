@@ -66,7 +66,7 @@ export const Interactive: Story = {
     );
   },
   play: async ({ canvas, userEvent, step }) => {
-    const nav = canvas.getByRole("navigation", { name: "GTD buckets" });
+    const nav = canvas.getByRole("navigation", { name: "Buckets" });
     const sidebar = within(nav);
 
     await step("Click Next Actions — gets aria-current=page", async () => {

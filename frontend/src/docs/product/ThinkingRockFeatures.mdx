@@ -37,13 +37,13 @@ pattern, and data model backing.
 
 ### Already Built
 
-**InboxCapture** (`src/components/gtd/InboxCapture.tsx`)
+**InboxCapture** (`src/components/work/InboxCapture.tsx`)
 
 - Single text input, keyboard-first (Enter to capture)
 - Records `CaptureSource` (thought, email, meeting, voice, import)
 - Clears after submission, never blocks
 
-**InboxList** (`src/components/gtd/InboxList.tsx`)
+**InboxList** (`src/components/work/InboxList.tsx`)
 
 - FIFO order: oldest item at top, only first item shows triage actions
 - Item count footer, empty state
@@ -63,7 +63,7 @@ pattern, and data model backing.
 
 ### Already Built
 
-**InboxTriage** (`src/components/gtd/InboxTriage.tsx`)
+**InboxTriage** (`src/components/work/InboxTriage.tsx`)
 
 - Inline action bar on each inbox item card (no multi-step dialog)
 - One-tap bucket assignment: Next, Waiting, Calendar, Someday, Reference, Archive
@@ -88,7 +88,7 @@ without routing to any bucket.
 
 ### Spec: ProjectTree
 
-**Location**: `src/components/gtd/ProjectTree.tsx`
+**Location**: `src/components/work/ProjectTree.tsx`
 
 ThinkingRock's most distinctive feature: unlimited project/sub-project nesting
 with auto-sequencing.
@@ -145,7 +145,7 @@ interface ProjectTreeProps {
 
 ### Spec: ActionList
 
-**Location**: `src/components/gtd/ActionList.tsx`
+**Location**: `src/components/work/ActionList.tsx`
 
 ThinkingRock's "different views to display your tasks" — filtered, tabbed, customizable.
 
@@ -220,7 +220,7 @@ interface TabDefinition {
 
 ### Spec: ContextFilterBar
 
-**Location**: `src/components/gtd/ContextFilterBar.tsx`
+**Location**: `src/components/work/ContextFilterBar.tsx`
 
 The "what can I do right now?" filter — ThinkingRock's context-switching feature.
 
@@ -250,7 +250,7 @@ interface ContextFilterBarProps {
 
 ### Spec: FocusList
 
-**Location**: `src/components/gtd/FocusList.tsx`
+**Location**: `src/components/work/FocusList.tsx`
 
 NirvanaHQ's "Focus" concept + ThinkingRock's goal alignment.
 
@@ -294,7 +294,7 @@ interface FocusListProps {
 
 ### Spec: GoalTracker
 
-**Location**: `src/components/gtd/GoalTracker.tsx`
+**Location**: `src/components/work/GoalTracker.tsx`
 
 ThinkingRock's "Review your values and life priorities" feature.
 
@@ -338,7 +338,7 @@ interface GoalTrackerProps {
 
 ### Spec: WaitingForList
 
-**Location**: `src/components/gtd/WaitingForList.tsx`
+**Location**: `src/components/work/WaitingForList.tsx`
 
 ThinkingRock's delegation tracking.
 
@@ -373,7 +373,7 @@ interface WaitingForListProps {
 
 ### Spec: CalendarView
 
-**Location**: `src/components/gtd/CalendarView.tsx`
+**Location**: `src/components/work/CalendarView.tsx`
 
 Calendar-based view for time-specific commitments.
 
@@ -412,7 +412,7 @@ interface CalendarViewProps {
 
 ### Spec: RecurrenceEditor
 
-**Location**: `src/components/gtd/RecurrenceEditor.tsx`
+**Location**: `src/components/work/RecurrenceEditor.tsx`
 
 Set up recurring patterns (ThinkingRock's recurrent actions).
 
@@ -446,7 +446,7 @@ interface RecurrenceEditorProps {
 
 ### Spec: ReviewDashboard
 
-**Location**: `src/components/gtd/ReviewDashboard.tsx`
+**Location**: `src/components/work/ReviewDashboard.tsx`
 
 The weekly review is GTD's backbone. ThinkingRock enforces it; we make it delightful.
 
@@ -513,7 +513,7 @@ type ReviewStep =
 
 ### Spec: ReferenceLibrary
 
-**Location**: `src/components/gtd/ReferenceLibrary.tsx`
+**Location**: `src/components/work/ReferenceLibrary.tsx`
 
 ThinkingRock's "Find information easily and quickly."
 
@@ -552,7 +552,7 @@ interface ReferenceLibraryProps {
 
 ### Spec: SomedayList
 
-**Location**: `src/components/gtd/SomedayList.tsx`
+**Location**: `src/components/work/SomedayList.tsx`
 
 The incubation list — reviewed weekly, occasionally promoted.
 
@@ -595,7 +595,7 @@ All new components follow the Paperclip design language:
 
 ## Data Model Coverage
 
-All ThinkingRock features map to existing types in `src/model/gtd-types.ts`:
+All ThinkingRock features map to existing types in `src/model/types.ts`:
 
 | Feature           | Type / Field                                                       |
 | ----------------- | ------------------------------------------------------------------ |

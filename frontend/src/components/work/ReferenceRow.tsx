@@ -102,7 +102,7 @@ export function ReferenceRow({
         onClick={handleTitleClick}
         className="flex-1 whitespace-pre-wrap text-left text-sm font-medium text-text"
       >
-        {reference.name}
+        {reference.name ?? "Untitled"}
       </button>
 
       {/* Content type chip */}
@@ -131,7 +131,7 @@ export function ReferenceRow({
           onClick={() =>
             onToggleExpand ? onToggleExpand() : onSelect(reference.id)
           }
-          aria-label={`Show notes for ${reference.name}`}
+          aria-label={`Show notes for ${reference.name ?? "Untitled"}`}
           className="shrink-0 text-text-subtle hover:text-text"
         >
           <Icon name="description" size={14} />
@@ -155,7 +155,7 @@ export function ReferenceRow({
       <div className="relative">
         <button
           onClick={() => setMenuOpen(!menuOpen)}
-          aria-label={`Actions for ${reference.name}`}
+          aria-label={`Actions for ${reference.name ?? "Untitled"}`}
           aria-expanded={menuOpen}
           className="shrink-0 text-text-subtle opacity-0 hover:text-text group-hover:opacity-100"
         >

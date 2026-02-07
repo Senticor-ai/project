@@ -98,12 +98,15 @@ export function toJsonLd(
   const base: Record<string, unknown> = {
     "@id": item.id,
     _schemaVersion: SCHEMA_VERSION,
-    name: item.name,
     description: item.description ?? null,
     keywords: item.tags,
     dateCreated: item.provenance.createdAt,
     dateModified: item.provenance.updatedAt,
   };
+
+  if (item.name) {
+    base.name = item.name;
+  }
 
   if (item.bucket === "inbox") {
     const thing = item as Thing;
@@ -180,7 +183,7 @@ export function fromJsonLd(record: ThingRecord): AppItem {
     id:
       (t["@id"] as string as CanonicalId) ??
       (record.canonical_id as CanonicalId),
-    name: t.name as string,
+    name: ((t.name as string) ?? "").trim() || undefined,
     description: (t.description as string) || undefined,
     tags: (t.keywords as string[]) ?? [],
     references: (getAdditionalProperty(props, "app:typedReferences") as TypedReference[]) ?? [],
@@ -384,7 +387,6 @@ export function buildNewInboxJsonLd(rawText: string): Record<string, unknown> {
     "@id": id,
     "@type": TYPE_MAP.inbox,
     _schemaVersion: SCHEMA_VERSION,
-    name: rawText,
     description: null,
     keywords: [],
     dateCreated: now,
@@ -409,7 +411,7 @@ export function buildNewInboxJsonLd(rawText: string): Record<string, unknown> {
 // ---------------------------------------------------------------------------
 
 export function buildNewActionJsonLd(
-  name: string,
+  text: string,
   bucket: string,
   opts?: { projectId?: CanonicalId },
 ): Record<string, unknown> {
@@ -420,7 +422,6 @@ export function buildNewActionJsonLd(
     "@id": id,
     "@type": TYPE_MAP.action,
     _schemaVersion: SCHEMA_VERSION,
-    name,
     description: null,
     keywords: [],
     dateCreated: now,
@@ -429,6 +430,7 @@ export function buildNewActionJsonLd(
     endDate: null,
     additionalProperty: [
       pv("app:bucket", bucket),
+      pv("app:rawCapture", text),
       pv("app:needsEnrichment", false),
       pv("app:confidence", "high"),
       pv("app:captureSource", { kind: "thought" }),

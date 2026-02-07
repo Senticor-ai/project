@@ -1,8 +1,6 @@
-import os
 import uuid
 
-import psycopg
-from psycopg.rows import dict_row
+from app.db import db_conn
 
 
 def _json_payload(value):
@@ -62,7 +60,7 @@ def test_user_flow_creates_things_and_assertions(client):
     )
     assert response.status_code == 200
 
-    with psycopg.connect(os.environ["DATABASE_URL"], row_factory=dict_row) as conn:
+    with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """

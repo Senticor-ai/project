@@ -5,6 +5,7 @@ import {
   buildTriagePatch,
   buildItemEditPatch,
   buildNewInboxJsonLd,
+  buildNewActionJsonLd,
   buildNewReferenceJsonLd,
 } from "./thing-serializer";
 import {
@@ -17,6 +18,14 @@ import {
 import type { ThingRecord } from "./api-client";
 import type { Thing, Project, ReferenceMaterial } from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
+import {
+  validateInboxThing,
+  validateActionThing,
+  validateProjectThing,
+  validateReferenceThing,
+  validateThingPatch,
+  formatErrors,
+} from "./__tests__/schema-validator";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -812,11 +821,11 @@ describe("buildNewInboxJsonLd", () => {
     expect(ld._schemaVersion).toBe(2);
   });
 
-  it("uses schema.org name property", () => {
+  it("omits name (raw capture goes into additionalProperty only)", () => {
     const ld = buildNewInboxJsonLd("Call the plumber");
 
-    expect(ld.name).toBe("Call the plumber");
-    expect(ld).not.toHaveProperty("title");
+    expect(ld).not.toHaveProperty("name");
+    expectPropertyValue(ld, "app:rawCapture", "Call the plumber");
   });
 
   it("includes dateCreated and dateModified", () => {
@@ -876,5 +885,320 @@ describe("buildNewReferenceJsonLd", () => {
 
     expect(ld1["@id"]).not.toBe(ld2["@id"]);
     expect((ld1["@id"] as string).startsWith("urn:app:reference:")).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildNewActionJsonLd — v2 format (rawCapture-first, no name)
+// ---------------------------------------------------------------------------
+
+describe("buildNewActionJsonLd", () => {
+  it("creates a schema:Action with _schemaVersion 2", () => {
+    const ld = buildNewActionJsonLd("Wireframes erstellen", "next");
+
+    expect(ld["@type"]).toBe("Action");
+    expect(ld._schemaVersion).toBe(2);
+  });
+
+  it("omits name (raw text goes into rawCapture)", () => {
+    const ld = buildNewActionJsonLd("Wireframes erstellen", "next");
+
+    expect(ld).not.toHaveProperty("name");
+    expectPropertyValue(ld, "app:rawCapture", "Wireframes erstellen");
+  });
+
+  it("stores bucket as additionalProperty", () => {
+    const ld = buildNewActionJsonLd("Task", "waiting");
+
+    expectPropertyValue(ld, "app:bucket", "waiting");
+  });
+
+  it("includes isPartOf when projectId provided", () => {
+    const ld = buildNewActionJsonLd("Sub-task", "next", {
+      projectId: "urn:app:project:p-1" as CanonicalId,
+    });
+
+    expect(ld.isPartOf).toEqual({ "@id": "urn:app:project:p-1" });
+  });
+
+  it("generates unique @id with urn:app:action: prefix", () => {
+    const ld1 = buildNewActionJsonLd("First", "next");
+    const ld2 = buildNewActionJsonLd("Second", "next");
+
+    expect(ld1["@id"]).not.toBe(ld2["@id"]);
+    expect((ld1["@id"] as string).startsWith("urn:app:action:")).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fromJsonLd — name normalization (null, missing, empty, whitespace → undefined)
+// ---------------------------------------------------------------------------
+
+describe("fromJsonLd name normalization", () => {
+  it("normalizes name: null to undefined", () => {
+    const record = wrapAsThingRecord({
+      "@id": "urn:app:inbox:n1",
+      "@type": "Thing",
+      _schemaVersion: 2,
+      name: null,
+      keywords: [],
+      dateCreated: "2025-01-01T00:00:00Z",
+      dateModified: "2025-01-01T00:00:00Z",
+      additionalProperty: [
+        { "@type": "PropertyValue", propertyID: "app:bucket", value: "inbox" },
+        { "@type": "PropertyValue", propertyID: "app:rawCapture", value: "buy bananas" },
+        { "@type": "PropertyValue", propertyID: "app:needsEnrichment", value: true },
+        { "@type": "PropertyValue", propertyID: "app:confidence", value: "low" },
+        { "@type": "PropertyValue", propertyID: "app:captureSource", value: { kind: "thought" } },
+        { "@type": "PropertyValue", propertyID: "app:contexts", value: [] },
+        { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
+        { "@type": "PropertyValue", propertyID: "app:typedReferences", value: [] },
+        { "@type": "PropertyValue", propertyID: "app:provenanceHistory", value: [] },
+      ],
+    });
+    const item = fromJsonLd(record) as Thing;
+    expect(item.name).toBeUndefined();
+    expect(item.rawCapture).toBe("buy bananas");
+  });
+
+  it("normalizes missing name to undefined", () => {
+    const record = wrapAsThingRecord({
+      "@id": "urn:app:inbox:n2",
+      "@type": "Thing",
+      _schemaVersion: 2,
+      keywords: [],
+      dateCreated: "2025-01-01T00:00:00Z",
+      dateModified: "2025-01-01T00:00:00Z",
+      additionalProperty: [
+        { "@type": "PropertyValue", propertyID: "app:bucket", value: "inbox" },
+        { "@type": "PropertyValue", propertyID: "app:rawCapture", value: "buy bananas" },
+        { "@type": "PropertyValue", propertyID: "app:needsEnrichment", value: true },
+        { "@type": "PropertyValue", propertyID: "app:confidence", value: "low" },
+        { "@type": "PropertyValue", propertyID: "app:captureSource", value: { kind: "thought" } },
+        { "@type": "PropertyValue", propertyID: "app:contexts", value: [] },
+        { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
+        { "@type": "PropertyValue", propertyID: "app:typedReferences", value: [] },
+        { "@type": "PropertyValue", propertyID: "app:provenanceHistory", value: [] },
+      ],
+    });
+    const item = fromJsonLd(record) as Thing;
+    expect(item.name).toBeUndefined();
+  });
+
+  it("normalizes empty string name to undefined", () => {
+    const record = wrapAsThingRecord({
+      "@id": "urn:app:inbox:n3",
+      "@type": "Thing",
+      _schemaVersion: 2,
+      name: "",
+      keywords: [],
+      dateCreated: "2025-01-01T00:00:00Z",
+      dateModified: "2025-01-01T00:00:00Z",
+      additionalProperty: [
+        { "@type": "PropertyValue", propertyID: "app:bucket", value: "inbox" },
+        { "@type": "PropertyValue", propertyID: "app:rawCapture", value: "buy bananas" },
+        { "@type": "PropertyValue", propertyID: "app:needsEnrichment", value: true },
+        { "@type": "PropertyValue", propertyID: "app:confidence", value: "low" },
+        { "@type": "PropertyValue", propertyID: "app:captureSource", value: { kind: "thought" } },
+        { "@type": "PropertyValue", propertyID: "app:contexts", value: [] },
+        { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
+        { "@type": "PropertyValue", propertyID: "app:typedReferences", value: [] },
+        { "@type": "PropertyValue", propertyID: "app:provenanceHistory", value: [] },
+      ],
+    });
+    const item = fromJsonLd(record) as Thing;
+    expect(item.name).toBeUndefined();
+  });
+
+  it("normalizes whitespace-only name to undefined", () => {
+    const record = wrapAsThingRecord({
+      "@id": "urn:app:inbox:n4",
+      "@type": "Thing",
+      _schemaVersion: 2,
+      name: "   ",
+      keywords: [],
+      dateCreated: "2025-01-01T00:00:00Z",
+      dateModified: "2025-01-01T00:00:00Z",
+      additionalProperty: [
+        { "@type": "PropertyValue", propertyID: "app:bucket", value: "inbox" },
+        { "@type": "PropertyValue", propertyID: "app:rawCapture", value: "buy bananas" },
+        { "@type": "PropertyValue", propertyID: "app:needsEnrichment", value: true },
+        { "@type": "PropertyValue", propertyID: "app:confidence", value: "low" },
+        { "@type": "PropertyValue", propertyID: "app:captureSource", value: { kind: "thought" } },
+        { "@type": "PropertyValue", propertyID: "app:contexts", value: [] },
+        { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
+        { "@type": "PropertyValue", propertyID: "app:typedReferences", value: [] },
+        { "@type": "PropertyValue", propertyID: "app:provenanceHistory", value: [] },
+      ],
+    });
+    const item = fromJsonLd(record) as Thing;
+    expect(item.name).toBeUndefined();
+  });
+
+  it("preserves actual name when set", () => {
+    const record = wrapAsThingRecord({
+      "@id": "urn:app:inbox:n5",
+      "@type": "Thing",
+      _schemaVersion: 2,
+      name: "Weekly Groceries",
+      keywords: [],
+      dateCreated: "2025-01-01T00:00:00Z",
+      dateModified: "2025-01-01T00:00:00Z",
+      additionalProperty: [
+        { "@type": "PropertyValue", propertyID: "app:bucket", value: "inbox" },
+        { "@type": "PropertyValue", propertyID: "app:rawCapture", value: "buy bananas" },
+        { "@type": "PropertyValue", propertyID: "app:needsEnrichment", value: true },
+        { "@type": "PropertyValue", propertyID: "app:confidence", value: "low" },
+        { "@type": "PropertyValue", propertyID: "app:captureSource", value: { kind: "thought" } },
+        { "@type": "PropertyValue", propertyID: "app:contexts", value: [] },
+        { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
+        { "@type": "PropertyValue", propertyID: "app:typedReferences", value: [] },
+        { "@type": "PropertyValue", propertyID: "app:provenanceHistory", value: [] },
+      ],
+    });
+    const item = fromJsonLd(record) as Thing;
+    expect(item.name).toBe("Weekly Groceries");
+    expect(item.rawCapture).toBe("buy bananas");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Roundtrip: rawCapture-only action → toJsonLd → fromJsonLd
+// ---------------------------------------------------------------------------
+
+describe("roundtrip rawCapture-only", () => {
+  beforeEach(() => resetFactoryCounter());
+
+  it("preserves rawCapture-only action through serialization", () => {
+    const original = createAction({ rawCapture: "Wireframes erstellen", bucket: "next" });
+    const ld = toJsonLd(original);
+
+    // Name should be omitted from JSON-LD
+    expect(ld).not.toHaveProperty("name");
+    expectPropertyValue(ld, "app:rawCapture", "Wireframes erstellen");
+
+    const record = wrapAsThingRecord(ld);
+    const restored = fromJsonLd(record) as Thing;
+
+    expect(restored.name).toBeUndefined();
+    expect(restored.rawCapture).toBe("Wireframes erstellen");
+    expect(restored.bucket).toBe("next");
+  });
+
+  it("preserves rawCapture-only inbox item through serialization", () => {
+    const original = createInboxItem({ rawCapture: "Bananen kaufen" });
+    const ld = toJsonLd(original);
+
+    expect(ld).not.toHaveProperty("name");
+    expectPropertyValue(ld, "app:rawCapture", "Bananen kaufen");
+
+    const record = wrapAsThingRecord(ld);
+    const restored = fromJsonLd(record) as Thing;
+
+    expect(restored.name).toBeUndefined();
+    expect(restored.rawCapture).toBe("Bananen kaufen");
+    expect(restored.bucket).toBe("inbox");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// JSON Schema contract validation
+// ---------------------------------------------------------------------------
+// These tests validate that the serializer output conforms to the JSON Schema
+// generated from the backend Pydantic models. If the backend changes its
+// models and the schemas are regenerated, these tests break automatically.
+// ---------------------------------------------------------------------------
+
+describe("JSON Schema contract validation", () => {
+  beforeEach(() => resetFactoryCounter());
+
+  describe("build* functions produce schema-valid payloads", () => {
+    it("buildNewInboxJsonLd → inbox-thing.schema.json", () => {
+      const ld = buildNewInboxJsonLd("Anruf bei Frau Müller");
+      const valid = validateInboxThing(ld);
+      expect(valid, formatErrors(validateInboxThing)).toBe(true);
+    });
+
+    it("buildNewActionJsonLd → action-thing.schema.json", () => {
+      const ld = buildNewActionJsonLd("Wireframes erstellen", "next");
+      const valid = validateActionThing(ld);
+      expect(valid, formatErrors(validateActionThing)).toBe(true);
+    });
+
+    it("buildNewActionJsonLd with projectId → action-thing.schema.json", () => {
+      const ld = buildNewActionJsonLd("Sub-task", "next", {
+        projectId: "urn:app:project:p-1" as CanonicalId,
+      });
+      const valid = validateActionThing(ld);
+      expect(valid, formatErrors(validateActionThing)).toBe(true);
+    });
+
+    it("buildNewReferenceJsonLd → reference-thing.schema.json", () => {
+      const ld = buildNewReferenceJsonLd("SGB III § 159");
+      const valid = validateReferenceThing(ld);
+      expect(valid, formatErrors(validateReferenceThing)).toBe(true);
+    });
+  });
+
+  describe("toJsonLd produces schema-valid payloads", () => {
+    it("inbox item → inbox-thing.schema.json", () => {
+      const item = createInboxItem({ rawCapture: "Buy milk" });
+      const ld = toJsonLd(item);
+      const valid = validateInboxThing(ld);
+      expect(valid, formatErrors(validateInboxThing)).toBe(true);
+    });
+
+    it("action → action-thing.schema.json", () => {
+      const action = createAction({
+        rawCapture: "Call dentist",
+        bucket: "next",
+        isFocused: true,
+        dueDate: "2026-06-01",
+      });
+      const ld = toJsonLd(action);
+      const valid = validateActionThing(ld);
+      expect(valid, formatErrors(validateActionThing)).toBe(true);
+    });
+
+    it("project → project-thing.schema.json", () => {
+      const project = createProject({
+        name: "Renovate kitchen",
+        desiredOutcome: "Modern kitchen",
+        actionIds: ["urn:app:action:a-1" as CanonicalId],
+      });
+      const ld = toJsonLd(project);
+      const valid = validateProjectThing(ld);
+      expect(valid, formatErrors(validateProjectThing)).toBe(true);
+    });
+
+    it("reference → reference-thing.schema.json", () => {
+      const ref = createReferenceMaterial({
+        name: "Tax docs",
+        url: "https://example.com",
+        encodingFormat: "text/html",
+      });
+      const ld = toJsonLd(ref);
+      const valid = validateReferenceThing(ld);
+      expect(valid, formatErrors(validateReferenceThing)).toBe(true);
+    });
+  });
+
+  describe("patch functions produce schema-valid payloads", () => {
+    it("buildTriagePatch → thing-patch.schema.json", () => {
+      const item = createInboxItem({ rawCapture: "Buy milk" });
+      const patch = buildTriagePatch(item, { targetBucket: "next" });
+      const valid = validateThingPatch(patch);
+      expect(valid, formatErrors(validateThingPatch)).toBe(true);
+    });
+
+    it("buildItemEditPatch → thing-patch.schema.json", () => {
+      const patch = buildItemEditPatch({
+        dueDate: "2026-06-01",
+        contexts: ["@phone"],
+        description: "Updated notes",
+      });
+      const valid = validateThingPatch(patch);
+      expect(valid, formatErrors(validateThingPatch)).toBe(true);
+    });
   });
 });

@@ -1,28 +1,8 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-} from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { AuthApi, refreshCsrfToken } from "./api-client";
 import type { AuthUser } from "./api-client";
-
-interface AuthContextValue {
-  user: AuthUser | null;
-  isLoading: boolean;
-  error: string | null;
-  login: (email: string, password: string) => Promise<void>;
-  register: (
-    email: string,
-    username: string,
-    password: string,
-  ) => Promise<void>;
-  logout: () => Promise<void>;
-}
-
-const AuthContext = createContext<AuthContextValue | null>(null);
+import { AuthContext } from "./auth-types";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -31,22 +11,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Restore session on mount
   useEffect(() => {
-    let cancelled = false;
-    AuthApi.me()
+    const controller = new AbortController();
+    AuthApi.me(controller.signal)
       .then((u) => {
-        if (!cancelled) {
+        if (!controller.signal.aborted) {
           setUser(u);
           return refreshCsrfToken();
         }
       })
       .catch(() => {
-        // Not authenticated — that's fine
+        // Not authenticated or aborted — that's fine
       })
       .finally(() => {
-        if (!cancelled) setIsLoading(false);
+        if (!controller.signal.aborted) setIsLoading(false);
       });
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, []);
 
@@ -56,15 +36,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(u);
   }, []);
 
-  const register = useCallback(
-    async (email: string, username: string, password: string) => {
-      setError(null);
-      const u = await AuthApi.register(email, username, password);
-      setUser(u);
-      await refreshCsrfToken();
-    },
-    [],
-  );
+  const register = useCallback(async (email: string, password: string) => {
+    setError(null);
+    const u = await AuthApi.register(email, password);
+    setUser(u);
+    await refreshCsrfToken();
+  }, []);
 
   const logout = useCallback(async () => {
     await AuthApi.logout();
@@ -78,12 +55,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       {children}
     </AuthContext.Provider>
   );
-}
-
-export function useAuth(): AuthContextValue {
-  const ctx = useContext(AuthContext);
-  if (!ctx) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return ctx;
 }

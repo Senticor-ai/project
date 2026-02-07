@@ -1,0 +1,27 @@
+{
+  "description": "Schema.org PropertyValue for additionalProperty entries.",
+  "properties": {
+    "@type": {
+      "const": "PropertyValue",
+      "default": "PropertyValue",
+      "description": "JSON-LD type (always PropertyValue).",
+      "title": "@Type",
+      "type": "string"
+    },
+    "propertyID": {
+      "description": "Property identifier, e.g. app:bucket.",
+      "title": "Propertyid",
+      "type": "string"
+    },
+    "value": {
+      "description": "Property value (type varies by propertyID).",
+      "title": "Value"
+    }
+  },
+  "required": [
+    "propertyID",
+    "value"
+  ],
+  "title": "PropertyValueModel",
+  "type": "object"
+}

@@ -42,6 +42,8 @@ The pipeline is defined in `.gitlab-ci.yml` and uses `docker-compose.build.yml` 
 - `HARBOR_USER` — robot account for the private registry
 - `HARBOR_PASSWORD` — robot account secret
 
+For this project, `docker:dind` is configured with `--insecure-registry=harbor.100-114-108-51.nip.io:30443` because Harbor uses an internal CA certificate that is not publicly trusted.
+
 These are the only secrets stored in GitLab. All application secrets live in the cluster, managed by ops.
 
 ---

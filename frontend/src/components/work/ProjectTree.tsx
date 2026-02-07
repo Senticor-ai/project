@@ -179,7 +179,7 @@ function ProjectRow({
       <button
         type="button"
         onClick={onToggleExpand}
-        aria-label={`${isExpanded ? "Collapse" : "Expand"} ${project.name}`}
+        aria-label={`${isExpanded ? "Collapse" : "Expand"} ${project.name ?? "Untitled"}`}
         className="flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 text-left transition-colors duration-[var(--duration-fast)] hover:bg-paper-100"
       >
         <span className="shrink-0 text-text-subtle">
@@ -194,7 +194,7 @@ function ProjectRow({
         </span>
         <Icon name="folder" size={18} className="shrink-0 text-blueprint-500" />
         <span className="flex-1 whitespace-pre-wrap text-sm font-medium text-text">
-          {project.name}
+          {project.name ?? "Untitled"}
         </span>
 
         {/* Action count badge */}

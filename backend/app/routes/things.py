@@ -115,6 +115,86 @@ def _deep_merge(base: dict, patch: dict) -> dict:
     return merged
 
 
+def _detect_name_change(existing_jsonld: dict, patch_payload: dict) -> bool:
+    """Return True if the patch changes the name field."""
+    if "name" not in patch_payload:
+        return False
+    return patch_payload["name"] != existing_jsonld.get("name")
+
+
+def _derive_name_set_by(source: str | None) -> str:
+    if source is None or source == "manual":
+        return "user"
+    if "ai" in source.lower():
+        return "ai"
+    return "system"
+
+
+def _derive_name_source(source: str | None, name_source_hint: str | None) -> str:
+    if name_source_hint:
+        return name_source_hint
+    if source is None or source == "manual":
+        return "user edited"
+    if source == "ai-clarify":
+        return "AI suggested from rawCapture"
+    if source == "ai-enrich":
+        return "AI enrichment"
+    return source
+
+
+def _apply_rename_provenance(
+    merged: dict,
+    old_name: str | None,
+    new_name: str | None,
+    source: str | None,
+    name_source_hint: str | None,
+) -> dict:
+    """Inject app:nameProvenance and append to app:provenanceHistory."""
+    now = datetime.now(UTC).isoformat()
+
+    name_prov_entry = {
+        "@type": "PropertyValue",
+        "propertyID": "app:nameProvenance",
+        "value": {
+            "setBy": _derive_name_set_by(source),
+            "setAt": now,
+            "source": _derive_name_source(source, name_source_hint),
+        },
+    }
+
+    additional = merged.get("additionalProperty", [])
+    additional = _merge_additional_property(additional, [name_prov_entry])
+
+    history_entry = {
+        "timestamp": now,
+        "action": "renamed",
+        "from": old_name or "",
+        "to": new_name or "",
+        "note": f"via {source or 'manual'}",
+    }
+
+    history_pv = None
+    for pv_item in additional:
+        if isinstance(pv_item, dict) and pv_item.get("propertyID") == "app:provenanceHistory":
+            history_pv = pv_item
+            break
+
+    if history_pv is not None:
+        existing_history = history_pv.get("value", [])
+        if not isinstance(existing_history, list):
+            existing_history = []
+        history_pv["value"] = existing_history + [history_entry]
+    else:
+        additional.append({
+            "@type": "PropertyValue",
+            "propertyID": "app:provenanceHistory",
+            "value": [history_entry],
+        })
+
+    merged["additionalProperty"] = additional
+    return merged
+
+
 def _normalize_types(value) -> list[str]:
     if isinstance(value, str):
         return [value]
@@ -483,6 +563,16 @@ def update_thing(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="@id cannot be changed")
 
     merged = _deep_merge(existing["schema_jsonld"], patch_payload)
+
+    if _detect_name_change(existing["schema_jsonld"], patch_payload):
+        merged = _apply_rename_provenance(
+            merged,
+            existing["schema_jsonld"].get("name"),
+            patch_payload.get("name"),
+            payload.source,
+            payload.name_source,
+        )
+
     merged_id = merged.get("@id")
     if merged_id is None:
         merged["@id"] = existing["canonical_id"]

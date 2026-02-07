@@ -30,39 +30,39 @@ const project3 = createProject({
 
 const sampleActions: Thing[] = [
   createThing({
-    name: "Finalize brand guidelines",
+    rawCapture: "Finalize brand guidelines",
     bucket: "next",
     projectId: project1.id,
     sequenceOrder: 1,
     completedAt: "2026-01-15T10:00:00Z",
   }),
   createThing({
-    name: "Design homepage wireframes",
+    rawCapture: "Design homepage wireframes",
     bucket: "next",
     projectId: project1.id,
     sequenceOrder: 2,
   }),
   createThing({
-    name: "Implement responsive layout",
+    rawCapture: "Implement responsive layout",
     bucket: "next",
     projectId: project1.id,
     sequenceOrder: 3,
   }),
   createThing({
-    name: "Write copy for landing page",
+    rawCapture: "Write copy for landing page",
     bucket: "next",
     projectId: project1.id,
     sequenceOrder: 4,
   }),
   createThing({
-    name: "Set up CI/CD pipeline",
+    rawCapture: "Set up CI/CD pipeline",
     bucket: "next",
     projectId: project2.id,
     sequenceOrder: 1,
     isFocused: true,
   }),
   createThing({
-    name: "Implement push notifications",
+    rawCapture: "Implement push notifications",
     bucket: "next",
     projectId: project2.id,
     sequenceOrder: 2,

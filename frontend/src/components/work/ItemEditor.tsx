@@ -94,7 +94,7 @@ export function ItemEditor({
             <option value="">None</option>
             {projects.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.name}
+                {p.name ?? "Untitled"}
               </option>
             ))}
           </select>
