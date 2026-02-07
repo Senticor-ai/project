@@ -44,6 +44,7 @@ The pipeline is defined in `.gitlab-ci.yml` and uses `docker-compose.build.yml` 
 
 For this project, CI uses Kaniko (no Docker daemon). Harbor uses an internal CA certificate that is not publicly trusted, so Kaniko runs with `--insecure --skip-tls-verify` when pushing images.
 The CI job writes `/kaniko/.docker/config.json` from those two variables instead of calling `docker login`.
+On `main`, images are tagged `latest`; on other branches, images are tagged as `<branch-slug>-<short-sha>` to avoid clobbering release tags.
 
 These are the only secrets stored in GitLab. All application secrets live in the cluster, managed by ops.
 
@@ -57,7 +58,7 @@ The project has two Dockerfiles, both built from the monorepo root context:
 
 Multi-stage build:
 
-1. **Build stage** — `node:22-alpine`, runs `npm ci` and `npx vite build`
+1. **Build stage** — `node:24-alpine`, runs `npm ci` and `npx vite build`
 2. **Runtime stage** — `nginx:1.27-alpine`, serves the built static files
 
 Nginx proxies `/api/*` requests to the backend service and serves the SPA with `try_files` fallback. Exposes port **80**.

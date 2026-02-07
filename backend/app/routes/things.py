@@ -436,7 +436,7 @@ def sync_things(
     )
 
     return JSONResponse(
-        content=response.model_dump(mode="json"),
+        content=response.model_dump(mode="json", by_alias=True),
         headers={"ETag": etag, "Last-Modified": last_modified},
     )
 

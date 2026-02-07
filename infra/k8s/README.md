@@ -120,6 +120,7 @@ The production overlay:
 - Adds resource requests/limits via strategic merge patches
 - Sets `imagePullPolicy: Always` for application images
 - Provides production ConfigMap (HTTPS CORS, CSRF enabled, JSON logging, OTEL)
+- Exposes backend Prometheus metrics at `GET /metrics` on port `8000`
 
 Namespace, Secret, and Ingress are managed by ops (not in version control).
 

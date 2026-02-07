@@ -317,6 +317,53 @@ describe("ThingList", () => {
     expect(onAdd).not.toHaveBeenCalled();
   });
 
+  it("preserves input text when onAdd rejects", async () => {
+    const user = userEvent.setup();
+    const onAdd = vi.fn().mockRejectedValue(new Error("Network error"));
+    render(<ThingList {...defaultProps({ bucket: "inbox", onAdd })} />);
+    const input = screen.getByLabelText("Capture a thought");
+    await user.type(input, "Buy groceries{Enter}");
+    // Input text should be preserved when the mutation fails
+    expect(input).toHaveValue("Buy groceries");
+  });
+
+  it("clears input text when onAdd resolves", async () => {
+    const user = userEvent.setup();
+    const onAdd = vi.fn().mockResolvedValue(undefined);
+    render(<ThingList {...defaultProps({ bucket: "inbox", onAdd })} />);
+    const input = screen.getByLabelText("Capture a thought");
+    await user.type(input, "Buy groceries{Enter}");
+    expect(input).toHaveValue("");
+  });
+
+  it("shows error message when onAdd rejects", async () => {
+    const user = userEvent.setup();
+    const onAdd = vi.fn().mockRejectedValue(new Error("Network error"));
+    render(<ThingList {...defaultProps({ bucket: "inbox", onAdd })} />);
+    const input = screen.getByLabelText("Capture a thought");
+    await user.type(input, "Buy groceries{Enter}");
+    expect(screen.getByRole("alert")).toHaveTextContent(/failed/i);
+  });
+
+  it("disables input while onAdd is pending", async () => {
+    const user = userEvent.setup();
+    let resolve: () => void;
+    const onAdd = vi.fn(
+      () =>
+        new Promise<void>((r) => {
+          resolve = r;
+        }),
+    );
+    render(<ThingList {...defaultProps({ bucket: "inbox", onAdd })} />);
+    const input = screen.getByLabelText("Capture a thought");
+    await user.type(input, "Buy groceries{Enter}");
+    // Input should be disabled while the promise is pending
+    expect(input).toBeDisabled();
+    // Resolve the promise and verify input is re-enabled
+    resolve!();
+    await vi.waitFor(() => expect(input).not.toBeDisabled());
+  });
+
   // -------------------------------------------------------------------------
   // Sorting
   // -------------------------------------------------------------------------

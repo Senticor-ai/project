@@ -13,6 +13,7 @@ dependencies = [
   "pywebpush",
   "docling",
   "structlog",
+  "prometheus-client",
   "pytest",
   "httpx",
 ]

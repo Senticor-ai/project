@@ -10,12 +10,20 @@ from fastapi.exception_handlers import (
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from .config import settings
 from .csrf import should_validate_csrf, validate_csrf_request
 from .db import db_conn
 from .deps import ORG_ID_HEADER
+from .metrics import (
+    dec_in_flight_requests,
+    inc_in_flight_requests,
+    metrics_content_type,
+    metrics_payload,
+    observe_http_request,
+    refresh_queue_metrics,
+)
 from .observability import (
     REQUEST_ID_HEADER,
     USER_ID_HEADER,
@@ -88,18 +96,31 @@ async def request_context_middleware(request: Request, call_next):
         bind_user_context(user_id_header)
     request.state.request_id = request_id
     start = time.monotonic()
+    skip_http_metrics = request.url.path == "/metrics"
+    if not skip_http_metrics:
+        inc_in_flight_requests()
     response = None
+    status_code: int | None = None
 
     try:
         response = await call_next(request)
+        status_code = response.status_code
     except Exception:
+        status_code = 500
         logger.exception("request.failed")
         raise
     finally:
         duration_ms = int((time.monotonic() - start) * 1000)
+        if not skip_http_metrics:
+            observe_http_request(
+                request=request,
+                status_code=status_code,
+                duration_seconds=duration_ms / 1000.0,
+            )
+            dec_in_flight_requests()
         logger.info(
             "request.completed",
-            status_code=response.status_code if response else None,
+            status_code=status_code,
             duration_ms=duration_ms,
         )
         clear_request_context()
@@ -314,6 +335,12 @@ def well_known_openapi():
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
+
+
+@app.get("/metrics", include_in_schema=False)
+def prometheus_metrics():
+    refresh_queue_metrics()
+    return Response(content=metrics_payload(), media_type=metrics_content_type())
 
 
 @app.get("/health/schema")

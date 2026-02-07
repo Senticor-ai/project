@@ -8,8 +8,8 @@ export class WorkspacePage {
 
   constructor(private page: Page) {
     this.signOutButton = page.getByRole("button", { name: /Sign out/ });
-    this.captureInput = page.getByLabel("Capture inbox item");
-    this.bucketNav = page.getByRole("navigation", { name: "GTD buckets" });
+    this.captureInput = page.getByLabel("Capture a thought");
+    this.bucketNav = page.getByRole("navigation", { name: "Buckets" });
     this.contentArea = page.getByRole("main", { name: "Bucket content" });
   }
 

@@ -15,3 +15,7 @@ data:
   CSRF_ENABLED: "false"
   FILE_STORAGE_PATH: /data/storage
   LOG_FORMAT: console
+  OTEL_SERVICE_NAME: terminandoyo-backend
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://alloy.observability.svc.cluster.local:4318"
+  OTEL_EXPORTER_OTLP_PROTOCOL: "http/protobuf"
+  OTEL_RESOURCE_ATTRIBUTES: "service.namespace=terminandoyo,deployment.environment=local"

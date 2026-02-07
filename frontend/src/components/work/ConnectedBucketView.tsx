@@ -57,11 +57,11 @@ export function ConnectedBucketView({
     thingsQuery.error ?? projectsQuery.error ?? referencesQuery.error;
 
   const handleAddThing = useCallback(
-    (title: string, bucket: ThingBucket) => {
+    async (title: string, bucket: ThingBucket) => {
       if (bucket === "inbox") {
-        captureMutation.mutate(title);
+        await captureMutation.mutateAsync(title);
       } else {
-        addActionMutation.mutate({ title, bucket });
+        await addActionMutation.mutateAsync({ title, bucket });
       }
     },
     [captureMutation, addActionMutation],

@@ -33,7 +33,7 @@ export interface BucketViewProps {
   things: Thing[];
   referenceItems?: ReferenceMaterial[];
   projects?: Project[];
-  onAddThing: (title: string, bucket: ThingBucket) => void;
+  onAddThing: (title: string, bucket: ThingBucket) => Promise<void> | void;
   onCompleteThing: (id: CanonicalId) => void;
   onToggleFocus: (id: CanonicalId) => void;
   onMoveThing: (id: CanonicalId, bucket: ThingBucket) => void;
@@ -141,7 +141,7 @@ export function BucketView({
                   activeBucket === "focus"
                     ? "next"
                     : (activeBucket as ThingBucket);
-                onAddThing(title, bucket);
+                return onAddThing(title, bucket);
               }}
               onComplete={onCompleteThing}
               onToggleFocus={onToggleFocus}

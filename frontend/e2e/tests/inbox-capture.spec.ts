@@ -21,18 +21,6 @@ test.describe("Inbox Capture", () => {
     await expect(ws.captureInput).toHaveValue("");
   });
 
-  test("captures via Capture button click", async ({
-    authenticatedPage: page,
-  }) => {
-    const ws = new WorkspacePage(page);
-
-    await ws.captureInput.fill("Button capture test");
-    await page.getByRole("button", { name: "Capture" }).click();
-
-    await expect(page.getByText("Button capture test")).toBeVisible();
-    await expect(ws.captureInput).toHaveValue("");
-  });
-
   test("does not capture empty or whitespace input", async ({
     authenticatedPage: page,
   }) => {

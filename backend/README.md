@@ -232,6 +232,10 @@ uploads for a blob store without changing the client contract.
 - `X-User-ID` is optional and used for log context only (auth is always session-cookie based).
 - Request context (request id, method, path, user id) is bound to logs and propagated to internal HTTP calls.
 - Use `REQUEST_ID` and `USER_ID` env vars when spawning subprocesses to keep trace continuity.
+- `GET /metrics` exposes Prometheus metrics for HTTP traffic and queue health (`outbox_events`,
+  `push_outbox`, `import_jobs`, `search_index_jobs`).
+- OTEL env vars for cluster deployments: `OTEL_SERVICE_NAME`, `OTEL_EXPORTER_OTLP_ENDPOINT`,
+  `OTEL_EXPORTER_OTLP_PROTOCOL`, `OTEL_RESOURCE_ATTRIBUTES`.
 
 ## BFF Auth (Session Cookies)
 

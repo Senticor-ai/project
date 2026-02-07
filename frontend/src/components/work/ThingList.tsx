@@ -46,7 +46,7 @@ const bucketMeta: Record<
 export interface ThingListProps {
   bucket: Thing["bucket"] | "focus";
   things: Thing[];
-  onAdd: (title: string) => void;
+  onAdd: (title: string) => Promise<void> | void;
   onComplete: (id: CanonicalId) => void;
   onToggleFocus: (id: CanonicalId) => void;
   onMove: (id: CanonicalId, bucket: Thing["bucket"]) => void;
@@ -74,6 +74,8 @@ export function ThingList({
   const [expandedId, setExpandedId] = useState<CanonicalId | null>(null);
   const [selectedContexts, setSelectedContexts] = useState<string[]>([]);
   const [showCompleted, setShowCompleted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [captureError, setCaptureError] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const meta = bucketMeta[bucket];
   const isInbox = bucket === "inbox";
@@ -83,12 +85,20 @@ export function ThingList({
     setExpandedId((prev) => (prev === id ? null : id));
   }, []);
 
-  const handleAdd = useCallback(() => {
+  const handleAdd = useCallback(async () => {
     const trimmed = entryText.trim();
     if (!trimmed) return;
-    onAdd(trimmed);
-    setEntryText("");
-    inputRef.current?.focus();
+    setCaptureError(null);
+    setIsSubmitting(true);
+    try {
+      await onAdd(trimmed);
+      setEntryText("");
+      inputRef.current?.focus();
+    } catch {
+      setCaptureError("Capture failed — please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   }, [entryText, onAdd]);
 
   // Filter active items
@@ -192,24 +202,38 @@ export function ThingList({
 
       {/* Rapid Entry / Capture */}
       {!isFocusView && (
-        <div className="flex items-center gap-2">
-          <span className="text-text-subtle">
-            <Icon name="add" size={16} />
-          </span>
-          <AutoGrowTextarea
-            ref={inputRef}
-            value={entryText}
-            onChange={(e) => setEntryText(e.currentTarget.value)}
-            submitOnEnter
-            onSubmit={handleAdd}
-            placeholder={
-              isInbox
-                ? "Capture a thought..."
-                : "Rapid Entry — type here and hit enter"
-            }
-            aria-label={isInbox ? "Capture a thought" : "Rapid entry"}
-            className="flex-1 bg-transparent text-sm text-text outline-none placeholder:text-text-subtle"
-          />
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="text-text-subtle">
+              <Icon
+                name={isSubmitting ? "progress_activity" : "add"}
+                size={16}
+              />
+            </span>
+            <AutoGrowTextarea
+              ref={inputRef}
+              value={entryText}
+              onChange={(e) => {
+                setEntryText(e.currentTarget.value);
+                if (captureError) setCaptureError(null);
+              }}
+              submitOnEnter
+              onSubmit={handleAdd}
+              disabled={isSubmitting}
+              placeholder={
+                isInbox
+                  ? "Capture a thought..."
+                  : "Rapid Entry — type here and hit enter"
+              }
+              aria-label={isInbox ? "Capture a thought" : "Rapid entry"}
+              className="flex-1 bg-transparent text-sm text-text outline-none placeholder:text-text-subtle disabled:opacity-50"
+            />
+          </div>
+          {captureError && (
+            <p role="alert" className="pl-6 text-xs text-red-500">
+              {captureError}
+            </p>
+          )}
         </div>
       )}
 
