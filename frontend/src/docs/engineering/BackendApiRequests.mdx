@@ -1,0 +1,145 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Engineering/Backend API Requests: Import UX" />
+
+# Backend API Requests: Import UX Improvements
+
+After importing 20K+ items from Nirvana, users have no visibility into progress during import or confirmation that items landed. The frontend currently loads **all** things client-side and filters in memory, which doesn't scale. These API changes would unblock significant UX improvements.
+
+## 1. Import Progress Reporting (High Priority)
+
+**Problem:** During a 20K-item import, users see only a spinner with "Status: running". No progress indicator is possible because the job endpoint returns no intermediate counts.
+
+**Request:** Add `processed_count` and `total_count` to the import job response.
+
+**Schema change:**
+
+```sql
+ALTER TABLE import_jobs ADD COLUMN processed_count INTEGER DEFAULT 0;
+ALTER TABLE import_jobs ADD COLUMN total_count INTEGER;
+```
+
+**Model change** (`app/models.py` — `ImportJobResponse`):
+
+```python
+processed_count: int | None = None
+total_count: int | None = None
+```
+
+**Worker change** (`app/worker.py` — `_process_import_job`):
+
+- Set `total_count` before starting the import
+- Update `processed_count` periodically (every 500 items) during `run_nirvana_import()`
+- The frontend polls every 2s already, so updates will be picked up automatically
+
+**Frontend benefit:** Progress bar in the import dialog: `Importing... 5,000 / 20,268 (25%)`
+
+---
+
+## 2. Bucket Counts Endpoint (High Priority)
+
+**Problem:** To show counts in the sidebar (BucketNav), the frontend must fetch **all** things and count client-side. With 20K items, this means 4+ paginated API calls before any counts appear.
+
+**Request:** New lightweight endpoint returning counts per bucket.
+
+**Endpoint:** `GET /things/counts`
+
+**Response:**
+
+```json
+{
+  "inbox": 86,
+  "next": 19646,
+  "waiting": 11,
+  "calendar": 18,
+  "someday": 498,
+  "reference": 0,
+  "project": 9,
+  "focus": 0
+}
+```
+
+**SQL:**
+
+```sql
+SELECT schema_jsonld->>'bucket' AS bucket, COUNT(*) AS count
+FROM things
+WHERE org_id = $1 AND archived_at IS NULL
+GROUP BY schema_jsonld->>'bucket';
+
+-- Focus count (separate):
+SELECT COUNT(*) FROM things
+WHERE org_id = $1 AND archived_at IS NULL
+  AND (schema_jsonld->>'isFocused')::boolean = true;
+```
+
+**Index** (if not already present):
+
+```sql
+CREATE INDEX idx_things_bucket ON things ((schema_jsonld->>'bucket'))
+WHERE archived_at IS NULL;
+```
+
+**Frontend benefit:** BucketNav shows counts instantly without loading all items.
+
+---
+
+## 3. Server-Side Bucket Filtering (Medium Priority)
+
+**Problem:** `GET /things/sync` returns all non-archived things. The frontend fetches everything and filters by `@type` and `bucket` in memory. With 20K items, this is slow on initial load and wasteful — a user viewing "inbox" (86 items) shouldn't need to load 19K "next" actions.
+
+**Request:** Add optional filter params to the sync endpoint.
+
+**Params:**
+
+- `bucket` — filter by `schema_jsonld->>'bucket'` (e.g., `?bucket=next`)
+- `type` — filter by `schema_jsonld->>'@type'` (e.g., `?type=gtd:Action`)
+
+**Example:** `GET /things/sync?bucket=next&limit=100`
+
+**SQL addition** (in `sync_things`):
+
+```sql
+WHERE archived_at IS NULL
+  AND org_id = $1
+  AND ($2::text IS NULL OR schema_jsonld->>'bucket' = $2)
+  AND ($3::text IS NULL OR schema_jsonld->>'@type' = $3)
+```
+
+**Frontend benefit:** Switch from "fetch all, filter client" to "fetch per bucket". Each bucket view loads only its items. Dramatically faster for users with large datasets.
+
+---
+
+## 4. Import Duration (Low Priority)
+
+**Problem:** The Results screen shows created/updated/skipped counts but no timing. Users can't tell if a 20K import took 30s or 5 minutes.
+
+**Request:** Add computed `duration_ms` to the job response.
+
+**Model change:**
+
+```python
+duration_ms: int | None = None
+```
+
+**In `_build_job_response`:**
+
+```python
+duration_ms = None
+if row.get("started_at") and row.get("finished_at"):
+    delta = row["finished_at"] - row["started_at"]
+    duration_ms = int(delta.total_seconds() * 1000)
+```
+
+**Frontend benefit:** "Completed in 45s" displayed in the results screen.
+
+---
+
+## Priority Summary
+
+| #   | Request                                             | Impact                            | Effort |
+| --- | --------------------------------------------------- | --------------------------------- | ------ |
+| 1   | Import progress (`processed_count` / `total_count`) | High — unblocks progress bar      | Medium |
+| 2   | Bucket counts (`GET /things/counts`)                | High — instant sidebar counts     | Small  |
+| 3   | Server-side bucket filter (`?bucket=`)              | Medium — scales to large datasets | Medium |
+| 4   | Import duration (`duration_ms`)                     | Low — nice-to-have                | Tiny   |

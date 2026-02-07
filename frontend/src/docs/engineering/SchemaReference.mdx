@@ -1,0 +1,422 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Engineering/Schema Reference" />
+
+# Schema.org Reference
+
+This document defines the schema.org entities used in the Todo app. The app spans personal work, business work, and procedural work. Data is stored as JSON-LD and aligned to schema.org vocabulary for interoperability and semantic clarity.
+
+## Design Principles
+
+1. **Schema.org as vocabulary** - All domain objects map to schema.org types
+2. **JSON-LD structure** - Objects have `@id`, `@type`, and optional `@context`
+3. **Immutable assertions** - Changes are recorded as append-only assertions, not mutations
+4. **ThingRef pattern** - References can be full objects or `{ "@id": "..." }` stubs
+5. **Work-domain neutrality** - The same core types support personal, business, and procedural work
+
+## Core Entity Map
+
+```
+Person (personal owner) or Organization (business owner)
+    └── owns → Project
+                  ├── contains → Task (Action / PlanAction)
+                  ├── contains → Checklist (ItemList)
+                  └── contains → Procedure (HowTo)
+                                    └── step → HowToStep
+```
+
+---
+
+## Work Domains
+
+Personal work is modeled with `schema:Person` as the owner and `schema:Project` for collections of tasks.
+
+Business work uses `schema:Organization` and `schema:Role` to represent teams, assignments, and responsibility.
+
+Procedural work is captured with `schema:HowTo` and `schema:HowToStep` so repeatable workflows are first-class.
+
+---
+
+## Breadth Example: Public Sector Funding
+
+The same schema.org-driven model can also represent complex public-sector workflows, such as grant or funding applications to nonprofits. This is a good signal for the depth of application and breadth of management the app can support, similar to broad "job to be done" tools like ThinkingRock.
+
+Example mapping (non-exhaustive):
+
+1. Funding program or call for proposals can be modeled with `schema:FundingScheme`.
+2. The granting body can be modeled as `schema:FundingAgency` or `schema:Organization`.
+3. The applicant nonprofit can be modeled as `schema:Organization` (with contacts as `schema:Person`).
+4. An application package can be represented with `schema:CreativeWork` or a `schema:Project` with associated `schema:DigitalDocument` attachments.
+5. Review, evaluation, and award steps can be represented as `schema:Action` instances, with final awards captured as `schema:Grant`.
+
+This example is intentionally called out to anchor the design in a flexible, interoperable schema that scales from personal tasks to enterprise and public-sector process management.
+
+---
+
+## Core Work Entities
+
+### Project
+
+**Schema:** `schema:Project`
+**Purpose:** A collection of tasks and procedures within a scope (personal or business)
+
+```typescript
+interface Project extends Thing {
+  "@type": "schema:Project";
+  name: string; // "Personal Q1 Goals"
+  description?: string;
+  member?: ThingRef<Person | Organization | Role>[]; // Team or collaborators
+  sponsor?: ThingRef<Organization>; // Optional org sponsor
+  url?: string;
+}
+```
+
+---
+
+### Task
+
+**Schema:** `schema:Action` or `schema:PlanAction`
+**Purpose:** A unit of work that can be assigned, scheduled, and completed
+
+```typescript
+interface Task extends Thing {
+  "@type": "schema:Action" | "schema:PlanAction";
+  name: string; // "Send contract to legal"
+  description?: string;
+  agent?: ThingRef<Person | Organization>; // Assignee
+  participant?: ThingRef<Person | Organization | Role>[]; // Collaborators
+  actionStatus?: ActionStatusType; // ActiveActionStatus | CompletedActionStatus | ...
+  startTime?: string; // Planned start (ISO 8601)
+  endTime?: string; // Due or completion time (ISO 8601)
+  object?: ThingRef; // Project, procedure, or asset this task targets
+  result?: ThingRef; // Output artifact
+  location?: ThingRef; // Where work happens
+  instrument?: ThingRef; // Tool used
+}
+```
+
+**Status mapping:** App statuses map to `schema:ActionStatusType`.
+
+---
+
+### Checklist
+
+**Schema:** `schema:ItemList` and `schema:ListItem`
+**Purpose:** Ordered or unordered checklist items that reference tasks or artifacts
+
+```typescript
+interface Checklist extends Thing {
+  "@type": "schema:ItemList";
+  name: string; // "Launch checklist"
+  description?: string;
+  itemListOrder?: string; // "ItemListOrderAscending" etc.
+  itemListElement: ListItem[];
+  numberOfItems?: number;
+}
+
+interface ListItem extends Thing {
+  "@type": "schema:ListItem";
+  position?: number;
+  item: ThingRef<Task | CreativeWork | DigitalDocument>;
+  nextItem?: ThingRef<ListItem>;
+  previousItem?: ThingRef<ListItem>;
+}
+```
+
+---
+
+## Procedural Work Entities
+
+### Procedure
+
+**Schema:** `schema:HowTo`
+**Purpose:** A repeatable procedure used to generate or validate tasks
+
+```typescript
+interface Procedure extends Thing {
+  "@type": "schema:HowTo";
+  name: string; // "New client onboarding"
+  description?: string;
+  step: HowToStep[];
+  totalTime?: string; // ISO 8601 duration
+  estimatedCost?: MonetaryAmount; // Optional
+  tool?: ThingRef[]; // Tools used
+  supply?: ThingRef[]; // Materials used
+}
+```
+
+---
+
+### HowToStep
+
+**Schema:** `schema:HowToStep`
+**Purpose:** An individual step within a procedure
+
+```typescript
+interface HowToStep extends Thing {
+  "@type": "schema:HowToStep";
+  name?: string;
+  text?: string; // Step instructions
+  url?: string;
+  image?: ThingRef;
+}
+```
+
+---
+
+### Schedule
+
+**Schema:** `schema:Schedule`
+**Purpose:** Recurrence rules for procedural or repeated work
+
+```typescript
+interface Schedule extends Thing {
+  "@type": "schema:Schedule";
+  startDate?: string; // ISO 8601
+  endDate?: string; // ISO 8601
+  repeatFrequency?: string; // ISO 8601 duration (e.g., "P1W")
+  byDay?: string[]; // "MO", "WE", "FR"
+  scheduleTimezone?: string; // "Europe/Berlin"
+}
+```
+
+---
+
+## Communication and Artifacts
+
+### Comment
+
+**Schema:** `schema:Comment`
+**Purpose:** Task or project discussion entries
+
+```typescript
+interface Comment extends Thing {
+  "@type": "schema:Comment";
+  text: string;
+  author?: ThingRef<Person | Organization>;
+  dateCreated?: string;
+  parentItem?: ThingRef; // Thing being commented on
+}
+```
+
+---
+
+### EmailMessage
+
+**Schema:** `schema:EmailMessage`
+**Purpose:** Email-originated work items or references
+
+```typescript
+interface EmailMessage extends Thing {
+  "@type": "schema:EmailMessage";
+  messageId?: string;
+  sender?: ThingRef;
+  recipient?: ThingRef[];
+  dateReceived?: string; // ISO 8601
+  dateSent?: string; // ISO 8601
+  headline?: string; // Subject
+  text?: string; // Plain text body
+  attachment?: DigitalDocument[];
+}
+```
+
+---
+
+### CreativeWork
+
+**Schema:** `schema:CreativeWork`
+**Purpose:** Notes, memos, and internal documentation
+
+```typescript
+interface CreativeWork extends Thing {
+  "@type": "schema:CreativeWork";
+  name?: string;
+  headline?: string;
+  author?: ThingRef<Person | Organization>;
+  dateCreated?: string; // ISO 8601
+  dateModified?: string; // ISO 8601
+  text?: string;
+  articleBody?: string;
+  keywords?: string[];
+  description?: string;
+  about?: ThingRef[];
+}
+```
+
+---
+
+### DigitalDocument
+
+**Schema:** `schema:DigitalDocument`
+**Purpose:** Attachments and files linked to tasks or procedures
+
+```typescript
+interface DigitalDocument extends Thing {
+  "@type": "schema:DigitalDocument";
+  name: string; // "requirements.pdf"
+  encodingFormat?: string; // MIME: "application/pdf"
+  contentSize?: number; // Bytes
+  contentUrl?: string; // URL to access
+  dateCreated?: string; // ISO 8601
+  dateModified?: string; // ISO 8601
+  description?: string;
+  author?: ThingRef<Person | Organization>;
+  keywords?: string[];
+}
+```
+
+---
+
+## Actor Entities
+
+### Person
+
+**Schema:** `schema:Person`
+
+```typescript
+interface Person extends Thing {
+  "@type": "schema:Person";
+  name: string;
+  email?: string;
+  telephone?: string;
+  jobTitle?: string;
+  worksFor?: ThingRef<Organization>;
+}
+```
+
+---
+
+### Organization
+
+**Schema:** `schema:Organization`
+
+```typescript
+interface Organization extends Thing {
+  "@type": "schema:Organization";
+  name: string;
+  email?: string;
+  telephone?: string;
+  url?: string;
+  parentOrganization?: ThingRef<Organization>;
+  member?: ThingRef<Person | Organization | Role>[];
+}
+```
+
+---
+
+### Role
+
+**Schema:** `schema:Role` or `schema:OrganizationRole`
+**Purpose:** Assignment, responsibility, or membership context
+
+```typescript
+interface Role extends Thing {
+  "@type": "schema:Role" | "schema:OrganizationRole";
+  roleName: string; // "Owner", "Reviewer", "Assignee"
+  startDate?: string;
+  endDate?: string;
+}
+```
+
+---
+
+## Base Types
+
+### Thing
+
+All objects extend Thing:
+
+```typescript
+interface Thing {
+  "@id": string; // Stable IRI: "urn:task:send-contract"
+  "@type": string; // schema.org type: "schema:Action"
+  "@context"?: string; // Optional JSON-LD context
+}
+```
+
+### ThingRef
+
+References can be full objects or stubs:
+
+```typescript
+type ThingRef<T extends Thing = Thing> = T | { "@id": string };
+```
+
+### ActionStatusType
+
+```typescript
+type ActionStatusType =
+  | "ActiveActionStatus"
+  | "CompletedActionStatus"
+  | "FailedActionStatus"
+  | "PotentialActionStatus";
+```
+
+### MonetaryAmount
+
+```typescript
+interface MonetaryAmount {
+  "@type": "schema:MonetaryAmount";
+  currency: string; // "USD"
+  value: number; // 1200
+}
+```
+
+---
+
+## Work Feed Union
+
+Things that can appear in a work feed or inbox:
+
+```typescript
+type WorkThing =
+  | Task
+  | Project
+  | Checklist
+  | Procedure
+  | HowToStep
+  | Comment
+  | CreativeWork
+  | DigitalDocument
+  | EmailMessage;
+```
+
+---
+
+## Type Guards
+
+Utility functions for type checking:
+
+```typescript
+isTask(thing: Thing): thing is Task
+isProject(thing: Thing): thing is Project
+isChecklist(thing: Thing): thing is Checklist
+isProcedure(thing: Thing): thing is Procedure
+isHowToStep(thing: Thing): thing is HowToStep
+isComment(thing: Thing): thing is Comment
+isEmailMessage(thing: Thing): thing is EmailMessage
+isCreativeWork(thing: Thing): thing is CreativeWork
+isDigitalDocument(thing: Thing): thing is DigitalDocument
+```
+
+---
+
+## Source Files
+
+| File                      | Contents                               |
+| ------------------------- | -------------------------------------- |
+| `types/schema.ts`         | Core schema.org type definitions       |
+| `types/tasks.ts`          | Task, checklist, and schedule types    |
+| `types/procedures.ts`     | HowTo and HowToStep types              |
+| `types/communications.ts` | Comment, EmailMessage, and attachments |
+| `types/index.ts`          | Barrel exports                         |
+
+---
+
+## Related Documentation
+
+- [schema.org](https://schema.org) - Vocabulary reference
+- [JSON-LD](https://json-ld.org) - Serialization format
+- [Architecture](?path=/docs/engineering-architecture--docs) - Technology stack and architectural decisions
+- [Data Model](?path=/docs/engineering-data-model--docs) - Internal GTD type system
+- [Backend Architecture](?path=/docs/engineering-backend-architecture--docs) - Dual-store model

@@ -1,0 +1,175 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Product/Vision" />
+
+# Terminandoyo: Product Vision
+
+## What Is Terminandoyo?
+
+A **GTD-native task management system** that brings David Allen's
+Getting Things Done methodology into a modern, evidence-first workspace.
+
+Inspired by **ThinkingRock**'s discipline and **NirvanaHQ**'s elegance,
+grounded in concepts from knowledge graph architecture (FRBR, LexCEL).
+
+---
+
+## Core GTD Workflow
+
+### The 5 Phases
+
+| Phase | Action | Description |
+|-------|--------|-------------|
+| **Capture** | Collect | Everything goes into the Inbox |
+| **Clarify** | Process | Is it actionable? What's the next action? |
+| **Organize** | Route | Assign to the correct bucket |
+| **Reflect** | Review | Weekly review of all lists |
+| **Engage** | Do | Execute from context-aware lists |
+
+### The Buckets
+
+| Bucket | Purpose | Color |
+|--------|---------|-------|
+| **Inbox** | Unprocessed captures | Warm amber |
+| **Next Actions** | Immediately actionable, context-tagged | Green |
+| **Projects** | Multi-step outcomes | Blueprint blue |
+| **Waiting For** | Delegated or dependent items | Purple |
+| **Someday/Maybe** | Deferred aspirations | Cool cyan |
+| **Calendar** | Time-specific commitments | Red-orange |
+| **Reference** | Supporting materials | Muted olive |
+| **Focus** | Filtered priority view (NirvanaHQ) | Bold orange |
+
+---
+
+## Key Inspirations
+
+### From ThinkingRock: Discipline
+
+- **FIFO Inbox Processing**: Only the oldest item can be clarified at a time.
+  Forces sequential processing — no cherry-picking.
+- **Sequential Projects**: Sub-actions within a project are ordered.
+  Only the next action is visible until the current one completes.
+- **Strict GTD Adherence**: The system enforces the methodology, not just suggests it.
+
+### From NirvanaHQ: Elegance
+
+- **Focus List**: A virtual filtered bucket showing only highest-priority items.
+  Not a separate list — a lens over existing items marked as "focused".
+- **Scheduled Items**: Actions with a start date stay in "Scheduled" until the date
+  arrives, then auto-promote to Next with a Focus star.
+- **Recurring Tasks**: Built-in support for repeating items with configurable cycles.
+- **Clean UI**: Minimal chrome, maximum content. Paper-like surfaces.
+
+---
+
+## Knowledge Architecture (from Papers)
+
+Terminandoyo's data model draws from three academic papers on legal knowledge
+graph architecture, mapping their concepts to GTD:
+
+### FRBR Hierarchy → GTD Item Identity
+
+| FRBR Level | GTD Mapping | Example |
+|------------|-------------|---------|
+| **Work** | Project | "Launch website redesign" |
+| **Expression** | Action | "Draft wireframes for homepage" |
+| **Manifestation** | Context view | Same action shown in @computer list |
+| **Item** | Execution | Doing it right now, this instance |
+
+**Evidence-first principle**: Always create the full hierarchy with placeholders.
+Items enter as raw captures and get progressively enriched through clarification.
+
+### LexCEL → Typed Relationships
+
+Actions connect to each other via **typed references** (not just plain links):
+
+| Reference Type | GTD Meaning | Example |
+|----------------|-------------|---------|
+| `blocks` | This item blocks another | "Get approval" blocks "Start development" |
+| `depends_on` | Cannot start until dependency completes | "Deploy" depends_on "Pass tests" |
+| `delegates_to` | Assigned to someone else | "Review PR" delegates_to "@sarah" |
+| `refers_to` | Cross-reference | "Budget doc" refers_to "Q4 Plan" |
+| `part_of` | Sub-action of a project | "Write tests" part_of "Launch redesign" |
+| `follows` | Sequential ordering | Step 2 follows Step 1 |
+| `waiting_on` | External dependency | "Waiting on vendor response" |
+
+### LexCEL Ports → Action Attributes
+
+| Port Type | GTD Usage | Example |
+|-----------|-----------|---------|
+| **DefinitionPort** | What does "done" mean? | "Homepage wireframes approved by team" |
+| **PredicatePort** | What conditions must be true to start? | "Design system tokens finalized" |
+| **ComputationPort** | Effort/time/energy estimates | 2hr, high energy |
+| **ProcedurePort** | Checklists / sub-steps | [ ] Header, [ ] Nav, [ ] Hero |
+
+### Three-Phase Processing → Capture-Clarify-Enrich
+
+| Phase | Paper Concept | GTD Implementation |
+|-------|--------------|-------------------|
+| Phase 1 | Heuristic classification | Capture: item enters inbox, auto-tagged with source |
+| Phase 2 | Hierarchy with placeholders | Clarify: create project/action structure, mark unknowns |
+| Phase 3 | Optional enrichment | Enrich: fill in missing context, effort, done criteria |
+
+### Confidence Scores
+
+Every item carries a confidence score indicating how well-defined it is:
+
+- **High**: Fully clarified — clear next action, defined outcome, assigned context
+- **Medium**: Partially clarified — has outcome but missing context or effort
+- **Low**: Raw capture — needs significant clarification
+- **Needs enrichment**: Flagged `needsEnrichment` for review (FRBR pattern)
+
+### Canonical IDs
+
+Every item gets a stable URN-style identifier:
+
+```
+urn:gtd:inbox:a1b2c3d4-e5f6-7890-abcd-ef1234567890
+urn:gtd:action:b2c3d4e5-f6a7-8901-bcde-f12345678901
+urn:gtd:project:c3d4e5f6-a7b8-9012-cdef-123456789012
+```
+
+Stable IDs enable: provenance tracking, undo/redo, relationship graphs, sync.
+
+---
+
+## Core Principles
+
+### No-Delete Policy
+
+Users cannot delete items. This is a core design principle for audit compliance:
+
+- **Archive** (soft delete) replaces deletion
+- `archivedAt` timestamp hides from active lists but preserves all data
+- Full provenance trail maintained
+- Every state change is recorded in append-only history
+
+### Paperclip Design Language
+
+1. **Everything Is an Object** — visible boundaries, stable identity
+2. **Relationships Over Navigation** — typed connections between items
+3. **Gravity Creates Focus** — important items surface naturally
+4. **Reversibility Is Sacred** — no destructive defaults, always undo
+5. **AI Is a Contributor, Not an Authority** — suggestions require explicit attachment
+6. **Language Describes Relationships** — "attach/detach", never "add/delete"
+7. **Interface-Level Responsiveness** — immediate feedback on every interaction
+8. **Speed Over Ceremony** — capture in &lt;2 seconds
+
+### Tay — The AI Assistant
+
+**Tay** is the chat agent partner embedded in TerminAndoYo.
+
+- **Role**: Assists with inbox triage suggestions, project planning, weekly review prompts
+- **Personality**: Helpful, concise, respectful of user authority (Paperclip principle #5: AI is a contributor, not an authority)
+- **Avatar**: Uses the `auto_awesome` Material Symbol icon
+- **Interaction model**: Tay suggests, the user decides. Suggestions appear as detachable attachments — never auto-applied
+- **Name origin**: Short for TerminAndoYo — your personal GTD companion
+
+### Language Policy
+
+| Context | Language |
+|---------|----------|
+| Code (variables, functions) | English |
+| UI strings | German (de) + English (en) via i18n |
+| Domain terms, test fixtures | German |
+| Documentation | English |

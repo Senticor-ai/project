@@ -1,0 +1,75 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Design/Philosophy" />
+
+# Design Philosophy
+
+TerminAndoYo (TAY) adopts principles from the **Apple Human Interface Guidelines**,
+filtered through our **Paperclip Design Language** and adapted for a GTD-native web app.
+
+---
+
+## Adopted Principles
+
+| Principle | Apple HIG Origin | TAY Interpretation |
+|---|---|---|
+| **Clarity** | Legible text, precise icons, strong hierarchy | WCAG AA contrast (4.5:1+), single icon style (Material Symbols outlined), scannable task titles |
+| **Deference** | UI chrome supports content, never competes | Subtle borders, low-contrast controls, task content dominates every view |
+| **Depth** | Visual layering creates spatial relationships | 3 elevation levels via shadow tokens: `card` &rarr; `card-hover` &rarr; `sheet` &rarr; `overlay` |
+| **Consistency** | Same control = same look and behavior | ObjectCard is the universal atom; Icon is the single glyph system; one component per concept |
+| **Direct Manipulation** | Users act on content directly | Inline triage (no modals), drag-to-reorder, tap-to-complete |
+| **Feedback** | Every action gets an immediate response | All interactions respond within `--duration-instant` (100ms); motion confirms state changes |
+| **Metaphor** | Real-world parallels aid understanding | Paperclip language: attach/detach, paper surfaces, card gravity, ink-like text |
+| **User Control** | Users always feel in charge | No-delete policy, always undo, AI is contributor not authority (principle #5) |
+| **Accessibility** | Empower everyone regardless of ability | Semantic HTML, keyboard navigation, ARIA labels, `prefers-reduced-motion` support |
+| **Minimal Design** | Show only what's needed, when it's needed | Progressive disclosure (expandable triage options), icon-only when labels aren't needed |
+
+---
+
+## Typography
+
+- **Primary**: Inter (system fallback: system-ui, sans-serif)
+- **Mono**: JetBrains Mono (for IDs, code, timestamps)
+- **Hierarchy**: 3 levels max per view &mdash; title (semibold), body (regular), meta (muted)
+- **Minimum size**: 12px for metadata, 14px for body, 16px+ for headings
+
+## Iconography
+
+- **System**: [Google Material Symbols](https://fonts.google.com/icons) (outlined, variable font)
+- **Style**: Outlined weight 400, no fill by default; filled variant for active/selected states
+- **Sizes**: 12px (chips/badges), 14px (inline), 16px (navigation), 18px (capture), 20px (default), 24px (emphasis)
+- **Wrapper**: `<Icon name="..." size={n} />` component with `aria-hidden="true"`
+
+## Color Philosophy
+
+- **Semantic over decorative**: Colors communicate meaning (bucket, confidence, status)
+- **Muted palette**: Paper/blueprint/industrial tokens create a warm, professional feel
+- **15% tint pattern**: `bg-{color}/15 text-{color}` for badges &mdash; gentle background, readable text
+- **Contrast-first**: All color pairings verified for WCAG AA (4.5:1 minimum)
+
+## Motion
+
+- **Purpose-driven**: Motion confirms actions, reveals content, guides focus
+- **No gratuitous animation**: Frequent interactions (hover, click) use subtle transitions only
+- **Timing**: `instant` (100ms) for feedback, `fast` (150ms) for micro-interactions, `normal` (250ms) for reveals
+- **Easing**: `snap` for appearing, `unfold` for expanding
+- **Respect preferences**: Honor `prefers-reduced-motion` via Framer Motion's built-in support
+
+## Spacing
+
+- **Touch targets**: Minimum 44x44px for interactive elements
+- **Consistent scale**: Tailwind spacing utilities (gap-1, gap-2, gap-4) for grouping
+- **Proximity**: Related items tight (gap-1), groups separated (gap-4), sections separated (gap-8)
+
+---
+
+## The Paperclip Principles (recap)
+
+1. Everything Is an Object
+2. Relationships Over Navigation
+3. Gravity Creates Focus
+4. Reversibility Is Sacred
+5. AI Is a Contributor, Not an Authority
+6. Language Describes Relationships
+7. Interface-Level Responsiveness
+8. Speed Over Ceremony

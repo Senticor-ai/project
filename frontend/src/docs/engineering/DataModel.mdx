@@ -1,0 +1,158 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Engineering/Data Model" />
+
+# Data Model
+
+The core data model lives in `src/model/` and maps GTD concepts to
+architecture patterns from the FRBR, LexCEL, and legal reference
+normalization papers.
+
+---
+
+## Canonical IDs
+
+**File**: `src/model/canonical-id.ts`
+
+Every entity gets a stable URN-style identifier:
+
+```
+urn:gtd:{entity-type}:{uuid}
+```
+
+| Entity Type | Example |
+|-------------|---------|
+| `inbox` | `urn:gtd:inbox:a1b2c3d4-...` |
+| `action` | `urn:gtd:action:e5f6a7b8-...` |
+| `project` | `urn:gtd:project:c3d4e5f6-...` |
+| `waiting` | `urn:gtd:waiting:d4e5f6a7-...` |
+| `someday` | `urn:gtd:someday:f6a7b8c9-...` |
+| `calendar` | `urn:gtd:calendar:a7b8c9d0-...` |
+| `reference` | `urn:gtd:reference:b8c9d0e1-...` |
+| `context` | `urn:gtd:context:c9d0e1f2-...` |
+| `tag` | `urn:gtd:tag:d0e1f2a3-...` |
+
+### API
+
+```typescript
+createCanonicalId("inbox", "abc-123") // → "urn:gtd:inbox:abc-123"
+parseCanonicalId("urn:gtd:project:xyz") // → { entityType: "project", uuid: "xyz" }
+```
+
+---
+
+## Entity Hierarchy
+
+### Base Entity (`GtdBaseEntity`)
+
+All entities share these fields:
+
+| Field | Type | Origin |
+|-------|------|--------|
+| `id` | `CanonicalId` | FRBR/ELI canonical IDs |
+| `title` | `string` | — |
+| `notes` | `string?` | — |
+| `tags` | `string[]` | — |
+| `references` | `TypedReference[]` | LexCEL typed renvoi |
+| `captureSource` | `CaptureSource` | LexCEL evidence anchors |
+| `provenance` | `Provenance` | LexCEL append-only provenance |
+| `ports` | `Port[]` | LexCEL ports |
+| `needsEnrichment` | `boolean` | FRBR evidence-first |
+| `confidence` | `ConfidenceLevel` | FRBR evidence-first |
+
+### Entity Types
+
+| Type | Bucket | Key Fields |
+|------|--------|------------|
+| `InboxItem` | `inbox` | `rawCapture` |
+| `Action` | `next` / `waiting` / `calendar` / `someday` | `contexts`, `isFocused`, `delegatedTo`, `recurrence`, `sequenceOrder` |
+| `Project` | `project` | `desiredOutcome`, `status`, `actionIds` |
+| `ReferenceMaterial` | `reference` | `contentType`, `externalUrl` |
+| `CalendarEntry` | `calendar` | `date`, `time`, `duration`, `isAllDay` |
+
+---
+
+## Typed References (LexCEL Renvoi)
+
+| Type | Meaning |
+|------|---------|
+| `blocks` | This item blocks another from starting |
+| `depends_on` | Cannot start until dependency completes |
+| `delegates_to` | Assigned to someone else |
+| `refers_to` | General cross-reference |
+| `context_of` | Context tagging |
+| `part_of` | Sub-action of a project |
+| `follows` | Sequential ordering within a project |
+| `waiting_on` | External dependency |
+
+---
+
+## Ports (LexCEL)
+
+| Port | Kind | Purpose |
+|------|------|---------|
+| `DefinitionPort` | `definition` | What does "done" mean? (`doneCriteria`) |
+| `PredicatePort` | `predicate` | Conditions to start (`conditions[]`) |
+| `ComputationPort` | `computation` | Effort estimates (`timeEstimate`, `energyLevel`) |
+| `ProcedurePort` | `procedure` | Checklist steps (`steps[]`) |
+
+---
+
+## Enrichable Interface (FRBR)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `needsEnrichment` | `boolean` | Flagged for review/clarification |
+| `confidence` | `high` / `medium` / `low` | How well-defined the item is |
+
+**Workflow**: Items enter as `confidence: "low"`, `needsEnrichment: true`.
+Clarification moves them to `confidence: "high"`, `needsEnrichment: false`.
+
+---
+
+## Provenance (No-Delete)
+
+Every state change is recorded in `provenance.history`:
+
+```typescript
+interface ProvenanceEntry {
+  timestamp: string;      // ISO 8601
+  action: ProvenanceAction;
+  from?: string;          // Previous state
+  to?: string;            // New state
+  note?: string;
+}
+```
+
+Actions: `created`, `clarified`, `moved`, `updated`, `archived`,
+`enriched`, `completed`, `focused`, `unfocused`.
+
+**No deletion** — only archiving via `provenance.archivedAt`.
+
+---
+
+## Type Guards
+
+```typescript
+isInboxItem(item)        // item.bucket === "inbox"
+isAction(item)           // bucket in [next, waiting, calendar, someday]
+isProject(item)          // item.bucket === "project"
+isReferenceMaterial(item) // item.bucket === "reference"
+```
+
+---
+
+## Test Factories
+
+**File**: `src/model/factories.ts`
+
+```typescript
+createInboxItem({ title: "Anruf bei Frau Müller" })
+createAction({ title: "Deploy", bucket: "next", isFocused: true })
+createProject({ title: "Relaunch", desiredOutcome: "Site live" })
+createReferenceMaterial({ title: "SGB III § 159" })
+createContext({ name: "@computer" })
+createTypedReference({ type: "blocks", targetId })
+definitionPort("Wireframes approved")
+procedurePort([{ text: "Header" }, { text: "Footer" }])
+```

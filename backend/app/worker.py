@@ -1,0 +1,407 @@
+from datetime import UTC, datetime
+
+from .config import settings
+from .db import db_conn, jsonb
+from .observability import configure_logging, get_logger
+from .projection.fuseki import upsert_jsonld
+from .push_events import enqueue_push_payload
+from .search.indexer import delete_thing, index_file, index_thing
+from .search.jobs import mark_failed, mark_processing, mark_skipped, mark_succeeded
+from .search.meili import is_enabled
+from .search.ocr_settings import get_ocr_config
+
+configure_logging()
+logger = get_logger("projection-worker")
+
+
+def _mark_processed(conn, event_id: str) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            "UPDATE outbox_events SET processed_at = %s WHERE event_id = %s",
+            (datetime.now(UTC), event_id),
+        )
+
+
+def _mark_failed(conn, event_id: str, error: str) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE outbox_events
+            SET attempts = attempts + 1, last_error = %s
+            WHERE event_id = %s
+            """,
+            (error[:500], event_id),
+        )
+
+
+def _emit_index_event(
+    *,
+    status: str,
+    entity_type: str,
+    entity_id: str,
+    org_id: str,
+    action: str,
+    title: str,
+    body: str,
+    target_user_id: str | None,
+) -> None:
+    if not settings.vapid_private_key:
+        return
+    if not target_user_id:
+        return
+
+    payload = {
+        "title": title,
+        "body": body,
+        "url": f"/{entity_type}s/{entity_id}",
+        "data": {
+            "event": "search_index_status",
+            "status": status,
+            "entity_type": entity_type,
+            "entity_id": entity_id,
+            "org_id": org_id,
+            "action": action,
+        },
+    }
+    try:
+        enqueue_push_payload(target_user_id, payload)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("push.enqueue_failed", error=str(exc))
+
+
+def _process_import_job(payload: dict) -> None:
+    job_id = payload.get("job_id")
+    if not job_id:
+        raise ValueError("missing job_id")
+
+    with db_conn() as job_conn:
+        with job_conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    job_id,
+                    org_id,
+                    owner_id,
+                    file_id,
+                    source,
+                    status,
+                    options
+                FROM import_jobs
+                WHERE job_id = %s
+                FOR UPDATE
+                """,
+                (job_id,),
+            )
+            job = cur.fetchone()
+
+            if job is None:
+                raise ValueError("import job not found")
+
+            if job["status"] in {"completed", "failed"}:
+                return
+
+            cur.execute(
+                """
+                UPDATE import_jobs
+                SET status = 'running',
+                    started_at = %s,
+                    updated_at = %s
+                WHERE job_id = %s
+                """,
+                (datetime.now(UTC), datetime.now(UTC), job_id),
+            )
+        job_conn.commit()
+
+    with db_conn() as job_conn:
+        with job_conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    file_id,
+                    org_id,
+                    storage_path
+                FROM files
+                WHERE file_id = %s AND org_id = %s
+                """,
+                (job["file_id"], job["org_id"]),
+            )
+            file_row = cur.fetchone()
+
+    if file_row is None:
+        raise ValueError("import file not found")
+
+    from .routes.imports import _load_items_from_file, run_nirvana_import
+
+    options = job.get("options") or {}
+    summary = run_nirvana_import(
+        _load_items_from_file(file_row),
+        org_id=str(job["org_id"]),
+        user_id=str(job["owner_id"]),
+        source=job["source"],
+        dry_run=False,
+        update_existing=bool(options.get("update_existing", True)),
+        include_completed=bool(options.get("include_completed", True)),
+        emit_events=bool(options.get("emit_events", True)),
+        state_bucket_map=options.get("state_bucket_map"),
+        default_bucket=options.get("default_bucket", "inbox"),
+    )
+
+    with db_conn() as job_conn:
+        with job_conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE import_jobs
+                SET status = 'completed',
+                    summary = %s,
+                    finished_at = %s,
+                    updated_at = %s
+                WHERE job_id = %s
+                """,
+                (
+                    jsonb(summary.model_dump()),
+                    datetime.now(UTC),
+                    datetime.now(UTC),
+                    job_id,
+                ),
+            )
+        job_conn.commit()
+
+
+def _mark_import_failed(job_id: str | None, error: str) -> None:
+    if not job_id:
+        return
+    try:
+        with db_conn() as job_conn:
+            with job_conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE import_jobs
+                    SET status = 'failed',
+                        error = %s,
+                        finished_at = %s,
+                        updated_at = %s
+                    WHERE job_id = %s
+                    """,
+                    (
+                        error[:500],
+                        datetime.now(UTC),
+                        datetime.now(UTC),
+                        job_id,
+                    ),
+                )
+            job_conn.commit()
+    except Exception:  # noqa: BLE001
+        logger.exception("import_job.mark_failed", job_id=job_id)
+
+
+def process_batch(limit: int = 25) -> int:
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT event_id, event_type, payload
+                FROM outbox_events
+                WHERE processed_at IS NULL
+                ORDER BY created_at ASC
+                LIMIT %s
+                FOR UPDATE SKIP LOCKED
+                """,
+                (limit,),
+            )
+            events = cur.fetchall()
+
+        processed = 0
+        for event in events:
+            event_id = event["event_id"]
+            event_type = event["event_type"]
+            payload = event["payload"] or {}
+
+            entity_type = None
+            entity_id = None
+            org_id = payload.get("org_id") if isinstance(payload, dict) else None
+            action = "upsert"
+            target_user_id = None
+
+            try:
+                if event_type == "thing_upserted":
+                    entity_type = "thing"
+                    if not org_id:
+                        raise ValueError("missing org_id")
+                    if not payload.get("thing_id"):
+                        raise ValueError("missing thing_id")
+                    entity_id = str(payload.get("thing_id"))
+                    action = "upsert"
+                    if org_id and entity_id:
+                        mark_processing(org_id, entity_type, entity_id, action=action)
+                    with conn.cursor() as cur:
+                        cur.execute(
+                            """
+                            SELECT
+                                thing_id,
+                                org_id,
+                                canonical_id,
+                                source,
+                                schema_jsonld,
+                                created_at,
+                                updated_at,
+                                created_by_user_id
+                            FROM things
+                            WHERE thing_id = %s
+                            """,
+                            (payload["thing_id"],),
+                        )
+                        row = cur.fetchone()
+                    if row is None:
+                        raise ValueError("thing not found for indexing")
+                    upsert_jsonld(row["schema_jsonld"])
+                    target_user_id = payload.get("_context", {}).get("user_id")
+                    if not target_user_id:
+                        target_user_id = (
+                            str(row.get("created_by_user_id"))
+                            if row.get("created_by_user_id")
+                            else None
+                        )
+                    if is_enabled():
+                        index_thing(row)
+                        mark_succeeded(org_id, entity_type, entity_id, action=action)
+                        _emit_index_event(
+                            status="succeeded",
+                            entity_type=entity_type,
+                            entity_id=entity_id,
+                            org_id=org_id,
+                            action=action,
+                            title="Thing indexed",
+                            body=f"{row.get('canonical_id') or entity_id} indexed.",
+                            target_user_id=target_user_id,
+                        )
+                    else:
+                        mark_skipped(
+                            org_id,
+                            entity_type,
+                            entity_id,
+                            reason="Search disabled",
+                            action=action,
+                        )
+                elif event_type == "thing_archived":
+                    entity_type = "thing"
+                    if not org_id:
+                        raise ValueError("missing org_id")
+                    if not payload.get("thing_id"):
+                        raise ValueError("missing thing_id")
+                    entity_id = str(payload.get("thing_id"))
+                    action = "delete"
+                    if org_id and entity_id:
+                        mark_processing(org_id, entity_type, entity_id, action=action)
+                    if is_enabled():
+                        delete_thing(payload.get("thing_id", ""))
+                        mark_succeeded(org_id, entity_type, entity_id, action=action)
+                        _emit_index_event(
+                            status="succeeded",
+                            entity_type=entity_type,
+                            entity_id=entity_id,
+                            org_id=org_id,
+                            action=action,
+                            title="Thing removed from search",
+                            body=f"Thing {entity_id} removed from search.",
+                            target_user_id=payload.get("_context", {}).get("user_id"),
+                        )
+                    else:
+                        mark_skipped(
+                            org_id,
+                            entity_type,
+                            entity_id,
+                            reason="Search disabled",
+                            action=action,
+                        )
+                elif event_type == "file_uploaded":
+                    entity_type = "file"
+                    if not org_id:
+                        raise ValueError("missing org_id")
+                    if not payload.get("file_id"):
+                        raise ValueError("missing file_id")
+                    entity_id = str(payload.get("file_id"))
+                    action = "upsert"
+                    if org_id and entity_id:
+                        mark_processing(org_id, entity_type, entity_id, action=action)
+                    with conn.cursor() as cur:
+                        cur.execute(
+                            """
+                            SELECT
+                                file_id,
+                                org_id,
+                                owner_id,
+                                original_name,
+                                content_type,
+                                size_bytes,
+                                sha256,
+                                storage_path,
+                                created_at
+                            FROM files
+                            WHERE file_id = %s
+                            """,
+                            (payload["file_id"],),
+                        )
+                        row = cur.fetchone()
+                    if row is None:
+                        raise ValueError("file not found for indexing")
+                    target_user_id = (
+                        str(row.get("owner_id")) if row.get("owner_id") else None
+                    )
+                    if is_enabled() and settings.meili_index_files_enabled:
+                        ocr_config = get_ocr_config(str(row["org_id"]))
+                        index_file(row, ocr_config=ocr_config)
+                        mark_succeeded(org_id, entity_type, entity_id, action=action)
+                        _emit_index_event(
+                            status="succeeded",
+                            entity_type=entity_type,
+                            entity_id=entity_id,
+                            org_id=org_id,
+                            action=action,
+                            title="File indexed",
+                            body=f"{row.get('original_name') or entity_id} indexed.",
+                            target_user_id=target_user_id,
+                        )
+                    else:
+                        mark_skipped(
+                            org_id,
+                            entity_type,
+                            entity_id,
+                            reason="File indexing disabled",
+                            action=action,
+                        )
+                elif event_type == "nirvana_import_job":
+                    _process_import_job(payload)
+
+                _mark_processed(conn, event_id)
+                processed += 1
+            except Exception as exc:  # noqa: BLE001
+                logger.exception("outbox.process_failed", event_id=str(event_id))
+                if event_type == "nirvana_import_job":
+                    _mark_import_failed(payload.get("job_id"), str(exc))
+                if org_id and entity_type and entity_id:
+                    mark_failed(
+                        org_id,
+                        entity_type,
+                        entity_id,
+                        str(exc),
+                        action=action,
+                    )
+                    _emit_index_event(
+                        status="failed",
+                        entity_type=entity_type,
+                        entity_id=entity_id,
+                        org_id=org_id,
+                        action=action,
+                        title="Search indexing failed",
+                        body=f"Indexing failed for {entity_type} {entity_id}.",
+                        target_user_id=target_user_id,
+                    )
+                _mark_failed(conn, event_id, str(exc))
+
+        conn.commit()
+        return processed
+
+
+if __name__ == "__main__":
+    count = process_batch()
+    logger.info("outbox.processed", count=count)

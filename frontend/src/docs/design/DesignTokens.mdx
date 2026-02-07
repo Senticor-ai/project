@@ -1,0 +1,111 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Design/Tokens" />
+
+# Design Tokens
+
+Terminandoyo uses a **Paperclip Design** language: paper-like surfaces, blueprint+industrial accents,
+subtle motion (lift, snap, unfold), and structure-revealing visuals.
+
+All tokens are defined as CSS custom properties in `src/index.css` inside the `@theme` block,
+making them available as Tailwind utility classes (e.g. `bg-paper-100`, `text-blueprint-500`).
+
+---
+
+## Paper (Surfaces)
+
+Light, warm neutrals for backgrounds and card surfaces.
+
+| Token | Value | Usage |
+|-------|-------|-------|
+| `--color-paper-50` | `oklch(0.99 0.002 90)` | Page background |
+| `--color-paper-100` | `oklch(0.97 0.005 90)` | Raised card surface |
+| `--color-paper-200` | `oklch(0.94 0.008 85)` | Overlay surface |
+| `--color-paper-300` | `oklch(0.90 0.012 80)` | Borders |
+| `--color-paper-400` | `oklch(0.85 0.015 75)` | Strong borders |
+| `--color-paper-500` | `oklch(0.75 0.020 70)` | Muted elements |
+
+## Blueprint (Primary)
+
+Industrial blue for primary actions, links, and focus states.
+
+| Token | Value | Usage |
+|-------|-------|-------|
+| `--color-blueprint-500` | `oklch(0.55 0.155 234)` | Primary actions |
+| `--color-blueprint-600` | `oklch(0.48 0.160 232)` | Primary hover |
+| `--color-blueprint-700` | `oklch(0.40 0.145 230)` | Primary active |
+
+## Industrial (Accent)
+
+Warm orange for accents, warnings, and highlights.
+
+| Token | Value | Usage |
+|-------|-------|-------|
+| `--color-industrial-500` | `oklch(0.60 0.180 35)` | Accent actions |
+| `--color-industrial-600` | `oklch(0.52 0.170 33)` | Accent hover |
+
+## GTD Bucket Colors
+
+Each GTD bucket has a distinct color for instant recognition.
+
+| Bucket | Token | Color |
+|--------|-------|-------|
+| Inbox | `--color-gtd-inbox` | Warm amber |
+| Next Actions | `--color-gtd-next` | Green |
+| Projects | `--color-gtd-project` | Blueprint blue |
+| Waiting For | `--color-gtd-waiting` | Purple |
+| Someday/Maybe | `--color-gtd-someday` | Cool cyan |
+| Calendar | `--color-gtd-calendar` | Red-orange |
+| Reference | `--color-gtd-reference` | Muted olive |
+| Focus | `--color-gtd-focus` | Bold orange |
+
+## Confidence Indicators
+
+From the FRBR evidence-first pattern: how well-defined is an item?
+
+| Level | Token | Meaning |
+|-------|-------|---------|
+| High | `--color-confidence-high` | Fully clarified, ready to act |
+| Medium | `--color-confidence-medium` | Partially clarified |
+| Low | `--color-confidence-low` | Needs significant clarification |
+| Needs enrichment | `--color-confidence-enrichment` | Flagged for review |
+
+## Typography
+
+| Token | Value |
+|-------|-------|
+| `--font-sans` | Inter, system-ui, sans-serif |
+| `--font-mono` | JetBrains Mono, Fira Code, monospace |
+
+## Elevation
+
+Paper-like shadows that suggest physical layering.
+
+| Token | Usage |
+|-------|-------|
+| `--shadow-card` | Default card resting state |
+| `--shadow-card-hover` | Card on hover (slight lift) |
+| `--shadow-sheet` | Side panel / sheet |
+| `--shadow-overlay` | Modal overlay |
+
+## Motion
+
+Subtle, purposeful animations inspired by physical paper interactions.
+
+| Token | Value | Usage |
+|-------|-------|-------|
+| `--duration-instant` | 100ms | Micro-feedback |
+| `--duration-fast` | 150ms | Button press, chip toggle |
+| `--duration-normal` | 250ms | Card transitions |
+| `--duration-slow` | 400ms | Panel open/close |
+| `--ease-snap` | `cubic-bezier(0.2, 0.8, 0.2, 1)` | Attach/detach snap |
+| `--ease-unfold` | `cubic-bezier(0.4, 0, 0.2, 1)` | Panel unfold |
+
+## Radius
+
+| Token | Value |
+|-------|-------|
+| `--radius-sm` | 0.25rem |
+| `--radius-md` | 0.5rem |
+| `--radius-lg` | 0.75rem |
+| `--radius-xl` | 1rem |

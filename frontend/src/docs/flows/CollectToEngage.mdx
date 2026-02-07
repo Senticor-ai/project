@@ -1,0 +1,309 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Flows/Collect to Engage" />
+
+# Flow: Collect → Process → Organize → Review → Engage
+
+This document traces the complete GTD lifecycle through Terminandoyo's
+Paperclip components, from the moment a thought enters the system to the
+moment it's acted upon.
+
+---
+
+## Overview
+
+```
+   ┌──────────┐     ┌──────────┐     ┌──────────┐
+   │ COLLECT  │────▶│ TRIAGE   │────▶│ ORGANIZE │
+   │          │     │          │     │          │
+   │ Inbox    │     │ Inline   │     │ Route to │
+   │ Capture  │     │ actions  │     │ bucket   │
+   └──────────┘     └──────────┘     └──────────┘
+                                          │
+                    ┌──────────┐           │
+                    │  ENGAGE  │◀──────────┤
+                    │          │           │
+                    │ Work from│     ┌──────────┐
+                    │ lists    │◀────│ REVIEW   │
+                    └──────────┘     │          │
+                                     │ Weekly + │
+                                     │ daily    │
+                                     └──────────┘
+```
+
+---
+
+## Phase 1: Collect
+
+**Component**: `InboxCapture` → `InboxList`
+
+**User story**: "I just had a thought during a meeting. I need to capture it
+before I forget, without disrupting the meeting."
+
+**Flow**:
+
+1. User opens the app → InboxCapture input is always visible at top
+2. Types: "Anruf bei Frau Müller wegen Fahrkostenantrag"
+3. Presses Enter → item created with:
+   - `CaptureSource: { kind: "thought" }`
+   - `confidence: "low"`
+   - `needsEnrichment: true`
+   - `provenance.history: [{ action: "created", timestamp: now }]`
+4. Input clears, item appears at bottom of inbox list (FIFO)
+5. Count badge on BucketNav inbox icon increments
+
+**Paperclip interactions**:
+
+- New card enters inbox with a soft slide-down animation
+- Card surface is paper-50 (lightest) indicating "raw, unprocessed"
+- ConfidenceBadge shows "low" (alert icon)
+
+**Data created**: `InboxItem` with canonical ID `urn:gtd:inbox:{uuid}`
+
+---
+
+## Phase 2: Triage (Inline Processing)
+
+**Components**: `InboxList` → `InboxTriage` (inline on each card)
+
+**User story**: "Time to process my inbox. The oldest item is first — I'll
+quickly sort each one into the right bucket."
+
+**Design principle**: No multi-step dialog. Triage is a one-tap operation with
+optional details. Users move items directly into buckets, assign to projects,
+add dates, or apply labels — all inline on the card.
+
+**Flow**:
+
+1. Only the **first** (oldest) item in InboxList shows the triage action bar
+2. User sees inline bucket buttons directly on the card:
+
+```
+┌──────────────────────────────────────────┐
+│ 📥 Inbox                          ◐ Low │
+│                                          │
+│ Anruf bei Frau Müller wegen              │
+│ Fahrkostenantrag                         │
+│ via meeting                              │
+│                                          │
+│ [⚡ Next] [⏳ Waiting] [📅 Calendar]     │
+│ [☁️ Someday] [📖 Reference] [Archive]    │
+│                                          │
+│ ▾ More options                           │
+└──────────────────────────────────────────┘
+```
+
+3. **Quick triage**: Tap a bucket button → item moves there immediately
+4. **With details**: Click "More options" to expand:
+
+```
+┌──────────────────────────────────────────┐
+│ ▴ Less options                           │
+│ ┌──────────────────────────────────────┐ │
+│ │ 📁 Assign to project                │ │
+│ │ [Website Redesign        ▾]         │ │
+│ │                                      │ │
+│ │ 📅 Date                             │ │
+│ │ [2026-02-10]                        │ │
+│ │                                      │ │
+│ │ Labels / contexts                    │ │
+│ │ [@phone] [Add...]                   │ │
+│ └──────────────────────────────────────┘ │
+│                                          │
+│ [⚡ Next] [⏳ Waiting] [📅 Calendar]     │
+└──────────────────────────────────────────┘
+```
+
+5. User taps a bucket → `TriageResult` produced:
+   - Inbox item is removed (archived with provenance)
+   - New `Action` created in target bucket
+   - If project assigned, action linked via `part_of` reference
+   - If date set, `scheduledDate` populated
+   - If contexts added, stored on the action
+   - Confidence upgraded to "high", `needsEnrichment` set to false
+   - Provenance records: `{ action: "clarified", from: "inbox", to: "next" }`
+
+**Paperclip interactions**:
+
+- Triage bar is always visible on the first card (no click to reveal)
+- "More options" expands with a smooth slide animation (Framer Motion)
+- On bucket tap: card slides out, item appears in target bucket
+- Bucket buttons use GTD bucket colors for instant visual recognition
+
+---
+
+## Phase 3: Organize
+
+**Components**: `ProjectTree`, `ActionList`, `WaitingForList`, `CalendarView`
+
+After processing, items live in their appropriate buckets.
+
+### If single action → Next Actions
+
+The action appears in `ActionList` with:
+
+- Context chips (if assigned during clarification)
+- Energy/time estimates (from ComputationPort, if provided)
+- Focus star (if manually starred)
+
+### If project → Project Tree
+
+A new `Project` is created with:
+
+- `desiredOutcome` from DefinitionPort
+- First action as `actionIds[0]`
+- `status: "active"`
+
+Subsequent inbox items can be routed to this project during clarification.
+
+### If delegated → Waiting For
+
+An action with `bucket: "waiting"` and `delegatedTo` set appears in `WaitingForList`:
+
+- Grouped under the delegate's name
+- Follow-up date tracked
+- TypedReference: `{ type: "delegates_to", targetId: personId }`
+
+### If scheduled → Calendar
+
+An action with `scheduledDate` appears in `CalendarView`:
+
+- Positioned on the correct date
+- Time slot if `scheduledTime` is set
+- Recurring items show cycle icon
+
+---
+
+## Phase 4: Review
+
+**Component**: `ReviewDashboard`
+
+### Weekly Review Flow
+
+**User story**: "It's Friday afternoon. Time for my weekly review."
+
+1. User navigates to Review → `ReviewDashboard` opens
+2. 7-step guided wizard:
+
+| Step          | Component Used                | What User Does                 |
+| ------------- | ----------------------------- | ------------------------------ |
+| Clear Inbox   | `InboxList` + `InboxTriage`   | Triage remaining items         |
+| Next Actions  | `ActionList` (filtered: next) | Mark done, reschedule, archive |
+| Projects      | `ProjectTree` (each project)  | Ensure each has a next action  |
+| Waiting For   | `WaitingForList`              | Follow up on overdue items     |
+| Someday/Maybe | `SomedayList`                 | Promote or archive             |
+| Calendar      | `CalendarView` (next 2 weeks) | Confirm upcoming commitments   |
+| Set Focus     | `FocusList`                   | Star/unstar items for the week |
+
+3. Each step shows relevant items with action buttons
+4. Progress bar fills as steps complete
+5. Final step: celebration + summary ("Reviewed 47 items, completed 8, delegated 3")
+
+### Daily Review Flow
+
+A lighter version:
+
+1. Check inbox (should be near-zero)
+2. Scan today's calendar
+3. Review focus list
+4. Pick 3-5 items for today
+
+---
+
+## Phase 5: Engage
+
+**Components**: `ActionList` + `ContextFilterBar` + `FocusList`
+
+**User story**: "I'm at my desk with 30 minutes before a meeting. What
+should I do?"
+
+**Flow**:
+
+1. User opens ActionList (or taps BucketNav → Next Actions)
+2. Context filter: selects `@computer` (they're at their desk)
+3. Time filter: "I have 30 min"
+4. Energy filter: "Medium" (it's mid-afternoon)
+5. List narrows to 4 matching actions
+6. User picks the focused item (star icon), works on it
+7. Completes it → card slides out with satisfying animation
+8. If part of a project → next sequential action auto-promotes
+
+**Paperclip interactions**:
+
+- Filter chips toggle with snap animation
+- Matching actions fade in, non-matching fade out (not removed, just dimmed)
+- Complete action: checkmark → strikethrough → slide out
+- Auto-sequence: next project action slides up from dimmed to full opacity
+
+---
+
+## Cross-cutting Concerns
+
+### Provenance Trail
+
+Every action in every phase is recorded in the item's `provenance.history`:
+
+```typescript
+// Capture
+{ action: "created", timestamp: "2026-02-06T10:30:00Z" }
+
+// Clarify
+{ action: "clarified", from: "inbox", to: "next", timestamp: "..." }
+
+// Organize (moved between buckets)
+{ action: "moved", from: "next", to: "waiting", note: "Delegated to Sarah" }
+
+// Engage (completed)
+{ action: "completed", timestamp: "2026-02-07T14:15:00Z" }
+```
+
+Visible via `HoverInspector` on any ObjectCard.
+
+### Confidence Lifecycle
+
+```
+Capture:  confidence = "low",    needsEnrichment = true
+Triage:   confidence = "high",   needsEnrichment = false
+Stalled:  confidence = "medium", needsEnrichment = true  (missing next action)
+Enriched: confidence = "high",   needsEnrichment = false (details filled in)
+```
+
+### No-Delete Policy
+
+- "Archive" replaces "Delete" everywhere
+- Archived items set `provenance.archivedAt` but remain in the system
+- Provenance history is append-only — no entries are ever removed
+- UI shows "Archive" buttons, never "Delete"
+
+---
+
+## Component Interaction Map
+
+```
+InboxCapture ──creates──▶ InboxItem
+     │
+     ▼
+InboxList ──contains──▶ InboxTriage (inline on first item)
+     │                      │
+     │                      ├──bucket tap──▶ Action ──▶ ActionList
+     │                      │                   │
+     │                      │                   ├──▶ ProjectTree (if project assigned)
+     │                      │                   ├──▶ WaitingForList (if waiting)
+     │                      │                   └──▶ CalendarView (if calendar)
+     │                      │
+     │                      ├──reference───▶ ReferenceLibrary
+     │                      ├──someday─────▶ SomedayList
+     │                      └──archive─────▶ Archive
+     │
+     ▼
+BucketNav ──navigates──▶ [all bucket views]
+     │
+     ▼
+FocusList ──filters──▶ Action/Project (isFocused === true)
+     │
+     ▼
+ReviewDashboard ──iterates──▶ [all bucket views in sequence]
+     │
+     ▼
+GoalTracker ──links──▶ Projects + Actions (via refers_to)
+```

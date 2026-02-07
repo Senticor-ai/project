@@ -1,0 +1,41 @@
+import type { Page, Locator } from "@playwright/test";
+
+export class LoginPage {
+  readonly emailInput: Locator;
+  readonly passwordInput: Locator;
+  readonly usernameInput: Locator;
+  readonly submitButton: Locator;
+  readonly switchToRegister: Locator;
+  readonly switchToLogin: Locator;
+  readonly errorMessage: Locator;
+  readonly heading: Locator;
+
+  constructor(private page: Page) {
+    this.emailInput = page.getByLabel("Email");
+    this.passwordInput = page.getByLabel("Password");
+    this.usernameInput = page.getByLabel("Username");
+    this.submitButton = page.locator('button[type="submit"]');
+    this.switchToRegister = page.getByRole("button", { name: "Create one" });
+    this.switchToLogin = page.getByText("Already have an account?").getByRole("button", { name: "Sign in" });
+    this.errorMessage = page.locator(".text-red-700");
+    this.heading = page.locator("h2");
+  }
+
+  async goto() {
+    await this.page.goto("/");
+  }
+
+  async register(email: string, username: string, password: string) {
+    await this.switchToRegister.click();
+    await this.emailInput.fill(email);
+    await this.usernameInput.fill(username);
+    await this.passwordInput.fill(password);
+    await this.submitButton.click();
+  }
+
+  async login(email: string, password: string) {
+    await this.emailInput.fill(email);
+    await this.passwordInput.fill(password);
+    await this.submitButton.click();
+  }
+}

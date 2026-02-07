@@ -1,0 +1,188 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Product/GTD Methodology" />
+
+# GTD Methodology as Implemented
+
+This document describes how Terminandoyo implements David Allen's
+Getting Things Done (GTD) methodology, drawing from ThinkingRock's
+rigor and NirvanaHQ's design elegance.
+
+---
+
+## The 5 Phases
+
+### 1. Capture
+
+> "Your mind is for having ideas, not holding them." — David Allen
+
+Everything starts in the **Inbox**. The capture mechanism must be:
+
+- **Fast**: &lt;2 seconds from thought to captured item
+- **Frictionless**: Single input field, keyboard shortcut, or voice
+- **Complete**: Every captured item records its **source** (thought, email, meeting, voice, import)
+- **Non-judgmental**: No categorization at capture time
+
+The Inbox is a **FIFO queue** (ThinkingRock). Items are processed oldest-first.
+No cherry-picking — this enforces the discipline of processing everything.
+
+### 2. Clarify
+
+Processing each inbox item with a structured decision tree:
+
+```
+Is it actionable?
+├── YES
+│   ├── Will it take <2 minutes? → DO IT NOW
+│   ├── Should someone else do it? → DELEGATE (Waiting For)
+│   └── What's the next action?
+│       ├── Single action → NEXT ACTIONS
+│       ├── Multi-step → create PROJECT + first action
+│       └── Time-specific → CALENDAR
+└── NO
+    ├── Trash → ARCHIVE (no delete!)
+    ├── Maybe later → SOMEDAY/MAYBE
+    └── Useful info → REFERENCE
+```
+
+**Key clarification outputs:**
+- **Desired outcome** (DefinitionPort: what does "done" look like?)
+- **Next physical action** (the very next thing you can do)
+- **Context** (where/how: @phone, @computer, @errands, @office)
+- **Project** (if multi-step: what project does this belong to?)
+
+### 3. Organize
+
+Route clarified items to their correct bucket:
+
+| Bucket | Criteria |
+|--------|----------|
+| **Next Actions** | Actionable, can be done as soon as context allows |
+| **Projects** | Outcome requiring &gt;1 action, target &lt;1 year |
+| **Waiting For** | Delegated, with person + date noted |
+| **Calendar** | Must happen on a specific date/time |
+| **Someday/Maybe** | Not committed now, review during weekly review |
+| **Reference** | Not actionable, but useful information |
+
+Each item gets:
+- **Contexts** (one or more: @phone, @computer, @home, @sarah)
+- **Tags** (flexible categorization)
+- **Energy level** (low/medium/high)
+- **Time estimate** (5min, 15min, 30min, 1hr, 2hr, half-day, full-day)
+
+### 4. Reflect
+
+#### Weekly Review (~60-90 minutes)
+
+The weekly review is the backbone of GTD. In Terminandoyo:
+
+1. **Clear inbox** — process every remaining item (FIFO enforced)
+2. **Review Next Actions** — are these still relevant? Any completed?
+3. **Review Projects** — each project has a defined next action?
+4. **Review Waiting For** — follow up on delegated items?
+5. **Review Someday/Maybe** — promote anything to active?
+6. **Review Calendar** — upcoming commitments?
+7. **Review Focus** — re-evaluate what deserves focus?
+
+#### Daily Review (~5-15 minutes)
+
+1. Clear new inbox items
+2. Check today's calendar
+3. Scan Focus list
+4. Pick 3-5 items for today
+
+### 5. Engage
+
+Work from your lists based on:
+1. **Context** — what can I do right now? (filtered by @context)
+2. **Time available** — how much time do I have?
+3. **Energy** — what's my energy level?
+4. **Priority** — what has the highest impact?
+
+The **Focus list** (NirvanaHQ) surfaces items you've explicitly marked
+as high-priority, cutting through list noise.
+
+---
+
+## ThinkingRock Specifics
+
+### FIFO Inbox Processing
+
+The inbox enforces **First In, First Out** order. You must process the
+oldest item before moving to the next. This is "highly irritating, yet
+highly valuable" — it prevents avoidance of difficult items.
+
+Implementation:
+- Inbox items sorted by `createdAt` ascending
+- Only the first item shows the "Clarify" button
+- Cannot skip or reorder inbox items
+
+### Sequential Project Actions
+
+Within a project, sub-actions are **ordered** and only the **next action**
+is visible in the Next Actions list. Subsequent actions are hidden until
+the current one completes.
+
+This prevents:
+- Overwhelm from seeing all project steps at once
+- Working out of order
+- Losing track of what's actually next
+
+When an action completes, the next one in sequence auto-promotes to visible.
+
+---
+
+## NirvanaHQ Specifics
+
+### Focus List
+
+A **virtual bucket** — not a separate list, but a filtered view.
+Items are marked `isFocused: true` and appear in the Focus view.
+
+Focus is:
+- Manually toggled (star/unstar)
+- Auto-assigned when a scheduled item's date arrives
+- Reviewed daily
+
+### Scheduled Items
+
+Actions can have a `startDate`. Until that date arrives, they live in
+a "Scheduled" state (visible but dimmed). On the start date, they:
+1. Auto-promote to the Next Actions list
+2. Receive a Focus star
+3. Send a notification (if configured)
+
+### Recurring Tasks
+
+Items can have a `RecurrencePattern`:
+
+| Pattern | Example |
+|---------|---------|
+| Daily (every N days) | "Take vitamins" every 1 day |
+| Weekly (specific days) | "Team standup" every Mon/Wed/Fri |
+| Monthly (day of month) | "Pay rent" on the 1st |
+| Yearly (month + day) | "Annual review" every March 15 |
+| After completion | "Clean desk" 7 days after last completion |
+
+When a recurring item completes, a new instance is automatically created
+with the next scheduled date.
+
+---
+
+## Evidence-First Processing (from Papers)
+
+GTD's Clarify phase maps to the "three-phase processing" from the
+FRBR evidence-first architecture paper:
+
+| Paper Phase | GTD Phase | What Happens |
+|-------------|-----------|-------------|
+| Phase 1: Classification | Capture | Item enters inbox, source recorded, basic type detected |
+| Phase 2: Hierarchy + Placeholders | Clarify | Create project/action structure, mark unknowns with `needsEnrichment` |
+| Phase 3: Enrichment | Ongoing | Fill gaps: add context, effort estimates, done criteria |
+
+**Confidence scores** track how well-defined an item is:
+- **High** (0.9+): Fully clarified, clear next action + outcome + context
+- **Medium** (0.7-0.9): Has outcome but missing details
+- **Low** (&lt;0.7): Raw capture, needs clarification
+
+Items with `needsEnrichment: true` surface in review flows.

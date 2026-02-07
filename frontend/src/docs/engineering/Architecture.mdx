@@ -1,0 +1,275 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Engineering/Architecture" />
+
+# Engineering Architecture
+
+This document defines the technology stack, architectural principles, and core patterns for the system. It complements the Schema Reference and focuses on _how the system is built, tested, and operated_.
+
+## Design Goals
+
+- **Deterministic behavior** - reproducible outputs for audit and testing
+- **AI as supervised collaborator** - AI proposes, humans decide
+- **BDD/TDD-first development** - fixtures over live integrations
+- **Append-only auditability** - no destructive updates
+
+---
+
+## Technology Stack
+
+### Frontend
+
+| Technology                | Purpose                     |
+| ------------------------- | --------------------------- |
+| React + Vite              | UI framework and build      |
+| Vitest + Testing Library  | Unit & component tests      |
+| Playwright                | E2E / BDD scenarios         |
+| OpenTelemetry JS SDK      | Trace propagation           |
+| MSW (Mock Service Worker) | API mocking for development |
+
+### Backend
+
+| Technology       | Purpose               |
+| ---------------- | --------------------- |
+| Python (FastAPI) | API server            |
+| Haystack         | AI pipelines & agents |
+| OpenRouter       | LLM access            |
+| Local auth       | HTTP-only cookie sessions (Postgres) |
+
+### Storage & Indexes
+
+| Store                  | Purpose                                          |
+| ---------------------- | ------------------------------------------------ |
+| **PostgreSQL**         | Immutable catalog (Things + Assertions, JSON-LD) |
+| **Apache Jena Fuseki** | RDF relationship graph (projection)              |
+| **Qdrant**             | Vector store (semantic retrieval)                |
+
+### Observability
+
+| Technology    | Purpose                                                    |
+| ------------- | ---------------------------------------------------------- |
+| OpenTelemetry | Distributed tracing                                        |
+| Grafana LGTM  | Loki (logs), Grafana (UI), Tempo (traces), Mimir (metrics) |
+| MLflow        | LLM & agent evaluation                                     |
+
+---
+
+## Architectural Principles
+
+1. **Append-only by default** - no destructive updates; all changes are assertions
+2. **Facts before views** - UI state is derived from immutable facts
+3. **AI parity** - AI and humans write the same assertion model
+4. **Deterministic tests** - fixtures over live integrations
+5. **Projections are rebuildable** - Postgres is the source of truth
+
+---
+
+## Core Domain Model
+
+### Things (Postgres)
+
+All objects are stored as schema.org Things in JSON-LD form.
+
+```sql
+-- Table: things
+thing_id        UUID PRIMARY KEY
+schema_jsonld   JSONB           -- Full JSON-LD object
+source          TEXT            -- imap | manual | api | ai
+created_at      TIMESTAMP
+content_hash    TEXT            -- For deduplication
+```
+
+**Thing types** (see [Schema Reference](?path=/docs/engineering-schema-reference--docs)):
+
+- `schema:EmailMessage`
+- `schema:CreativeWork`
+- `schema:DigitalDocument`
+- `schema:Project`
+- `schema:FundingScheme`
+- `schema:FundingAgency`
+- `schema:Grant`
+
+### Assertions (Postgres)
+
+Assertions represent _all changes_ to the system. No UPDATE or DELETE is permitted.
+
+```sql
+-- Table: assertions
+assertion_id            UUID PRIMARY KEY
+thing_id                UUID REFERENCES things
+assertion_type          TEXT            -- Enum: LabelApplied, AssociatedWithCase, etc.
+payload_json            JSONB           -- Type-specific data
+actor_type              TEXT            -- user | agent | system
+actor_id                TEXT            -- User ID or agent name
+created_at              TIMESTAMP
+supersedes_assertion_id UUID            -- Optional: for corrections
+otel_trace_id           TEXT            -- Required for AI assertions
+```
+
+**Key assertion types:**
+
+| Type                     | Description                              |
+| ------------------------ | ---------------------------------------- |
+| `LabelApplied`           | Label added to a Thing                   |
+| `LabelRemoved`           | Label removed                            |
+| `AssociatedWithCase`     | Thing assigned to a Case                 |
+| `RemovedFromCase`        | Thing removed from Case                  |
+| `StatusChanged`          | Status update                            |
+| `ProposedClassification` | AI suggestion (requires `otel_trace_id`) |
+| `ProposalAccepted`       | User accepted AI proposal                |
+| `ProposalRejected`       | User rejected AI proposal                |
+
+---
+
+## Projections
+
+Projections are _derived, validated views_ over the immutable catalog.
+
+### Relationship Graph (Fuseki)
+
+RDF triples derived from assertions:
+
+- Containment: `schema:isPartOf`
+- Relationships: `schema:relatedTo`
+
+**Projection pipeline:**
+
+1. Read assertion from Postgres
+2. Evaluate CEL rules -> candidate triples
+3. Validate with SHACL shapes
+4. If valid -> write to Fuseki
+5. If invalid -> reject and alert
+
+### Vector Index (Qdrant)
+
+Embeddings for semantic search:
+
+- Thing textual fields
+- Document attachments
+
+Payload includes: `thing_id`, `type`, `labels`, `case_id`, `timestamp`
+
+---
+
+## AI Architecture
+
+### Haystack Pipelines
+
+AI agents for the MVP:
+
+- **Inbox Classifier** - suggests FundingScheme, Case, and Applicant
+- **Case Router** - routes items to appropriate cases
+- **Knowledge Curator** - promotes valuable content (light)
+
+Each agent:
+
+- Reads Things + recent assertions
+- Produces _proposal assertions only_
+- May abstain (no forced output)
+- Logs all inputs/outputs via OpenTelemetry
+
+### LLM via OpenRouter
+
+- Model routing configurable per agent
+- Prompt + model version logged
+- Token and latency metadata in OTEL spans
+
+### AI Constraints (MVP)
+
+1. AI assists with comparison only - it does not decide
+2. AI never finalizes decisions - all require human confirmation
+3. AI outputs are explainable and traceable
+4. System remains fully usable with AI disabled
+
+---
+
+## Observability & Traceability
+
+**Observability is a core system feature, not an operational afterthought.**
+
+### OpenTelemetry Context
+
+All requests propagate:
+
+- `user_id`
+- `session_id`
+- `request_id`
+
+Attached to:
+
+- OTEL spans
+- Logs
+- Metrics
+- AI proposal assertions (`otel_trace_id`)
+
+### Supervision UI
+
+Every AI proposal includes `otel_trace_id` for navigating to:
+
+- Full trace in Grafana/Tempo
+- Input/output inspection
+- Model and prompt versions
+- Token usage and latency
+
+**Requirement:** AI supervision is reachable from any AI-touched item in ≤2 clicks.
+
+---
+
+## Test Harness
+
+### World Packs (Fixtures)
+
+```
+fixtures/worlds/<world_id>/
+  world.yaml          # World definition
+  things/             # Thing JSON-LD files
+  assertions/         # Assertion sequence
+  blobs/              # Attachments
+  imap/               # Mock emails (ElektroMail format)
+  ai/                 # Stubbed AI responses
+```
+
+World packs define a complete, deterministic system state.
+
+### Frontend Testing
+
+| Level       | Tool            | Purpose            |
+| ----------- | --------------- | ------------------ |
+| Unit        | Vitest          | Component logic    |
+| Component   | Testing Library | DOM interaction    |
+| Integration | MSW             | Mocked API         |
+| E2E         | Playwright      | Full user journeys |
+
+### Backend Testing
+
+| Level       | Tool           | Purpose           |
+| ----------- | -------------- | ----------------- |
+| Unit        | pytest         | Business logic    |
+| API         | pytest + httpx | Endpoint behavior |
+| Integration | World packs    | Full system state |
+
+### Dev Harness
+
+Enabled in dev/test only:
+
+```
+POST /__dev/reset           # Reset database
+POST /__dev/load_world      # Load fixture world
+POST /__dev/inject_email    # Add email to inbox
+POST /__dev/set_ai_mode     # off | stub | live
+```
+
+Frontend harness route `/__harness` provides UI for:
+
+- World selection and loading
+- Item injection
+- AI mode toggling
+
+---
+
+## Related Documentation
+
+- [Schema Reference](?path=/docs/engineering-schema-reference--docs) - schema.org types used in the system
+- [Data Model](?path=/docs/engineering-data-model--docs) - Internal GTD type system
+- [Backend Architecture](?path=/docs/engineering-backend-architecture--docs) - Dual-store model
+- [Product Vision](?path=/docs/product-product-vision--docs) - Product scope and GTD methodology

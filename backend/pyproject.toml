@@ -1,0 +1,68 @@
+[project]
+name = "terminandoyo-backend"
+version = "0.1.0"
+requires-python = ">=3.12"
+license = { text = "EUPL-1.2" }
+dependencies = [
+  "fastapi",
+  "uvicorn[standard]",
+  "psycopg[binary]",
+  "python-dotenv",
+  "python-multipart",
+  "pypdf",
+  "pywebpush",
+  "docling",
+  "structlog",
+  "pytest",
+  "httpx",
+]
+
+[project.optional-dependencies]
+dev = [
+  "alembic>=1.13.2",
+  "ruff>=0.6.0",
+  "mypy>=1.10.0",
+  "bandit>=1.7.9",
+  "sqlalchemy>=2.0.0",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E501"]
+"app/routes/*.py" = ["B008"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+
+[tool.mypy]
+python_version = "3.12"
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unused_configs = true
+no_implicit_optional = true
+disallow_untyped_defs = false
+check_untyped_defs = true
+ignore_missing_imports = true
+exclude = ["^.venv/", "^.pytest_cache/"]
+
+[tool.bandit]
+exclude_dirs = ["backend/tests", "tests"]
+skips = ["B101"]
+
+[dependency-groups]
+dev = [
+    "pytest-playwright>=0.7.2",
+    "uvicorn>=0.40.0",
+    "websockets>=16.0",
+]
