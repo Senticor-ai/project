@@ -4,4 +4,6 @@ resources:
   - pvc-backend-files.yaml
   - postgres.yaml
   - backend.yaml
+  - worker.yaml
+  - push-worker.yaml
   - frontend.yaml

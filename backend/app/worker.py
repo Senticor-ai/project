@@ -5,12 +5,20 @@ from datetime import UTC, datetime
 from .config import settings
 from .db import db_conn, jsonb
 from .observability import configure_logging, get_logger
+from .projection.fuseki import is_enabled as fuseki_enabled
 from .projection.fuseki import upsert_jsonld
 from .push_events import enqueue_push_payload
 from .search.indexer import delete_thing, index_file, index_thing
 from .search.jobs import mark_failed, mark_processing, mark_skipped, mark_succeeded
 from .search.meili import is_enabled
 from .search.ocr_settings import get_ocr_config
+from .worker_health import (
+    WORKER_BATCH_DURATION_SECONDS,
+    WORKER_BATCHES_TOTAL,
+    WORKER_EVENTS_TOTAL,
+    WorkerHealthState,
+    start_health_server,
+)
 
 configure_logging()
 logger = get_logger("projection-worker")
@@ -219,7 +227,6 @@ def _mark_import_failed(job_id: str | None, error: str) -> None:
 
 
 def process_batch(limit: int = 25) -> int:
-    logger.info("outbox.batch_start", limit=limit)
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -234,6 +241,9 @@ def process_batch(limit: int = 25) -> int:
                 (limit,),
             )
             events = cur.fetchall()
+        if not events:
+            logger.debug("outbox.idle")
+            return 0
         logger.info("outbox.batch_fetched", fetched=len(events), limit=limit)
 
         processed = 0
@@ -281,7 +291,8 @@ def process_batch(limit: int = 25) -> int:
                         row = cur.fetchone()
                     if row is None:
                         raise ValueError("thing not found for indexing")
-                    upsert_jsonld(row["schema_jsonld"])
+                    if fuseki_enabled():
+                        upsert_jsonld(row["schema_jsonld"])
                     target_user_id = payload.get("_context", {}).get("user_id")
                     if not target_user_id:
                         target_user_id = (
@@ -476,11 +487,28 @@ def main() -> None:
         logger.info("outbox.processed", count=count, batch_size=batch_size)
         return
 
+    _name = "projection-worker"
+    health_state = WorkerHealthState(
+        _name,
+        poll_interval=interval,
+        staleness_multiplier=settings.worker_health_staleness_multiplier,
+    )
+    start_health_server(health_state, settings.worker_health_port)
+
     logger.info("outbox.loop_started", batch_size=batch_size, interval_seconds=interval)
     try:
         while True:
+            batch_start = time.monotonic()
             count = process_batch(limit=batch_size)
-            logger.info("outbox.processed", count=count, batch_size=batch_size)
+            batch_duration = time.monotonic() - batch_start
+
+            WORKER_BATCHES_TOTAL.labels(worker=_name).inc()
+            WORKER_EVENTS_TOTAL.labels(worker=_name).inc(count)
+            WORKER_BATCH_DURATION_SECONDS.labels(worker=_name).observe(batch_duration)
+            health_state.touch()
+
+            if count:
+                logger.info("outbox.processed", count=count, batch_size=batch_size)
             # If we did not fill a full batch, pause briefly before polling again.
             if count < batch_size:
                 time.sleep(interval)

@@ -12,6 +12,7 @@ Monorepo with:
 - Python `3.12`
 - `uv`
 - Docker (or a local Postgres instance)
+- Node.js `>=20.16` and `npm` (for the frontend)
 
 ### 2) Configure environment
 
@@ -76,29 +77,27 @@ uv run alembic revision -m "describe change"
 uv run alembic upgrade head
 ```
 
-### 6) Run API
+### 6) Run backend (API + workers)
+
+One command starts the API server and both workers:
 
 ```bash
 cd backend
-uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+uv run python -m app.dev
 ```
 
-### 6b) Run workers (required for async imports/uploads)
+This spawns three processes (uvicorn with `--reload`, outbox worker, push worker) and forwards `Ctrl-C` to stop them all.
 
-In separate terminals:
+To run services individually instead (e.g. for debugging a single worker), see [Useful Commands](#useful-commands).
+
+### 6b) Run frontend
+
+In a separate terminal:
 
 ```bash
-cd backend
-uv run python -m app.worker --loop --interval 1 --batch-size 25
+cd frontend
+npm run dev
 ```
-
-```bash
-cd backend
-uv run python -m app.push_worker --loop --interval 1 --batch-size 10
-```
-
-`app.worker` is required for async Nirvana import jobs (`/imports/nirvana/from-file`) and outbox processing.
-`app.push_worker` is required only for Web Push delivery.
 
 ### 7) Verify backend is healthy
 
@@ -119,27 +118,40 @@ uv run python -m app.db_init
 - Swagger UI: `http://127.0.0.1:8000/docs`
 - OpenAPI JSON: `http://127.0.0.1:8000/openapi.json`
 
-## Useful Backend Commands
+## Useful Commands
 
-Run tests:
+Start backend (API + workers):
+
+```bash
+cd backend
+uv run python -m app.dev
+```
+
+Run individual backend services:
+
+```bash
+# API only
+cd backend && uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+
+# Outbox worker only (imports, search indexing)
+cd backend && uv run python -m app.worker --loop --interval 1 --batch-size 25
+
+# Push worker only (Web Push delivery)
+cd backend && uv run python -m app.push_worker --loop --interval 1 --batch-size 10
+```
+
+Run backend tests:
 
 ```bash
 cd backend
 uv run pytest
 ```
 
-Run projection worker:
+Run frontend tests:
 
 ```bash
-cd backend
-uv run python -m app.worker --loop --interval 1 --batch-size 25
-```
-
-Run push worker:
-
-```bash
-cd backend
-uv run python -m app.push_worker --loop --interval 1 --batch-size 10
+cd frontend
+CI=1 npx vitest run
 ```
 
 ## Frontend

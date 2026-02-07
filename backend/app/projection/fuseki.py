@@ -6,6 +6,10 @@ from ..config import settings
 from ..observability import request_context_headers
 
 
+def is_enabled() -> bool:
+    return settings.fuseki_enabled
+
+
 def _graph_store_url() -> str:
     dataset = settings.fuseki_dataset.strip("/")
     graph = quote(settings.fuseki_graph, safe="")

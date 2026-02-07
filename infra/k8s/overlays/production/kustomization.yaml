@@ -14,5 +14,7 @@ images:
 
 patches:
   - path: patches/backend.yaml
+  - path: patches/worker.yaml
+  - path: patches/push-worker.yaml
   - path: patches/frontend.yaml
   - path: patches/postgres.yaml

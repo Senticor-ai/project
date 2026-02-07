@@ -8,6 +8,13 @@ from pywebpush import WebPushException, webpush
 from .config import settings
 from .db import db_conn
 from .observability import configure_logging, get_logger
+from .worker_health import (
+    WORKER_BATCH_DURATION_SECONDS,
+    WORKER_BATCHES_TOTAL,
+    WORKER_EVENTS_TOTAL,
+    WorkerHealthState,
+    start_health_server,
+)
 
 configure_logging()
 logger = get_logger("push-worker")
@@ -24,10 +31,8 @@ def _send(subscription: dict, payload: dict) -> None:
 
 def process_batch(limit: int = 10) -> int:
     if not settings.vapid_private_key:
-        logger.error("push_worker.missing_vapid_key")
         return 0
 
-    logger.info("push_worker.batch_start", limit=limit)
     processed = 0
     with db_conn() as conn:
         with conn.cursor() as cur:
@@ -43,6 +48,9 @@ def process_batch(limit: int = 10) -> int:
                 (limit,),
             )
             outbox = cur.fetchall()
+        if not outbox:
+            logger.debug("push_worker.idle")
+            return 0
         logger.info("push_worker.batch_fetched", fetched=len(outbox), limit=limit)
 
         for entry in outbox:
@@ -178,11 +186,30 @@ def main() -> None:
         logger.info("push_worker.processed", count=count, batch_size=batch_size)
         return
 
+    _name = "push-worker"
+    health_state = WorkerHealthState(
+        _name,
+        poll_interval=interval,
+        staleness_multiplier=settings.worker_health_staleness_multiplier,
+    )
+    start_health_server(health_state, settings.push_worker_health_port)
+
+    if not settings.vapid_private_key:
+        logger.warning("push_worker.vapid_not_configured, sleeping until restart")
     logger.info("push_worker.loop_started", batch_size=batch_size, interval_seconds=interval)
     try:
         while True:
+            batch_start = time.monotonic()
             count = process_batch(limit=batch_size)
-            logger.info("push_worker.processed", count=count, batch_size=batch_size)
+            batch_duration = time.monotonic() - batch_start
+
+            WORKER_BATCHES_TOTAL.labels(worker=_name).inc()
+            WORKER_EVENTS_TOTAL.labels(worker=_name).inc(count)
+            WORKER_BATCH_DURATION_SECONDS.labels(worker=_name).observe(batch_duration)
+            health_state.touch()
+
+            if count:
+                logger.info("push_worker.processed", count=count, batch_size=batch_size)
             if count < batch_size:
                 time.sleep(interval)
     except KeyboardInterrupt:

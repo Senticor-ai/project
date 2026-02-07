@@ -60,6 +60,7 @@ class Settings:
     csrf_cookie_samesite: CookieSameSite
     csrf_cookie_domain: str | None
     csrf_cookie_path: str
+    fuseki_enabled: bool
     fuseki_url: str
     fuseki_dataset: str
     fuseki_graph: str
@@ -82,6 +83,9 @@ class Settings:
     import_job_queue_timeout_seconds: int
     outbox_worker_poll_seconds: float
     push_worker_poll_seconds: float
+    worker_health_port: int
+    push_worker_health_port: int
+    worker_health_staleness_multiplier: float
     vapid_public_key: str | None
     vapid_private_key: str | None
     vapid_subject: str | None
@@ -157,6 +161,7 @@ def load_settings() -> Settings:
         csrf_cookie_samesite=_get_samesite_env("CSRF_COOKIE_SAMESITE", "lax"),
         csrf_cookie_domain=_get_env("CSRF_COOKIE_DOMAIN"),
         csrf_cookie_path=_get_env("CSRF_COOKIE_PATH", "/") or "/",
+        fuseki_enabled=_get_bool_env("FUSEKI_ENABLED", False),
         fuseki_url=_get_env("FUSEKI_URL", "http://localhost:3030") or "http://localhost:3030",
         fuseki_dataset=_get_env("FUSEKI_DATASET", "todo") or "todo",
         fuseki_graph=_get_env("FUSEKI_GRAPH", "urn:graph:default") or "urn:graph:default",
@@ -185,6 +190,11 @@ def load_settings() -> Settings:
         ),
         outbox_worker_poll_seconds=float(_get_env("OUTBOX_WORKER_POLL_SECONDS", "1.0") or "1.0"),
         push_worker_poll_seconds=float(_get_env("PUSH_WORKER_POLL_SECONDS", "1.0") or "1.0"),
+        worker_health_port=int(_get_env("WORKER_HEALTH_PORT", "9090") or "9090"),
+        push_worker_health_port=int(_get_env("PUSH_WORKER_HEALTH_PORT", "9091") or "9091"),
+        worker_health_staleness_multiplier=float(
+            _get_env("WORKER_HEALTH_STALENESS_MULTIPLIER", "3.0") or "3.0"
+        ),
         vapid_public_key=_get_env("VAPID_PUBLIC_KEY"),
         vapid_private_key=_get_env("VAPID_PRIVATE_KEY"),
         vapid_subject=_get_env("VAPID_SUBJECT", "mailto:admin@example.com"),

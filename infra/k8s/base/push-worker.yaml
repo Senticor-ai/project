@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: push-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: push-worker
+  template:
+    metadata:
+      labels:
+        app: push-worker
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /metrics
+        prometheus.io/port: "9091"
+    spec:
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:16
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: app-config
+            - secretRef:
+                name: app-secrets
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB"; do
+                echo "waiting for postgres..."
+                sleep 2
+              done
+      containers:
+        - name: push-worker
+          image: terminandoyo-backend:local
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "app.push_worker", "--loop", "--interval", "1", "--batch-size", "10"]
+          ports:
+            - containerPort: 9091
+              name: health
+          envFrom:
+            - configMapRef:
+                name: app-config
+            - secretRef:
+                name: app-secrets
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: health
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 5

@@ -29,6 +29,14 @@ vi.mock("./components/work/ConnectedBucketView", () => ({
   ConnectedBucketView: () => <div data-testid="connected-bucket-view" />,
 }));
 
+vi.mock("./components/settings/SettingsScreen", () => ({
+  SettingsScreen: ({ onImportNirvana }: { onImportNirvana?: () => void }) => (
+    <div data-testid="settings-screen">
+      <button onClick={onImportNirvana}>Import from Nirvana</button>
+    </div>
+  ),
+}));
+
 vi.mock("./components/work/NirvanaImportDialog", () => ({
   NirvanaImportDialog: ({
     open,
@@ -47,6 +55,21 @@ vi.mock("./components/work/NirvanaImportDialog", () => ({
 beforeEach(() => {
   vi.clearAllMocks();
 });
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function renderAuthenticated() {
+  mockUseAuth.mockReturnValue({
+    user: { id: "u-1", email: "test@example.com", username: "testuser" },
+    isLoading: false,
+    login: mockLogin,
+    register: mockRegister,
+    logout: mockLogout,
+  });
+  return render(<App />);
+}
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -76,51 +99,66 @@ describe("App", () => {
     });
 
     render(<App />);
-    // LoginPage has a "Sign in" heading or similar
-    expect(screen.queryByTestId("connected-bucket-view")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("connected-bucket-view"),
+    ).not.toBeInTheDocument();
   });
 
   it("shows workspace when user is authenticated", () => {
-    mockUseAuth.mockReturnValue({
-      user: { id: "u-1", email: "test@example.com", username: "testuser" },
-      isLoading: false,
-      login: mockLogin,
-      register: mockRegister,
-      logout: mockLogout,
-    });
-
-    render(<App />);
+    renderAuthenticated();
     expect(screen.getByTestId("connected-bucket-view")).toBeInTheDocument();
     expect(screen.getByText("testuser")).toBeInTheDocument();
   });
 
-  it("calls logout when sign out is clicked", async () => {
-    mockUseAuth.mockReturnValue({
-      user: { id: "u-1", email: "test@example.com", username: "testuser" },
-      isLoading: false,
-      login: mockLogin,
-      register: mockRegister,
-      logout: mockLogout,
-    });
+  it("calls logout when Sign out is clicked in menu", async () => {
+    const user = userEvent.setup();
+    renderAuthenticated();
 
-    render(<App />);
-    await userEvent.click(screen.getByText("Sign out"));
+    await user.click(screen.getByRole("button", { name: "Main menu" }));
+    await user.click(screen.getByText("Sign out"));
+
     expect(mockLogout).toHaveBeenCalled();
   });
 
-  it("opens import dialog when Import is clicked", async () => {
-    mockUseAuth.mockReturnValue({
-      user: { id: "u-1", email: "test@example.com", username: "testuser" },
-      isLoading: false,
-      login: mockLogin,
-      register: mockRegister,
-      logout: mockLogout,
-    });
+  it("shows settings when navigating via menu", async () => {
+    const user = userEvent.setup();
+    renderAuthenticated();
 
-    render(<App />);
-    expect(screen.queryByTestId("import-dialog")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Main menu" }));
+    await user.click(screen.getByText("Settings"));
 
-    await userEvent.click(screen.getByText("Import"));
+    expect(screen.getByTestId("settings-screen")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("connected-bucket-view"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("navigates back to workspace from settings", async () => {
+    const user = userEvent.setup();
+    renderAuthenticated();
+
+    // Go to settings
+    await user.click(screen.getByRole("button", { name: "Main menu" }));
+    await user.click(screen.getByText("Settings"));
+    expect(screen.getByTestId("settings-screen")).toBeInTheDocument();
+
+    // Go back to workspace
+    await user.click(screen.getByRole("button", { name: "Main menu" }));
+    await user.click(screen.getByText("Workspace"));
+    expect(screen.getByTestId("connected-bucket-view")).toBeInTheDocument();
+    expect(screen.queryByTestId("settings-screen")).not.toBeInTheDocument();
+  });
+
+  it("opens import dialog from settings", async () => {
+    const user = userEvent.setup();
+    renderAuthenticated();
+
+    // Navigate to settings
+    await user.click(screen.getByRole("button", { name: "Main menu" }));
+    await user.click(screen.getByText("Settings"));
+
+    // Click import in settings
+    await user.click(screen.getByText("Import from Nirvana"));
     expect(screen.getByTestId("import-dialog")).toBeInTheDocument();
   });
 });
