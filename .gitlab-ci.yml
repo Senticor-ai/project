@@ -40,20 +40,16 @@ contract-tests:
 
 build-and-push:
   stage: build
-  image: docker:latest
-  services:
-    - name: docker:dind
-      command:
-        - --insecure-registry=harbor.100-114-108-51.nip.io:30443
-  variables:
-    DOCKER_HOST: "tcp://docker:2375"
-    DOCKER_TLS_CERTDIR: ""
+  image:
+    name: gcr.io/kaniko-project/executor:v1.23.2-debug
+    entrypoint: [""]
   before_script:
-    - mkdir -p "$HOME/.docker"
+    - mkdir -p /kaniko/.docker
     - AUTH_B64="$(printf '%s:%s' "$HARBOR_USER" "$HARBOR_PASSWORD" | base64 | tr -d '\n')"
-    - printf '{"auths":{"harbor.100-114-108-51.nip.io:30443":{"auth":"%s"}}}\n' "$AUTH_B64" > "$HOME/.docker/config.json"
+    - printf '{"auths":{"harbor.100-114-108-51.nip.io:30443":{"auth":"%s"}}}\n' "$AUTH_B64" > /kaniko/.docker/config.json
   script:
-    - docker compose -f docker-compose.build.yml build
-    - docker compose -f docker-compose.build.yml push
+    - IMAGE_TAG="${TAG:-latest}"
+    - /kaniko/executor --context "$CI_PROJECT_DIR" --dockerfile "$CI_PROJECT_DIR/frontend/Dockerfile" --destination "harbor.100-114-108-51.nip.io:30443/terminandoyo/frontend:${IMAGE_TAG}" --insecure --skip-tls-verify
+    - /kaniko/executor --context "$CI_PROJECT_DIR" --dockerfile "$CI_PROJECT_DIR/backend/Dockerfile" --destination "harbor.100-114-108-51.nip.io:30443/terminandoyo/backend:${IMAGE_TAG}" --insecure --skip-tls-verify
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
