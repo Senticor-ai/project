@@ -1,0 +1,20 @@
+# ci/Dockerfile.ci
+# Pre-built CI image for jobs needing both Node.js and Python.
+#
+# Build & push:
+#   docker build -t harbor.100-114-108-51.nip.io:30443/terminandoyo/ci:latest -f ci/Dockerfile.ci ci/
+#   docker push harbor.100-114-108-51.nip.io:30443/terminandoyo/ci:latest
+#
+# Then set CI_NODE_PYTHON_IMAGE in GitLab CI/CD variables to point to this image,
+# and remove the "apt-get install nodejs" lines from before_script in .gitlab-ci.yml.
+
+FROM python:3.12-slim
+
+RUN apt-get update -qq \
+    && apt-get install -y -qq --no-install-recommends \
+       curl ca-certificates gnupg bash git \
+    && curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
+    && apt-get install -y -qq --no-install-recommends nodejs \
+    && pip install --no-cache-dir uv \
+    && npx playwright install-deps chromium \
+    && rm -rf /var/lib/apt/lists/*

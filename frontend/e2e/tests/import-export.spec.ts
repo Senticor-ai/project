@@ -98,6 +98,11 @@ test.describe("Import from Settings", () => {
     // Close dialog after first import
     await page.getByRole("button", { name: "Done" }).click();
 
+    // Wait for import jobs to refetch so checkDuplicate has data
+    await expect(settings.recentImportsHeading()).toBeVisible({
+      timeout: 10_000,
+    });
+
     // --- Second import of same file ---
     await settings.importNirvanaButton().click();
     await expect(
