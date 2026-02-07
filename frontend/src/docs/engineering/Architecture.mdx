@@ -2,16 +2,52 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 <Meta title="Engineering/Architecture" />
 
-# Engineering Architecture
+# Architecture
 
-This document defines the technology stack, architectural principles, and core patterns for the system. It complements the Schema Reference and focuses on _how the system is built, tested, and operated_.
+This document defines the technology stack, architectural principles, and core patterns
+for the system. For the data model that sits on top of this architecture, see
+[Data Model](?path=/docs/engineering-ontology--docs).
+
+---
+
+## Schema.org as Foundation
+
+**Schema.org is the primary ontology.** Every entity in the system is stored as JSON-LD
+using a schema.org `@type`. Custom fields use `additionalProperty` (PropertyValue) rather
+than a parallel type system. This applies across all layers:
+
+| Layer | How schema.org is used |
+| --- | --- |
+| **Postgres** | `schema_jsonld` column stores JSON-LD with `@type`, `name`, `description`, etc. |
+| **Fuseki** | RDF projection uses `schema:isPartOf`, `schema:relatedTo`, etc. |
+| **SHACL** | Shapes validate schema.org compliance at the graph boundary |
+| **Frontend** | TypeScript types map 1:1 to schema.org properties; serializer handles JSON-LD |
+
+See [Data Model](?path=/docs/engineering-ontology--docs) for type mappings and
+[Schema.org Vocabulary](?path=/docs/engineering-ontology-schema-org-vocabulary--docs)
+for the full type catalog.
+
+---
 
 ## Design Goals
 
-- **Deterministic behavior** - reproducible outputs for audit and testing
-- **AI as supervised collaborator** - AI proposes, humans decide
-- **BDD/TDD-first development** - fixtures over live integrations
-- **Append-only auditability** - no destructive updates
+- **Schema.org-first** — interoperable, self-describing data
+- **Deterministic behavior** — reproducible outputs for audit and testing
+- **AI as supervised collaborator** — AI proposes, humans decide
+- **BDD/TDD-first development** — fixtures over live integrations
+- **Append-only auditability** — no destructive updates
+
+---
+
+## Architectural Principles
+
+1. **Schema.org-first** — use schema.org types and properties; only add custom extensions when schema.org genuinely has no equivalent
+2. **Append-only by default** — no destructive updates; all changes are assertions
+3. **Facts before views** — UI state is derived from immutable facts
+4. **Postgres is source of truth** — no direct writes to Fuseki that bypass Postgres
+5. **Projections are rebuildable** — the graph can be regenerated from Postgres
+6. **AI parity** — AI and humans write the same assertion model
+7. **Deterministic tests** — fixtures over live integrations
 
 ---
 
@@ -19,52 +55,49 @@ This document defines the technology stack, architectural principles, and core p
 
 ### Frontend
 
-| Technology                | Purpose                     |
-| ------------------------- | --------------------------- |
-| React + Vite              | UI framework and build      |
-| Vitest + Testing Library  | Unit & component tests      |
-| Playwright                | E2E / BDD scenarios         |
-| OpenTelemetry JS SDK      | Trace propagation           |
+| Technology | Purpose |
+| --- | --- |
+| React + Vite | UI framework and build |
+| Vitest + Testing Library | Unit & component tests |
+| Playwright | E2E / BDD scenarios |
+| OpenTelemetry JS SDK | Trace propagation |
 | MSW (Mock Service Worker) | API mocking for development |
 
 ### Backend
 
-| Technology       | Purpose                              |
-| ---------------- | ------------------------------------ |
-| Python (FastAPI) | API server                           |
-| Haystack         | AI pipelines & agents                |
-| OpenRouter       | LLM access                           |
-| Local auth       | HTTP-only cookie sessions (Postgres) |
+| Technology | Purpose |
+| --- | --- |
+| Python (FastAPI) | API server |
+| Haystack | AI pipelines & agents |
+| OpenRouter | LLM access |
+| Local auth | HTTP-only cookie sessions (Postgres) |
 
 ### Storage & Indexes
 
-| Store                  | Purpose                                          |
-| ---------------------- | ------------------------------------------------ |
-| **PostgreSQL**         | Immutable catalog (Things + Assertions, JSON-LD) |
-| **Apache Jena Fuseki** | RDF relationship graph (projection)              |
-| **Qdrant**             | Vector store (semantic retrieval)                |
+| Store | Purpose |
+| --- | --- |
+| **PostgreSQL** | Immutable catalog (Things + Assertions, JSON-LD) — source of truth |
+| **Apache Jena Fuseki** | RDF relationship graph (derived projection) |
+| **Qdrant** | Vector store (semantic retrieval) |
 
 ### Observability
 
-| Technology    | Purpose                                                    |
-| ------------- | ---------------------------------------------------------- |
-| OpenTelemetry | Distributed tracing                                        |
-| Grafana LGTM  | Loki (logs), Grafana (UI), Tempo (traces), Mimir (metrics) |
-| MLflow        | LLM & agent evaluation                                     |
+| Technology | Purpose |
+| --- | --- |
+| OpenTelemetry | Distributed tracing |
+| Grafana LGTM | Loki (logs), Grafana (UI), Tempo (traces), Mimir (metrics) |
+| MLflow | LLM & agent evaluation |
 
 ---
 
-## Architectural Principles
+## Dual-Store Model
 
-1. **Append-only by default** - no destructive updates; all changes are assertions
-2. **Facts before views** - UI state is derived from immutable facts
-3. **AI parity** - AI and humans write the same assertion model
-4. **Deterministic tests** - fixtures over live integrations
-5. **Projections are rebuildable** - Postgres is the source of truth
+### Core Invariants
 
----
-
-## Core Domain Model
+1. **Postgres is source of truth.** No direct writes to Fuseki that are not also in Postgres.
+2. **Stable canonical IDs.** Every item has a single canonical `@id` used across both stores.
+3. **One-way projection.** Data flows from Postgres to Fuseki only.
+4. **Rebuildable graph.** The graph can be regenerated from Postgres events.
 
 ### Things (Postgres)
 
@@ -73,21 +106,11 @@ All objects are stored as schema.org Things in JSON-LD form.
 ```sql
 -- Table: things
 thing_id        UUID PRIMARY KEY
-schema_jsonld   JSONB           -- Full JSON-LD object
+schema_jsonld   JSONB           -- Full JSON-LD with schema.org @type
 source          TEXT            -- imap | manual | api | ai
 created_at      TIMESTAMP
 content_hash    TEXT            -- For deduplication
 ```
-
-**Thing types** (see [Schema Reference](?path=/docs/engineering-schema-reference--docs)):
-
-- `schema:EmailMessage`
-- `schema:CreativeWork`
-- `schema:DigitalDocument`
-- `schema:Project`
-- `schema:FundingScheme`
-- `schema:FundingAgency`
-- `schema:Grant`
 
 ### Assertions (Postgres)
 
@@ -97,7 +120,7 @@ Assertions represent _all changes_ to the system. No UPDATE or DELETE is permitt
 -- Table: assertions
 assertion_id            UUID PRIMARY KEY
 thing_id                UUID REFERENCES things
-assertion_type          TEXT            -- Enum: LabelApplied, AssociatedWithCase, etc.
+assertion_type          TEXT            -- Enum: LabelApplied, StatusChanged, etc.
 payload_json            JSONB           -- Type-specific data
 actor_type              TEXT            -- user | agent | system
 actor_id                TEXT            -- User ID or agent name
@@ -108,16 +131,50 @@ otel_trace_id           TEXT            -- Required for AI assertions
 
 **Key assertion types:**
 
-| Type                     | Description                              |
-| ------------------------ | ---------------------------------------- |
-| `LabelApplied`           | Label added to a Thing                   |
-| `LabelRemoved`           | Label removed                            |
-| `AssociatedWithCase`     | Thing assigned to a Case                 |
-| `RemovedFromCase`        | Thing removed from Case                  |
-| `StatusChanged`          | Status update                            |
+| Type | Description |
+| --- | --- |
+| `LabelApplied` | Label added to a Thing |
+| `LabelRemoved` | Label removed |
+| `AssociatedWithCase` | Thing assigned to a Case |
+| `RemovedFromCase` | Thing removed from Case |
+| `StatusChanged` | Status update |
 | `ProposedClassification` | AI suggestion (requires `otel_trace_id`) |
-| `ProposalAccepted`       | User accepted AI proposal                |
-| `ProposalRejected`       | User rejected AI proposal                |
+| `ProposalAccepted` | User accepted AI proposal |
+| `ProposalRejected` | User rejected AI proposal |
+
+---
+
+## Write & Read Paths
+
+### Write Path
+
+1. Client sends a write to the API.
+2. API validates basic fields and writes to Postgres.
+3. In the same transaction, an outbox event is recorded.
+4. A projection worker consumes the outbox.
+5. The worker converts the item to JSON-LD.
+6. The JSON-LD is validated against SHACL shapes.
+7. If valid, the worker upserts to Fuseki.
+8. If invalid, the worker records a validation error and leaves the graph unchanged.
+
+### Read Path
+
+1. Catalog and list views read from Postgres.
+2. Relationship-heavy views read from Fuseki via SPARQL.
+3. Cross-store joins are done in the application layer using canonical IDs.
+
+### Schema.org Compliance
+
+1. A local schema.org profile defines allowed types and required properties.
+2. JSON-LD serializers enforce the profile at the application boundary.
+3. SHACL shapes enforce the profile at the graph boundary.
+4. Validation errors are stored and surfaced for remediation.
+
+### Consistency Model
+
+1. **Postgres is strongly consistent.** Writes are transactional.
+2. **Fuseki is eventually consistent.** Projection lag is expected.
+3. **No bi-directional sync.** The graph does not write back to Postgres.
 
 ---
 
@@ -149,6 +206,19 @@ Embeddings for semantic search:
 
 Payload includes: `thing_id`, `type`, `labels`, `case_id`, `timestamp`
 
+### Rebuild & Migration
+
+1. Rebuilds are driven from the outbox event stream.
+2. A full reindex can regenerate the graph from Postgres.
+3. Schema profile changes are applied by re-validating and re-projecting.
+
+### Failure Handling
+
+1. SHACL validation failures do not block Postgres writes.
+2. Invalid items are flagged and retried after fixes.
+3. Projection failures are retried with backoff.
+4. A dead-letter queue stores permanent failures for review.
+
 ---
 
 ## AI Architecture
@@ -157,9 +227,9 @@ Payload includes: `thing_id`, `type`, `labels`, `case_id`, `timestamp`
 
 AI agents for the MVP:
 
-- **Inbox Classifier** - suggests FundingScheme, Case, and Applicant
-- **Case Router** - routes items to appropriate cases
-- **Knowledge Curator** - promotes valuable content (light)
+- **Inbox Classifier** — suggests FundingScheme, Case, and Applicant
+- **Case Router** — routes items to appropriate cases
+- **Knowledge Curator** — promotes valuable content (light)
 
 Each agent:
 
@@ -176,8 +246,8 @@ Each agent:
 
 ### AI Constraints (MVP)
 
-1. AI assists with comparison only - it does not decide
-2. AI never finalizes decisions - all require human confirmation
+1. AI assists with comparison only — it does not decide
+2. AI never finalizes decisions — all require human confirmation
 3. AI outputs are explainable and traceable
 4. System remains fully usable with AI disabled
 
@@ -233,20 +303,20 @@ World packs define a complete, deterministic system state.
 
 ### Frontend Testing
 
-| Level       | Tool            | Purpose            |
-| ----------- | --------------- | ------------------ |
-| Unit        | Vitest          | Component logic    |
-| Component   | Testing Library | DOM interaction    |
-| Integration | MSW             | Mocked API         |
-| E2E         | Playwright      | Full user journeys |
+| Level | Tool | Purpose |
+| --- | --- | --- |
+| Unit | Vitest | Component logic |
+| Component | Testing Library | DOM interaction |
+| Integration | MSW | Mocked API |
+| E2E | Playwright | Full user journeys |
 
 ### Backend Testing
 
-| Level       | Tool           | Purpose           |
-| ----------- | -------------- | ----------------- |
-| Unit        | pytest         | Business logic    |
-| API         | pytest + httpx | Endpoint behavior |
-| Integration | World packs    | Full system state |
+| Level | Tool | Purpose |
+| --- | --- | --- |
+| Unit | pytest | Business logic |
+| API | pytest + httpx | Endpoint behavior |
+| Integration | World packs | Full system state |
 
 ### Dev Harness
 
@@ -267,9 +337,18 @@ Frontend harness route `/__harness` provides UI for:
 
 ---
 
+## Operational Notes
+
+1. Fuseki runs with TDB2 for persistence.
+2. SHACL validation can use the Jena SHACL API or a Fuseki SHACL endpoint.
+3. The projection worker is stateless and can be scaled horizontally.
+4. Graph rebuilds are safe because the graph is derived.
+
+---
+
 ## Related Documentation
 
-- [Schema Reference](?path=/docs/engineering-schema-reference--docs) - schema.org types used in the system
-- [Data Model](?path=/docs/engineering-data-model--docs) - Internal GTD type system
-- [Backend Architecture](?path=/docs/engineering-backend-architecture--docs) - Dual-store model
-- [Product Vision](?path=/docs/product-product-vision--docs) - Product scope and GTD methodology
+- [Data Model](?path=/docs/engineering-ontology--docs) — Schema.org-first data model (GTD entities, properties, JSON-LD)
+- [Schema.org Vocabulary](?path=/docs/engineering-ontology-schema-org-vocabulary--docs) — Full schema.org type catalog
+- [Product Vision](?path=/docs/product-product-vision--docs) — Product scope and GTD methodology
+- [Deployment](?path=/docs/engineering-deployment--docs) — Container structure and CI/CD

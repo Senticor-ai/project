@@ -6,8 +6,8 @@ from ..config import settings
 from ..db import db_conn
 from ..observability import configure_logging, get_logger
 from .indexer import build_file_document, build_thing_document
-from .ocr_settings import OcrConfig, get_ocr_config
 from .meili import add_documents, ensure_files_index, ensure_things_index, is_enabled
+from .ocr_settings import OcrConfig, get_ocr_config
 
 configure_logging()
 logger = get_logger("meili-reindex")

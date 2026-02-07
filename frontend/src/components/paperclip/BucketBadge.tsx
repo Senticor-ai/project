@@ -1,9 +1,9 @@
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
-import type { GtdBucket } from "@/model/gtd-types";
+import type { Bucket } from "@/model/types";
 
 const bucketConfig: Record<
-  GtdBucket,
+  Bucket,
   { label: string; icon: string; className: string }
 > = {
   inbox: {
@@ -49,7 +49,7 @@ const bucketConfig: Record<
 };
 
 export interface BucketBadgeProps {
-  bucket: GtdBucket;
+  bucket: Bucket;
   showLabel?: boolean;
   className?: string;
 }

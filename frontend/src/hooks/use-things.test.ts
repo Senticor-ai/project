@@ -31,7 +31,7 @@ function makeRecord(
   return {
     thing_id: overrides.thing_id ?? crypto.randomUUID(),
     canonical_id:
-      overrides.canonical_id ?? `urn:gtd:test:${crypto.randomUUID()}`,
+      overrides.canonical_id ?? `urn:app:test:${crypto.randomUUID()}`,
     source: overrides.source ?? "test",
     created_at: overrides.created_at ?? "2026-01-01T00:00:00Z",
     updated_at: overrides.updated_at ?? "2026-01-01T00:00:00Z",
@@ -62,44 +62,102 @@ function createWrapper() {
 
 // -- Fixtures ----------------------------------------------------------------
 
+function pvFixture(propertyID: string, value: unknown) {
+  return { "@type": "PropertyValue", propertyID, value };
+}
+
 const ACTION_RECORD = makeRecord({
   thing: {
-    "@type": "gtd:Action",
-    "@id": "urn:gtd:action:1",
-    title: "Buy milk",
-    bucket: "next",
-    completedAt: null,
+    "@type": "Action",
+    "@id": "urn:app:action:1",
+    _schemaVersion: 2,
+    name: "Buy milk",
+    keywords: [],
+    dateCreated: "2026-01-01T00:00:00Z",
+    dateModified: "2026-01-01T00:00:00Z",
+    startDate: null,
+    endDate: null,
+    additionalProperty: [
+      pvFixture("app:bucket", "next"),
+      pvFixture("app:needsEnrichment", false),
+      pvFixture("app:confidence", "high"),
+      pvFixture("app:captureSource", { kind: "thought" }),
+      pvFixture("app:contexts", []),
+      pvFixture("app:isFocused", false),
+      pvFixture("app:ports", []),
+      pvFixture("app:typedReferences", []),
+      pvFixture("app:provenanceHistory", []),
+    ],
   },
 });
 
 const INBOX_RECORD = makeRecord({
   thing: {
-    "@type": "gtd:InboxItem",
-    "@id": "urn:gtd:inbox:1",
-    title: "Random thought",
-    bucket: "inbox",
-    rawCapture: "Random thought",
+    "@type": "Thing",
+    "@id": "urn:app:inbox:1",
+    _schemaVersion: 2,
+    name: "Random thought",
+    keywords: [],
+    dateCreated: "2026-01-01T00:00:00Z",
+    dateModified: "2026-01-01T00:00:00Z",
+    additionalProperty: [
+      pvFixture("app:bucket", "inbox"),
+      pvFixture("app:rawCapture", "Random thought"),
+      pvFixture("app:needsEnrichment", true),
+      pvFixture("app:confidence", "low"),
+      pvFixture("app:captureSource", { kind: "thought" }),
+      pvFixture("app:contexts", []),
+      pvFixture("app:isFocused", false),
+      pvFixture("app:ports", []),
+      pvFixture("app:typedReferences", []),
+      pvFixture("app:provenanceHistory", []),
+    ],
   },
 });
 
 const PROJECT_RECORD = makeRecord({
   thing: {
-    "@type": "gtd:Project",
-    "@id": "urn:gtd:project:1",
-    title: "Relaunch website",
-    bucket: "project",
-    desiredOutcome: "New site live",
-    status: "active",
-    actionIds: [],
+    "@type": "Project",
+    "@id": "urn:app:project:1",
+    _schemaVersion: 2,
+    name: "Relaunch website",
+    keywords: [],
+    dateCreated: "2026-01-01T00:00:00Z",
+    dateModified: "2026-01-01T00:00:00Z",
+    hasPart: [],
+    additionalProperty: [
+      pvFixture("app:bucket", "project"),
+      pvFixture("app:desiredOutcome", "New site live"),
+      pvFixture("app:projectStatus", "active"),
+      pvFixture("app:isFocused", false),
+      pvFixture("app:needsEnrichment", false),
+      pvFixture("app:confidence", "high"),
+      pvFixture("app:captureSource", { kind: "thought" }),
+      pvFixture("app:ports", []),
+      pvFixture("app:typedReferences", []),
+      pvFixture("app:provenanceHistory", []),
+    ],
   },
 });
 
 const REFERENCE_RECORD = makeRecord({
   thing: {
-    "@type": "gtd:Reference",
-    "@id": "urn:gtd:reference:1",
-    title: "Style guide",
-    bucket: "reference",
+    "@type": "CreativeWork",
+    "@id": "urn:app:reference:1",
+    _schemaVersion: 2,
+    name: "Style guide",
+    keywords: [],
+    dateCreated: "2026-01-01T00:00:00Z",
+    dateModified: "2026-01-01T00:00:00Z",
+    additionalProperty: [
+      pvFixture("app:bucket", "reference"),
+      pvFixture("app:needsEnrichment", false),
+      pvFixture("app:confidence", "medium"),
+      pvFixture("app:captureSource", { kind: "thought" }),
+      pvFixture("app:ports", []),
+      pvFixture("app:typedReferences", []),
+      pvFixture("app:provenanceHistory", []),
+    ],
   },
 });
 
@@ -188,7 +246,7 @@ describe("derived hooks filter by @type", () => {
     mockedThings.sync.mockResolvedValue(makeSyncPage(ALL_RECORDS, false));
   });
 
-  it("useActions returns only gtd:Action items", async () => {
+  it("useActions returns only Action items", async () => {
     const { result } = renderHook(() => useActions(), {
       wrapper: createWrapper(),
     });
@@ -196,11 +254,11 @@ describe("derived hooks filter by @type", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     expect(result.current.data).toHaveLength(1);
-    expect(result.current.data[0].title).toBe("Buy milk");
+    expect(result.current.data[0].name).toBe("Buy milk");
     expect(result.current.data[0].bucket).toBe("next");
   });
 
-  it("useInboxItems returns only gtd:InboxItem items", async () => {
+  it("useInboxItems returns only Thing items", async () => {
     const { result } = renderHook(() => useInboxItems(), {
       wrapper: createWrapper(),
     });
@@ -208,10 +266,10 @@ describe("derived hooks filter by @type", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     expect(result.current.data).toHaveLength(1);
-    expect(result.current.data[0].title).toBe("Random thought");
+    expect(result.current.data[0].name).toBe("Random thought");
   });
 
-  it("useProjects returns only gtd:Project items", async () => {
+  it("useProjects returns only Project items", async () => {
     const { result } = renderHook(() => useProjects(), {
       wrapper: createWrapper(),
     });
@@ -219,10 +277,10 @@ describe("derived hooks filter by @type", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     expect(result.current.data).toHaveLength(1);
-    expect(result.current.data[0].title).toBe("Relaunch website");
+    expect(result.current.data[0].name).toBe("Relaunch website");
   });
 
-  it("useReferences returns only gtd:Reference items", async () => {
+  it("useReferences returns only CreativeWork items", async () => {
     const { result } = renderHook(() => useReferences(), {
       wrapper: createWrapper(),
     });
@@ -230,6 +288,6 @@ describe("derived hooks filter by @type", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     expect(result.current.data).toHaveLength(1);
-    expect(result.current.data[0].title).toBe("Style guide");
+    expect(result.current.data[0].name).toBe("Style guide");
   });
 });

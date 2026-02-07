@@ -94,8 +94,8 @@ def get_current_user(
 
 
 def get_current_org(
-    current_user=Depends(get_current_user),
-    org_header: str | None = Header(default=None, alias=ORG_ID_HEADER),
+    current_user=Depends(get_current_user),  # noqa: B008
+    org_header: str | None = Header(default=None, alias=ORG_ID_HEADER),  # noqa: B008
 ):
     resolved_org_id = org_header or current_user.get("default_org_id")
 

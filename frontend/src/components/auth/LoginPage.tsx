@@ -60,14 +60,10 @@ export function LoginPage({
           <h1 className="font-mono text-2xl font-bold text-blueprint-700">
             terminandoyo
           </h1>
-          <p className="text-xs text-text-muted">GTD-native task management</p>
         </div>
 
         {/* Form */}
-        <form
-          onSubmit={handleSubmit}
-          className="space-y-4 rounded-[var(--radius-lg)] bg-surface-raised p-6"
-        >
+        <form onSubmit={handleSubmit} className="space-y-4">
           <h2 className="text-center text-sm font-semibold text-text">
             {mode === "login" ? "Sign in" : "Create account"}
           </h2>
@@ -93,7 +89,7 @@ export function LoginPage({
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-[var(--radius-sm)] border border-border bg-surface px-3 py-2 text-sm"
+                className="w-full border-b border-border bg-transparent px-0 py-2.5 text-sm outline-none transition-colors duration-[var(--duration-instant)] focus:border-primary"
                 placeholder="you@example.com"
               />
             </div>
@@ -112,7 +108,7 @@ export function LoginPage({
                   required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="w-full rounded-[var(--radius-sm)] border border-border bg-surface px-3 py-2 text-sm"
+                  className="w-full border-b border-border bg-transparent px-0 py-2.5 text-sm outline-none transition-colors duration-[var(--duration-instant)] focus:border-primary"
                   placeholder="yourname"
                 />
               </div>
@@ -132,8 +128,10 @@ export function LoginPage({
                 minLength={8}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-[var(--radius-sm)] border border-border bg-surface px-3 py-2 text-sm"
-                placeholder="Min 8 characters"
+                className="w-full border-b border-border bg-transparent px-0 py-2.5 text-sm outline-none transition-colors duration-[var(--duration-instant)] focus:border-primary"
+                placeholder={
+                  mode === "register" ? "Min. 8 characters" : "••••••••"
+                }
               />
             </div>
           </div>

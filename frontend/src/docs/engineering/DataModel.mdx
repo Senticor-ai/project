@@ -1,112 +1,338 @@
 import { Meta } from "@storybook/addon-docs/blocks";
 
-<Meta title="Engineering/Data Model" />
+<Meta title="Engineering/Ontology" />
 
-# Data Model
+# Overview
 
-The core data model lives in `src/model/` and maps GTD concepts to
-architecture patterns from the
-[FRBR](?path=/docs/engineering-frbr-architecture--docs),
-[LexCEL](?path=/docs/engineering-lexcel-architecture--docs), and
-[legal reference normalization](?path=/docs/engineering-legal-reference-normalization--docs)
-papers.
+The core data model lives in `frontend/src/model/` and uses **schema.org as the primary ontology**.
+App-specific concepts that have no schema.org equivalent use `additionalProperty`
+([PropertyValue](https://schema.org/PropertyValue)) to stay within the schema.org vocabulary.
+
+**Deep dives:**
+
+| Page | Scope |
+| --- | --- |
+| [Schema.org Vocabulary](?path=/docs/engineering-ontology-schema-org-vocabulary--docs) | Full catalog of schema.org types available to the app |
+| [FRBR Knowledge Graph](?path=/docs/engineering-ontology-frbr-knowledge-graph--docs) | Document hierarchy for the knowledge graph projection |
+| [LexCEL Architecture](?path=/docs/engineering-ontology-lexcel-architecture--docs) | Typed references, ports, and rule layer |
+| [Legal Reference Normalization](?path=/docs/engineering-ontology-legal-reference-normalization--docs) | Citation parsing and normalization |
+
+---
+
+## Schema.org-First Principle
+
+Every entity is stored as **JSON-LD** using a schema.org `@type`. Custom fields that have no schema.org equivalent
+go into `additionalProperty` as `PropertyValue` objects rather than inventing a parallel type system.
+
+**Why?** Schema.org is the most widely adopted structured data vocabulary. Using it as
+the primary ontology makes the data self-describing, interoperable, and queryable by
+any tool that understands schema.org — including search engines, knowledge graphs, and LLMs.
+
+**Rule of thumb:** If schema.org has a property for it, use the schema.org property.
+Only use `additionalProperty` when schema.org genuinely has no equivalent.
+
+---
+
+## Everything is a Thing
+
+Every item that is loaded, entered, or created starts as a `schema:Thing` — the most
+generic type in schema.org. As the user or the system adds attributes, the `@type`
+**specializes** to a more specific schema.org type:
+
+```
+Thing (base)
+  → Action     (when it gets contexts, due dates, delegation, etc.)
+  → Project    (when it gets a desired outcome and child actions)
+  → CreativeWork  (when it gets a URL, file, or content type)
+  → Event      (when it gets a date/time and duration)
+```
+
+Type detection can happen at any point:
+
+- **At capture:** A user pastes a URL → the system can immediately set `@type: "CreativeWork"` with a `url` property. No triage needed.
+- **During triage:** The user decides "this is something I need to do" → `@type` becomes `"Action"`.
+- **Through enrichment:** An AI or the user adds attributes that make a more specific type appropriate.
+
+### Inbox is a view, not a type
+
+The **inbox** is a logical filter — it shows Things that have not yet been enriched beyond
+the minimum text the user entered. There is no `InboxItem` type. Inbox items are simply
+Things where `app:bucket = "inbox"` and typically `needsEnrichment = true`.
+
+A Thing in the inbox might already have a specific `@type` if the system can detect it.
+For example, dropping a PDF file creates a `CreativeWork` that still sits in the inbox
+bucket until the user decides where it belongs.
+
+### Type specialization summary
+
+| `@type` | When it applies | Bucket(s) |
+| --- | --- | --- |
+| `Thing` | Default — not yet enriched, or genuinely generic | `inbox` (typically) |
+| `Action` | Has actionable attributes (context, schedule, delegation) | `next` / `waiting` / `calendar` / `someday` |
+| `Project` | Has a desired outcome and contains child actions | `project` |
+| `CreativeWork` | Has a URL, file, or content type | `reference` (or `inbox` before triage) |
+| `Event` | Has a specific date/time and duration | `calendar` |
 
 ---
 
 ## Canonical IDs
 
-**File**: `src/model/canonical-id.ts`
+**File**: `frontend/src/model/canonical-id.ts`
 
 Every entity gets a stable URN-style identifier:
 
 ```
-urn:gtd:{entity-type}:{uuid}
+urn:app:{entity-type}:{uuid}
 ```
 
-| Entity Type | Example                          |
-| ----------- | -------------------------------- |
-| `inbox`     | `urn:gtd:inbox:a1b2c3d4-...`     |
-| `action`    | `urn:gtd:action:e5f6a7b8-...`    |
-| `project`   | `urn:gtd:project:c3d4e5f6-...`   |
-| `waiting`   | `urn:gtd:waiting:d4e5f6a7-...`   |
-| `someday`   | `urn:gtd:someday:f6a7b8c9-...`   |
-| `calendar`  | `urn:gtd:calendar:a7b8c9d0-...`  |
-| `reference` | `urn:gtd:reference:b8c9d0e1-...` |
-| `context`   | `urn:gtd:context:c9d0e1f2-...`   |
-| `tag`       | `urn:gtd:tag:d0e1f2a3-...`       |
+| Entity Type | Example |
+| --- | --- |
+| `inbox` | `urn:app:inbox:a1b2c3d4-...` |
+| `action` | `urn:app:action:e5f6a7b8-...` |
+| `project` | `urn:app:project:c3d4e5f6-...` |
+| `reference` | `urn:app:reference:b8c9d0e1-...` |
+| `context` | `urn:app:context:c9d0e1f2-...` |
+| `tag` | `urn:app:tag:d0e1f2a3-...` |
 
 ### API
 
 ```typescript
-createCanonicalId("inbox", "abc-123"); // → "urn:gtd:inbox:abc-123"
-parseCanonicalId("urn:gtd:project:xyz"); // → { entityType: "project", uuid: "xyz" }
+createCanonicalId("inbox", "abc-123"); // → "urn:app:inbox:abc-123"
+parseCanonicalId("urn:app:project:xyz"); // → { entityType: "project", uuid: "xyz" }
 ```
+
+---
+
+## Property Mapping
+
+### Direct schema.org properties
+
+These map 1:1 to schema.org and appear as flat fields on the JSON-LD object:
+
+| Frontend field | JSON-LD property | schema.org type | Notes |
+| --- | --- | --- | --- |
+| `name` | `name` | [name](https://schema.org/name) | All entities |
+| `description` | `description` | [description](https://schema.org/description) | All entities |
+| `tags` | `keywords` | [keywords](https://schema.org/keywords) | Array of strings |
+| `provenance.createdAt` | `dateCreated` | [dateCreated](https://schema.org/dateCreated) | ISO 8601 |
+| `provenance.updatedAt` | `dateModified` | [dateModified](https://schema.org/dateModified) | ISO 8601 |
+| `scheduledDate` | `startDate` | [startDate](https://schema.org/startDate) | Actions and Events |
+| `completedAt` | `endDate` | [endDate](https://schema.org/endDate) | Completed Actions |
+| `url` | `url` | [url](https://schema.org/url) | CreativeWork |
+| `encodingFormat` | `encodingFormat` | [encodingFormat](https://schema.org/encodingFormat) | MIME type |
+| `projectId` | `isPartOf` | [isPartOf](https://schema.org/isPartOf) | Action → Project |
+| `actionIds` | `hasPart` | [hasPart](https://schema.org/hasPart) | Project → Actions |
+
+### Custom via `additionalProperty`
+
+These have no schema.org equivalent and are stored as `PropertyValue` objects:
+
+| Frontend field | `propertyID` | Value type |
+| --- | --- | --- |
+| `bucket` | `app:bucket` | `"inbox"` \| `"next"` \| `"waiting"` \| `"calendar"` \| `"someday"` |
+| `rawCapture` | `app:rawCapture` | string |
+| `isFocused` | `app:isFocused` | boolean |
+| `confidence` | `app:confidence` | `"low"` \| `"medium"` \| `"high"` |
+| `needsEnrichment` | `app:needsEnrichment` | boolean |
+| `energyLevel` | `app:energyLevel` | `"low"` \| `"medium"` \| `"high"` |
+| `sequenceOrder` | `app:sequenceOrder` | number |
+| `delegatedTo` | `app:delegatedTo` | string |
+| `contexts` | `app:contexts` | CanonicalId[] |
+| `captureSource` | `app:captureSource` | structured object |
+| `origin` | `app:origin` | `"triaged"` \| `"captured"` \| `"file"` |
+| `dueDate` | `app:dueDate` | ISO date string |
+| `startDate` | `app:startDate` | ISO date string |
+| `scheduledTime` | `app:scheduledTime` | HH:MM string |
+| `desiredOutcome` | `app:desiredOutcome` | string |
+| `status` (project) | `app:projectStatus` | `"active"` \| `"completed"` \| `"on-hold"` \| `"archived"` |
+| `reviewDate` | `app:reviewDate` | ISO date string |
+| `ports` | `app:ports` | Port[] |
+| `typedReferences` | `app:typedReferences` | TypedReference[] |
+| `archivedAt` | `app:archivedAt` | ISO timestamp |
+| `provenanceHistory` | `app:provenanceHistory` | ProvenanceEntry[] |
 
 ---
 
 ## Entity Hierarchy
 
-### Base Entity (`GtdBaseEntity`)
+### Base Entity (`BaseEntity`)
 
 All entities share these fields:
 
-| Field             | Type               | Origin                        |
-| ----------------- | ------------------ | ----------------------------- |
-| `id`              | `CanonicalId`      | FRBR/ELI canonical IDs        |
-| `title`           | `string`           | —                             |
-| `notes`           | `string?`          | —                             |
-| `tags`            | `string[]`         | —                             |
-| `references`      | `TypedReference[]` | LexCEL typed renvoi           |
-| `captureSource`   | `CaptureSource`    | LexCEL evidence anchors       |
-| `provenance`      | `Provenance`       | LexCEL append-only provenance |
-| `ports`           | `Port[]`           | LexCEL ports                  |
-| `needsEnrichment` | `boolean`          | FRBR evidence-first           |
-| `confidence`      | `ConfidenceLevel`  | FRBR evidence-first           |
+| Field | Type | Origin |
+| --- | --- | --- |
+| `id` | `CanonicalId` | FRBR/ELI canonical IDs |
+| `name` | `string` | schema.org `name` |
+| `description` | `string?` | schema.org `description` |
+| `tags` | `string[]` | schema.org `keywords` |
+| `references` | `TypedReference[]` | LexCEL typed renvoi |
+| `captureSource` | `CaptureSource` | LexCEL evidence anchors |
+| `provenance` | `Provenance` | LexCEL append-only provenance |
+| `ports` | `Port[]` | LexCEL ports |
+| `needsEnrichment` | `boolean` | FRBR evidence-first |
+| `confidence` | `ConfidenceLevel` | FRBR evidence-first |
 
 ### Entity Types
 
-| Type                | Bucket                                      | Key Fields                                                            |
-| ------------------- | ------------------------------------------- | --------------------------------------------------------------------- |
-| `InboxItem`         | `inbox`                                     | `rawCapture`                                                          |
-| `Action`            | `next` / `waiting` / `calendar` / `someday` | `contexts`, `isFocused`, `delegatedTo`, `recurrence`, `sequenceOrder` |
-| `Project`           | `project`                                   | `desiredOutcome`, `status`, `actionIds`                               |
-| `ReferenceMaterial` | `reference`                                 | `contentType`, `externalUrl`                                          |
-| `CalendarEntry`     | `calendar`                                  | `date`, `time`, `duration`, `isAllDay`                                |
+| `@type` | TypeScript type | Bucket(s) | Key additional fields |
+| --- | --- | --- | --- |
+| `Thing` | `Thing` | `inbox` (or any, if not yet triaged) | `rawCapture` |
+| `Action` | `Thing` | `next` / `waiting` / `calendar` / `someday` | `contexts`, `isFocused`, `delegatedTo`, `recurrence`, `sequenceOrder` |
+| `Project` | `Project` | `project` | `desiredOutcome`, `status`, `actionIds` |
+| `CreativeWork` | `ReferenceMaterial` | `reference` (or `inbox` before triage) | `url`, `encodingFormat` |
+| `Event` | `CalendarEntry` | `calendar` | `date`, `time`, `duration`, `isAllDay` |
+
+Note: The TypeScript types are frontend ergonomic wrappers. The `@type` is what appears
+in JSON-LD and determines schema.org compatibility.
+
+---
+
+## JSON-LD Examples
+
+### Raw text capture — `Thing` in inbox
+
+The minimum: user typed a string. `@type` is `Thing` because we don't know what it is yet.
+
+```json
+{
+  "@id": "urn:app:inbox:def-456",
+  "@type": "Thing",
+  "_schemaVersion": 2,
+  "name": "Fahrkosten Müller prüfen",
+  "dateCreated": "2026-02-07T08:00:00Z",
+  "dateModified": "2026-02-07T08:00:00Z",
+  "additionalProperty": [
+    { "@type": "PropertyValue", "propertyID": "app:bucket", "value": "inbox" },
+    { "@type": "PropertyValue", "propertyID": "app:rawCapture", "value": "Fahrkosten Müller prüfen" },
+    { "@type": "PropertyValue", "propertyID": "app:needsEnrichment", "value": true },
+    { "@type": "PropertyValue", "propertyID": "app:confidence", "value": "low" },
+    { "@type": "PropertyValue", "propertyID": "app:captureSource", "value": { "kind": "thought" } }
+  ]
+}
+```
+
+### URL capture — `CreativeWork` in inbox
+
+User pasted a URL. The system detects it's a reference and sets `@type: "CreativeWork"`
+immediately, but it's still in the inbox bucket until the user triages it.
+
+```json
+{
+  "@id": "urn:app:inbox:url-789",
+  "@type": "CreativeWork",
+  "_schemaVersion": 2,
+  "name": "SGB III § 159 - Ruhen bei Sperrzeit",
+  "url": "https://www.gesetze-im-internet.de/sgb_3/__159.html",
+  "dateCreated": "2026-02-07T08:05:00Z",
+  "dateModified": "2026-02-07T08:05:00Z",
+  "additionalProperty": [
+    { "@type": "PropertyValue", "propertyID": "app:bucket", "value": "inbox" },
+    { "@type": "PropertyValue", "propertyID": "app:needsEnrichment", "value": true },
+    { "@type": "PropertyValue", "propertyID": "app:confidence", "value": "medium" },
+    { "@type": "PropertyValue", "propertyID": "app:captureSource", "value": { "kind": "thought" } }
+  ]
+}
+```
+
+### Action (`Action`)
+
+```json
+{
+  "@id": "urn:app:action:abc-123",
+  "@type": "Action",
+  "_schemaVersion": 2,
+  "name": "Frau Müller wegen Fahrkosten anrufen",
+  "description": "Reisekostenabrechnung vom 15.11.2025 nachverfolgen",
+  "dateCreated": "2026-02-01T10:30:00Z",
+  "dateModified": "2026-02-05T14:22:00Z",
+  "startDate": "2026-02-10",
+  "isPartOf": { "@id": "urn:app:project:xyz-789" },
+  "keywords": ["dringend"],
+  "additionalProperty": [
+    { "@type": "PropertyValue", "propertyID": "app:bucket", "value": "next" },
+    { "@type": "PropertyValue", "propertyID": "app:isFocused", "value": true },
+    { "@type": "PropertyValue", "propertyID": "app:energyLevel", "value": "low" },
+    { "@type": "PropertyValue", "propertyID": "app:confidence", "value": "high" },
+    { "@type": "PropertyValue", "propertyID": "app:needsEnrichment", "value": false },
+    { "@type": "PropertyValue", "propertyID": "app:contexts", "value": ["urn:app:context:phone"] }
+  ]
+}
+```
+
+### Project (`Project`)
+
+```json
+{
+  "@id": "urn:app:project:xyz-789",
+  "@type": "Project",
+  "_schemaVersion": 2,
+  "name": "Reisekostenabrechnungen Q1 bearbeiten",
+  "description": "Alle Q1-Fahrkostenanträge geprüft und abgelegt",
+  "dateCreated": "2026-01-15T09:00:00Z",
+  "dateModified": "2026-02-05T14:22:00Z",
+  "hasPart": [{ "@id": "urn:app:action:abc-123" }],
+  "additionalProperty": [
+    { "@type": "PropertyValue", "propertyID": "app:bucket", "value": "project" },
+    { "@type": "PropertyValue", "propertyID": "app:desiredOutcome", "value": "Alle Q1-Anträge abgerechnet" },
+    { "@type": "PropertyValue", "propertyID": "app:projectStatus", "value": "active" },
+    { "@type": "PropertyValue", "propertyID": "app:isFocused", "value": false }
+  ]
+}
+```
+
+### Reference material (`CreativeWork`)
+
+```json
+{
+  "@id": "urn:app:reference:b8c9d0e1",
+  "@type": "CreativeWork",
+  "_schemaVersion": 2,
+  "name": "SGB III § 159 - Ruhen bei Sperrzeit",
+  "url": "https://www.gesetze-im-internet.de/sgb_3/__159.html",
+  "encodingFormat": "text/html",
+  "dateCreated": "2026-02-03T11:00:00Z",
+  "dateModified": "2026-02-03T11:00:00Z",
+  "additionalProperty": [
+    { "@type": "PropertyValue", "propertyID": "app:bucket", "value": "reference" },
+    { "@type": "PropertyValue", "propertyID": "app:origin", "value": "captured" }
+  ]
+}
+```
 
 ---
 
 ## Typed References (LexCEL Renvoi)
 
-| Type           | Meaning                                 |
-| -------------- | --------------------------------------- |
-| `blocks`       | This item blocks another from starting  |
-| `depends_on`   | Cannot start until dependency completes |
-| `delegates_to` | Assigned to someone else                |
-| `refers_to`    | General cross-reference                 |
-| `context_of`   | Context tagging                         |
-| `part_of`      | Sub-action of a project                 |
-| `follows`      | Sequential ordering within a project    |
-| `waiting_on`   | External dependency                     |
+| Type | Meaning |
+| --- | --- |
+| `blocks` | This item blocks another from starting |
+| `depends_on` | Cannot start until dependency completes |
+| `delegates_to` | Assigned to someone else |
+| `refers_to` | General cross-reference |
+| `context_of` | Context tagging |
+| `part_of` | Sub-action of a project |
+| `follows` | Sequential ordering within a project |
+| `waiting_on` | External dependency |
 
 ---
 
 ## Ports (LexCEL)
 
-| Port              | Kind          | Purpose                                          |
-| ----------------- | ------------- | ------------------------------------------------ |
-| `DefinitionPort`  | `definition`  | What does "done" mean? (`doneCriteria`)          |
-| `PredicatePort`   | `predicate`   | Conditions to start (`conditions[]`)             |
+| Port | Kind | Purpose |
+| --- | --- | --- |
+| `DefinitionPort` | `definition` | What does "done" mean? (`doneCriteria`) |
+| `PredicatePort` | `predicate` | Conditions to start (`conditions[]`) |
 | `ComputationPort` | `computation` | Effort estimates (`timeEstimate`, `energyLevel`) |
-| `ProcedurePort`   | `procedure`   | Checklist steps (`steps[]`)                      |
+| `ProcedurePort` | `procedure` | Checklist steps (`steps[]`) |
 
 ---
 
 ## Enrichable Interface (FRBR)
 
-| Field             | Type                      | Description                      |
-| ----------------- | ------------------------- | -------------------------------- |
-| `needsEnrichment` | `boolean`                 | Flagged for review/clarification |
-| `confidence`      | `high` / `medium` / `low` | How well-defined the item is     |
+| Field | Type | Description |
+| --- | --- | --- |
+| `needsEnrichment` | `boolean` | Flagged for review/clarification |
+| `confidence` | `high` / `medium` / `low` | How well-defined the item is |
 
 **Workflow**: Items enter as `confidence: "low"`, `needsEnrichment: true`.
 Clarification moves them to `confidence: "high"`, `needsEnrichment: false`.
@@ -147,13 +373,13 @@ isReferenceMaterial(item); // item.bucket === "reference"
 
 ## Test Factories
 
-**File**: `src/model/factories.ts`
+**File**: `frontend/src/model/factories.ts`
 
 ```typescript
-createInboxItem({ title: "Anruf bei Frau Müller" });
-createAction({ title: "Deploy", bucket: "next", isFocused: true });
-createProject({ title: "Relaunch", desiredOutcome: "Site live" });
-createReferenceMaterial({ title: "SGB III § 159" });
+createInboxItem({ name: "Anruf bei Frau Müller" });
+createAction({ name: "Deploy", bucket: "next", isFocused: true });
+createProject({ name: "Relaunch", desiredOutcome: "Site live" });
+createReferenceMaterial({ name: "SGB III § 159" });
 createContext({ name: "@computer" });
 createTypedReference({ type: "blocks", targetId });
 definitionPort("Wireframes approved");

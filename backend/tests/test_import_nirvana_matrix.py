@@ -28,6 +28,14 @@ def _things_by_canonical(auth_client):
     return {item["canonical_id"]: item for item in response.json()}
 
 
+def _get_prop(thing: dict, property_id: str):
+    """Extract value from additionalProperty by propertyID."""
+    for pv in thing.get("additionalProperty", []):
+        if pv.get("propertyID") == property_id:
+            return pv.get("value")
+    return None
+
+
 def test_matrix_fixture_dry_run_validates_without_writing(auth_client):
     items = _load_fixture(MATRIX_FIXTURE_PATH)
     summary = _run_import(auth_client, items, dry_run=True, include_completed=True)
@@ -48,27 +56,27 @@ def test_matrix_fixture_imports_core_fields(auth_client):
 
     things = _things_by_canonical(auth_client)
 
-    assert "urn:gtd:action:TASK-MATRIX-COMPLETED" not in things
+    assert "urn:app:action:TASK-MATRIX-COMPLETED" not in things
 
-    focused = things["urn:gtd:action:TASK-MATRIX-FOCUS"]["thing"]
-    assert focused["isFocused"] is True
+    focused = things["urn:app:action:TASK-MATRIX-FOCUS"]["thing"]
+    assert _get_prop(focused, "app:isFocused") is True
 
-    waiting = things["urn:gtd:action:TASK-MATRIX-WAITING"]["thing"]
-    assert waiting["bucket"] == "waiting"
-    assert waiting["delegatedTo"] == "QA Team"
+    waiting = things["urn:app:action:TASK-MATRIX-WAITING"]["thing"]
+    assert _get_prop(waiting, "app:bucket") == "waiting"
+    assert _get_prop(waiting, "app:delegatedTo") == "QA Team"
 
-    start_only = things["urn:gtd:action:TASK-MATRIX-CALENDAR-START"]["thing"]
-    assert start_only["scheduledDate"] == "2026-04-01"
-    assert start_only["dueDate"] == "2026-04-01"
+    start_only = things["urn:app:action:TASK-MATRIX-CALENDAR-START"]["thing"]
+    assert _get_prop(start_only, "app:startDate") == "2026-04-01"
+    assert _get_prop(start_only, "app:dueDate") == "2026-04-01"
 
-    due_only = things["urn:gtd:action:TASK-MATRIX-CALENDAR-DUE"]["thing"]
-    assert due_only["scheduledDate"] == "2026-04-02"
-    assert due_only["dueDate"] == "2026-04-02"
+    due_only = things["urn:app:action:TASK-MATRIX-CALENDAR-DUE"]["thing"]
+    assert _get_prop(due_only, "app:startDate") == "2026-04-02"
+    assert _get_prop(due_only, "app:dueDate") == "2026-04-02"
 
-    recurring = things["urn:gtd:action:TASK-MATRIX-RECUR"]["thing"]
-    assert recurring["recurrence"]["kind"] == "monthly"
-    assert recurring["scheduledDate"] == "2026-05-01"
-    assert recurring["dueDate"] == "2026-05-01"
+    recurring = things["urn:app:action:TASK-MATRIX-RECUR"]["thing"]
+    assert _get_prop(recurring, "app:recurrence")["kind"] == "monthly"
+    assert _get_prop(recurring, "app:startDate") == "2026-05-01"
+    assert _get_prop(recurring, "app:dueDate") == "2026-05-01"
 
 
 def test_matrix_fixture_preserves_source_metadata_and_state_override(auth_client):
@@ -82,8 +90,8 @@ def test_matrix_fixture_preserves_source_metadata_and_state_override(auth_client
     assert summary["errors"] == 0
 
     things = _things_by_canonical(auth_client)
-    ref = things["urn:gtd:reference:TASK-MATRIX-STATE7"]["thing"]
-    assert ref["bucket"] == "reference"
+    ref = things["urn:app:reference:TASK-MATRIX-STATE7"]["thing"]
+    assert _get_prop(ref, "app:bucket") == "reference"
     assert ref["sourceMetadata"]["provider"] == "nirvana"
     assert ref["sourceMetadata"]["rawState"] == 7
     assert ref["sourceMetadata"]["raw"]["seqp"] == 3

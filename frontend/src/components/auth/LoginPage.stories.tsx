@@ -3,7 +3,7 @@ import { fn, expect } from "storybook/test";
 import { LoginPage } from "./LoginPage";
 
 const meta = {
-  title: "Auth/LoginPage",
+  title: "Screens/Login",
   component: LoginPage,
   parameters: { layout: "fullscreen" },
   args: {
@@ -15,7 +15,16 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {};
+export const Default: Story = {
+  play: async ({ canvas }) => {
+    // No tagline shown
+    expect(canvas.queryByText("GTD-native task management")).toBeNull();
+
+    // Login mode: password placeholder is neutral dots, not requirements hint
+    const pw = canvas.getByLabelText("Password");
+    expect(pw).toHaveAttribute("placeholder", "••••••••");
+  },
+};
 
 export const RegisterMode: Story = {
   play: async ({ canvas, userEvent }) => {
@@ -24,23 +33,32 @@ export const RegisterMode: Story = {
     expect(
       canvas.getByRole("heading", { name: "Create account" }),
     ).toBeInTheDocument();
+
+    // Register mode: password placeholder shows requirements hint
+    const pw = canvas.getByLabelText("Password");
+    expect(pw).toHaveAttribute("placeholder", "Min. 8 characters");
   },
 };
 
 export const ToggleModes: Story = {
   play: async ({ canvas, userEvent }) => {
-    // Start in login mode
+    const pw = canvas.getByLabelText("Password");
+
+    // Start in login mode — neutral placeholder
     expect(
       canvas.getByRole("heading", { name: "Sign in" }),
     ).toBeInTheDocument();
+    expect(pw).toHaveAttribute("placeholder", "••••••••");
 
-    // Switch to register
+    // Switch to register — requirements placeholder
     await userEvent.click(canvas.getByText("Create one"));
     expect(canvas.getByLabelText("Username")).toBeInTheDocument();
+    expect(pw).toHaveAttribute("placeholder", "Min. 8 characters");
 
-    // Switch back to login — click the "Sign in" link (not the heading)
+    // Switch back to login — neutral placeholder again
     await userEvent.click(canvas.getByRole("button", { name: "Sign in" }));
     expect(canvas.queryByLabelText("Username")).not.toBeInTheDocument();
+    expect(pw).toHaveAttribute("placeholder", "••••••••");
   },
 };
 

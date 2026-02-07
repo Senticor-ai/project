@@ -1,0 +1,21 @@
+include:
+  - template: Jobs/SAST.gitlab-ci.yml
+
+stages:
+  - build
+  - test
+
+build-and-push:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+  before_script:
+    - docker login -u "$HARBOR_USER" -p "$HARBOR_PASSWORD" harbor.100-114-108-51.nip.io:30443
+  script:
+    - docker compose -f docker-compose.build.yml build
+    - docker compose -f docker-compose.build.yml push
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"

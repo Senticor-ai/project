@@ -5,7 +5,7 @@ import logging
 import os
 import sys
 import uuid
-from collections.abc import Mapping, MutableMapping
+from collections.abc import Mapping
 
 import structlog
 from structlog.contextvars import bind_contextvars, clear_contextvars, get_contextvars
@@ -80,7 +80,7 @@ def get_request_context() -> dict:
 
 def request_context_headers(
     headers: Mapping[str, str] | None = None,
-) -> MutableMapping[str, str]:
+) -> dict[str, str]:
     merged: dict[str, str] = {}
     if headers:
         merged.update(headers)
@@ -96,7 +96,7 @@ def request_context_headers(
 
 def request_context_env(
     env: Mapping[str, str] | None = None,
-) -> MutableMapping[str, str]:
+) -> dict[str, str]:
     merged: dict[str, str] = {}
     if env:
         merged.update(env)

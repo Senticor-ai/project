@@ -1,19 +1,19 @@
 import { useState, useCallback } from "react";
 import { useAuth } from "./lib/auth-context";
 import { LoginPage } from "./components/auth/LoginPage";
-import { ConnectedBucketView } from "./components/gtd/ConnectedBucketView";
-import { NirvanaImportDialog } from "./components/gtd/NirvanaImportDialog";
+import { ConnectedBucketView } from "./components/work/ConnectedBucketView";
+import { NirvanaImportDialog } from "./components/work/NirvanaImportDialog";
 import { Icon } from "./components/ui/Icon";
-import type { GtdBucket } from "./model/gtd-types";
+import type { Bucket } from "./model/types";
 
 function App() {
   const { user, isLoading, login, register, logout } = useAuth();
   const [showImport, setShowImport] = useState(false);
-  const [requestedBucket, setRequestedBucket] = useState<GtdBucket | null>(
+  const [requestedBucket, setRequestedBucket] = useState<Bucket | null>(
     null,
   );
 
-  const handleNavigateToBucket = useCallback((bucket: GtdBucket) => {
+  const handleNavigateToBucket = useCallback((bucket: Bucket) => {
     setRequestedBucket(bucket);
   }, []);
 
@@ -69,7 +69,7 @@ function App() {
         </div>
       </div>
 
-      {/* GTD workspace */}
+      {/* Main workspace */}
       <ConnectedBucketView
         requestedBucket={requestedBucket}
         onBucketChange={handleBucketChange}

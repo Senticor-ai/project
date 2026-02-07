@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { AttachmentChip } from "./AttachmentChip";
-import type { ReferenceType } from "@/model/gtd-types";
+import type { ReferenceType } from "@/model/types";
 
 const meta = {
   title: "Primitives/AttachmentChip",

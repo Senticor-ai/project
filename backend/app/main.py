@@ -13,8 +13,8 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 
 from .config import settings
-from .db import db_conn
 from .csrf import should_validate_csrf, validate_csrf_request
+from .db import db_conn
 from .deps import ORG_ID_HEADER
 from .observability import (
     REQUEST_ID_HEADER,

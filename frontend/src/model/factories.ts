@@ -6,10 +6,10 @@ import type {
   ReferenceMaterial,
   Provenance,
   CaptureSource,
-  GtdContext,
+  WorkContext,
   Port,
   TypedReference,
-} from "./gtd-types";
+} from "./types";
 
 let counter = 0;
 
@@ -40,7 +40,7 @@ function defaultSource(): CaptureSource {
 // ---------------------------------------------------------------------------
 
 export function createThing(
-  overrides: Partial<Thing> & { title: string },
+  overrides: Partial<Thing> & { name: string },
 ): Thing {
   const bucket: ThingBucket = overrides.bucket ?? "inbox";
   const entityType = bucket === "inbox" ? "inbox" : "action";
@@ -48,9 +48,9 @@ export function createThing(
   return {
     id,
     bucket,
-    title: overrides.title,
+    name: overrides.name,
     rawCapture: overrides.rawCapture,
-    notes: overrides.notes,
+    description: overrides.description,
     tags: overrides.tags ?? [],
     references: overrides.references ?? [],
     contexts: overrides.contexts ?? [],
@@ -77,12 +77,12 @@ export function createThing(
 // ---------------------------------------------------------------------------
 
 export function createInboxItem(
-  overrides: Partial<Thing> & { title: string },
+  overrides: Partial<Thing> & { name: string },
 ): Thing {
   return createThing({
     ...overrides,
     bucket: "inbox",
-    rawCapture: overrides.rawCapture ?? overrides.title,
+    rawCapture: overrides.rawCapture ?? overrides.name,
     needsEnrichment: overrides.needsEnrichment ?? true,
     confidence: overrides.confidence ?? "low",
   });
@@ -93,7 +93,7 @@ export function createInboxItem(
 // ---------------------------------------------------------------------------
 
 export function createAction(
-  overrides: Partial<Thing> & { title: string },
+  overrides: Partial<Thing> & { name: string },
 ): Thing {
   return createThing({
     ...overrides,
@@ -108,17 +108,17 @@ export function createAction(
 // ---------------------------------------------------------------------------
 
 export function createProject(
-  overrides: Partial<Project> & { title: string; desiredOutcome: string },
+  overrides: Partial<Project> & { name: string; desiredOutcome: string },
 ): Project {
   const id = overrides.id ?? createCanonicalId("project", nextId());
   return {
     id,
     bucket: "project",
-    title: overrides.title,
+    name: overrides.name,
     desiredOutcome: overrides.desiredOutcome,
     status: overrides.status ?? "active",
     actionIds: overrides.actionIds ?? [],
-    notes: overrides.notes,
+    description: overrides.description,
     tags: overrides.tags ?? [],
     references: overrides.references ?? [],
     captureSource: overrides.captureSource ?? defaultSource(),
@@ -137,14 +137,14 @@ export function createProject(
 // ---------------------------------------------------------------------------
 
 export function createReferenceMaterial(
-  overrides: Partial<ReferenceMaterial> & { title: string },
+  overrides: Partial<ReferenceMaterial> & { name: string },
 ): ReferenceMaterial {
   const id = overrides.id ?? createCanonicalId("reference", nextId());
   return {
     id,
     bucket: "reference",
-    title: overrides.title,
-    notes: overrides.notes,
+    name: overrides.name,
+    description: overrides.description,
     tags: overrides.tags ?? [],
     references: overrides.references ?? [],
     captureSource: overrides.captureSource ?? defaultSource(),
@@ -152,8 +152,8 @@ export function createReferenceMaterial(
     ports: overrides.ports ?? [],
     needsEnrichment: overrides.needsEnrichment ?? false,
     confidence: overrides.confidence ?? "medium",
-    contentType: overrides.contentType,
-    externalUrl: overrides.externalUrl,
+    encodingFormat: overrides.encodingFormat,
+    url: overrides.url,
     origin: overrides.origin ?? "captured",
   };
 }
@@ -163,8 +163,8 @@ export function createReferenceMaterial(
 // ---------------------------------------------------------------------------
 
 export function createContext(
-  overrides: Partial<GtdContext> & { name: string },
-): GtdContext {
+  overrides: Partial<WorkContext> & { name: string },
+): WorkContext {
   const id = overrides.id ?? createCanonicalId("context", nextId());
   return {
     id,

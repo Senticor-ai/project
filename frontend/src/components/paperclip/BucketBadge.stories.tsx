@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { BucketBadge } from "./BucketBadge";
-import type { GtdBucket } from "@/model/gtd-types";
+import type { Bucket } from "@/model/types";
 
 const meta = {
   title: "Primitives/BucketBadge",
@@ -18,7 +18,7 @@ const meta = {
         "calendar",
         "reference",
         "focus",
-      ] satisfies GtdBucket[],
+      ] satisfies Bucket[],
     },
     showLabel: { control: "boolean" },
   },
@@ -60,7 +60,7 @@ export const AllBuckets: Story = {
           "calendar",
           "reference",
           "focus",
-        ] satisfies GtdBucket[]
+        ] satisfies Bucket[]
       ).map((b) => (
         <BucketBadge key={b} bucket={b} />
       ))}

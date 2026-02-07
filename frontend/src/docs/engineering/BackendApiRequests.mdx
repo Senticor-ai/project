@@ -2,184 +2,347 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 <Meta title="Engineering/Backend API Requests: Import UX" />
 
-# Backend API Requests: Import UX Improvements
+# Import UX: Architecture & Adoption Guide
 
-After importing 20K+ items from Nirvana, users have no visibility into progress during import or confirmation that items landed. The frontend currently loads **all** things client-side and filters in memory, which doesn't scale. These API changes would unblock significant UX improvements.
-
-## 1. Import Progress Reporting (High Priority)
-
-**Problem:** During a 20K-item import, users see only a spinner with "Status: running". No progress indicator is possible because the job endpoint returns no intermediate counts.
-
-**Request:** Add `processed_count` and `total_count` to the import job response.
-
-**Schema change:**
-
-```sql
-ALTER TABLE import_jobs ADD COLUMN processed_count INTEGER DEFAULT 0;
-ALTER TABLE import_jobs ADD COLUMN total_count INTEGER;
-```
-
-**Model change** (`app/models.py` — `ImportJobResponse`):
-
-```python
-processed_count: int | None = None
-total_count: int | None = None
-```
-
-**Worker change** (`app/worker.py` — `_process_import_job`):
-
-- Set `total_count` before starting the import
-- Update `processed_count` periodically (every 500 items) during `run_nirvana_import()`
-- The frontend polls every 2s already, so updates will be picked up automatically
-
-**Frontend benefit:** Progress bar in the import dialog: `Importing... 5,000 / 20,268 (25%)`
+This page documents the end-to-end import flow as currently implemented (Nirvana) and explains how to add new import sources (Things 3, Todoist, CSV).
 
 ---
 
-## 2. Bucket Counts Endpoint (High Priority)
+## Current Implementation: Nirvana Import
 
-**Problem:** To show counts in the sidebar (BucketNav), the frontend must fetch **all** things and count client-side. With 20K items, this means 4+ paginated API calls before any counts appear.
+### UX Flow
 
-**Request:** New lightweight endpoint returning counts per bucket.
+The import follows a five-step dialog: **select → uploading → preview → importing → results**.
 
-**Endpoint:** `GET /things/counts`
+| Step | User sees | What happens |
+|------|-----------|--------------|
+| **select** | File drop zone | User picks a `.json` file |
+| **uploading** | Spinner, "Uploading file..." | Chunked upload via `FilesApi`, then `ImportsApi.inspectNirvana()` |
+| **preview** | Item count, bucket breakdown, "Include completed" toggle | User reviews and clicks "Import N items" |
+| **importing** | Spinner, "Importing...", job status text | `ImportsApi.importNirvanaFromFile()` starts a background job; hook polls every 2s |
+| **results** | Success/error icon, created/updated/skipped/errors stats, bucket breakdown | User can click a bucket to navigate or close |
 
-**Response:**
+### Architecture Layers
 
-```json
+```
+┌─────────────────────────────────────────────┐
+│  NirvanaImportDialog.tsx  (UI / steps)      │
+│  └── useNirvanaImport()   (orchestration)   │
+│      ├── useFileUpload()  (chunked upload)  │
+│      ├── useMutation: inspect               │
+│      ├── useMutation: startImport           │
+│      └── useQuery: job polling              │
+├─────────────────────────────────────────────┤
+│  api-client.ts                              │
+│  ├── FilesApi   (initiate / uploadChunk /   │
+│  │               complete)                  │
+│  └── ImportsApi (inspectNirvana /           │
+│                   importNirvanaFromFile /    │
+│                   getJob)                   │
+├─────────────────────────────────────────────┤
+│  Backend (FastAPI)                          │
+│  ├── POST /files/initiate                   │
+│  ├── PUT  /files/upload/{upload_id}         │
+│  ├── POST /files/complete                   │
+│  ├── POST /imports/nirvana/inspect          │
+│  ├── POST /imports/nirvana/from-file        │
+│  └── GET  /imports/jobs/{job_id}            │
+└─────────────────────────────────────────────┘
+```
+
+### Key Implementation Details
+
+**Chunked file upload** (`use-file-upload.ts`):
+
+1. `FilesApi.initiate(filename, contentType, totalSize)` — returns `upload_id`, `chunk_size`, `chunk_total`
+2. Loop: `FilesApi.uploadChunk(uploadId, chunk, index, total)` — sends each chunk with `X-Chunk-Index` / `X-Chunk-Total` headers
+3. `FilesApi.complete(uploadId)` — finalizes upload, returns `FileRecord` with `file_id` and `sha256`
+
+**Inspect before import** (`ImportsApi.inspectNirvana`):
+
+- Dry-run that returns a `NirvanaImportSummary`: `total`, `created`, `updated`, `skipped`, `errors`, `bucket_counts`, `sample_errors`
+- The dialog calls inspect after upload completes, then again if the user toggles "Include completed"
+- Lets users see exactly what will happen before committing
+
+**Background job with polling** (`use-nirvana-import.ts`):
+
+- `startImport` mutation → backend returns `ImportJobResponse` with `job_id` and `status: "queued"`
+- `useQuery` polls `GET /imports/jobs/{job_id}` every **2 seconds** while status is `"queued"` or `"running"`
+- Polling stops automatically when status changes to `"completed"` or `"failed"`
+- During `"running"`, the hook invalidates the things query cache every **3 seconds** so imported items appear incrementally in the list behind the dialog
+- A `hasCompletedInvalidation` ref guard ensures the final cache invalidation fires exactly once
+
+**Error handling**:
+
+- Upload failure → dialog resets to "select" step, shows `upload.error.message`
+- Inspect failure → dialog resets to "select" step
+- Import start failure → dialog resets to "preview" step
+- Job failure → results step shows error icon + `jobData.error` message + `sample_errors`
+- The `ApiError` class carries `status`, `message`, and `details` from the backend response
+
+### API Types
+
+```typescript
+// Request to start a Nirvana import
+type NirvanaImportFromFileRequest = {
+  file_id: string;
+  source?: string;
+  update_existing?: boolean;
+  include_completed?: boolean;
+  emit_events?: boolean;
+  state_bucket_map?: Record<string, string>;
+  default_bucket?: string;
+};
+
+// Summary returned by inspect and attached to completed jobs
+type NirvanaImportSummary = {
+  total: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  errors: number;
+  bucket_counts: Record<string, number>;
+  sample_errors: string[];
+};
+
+// Job status (polling response)
+type ImportJobResponse = {
+  job_id: string;
+  status: string;       // "queued" | "running" | "completed" | "failed"
+  file_id: string;
+  source: string;
+  created_at: string;
+  updated_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  summary: NirvanaImportSummary | null;  // populated on completion
+  error: string | null;                   // populated on failure
+};
+```
+
+### Current Limitations
+
+- **No progress bar**: The backend job response lacks `processed_count` / `total_count`, so the "importing" step can only show a spinner with the job status string, not a percentage
+- **No duration display**: `started_at` and `finished_at` are available but no computed `duration_ms` is returned — frontend could compute this itself from the two timestamps if desired
+- **Polling, not push**: Import progress relies on 2s polling; no Server-Sent Events yet
+
+---
+
+## Adding a New Import Source
+
+To add support for Things 3, Todoist, or CSV imports, follow this pattern. The existing Nirvana implementation is the reference for each layer.
+
+### 1. Register the source in `settings-types.ts`
+
+The source is already declared in `IMPORT_SOURCES` — flip `available: true`:
+
+```typescript
+// frontend/src/model/settings-types.ts
 {
-  "inbox": 86,
-  "next": 19646,
-  "waiting": 11,
-  "calendar": 18,
-  "someday": 498,
-  "reference": 0,
-  "project": 9,
-  "focus": 0
+  id: "things3",
+  name: "Things 3",
+  icon: "check_circle",
+  description: "Import from Things 3 JSON export",
+  available: true,  // ← flip this
 }
 ```
 
-**SQL:**
+### 2. Add backend endpoints
 
-```sql
-SELECT schema_jsonld->>'bucket' AS bucket, COUNT(*) AS count
-FROM things
-WHERE org_id = $1 AND archived_at IS NULL
-GROUP BY schema_jsonld->>'bucket';
+Follow the Nirvana pattern — the backend needs three endpoints per source:
 
--- Focus count (separate):
-SELECT COUNT(*) FROM things
-WHERE org_id = $1 AND archived_at IS NULL
-  AND (schema_jsonld->>'isFocused')::boolean = true;
+| Endpoint | Purpose | Returns |
+|----------|---------|---------|
+| `POST /imports/{source}/inspect` | Dry-run: parse file, count items, report errors | Source-specific summary type (same shape as `NirvanaImportSummary`) |
+| `POST /imports/{source}/from-file` | Start the actual import as a background job | `ImportJobResponse` |
+| `GET /imports/jobs/{job_id}` | Poll job status | `ImportJobResponse` (shared across all sources) |
+
+The job endpoint is **shared** — all import sources use the same `import_jobs` table and the same polling endpoint. Only the inspect and from-file endpoints are source-specific.
+
+The file upload endpoints (`/files/*`) are also **shared** — every import source reuses the same chunked upload flow.
+
+### 3. Add API client methods
+
+In `api-client.ts`, add the source-specific request/summary types and two new methods:
+
+```typescript
+// Types
+export type Things3InspectRequest = {
+  file_id: string;
+  include_completed?: boolean;
+  // ... source-specific options
+};
+
+export type Things3ImportFromFileRequest = {
+  file_id: string;
+  include_completed?: boolean;
+  // ... source-specific options
+};
+
+// Could reuse NirvanaImportSummary if the shape is identical,
+// or define a source-specific summary type if fields differ.
+// The key contract: total, created, updated, skipped, errors,
+// bucket_counts, sample_errors.
+
+// API methods
+export const ImportsApi = {
+  // ... existing Nirvana methods ...
+
+  inspectThings3: (req: Things3InspectRequest) =>
+    request<NirvanaImportSummary>("/imports/things3/inspect", {
+      method: "POST",
+      body: JSON.stringify(req),
+    }),
+
+  importThings3FromFile: (req: Things3ImportFromFileRequest) =>
+    request<ImportJobResponse>("/imports/things3/from-file", {
+      method: "POST",
+      body: JSON.stringify(req),
+    }),
+
+  // getJob is already shared — no changes needed
+};
 ```
 
-**Index** (if not already present):
+### 4. Create the import hook
 
-```sql
-CREATE INDEX idx_things_bucket ON things ((schema_jsonld->>'bucket'))
-WHERE archived_at IS NULL;
+Copy `use-nirvana-import.ts` and swap the API methods:
+
+```typescript
+// frontend/src/hooks/use-things3-import.ts
+import { useState, useEffect, useRef } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ImportsApi } from "@/lib/api-client";
+import type { NirvanaImportSummary, ImportJobResponse } from "@/lib/api-client";
+import { useFileUpload } from "./use-file-upload";
+import { THINGS_QUERY_KEY } from "./use-things";
+
+export function useThings3Import() {
+  const qc = useQueryClient();
+  const upload = useFileUpload();                   // ← reused as-is
+  const [jobId, setJobId] = useState<string | null>(null);
+
+  const inspect = useMutation<
+    NirvanaImportSummary,                            // ← same summary shape
+    Error,
+    { fileId: string; includeCompleted: boolean }
+  >({
+    mutationFn: (params) =>
+      ImportsApi.inspectThings3({                    // ← swap method
+        file_id: params.fileId,
+        include_completed: params.includeCompleted,
+      }),
+  });
+
+  const startImport = useMutation<
+    ImportJobResponse,
+    Error,
+    { fileId: string; includeCompleted: boolean }
+  >({
+    mutationFn: (params) =>
+      ImportsApi.importThings3FromFile({             // ← swap method
+        file_id: params.fileId,
+        include_completed: params.includeCompleted,
+      }),
+  });
+
+  // Job polling and cache invalidation — identical to Nirvana
+  const job = useQuery<ImportJobResponse>({
+    queryKey: ["import-job", jobId],
+    queryFn: () => ImportsApi.getJob(jobId!),
+    enabled: !!jobId,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      if (status === "queued" || status === "running") return 2000;
+      return false;
+    },
+  });
+
+  const jobStatus = job.data?.status;
+  const hasCompletedInvalidation = useRef(false);
+
+  useEffect(() => {
+    if (jobStatus === "running") {
+      qc.invalidateQueries({ queryKey: THINGS_QUERY_KEY });
+      const id = setInterval(() => {
+        qc.invalidateQueries({ queryKey: THINGS_QUERY_KEY });
+      }, 3000);
+      return () => clearInterval(id);
+    }
+    if (jobStatus === "completed" && !hasCompletedInvalidation.current) {
+      hasCompletedInvalidation.current = true;
+      qc.invalidateQueries({ queryKey: THINGS_QUERY_KEY });
+    }
+  }, [jobStatus, qc]);
+
+  useEffect(() => {
+    hasCompletedInvalidation.current = false;
+  }, [jobId]);
+
+  return { upload, inspect, startImport, job, jobId, setJobId };
+}
 ```
 
-**Frontend benefit:** BucketNav shows counts instantly without loading all items.
+The polling logic, cache invalidation strategy, and `useFileUpload` hook are identical across all sources. Only the `inspect` and `startImport` mutation functions differ.
+
+### 5. Create the dialog component
+
+Copy `NirvanaImportDialog.tsx` and adapt:
+
+- Swap the hook: `useThings3Import()` instead of `useNirvanaImport()`
+- Change the title and drop zone text
+- Adjust the file accept attribute (`.json` for Things 3, `.csv` for Todoist/CSV)
+- Adjust any source-specific preview options (the "Include completed" toggle may not apply to all sources)
+
+The five-step flow (select → uploading → preview → importing → results) stays the same.
+
+### 6. Wire into ImportExportPanel
+
+Add an `onImportThings3` callback to `ImportExportPanelProps` and route the button click:
+
+```typescript
+source.id === "things3" ? onImportThings3 : undefined
+```
+
+### 7. Write tests
+
+Follow the existing test structure:
+
+- **Hook test** (`use-things3-import.test.ts`): Mock `ImportsApi.inspectThings3` and `importThings3FromFile`, verify calls and state transitions. Copy from `use-nirvana-import.test.ts`.
+- **Dialog test**: Render the dialog, simulate file selection, verify step transitions and API calls.
+
+### Shared vs. Source-Specific Summary
+
+| Piece | Shared | Source-specific |
+|-------|--------|-----------------|
+| `useFileUpload` hook | Yes | — |
+| `FilesApi` (chunked upload) | Yes | — |
+| `ImportsApi.getJob` | Yes | — |
+| `ImportJobResponse` type | Yes | — |
+| `ImportSummary` type | Likely (same shape) | May add fields per source |
+| Inspect endpoint | — | `/imports/{source}/inspect` |
+| From-file endpoint | — | `/imports/{source}/from-file` |
+| Import hook | — | One per source |
+| Dialog component | — | One per source |
 
 ---
 
-## 3. Server-Side Bucket Filtering (Medium Priority)
+## Backend Improvement Requests
 
-**Problem:** `GET /things/sync` returns all non-archived things. The frontend fetches everything and filters by `@type` and `bucket` in memory. With 20K items, this is slow on initial load and wasteful — a user viewing "inbox" (86 items) shouldn't need to load 19K "next" actions.
+The following backend changes would improve the import UX but are **not yet implemented**:
 
-**Request:** Add optional filter params to the sync endpoint.
+### Import Progress Reporting
 
-**Params:**
+Add `processed_count` and `total_count` to `ImportJobResponse` so the frontend can show a progress bar instead of an indeterminate spinner. The worker should update `processed_count` periodically (e.g., every 500 items). The frontend already polls every 2s and would pick up changes automatically.
 
-- `bucket` — filter by `schema_jsonld->>'bucket'` (e.g., `?bucket=next`)
-- `type` — filter by `schema_jsonld->>'@type'` (e.g., `?type=gtd:Action`)
+### Bucket Counts Endpoint
 
-**Example:** `GET /things/sync?bucket=next&limit=100`
+A `GET /things/counts` endpoint returning `Record<string, number>` would let `BucketNav` show sidebar counts without fetching all things. Currently the frontend loads all items and counts client-side.
 
-**SQL addition** (in `sync_things`):
+### Server-Side Bucket Filtering
 
-```sql
-WHERE archived_at IS NULL
-  AND org_id = $1
-  AND ($2::text IS NULL OR schema_jsonld->>'bucket' = $2)
-  AND ($3::text IS NULL OR schema_jsonld->>'@type' = $3)
-```
+Adding `?bucket=` and `?type=` params to `GET /things/sync` would avoid loading 20K items when the user only needs the 86 in their inbox.
 
-**Frontend benefit:** Switch from "fetch all, filter client" to "fetch per bucket". Each bucket view loads only its items. Dramatically faster for users with large datasets.
+### Server-Sent Events
 
----
-
-## 4. Import Duration (Low Priority)
-
-**Problem:** The Results screen shows created/updated/skipped counts but no timing. Users can't tell if a 20K import took 30s or 5 minutes.
-
-**Request:** Add computed `duration_ms` to the job response.
-
-**Model change:**
-
-```python
-duration_ms: int | None = None
-```
-
-**In `_build_job_response`:**
-
-```python
-duration_ms = None
-if row.get("started_at") and row.get("finished_at"):
-    delta = row["finished_at"] - row["started_at"]
-    duration_ms = int(delta.total_seconds() * 1000)
-```
-
-**Frontend benefit:** "Completed in 45s" displayed in the results screen.
-
----
-
-## 5. Server-Sent Events for Real-Time Updates (Medium Priority)
-
-**Problem:** The frontend currently polls for data changes. During import, we poll the job endpoint every 2s and invalidate the things cache each cycle so items appear incrementally. For general use (multi-user edits, triage actions), there is no push mechanism — users must refresh to see changes made by others.
-
-**Request:** SSE endpoint for real-time thing change notifications.
-
-**Endpoint:** `GET /things/events` (SSE stream)
-
-**Events:**
-
-```
-event: thing_upserted
-data: {"thing_id": "...", "canonical_id": "urn:gtd:action:TASK-001", "bucket": "next"}
-
-event: thing_archived
-data: {"thing_id": "...", "canonical_id": "urn:gtd:action:TASK-001"}
-
-event: import_progress
-data: {"job_id": "...", "processed_count": 5000, "total_count": 20268}
-
-event: import_completed
-data: {"job_id": "...", "summary": {...}}
-```
-
-**Implementation notes:**
-
-- The outbox table already has `thing_upserted` and `thing_archived` events. These can drive SSE notifications via PostgreSQL `LISTEN/NOTIFY` or by tailing the outbox.
-- Scope events to `org_id` so users only receive their organization's updates.
-- Include `Last-Event-ID` support for reconnection without data loss.
-- FastAPI supports SSE via `StreamingResponse` with `text/event-stream` content type.
-
-**Frontend benefit:**
-
-- Replace polling with push: BucketNav counts update instantly, items appear in lists without manual refresh.
-- During import: real-time progress bar via `import_progress` events instead of polling the job endpoint.
-- Multi-user: changes made by one user appear immediately for others in the same org.
-
----
-
-## Priority Summary
-
-| #   | Request                                             | Impact                            | Effort |
-| --- | --------------------------------------------------- | --------------------------------- | ------ |
-| 1   | Import progress (`processed_count` / `total_count`) | High — unblocks progress bar      | Medium |
-| 2   | Bucket counts (`GET /things/counts`)                | High — instant sidebar counts     | Small  |
-| 3   | Server-side bucket filter (`?bucket=`)              | Medium — scales to large datasets | Medium |
-| 5   | SSE real-time events (`GET /things/events`)         | Medium — replaces polling         | Large  |
-| 4   | Import duration (`duration_ms`)                     | Low — nice-to-have                | Tiny   |
+An SSE endpoint (`GET /things/events`) with `thing_upserted`, `thing_archived`, `import_progress`, and `import_completed` events would replace polling entirely and enable real-time multi-user sync.

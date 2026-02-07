@@ -293,11 +293,14 @@ def test_patch_and_delete_flow_playwright(api_context: tuple[APIRequestContext, 
 
     thing = {
         "@id": f"urn:task:{uuid.uuid4()}",
-        "@type": "schema:Action",
-        "bucket": "next",
+        "@type": "Action",
+        "_schemaVersion": 2,
         "@context": "https://schema.org",
         "name": "Patch me",
         "meta": {"nested": {"a": 1}},
+        "additionalProperty": [
+            {"@type": "PropertyValue", "propertyID": "app:bucket", "value": "next"},
+        ],
     }
     response = _post_json(
         context,
@@ -331,7 +334,18 @@ def test_patch_and_delete_flow_playwright(api_context: tuple[APIRequestContext, 
     response = _patch_json(
         context,
         f"/things/{thing_id}",
-        {"thing": {"@type": "schema:Action", "bucket": None}},
+        {
+            "thing": {
+                "@type": "Action",
+                "additionalProperty": [
+                    {
+                        "@type": "PropertyValue",
+                        "propertyID": "app:bucket",
+                        "value": None,
+                    },
+                ],
+            },
+        },
         headers=_org_headers(default_org_id),
     )
     assert response.status == 422

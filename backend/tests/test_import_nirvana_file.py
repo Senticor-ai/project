@@ -12,6 +12,14 @@ from app.routes.imports import _IMPORT_JOB_STALE_ERROR
 from app.worker import process_batch
 
 
+def _get_prop(thing: dict, property_id: str):
+    """Extract value from additionalProperty by propertyID."""
+    for pv in thing.get("additionalProperty", []):
+        if pv.get("propertyID") == property_id:
+            return pv.get("value")
+    return None
+
+
 def _create_file_record(
     org_id: str,
     owner_id: str,
@@ -129,7 +137,7 @@ def test_import_from_file_flow(auth_client):
     assert payload["summary"]["errors"] == 0
 
     things = auth_client.get("/things?limit=1000").json()
-    assert any(t["canonical_id"] == "urn:gtd:project:PROJ-123" for t in things)
+    assert any(t["canonical_id"] == "urn:app:project:PROJ-123" for t in things)
 
 
 def test_import_from_file_matrix_fixture_preserves_fields(auth_client):
@@ -175,17 +183,17 @@ def test_import_from_file_matrix_fixture_preserves_fields(auth_client):
     assert payload["summary"]["skipped"] == 1
 
     things = {row["canonical_id"]: row for row in auth_client.get("/things?limit=2000").json()}
-    assert "urn:gtd:action:TASK-MATRIX-COMPLETED" not in things
+    assert "urn:app:action:TASK-MATRIX-COMPLETED" not in things
 
-    focused = things["urn:gtd:action:TASK-MATRIX-FOCUS"]["thing"]
-    assert focused["isFocused"] is True
+    focused = things["urn:app:action:TASK-MATRIX-FOCUS"]["thing"]
+    assert _get_prop(focused, "app:isFocused") is True
 
-    calendar_start = things["urn:gtd:action:TASK-MATRIX-CALENDAR-START"]["thing"]
-    assert calendar_start["scheduledDate"] == "2026-04-01"
-    assert calendar_start["dueDate"] == "2026-04-01"
+    calendar_start = things["urn:app:action:TASK-MATRIX-CALENDAR-START"]["thing"]
+    assert _get_prop(calendar_start, "app:startDate") == "2026-04-01"
+    assert _get_prop(calendar_start, "app:dueDate") == "2026-04-01"
 
-    state7_reference = things["urn:gtd:reference:TASK-MATRIX-STATE7"]["thing"]
-    assert state7_reference["bucket"] == "reference"
+    state7_reference = things["urn:app:reference:TASK-MATRIX-STATE7"]["thing"]
+    assert _get_prop(state7_reference, "app:bucket") == "reference"
     assert state7_reference["sourceMetadata"]["raw"]["seqp"] == 3
 
 

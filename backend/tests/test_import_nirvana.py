@@ -4,6 +4,14 @@ from pathlib import Path
 from conftest import ROOT_DIR
 
 
+def _get_prop(thing: dict, property_id: str):
+    """Extract value from additionalProperty by propertyID."""
+    for pv in thing.get("additionalProperty", []):
+        if pv.get("propertyID") == property_id:
+            return pv.get("value")
+    return None
+
+
 def test_import_nirvana_bulk(auth_client):
     fixture_path = ROOT_DIR / "backend" / "tests" / "fixtures" / "nirvana_export.sample.json"
     items = json.loads(Path(fixture_path).read_text(encoding="utf-8"))
@@ -21,27 +29,27 @@ def test_import_nirvana_bulk(auth_client):
     things = auth_client.get("/things?limit=1000").json()
 
     project = next(
-        t for t in things if t["canonical_id"] == "urn:gtd:project:PROJ-123"
+        t for t in things if t["canonical_id"] == "urn:app:project:PROJ-123"
     )
-    action_ids = set(project["thing"]["actionIds"])
-    assert action_ids == {"urn:gtd:action:TASK-001", "urn:gtd:action:TASK-002"}
+    has_part = {ref["@id"] for ref in project["thing"]["hasPart"]}
+    assert has_part == {"urn:app:action:TASK-001", "urn:app:action:TASK-002"}
 
     waiting = next(
-        t for t in things if t["canonical_id"] == "urn:gtd:action:TASK-002"
+        t for t in things if t["canonical_id"] == "urn:app:action:TASK-002"
     )
-    assert waiting["thing"]["bucket"] == "waiting"
-    assert waiting["thing"]["delegatedTo"] == "Design team"
+    assert _get_prop(waiting["thing"], "app:bucket") == "waiting"
+    assert _get_prop(waiting["thing"], "app:delegatedTo") == "Design team"
 
     recurring = next(
-        t for t in things if t["canonical_id"] == "urn:gtd:action:TASK-005"
+        t for t in things if t["canonical_id"] == "urn:app:action:TASK-005"
     )
-    assert recurring["thing"]["recurrence"]["kind"] == "monthly"
+    assert _get_prop(recurring["thing"], "app:recurrence")["kind"] == "monthly"
 
     inbox = next(
-        t for t in things if t["canonical_id"] == "urn:gtd:inbox:TASK-006"
+        t for t in things if t["canonical_id"] == "urn:app:inbox:TASK-006"
     )
-    assert inbox["thing"]["bucket"] == "inbox"
-    assert inbox["thing"]["rawCapture"].startswith("https://")
+    assert _get_prop(inbox["thing"], "app:bucket") == "inbox"
+    assert _get_prop(inbox["thing"], "app:rawCapture").startswith("https://")
 
 
 def test_import_preserves_focus_and_calendar_due_fallback(auth_client):
@@ -109,18 +117,22 @@ def test_import_preserves_focus_and_calendar_due_fallback(auth_client):
 
     things = auth_client.get("/things?limit=1000").json()
 
-    focused = next(t for t in things if t["canonical_id"] == "urn:gtd:action:TASK-FOCUS-001")
-    assert focused["thing"]["bucket"] == "next"
-    assert focused["thing"]["isFocused"] is True
+    focused = next(
+        t for t in things
+        if t["canonical_id"] == "urn:app:action:TASK-FOCUS-001"
+    )
+    assert _get_prop(focused["thing"], "app:bucket") == "next"
+    assert _get_prop(focused["thing"], "app:isFocused") is True
     assert focused["thing"]["sourceMetadata"]["provider"] == "nirvana"
     assert focused["thing"]["sourceMetadata"]["raw"]["seqt"] == 1
 
     calendar = next(
-        t for t in things if t["canonical_id"] == "urn:gtd:action:TASK-CALENDAR-001"
+        t for t in things
+        if t["canonical_id"] == "urn:app:action:TASK-CALENDAR-001"
     )
-    assert calendar["thing"]["bucket"] == "calendar"
-    assert calendar["thing"]["scheduledDate"] == "2026-04-18"
-    assert calendar["thing"]["dueDate"] == "2026-04-18"
+    assert _get_prop(calendar["thing"], "app:bucket") == "calendar"
+    assert _get_prop(calendar["thing"], "app:startDate") == "2026-04-18"
+    assert _get_prop(calendar["thing"], "app:dueDate") == "2026-04-18"
 
 
 def test_import_preserves_nirvana_source_metadata(auth_client):
@@ -137,7 +149,7 @@ def test_import_preserves_nirvana_source_metadata(auth_client):
     things = auth_client.get("/things?limit=1000").json()
 
     recurring = next(
-        t for t in things if t["canonical_id"] == "urn:gtd:action:TASK-005"
+        t for t in things if t["canonical_id"] == "urn:app:action:TASK-005"
     )
     metadata = recurring["thing"]["sourceMetadata"]
     assert metadata["schemaVersion"] == 1

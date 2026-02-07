@@ -1,10 +1,15 @@
 import { Meta } from "@storybook/addon-docs/blocks";
 
-<Meta title="Engineering/Schema Reference" />
+<Meta title="Engineering/Ontology/Schema.org Vocabulary" />
 
-# Schema.org Reference
+# Schema.org Vocabulary
 
-This document defines the schema.org entities used in the Todo app. The app spans personal work, business work, and procedural work. Data is stored as JSON-LD and aligned to schema.org vocabulary for interoperability and semantic clarity.
+This is the full catalog of schema.org types available to the app. The
+[Data Model](?path=/docs/engineering-ontology--docs) page describes how these types
+are applied to GTD entities and which fields use `additionalProperty` for custom extensions.
+
+The app spans personal work, business work, and procedural work. Data is stored as JSON-LD
+and aligned to schema.org vocabulary for interoperability and semantic clarity.
 
 ## Design Principles
 
@@ -417,6 +422,6 @@ isDigitalDocument(thing: Thing): thing is DigitalDocument
 
 - [schema.org](https://schema.org) - Vocabulary reference
 - [JSON-LD](https://json-ld.org) - Serialization format
+- [Data Model](?path=/docs/engineering-ontology--docs) - How schema.org types are applied to GTD entities
 - [Architecture](?path=/docs/engineering-architecture--docs) - Technology stack and architectural decisions
-- [Data Model](?path=/docs/engineering-data-model--docs) - Internal GTD type system
-- [Backend Architecture](?path=/docs/engineering-backend-architecture--docs) - Dual-store model
+- [Architecture](?path=/docs/engineering-architecture--docs) - Technology stack, dual-store model, and architectural principles

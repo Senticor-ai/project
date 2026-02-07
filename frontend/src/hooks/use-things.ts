@@ -3,8 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { ThingsApi } from "@/lib/api-client";
 import type { ThingRecord } from "@/lib/api-client";
 import { fromJsonLd } from "@/lib/thing-serializer";
-import type { Thing, Project, ReferenceMaterial } from "@/model/gtd-types";
-import { isThing } from "@/model/gtd-types";
+import type { Thing, Project, ReferenceMaterial } from "@/model/types";
+import { isThing } from "@/model/types";
 
 // ---------------------------------------------------------------------------
 // Shared query key + fetcher
@@ -50,8 +50,8 @@ export function useAllThings() {
       query.data
         ?.filter(
           (r) =>
-            r.thing["@type"] === "gtd:InboxItem" ||
-            r.thing["@type"] === "gtd:Action",
+            r.thing["@type"] === "Thing" ||
+            r.thing["@type"] === "Action",
         )
         .map((r) => {
           const item = fromJsonLd(r);
@@ -88,7 +88,7 @@ export function useProjects() {
   const items = useMemo<Project[]>(
     () =>
       query.data
-        ?.filter((r) => r.thing["@type"] === "gtd:Project")
+        ?.filter((r) => r.thing["@type"] === "Project")
         .map((r) => fromJsonLd(r) as Project) ?? [],
     [query.data],
   );
@@ -100,7 +100,7 @@ export function useReferences() {
   const items = useMemo<ReferenceMaterial[]>(
     () =>
       query.data
-        ?.filter((r) => r.thing["@type"] === "gtd:Reference")
+        ?.filter((r) => r.thing["@type"] === "CreativeWork")
         .map((r) => fromJsonLd(r) as ReferenceMaterial) ?? [],
     [query.data],
   );

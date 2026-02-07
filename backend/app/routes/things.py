@@ -89,10 +89,26 @@ def _dump_response_model(payload) -> dict:
     return payload.model_dump(mode="json", by_alias=True)
 
 
+def _merge_additional_property(base: list, patch: list) -> list:
+    """Merge additionalProperty arrays by propertyID."""
+    by_id: dict[str, dict] = {}
+    for pv in base:
+        if isinstance(pv, dict) and "propertyID" in pv:
+            by_id[pv["propertyID"]] = pv
+    for pv in patch:
+        if isinstance(pv, dict) and "propertyID" in pv:
+            by_id[pv["propertyID"]] = pv
+    return list(by_id.values())
+
+
 def _deep_merge(base: dict, patch: dict) -> dict:
     merged = dict(base)
     for key, value in patch.items():
-        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+        if key == "additionalProperty" and isinstance(value, list):
+            merged[key] = _merge_additional_property(
+                merged.get(key, []), value,
+            )
+        elif isinstance(value, dict) and isinstance(merged.get(key), dict):
             merged[key] = _deep_merge(merged[key], value)
         else:
             merged[key] = value
@@ -111,15 +127,23 @@ def _is_action_type(type_value: str) -> bool:
     return type_value.split(":")[-1] in {"Action", "PlanAction"}
 
 
+def _get_additional_property(thing: dict, property_id: str):
+    """Extract a value from additionalProperty by propertyID."""
+    for pv in thing.get("additionalProperty", []):
+        if isinstance(pv, dict) and pv.get("propertyID") == property_id:
+            return pv.get("value")
+    return None
+
+
 def _validate_action_bucket(thing: dict) -> None:
     types = _normalize_types(thing.get("@type"))
     if not any(_is_action_type(t) for t in types):
         return
-    bucket = thing.get("bucket")
+    bucket = _get_additional_property(thing, "app:bucket")
     if not isinstance(bucket, str) or not bucket.strip():
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="bucket is required for Action types",
+            detail="app:bucket is required in additionalProperty for Action types",
         )
 
 

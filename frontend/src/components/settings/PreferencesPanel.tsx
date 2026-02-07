@@ -8,7 +8,7 @@ import type {
   WeekStart,
   ThemePreference,
 } from "@/model/settings-types";
-import type { GtdBucket } from "@/model/gtd-types";
+import type { Bucket } from "@/model/types";
 
 export interface PreferencesPanelProps {
   preferences: UserPreferences;
@@ -150,7 +150,7 @@ export function PreferencesPanel({
             aria-label="Default view"
             value={preferences.defaultBucket}
             onChange={(e) =>
-              onChange({ defaultBucket: e.target.value as GtdBucket })
+              onChange({ defaultBucket: e.target.value as Bucket })
             }
             className={selectClass}
           >

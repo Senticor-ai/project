@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Iterable
 
 from ..config import settings
 from ..db import db_conn, jsonb
@@ -24,7 +24,7 @@ class OcrConfig:
         languages: Iterable[str] | None,
         force_full_page_ocr: bool | None,
         bitmap_area_threshold: float | None,
-    ) -> "OcrConfig":
+    ) -> OcrConfig:
         resolved_engine = (engine or "auto").strip().lower()
         resolved_languages = tuple(
             lang.strip() for lang in (languages or []) if isinstance(lang, str) and lang.strip()

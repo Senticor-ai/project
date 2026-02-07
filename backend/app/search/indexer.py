@@ -9,7 +9,6 @@ from pypdf import PdfReader
 
 from ..config import settings
 from ..observability import get_logger
-from .ocr_settings import OcrConfig, default_ocr_config
 from .meili import (
     add_documents,
     delete_document,
@@ -17,6 +16,7 @@ from .meili import (
     ensure_things_index,
     is_enabled,
 )
+from .ocr_settings import OcrConfig, default_ocr_config
 
 logger = get_logger("search-indexer")
 _DOCLING_CONVERTERS: dict[tuple, object] = {}
@@ -81,6 +81,14 @@ def _isoformat(value: Any) -> str | None:
     return str(value)
 
 
+def _get_additional_property_value(thing: dict, property_id: str) -> Any:
+    """Extract a value from additionalProperty by propertyID."""
+    for pv in thing.get("additionalProperty", []):
+        if isinstance(pv, dict) and pv.get("propertyID") == property_id:
+            return pv.get("value")
+    return None
+
+
 def build_thing_document(row: dict[str, Any]) -> dict[str, Any]:
     thing = row.get("schema_jsonld") or {}
     types = _normalize_types(thing.get("@type"))
@@ -88,7 +96,8 @@ def build_thing_document(row: dict[str, Any]) -> dict[str, Any]:
     description = (
         thing.get("description") if isinstance(thing.get("description"), str) else None
     )
-    bucket = thing.get("bucket") if isinstance(thing.get("bucket"), str) else None
+    bucket_value = _get_additional_property_value(thing, "app:bucket")
+    bucket = bucket_value if isinstance(bucket_value, str) else None
     return {
         "thing_id": str(row.get("thing_id")),
         "org_id": str(row.get("org_id")),
@@ -156,9 +165,9 @@ def _build_ocr_options(ocr_config: OcrConfig):
         options = factory.create_options("auto")
 
     if ocr_config.languages and ocr_config.engine != "auto":
-        options.lang = list(ocr_config.languages)
-    options.force_full_page_ocr = ocr_config.force_full_page_ocr
-    options.bitmap_area_threshold = ocr_config.bitmap_area_threshold
+        options.lang = list(ocr_config.languages)  # type: ignore[attr-defined]
+    options.force_full_page_ocr = ocr_config.force_full_page_ocr  # type: ignore[attr-defined]
+    options.bitmap_area_threshold = ocr_config.bitmap_area_threshold  # type: ignore[attr-defined]
     return options
 
 

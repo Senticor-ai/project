@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Annotated, Any, Literal
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class AuthCredentials(BaseModel):
@@ -211,41 +211,54 @@ def _default_provenance() -> ProvenanceModel:
     return ProvenanceModel(createdAt=now, updatedAt=now, history=[])
 
 
+class PropertyValueModel(BaseModel):
+    """Schema.org PropertyValue for additionalProperty entries."""
+
+    type: Literal["PropertyValue"] = Field(
+        default="PropertyValue",
+        alias="@type",
+        description="JSON-LD type (always PropertyValue).",
+    )
+    propertyID: str = Field(
+        ...,
+        description="Property identifier, e.g. app:bucket.",
+    )
+    value: Any = Field(
+        ...,
+        description="Property value (type varies by propertyID).",
+    )
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class ThingJsonLdBase(BaseModel):
-    id: str = Field(..., alias="@id", description="Canonical JSON-LD id.")
-    type: str = Field(..., alias="@type", description="JSON-LD entity type.")
+    """Base schema.org JSON-LD model (v2).
+
+    Direct schema.org properties live at the top level.
+    App-specific properties live in ``additionalProperty`` as PropertyValue entries.
+    """
+
+    id: str = Field(..., alias="@id", description="Canonical JSON-LD id (urn:app:…).")
+    type: str = Field(..., alias="@type", description="Schema.org JSON-LD type.")
     schemaVersion: int = Field(
-        default=1,
+        default=2,
         alias="_schemaVersion",
         description="Domain schema version for this record.",
     )
-    title: str = Field(
-        ...,
-        description="Human-readable title.",
-        validation_alias=AliasChoices("title", "name"),
+    name: str = Field(..., description="Human-readable name (schema.org name).")
+    description: str | None = Field(default=None, description="Long-form description.")
+    keywords: list[str] = Field(
+        default_factory=list, description="Free-form tags (schema.org keywords).",
     )
-    notes: str | None = Field(default=None, description="Long-form notes.")
-    tags: list[str] = Field(default_factory=list, description="Free-form tags.")
-    references: list[TypedReferenceModel] = Field(
+    dateCreated: str | None = Field(
+        default=None, description="Creation timestamp (ISO-8601).",
+    )
+    dateModified: str | None = Field(
+        default=None, description="Last-modified timestamp (ISO-8601).",
+    )
+    additionalProperty: list[PropertyValueModel] = Field(
         default_factory=list,
-        description="Typed links to related entities.",
-    )
-    captureSource: CaptureSourceModel = Field(
-        default_factory=CaptureSourceThought,
-        description="Capture provenance source.",
-    )
-    provenance: ProvenanceModel = Field(
-        default_factory=_default_provenance,
-        description="Immutable provenance block.",
-    )
-    ports: list[PortModel] = Field(default_factory=list, description="Planning metadata ports.")
-    needsEnrichment: bool = Field(
-        default=True,
-        description="Whether extra clarification is needed.",
-    )
-    confidence: Literal["high", "medium", "low"] = Field(
-        default="low",
-        description="Entity confidence level.",
+        description="App-specific properties as schema.org PropertyValue entries.",
     )
     sourceMetadata: ThingSourceMetadata | None = Field(
         default=None,
@@ -256,59 +269,53 @@ class ThingJsonLdBase(BaseModel):
 
 
 class InboxThingJsonLd(ThingJsonLdBase):
-    type: Literal["gtd:InboxItem"] = Field(
+    """schema:Thing — unclarified inbox capture."""
+
+    type: Literal["Thing"] = Field(
         ...,
         alias="@type",
-        description="Inbox item type.",
+        description="schema.org Thing (inbox item).",
     )
-    bucket: Literal["inbox"] = Field(..., description="Current GTD bucket.")
-    rawCapture: str = Field(..., description="Original captured text/value.")
 
 
 class ActionThingJsonLd(ThingJsonLdBase):
-    type: Literal["gtd:Action"] = Field(..., alias="@type", description="Action type.")
-    bucket: Literal["next", "waiting", "calendar", "someday"] = Field(
-        ...,
-        description="Current GTD action bucket.",
+    """schema:Action — next/waiting/calendar/someday action."""
+
+    type: Literal["Action"] = Field(..., alias="@type", description="schema.org Action.")
+    startDate: str | None = Field(
+        default=None, description="Scheduled date (schema.org startDate).",
     )
-    contexts: list[str] = Field(default_factory=list, description="Context ids.")
-    projectId: str | None = Field(default=None, description="Owning project canonical id.")
-    delegatedTo: str | None = Field(default=None, description="Delegation target.")
-    scheduledDate: str | None = Field(default=None, description="Scheduled date (YYYY-MM-DD).")
-    scheduledTime: str | None = Field(default=None, description="Scheduled time (HH:MM).")
-    dueDate: str | None = Field(default=None, description="Due date (YYYY-MM-DD).")
-    startDate: str | None = Field(default=None, description="Start date (YYYY-MM-DD).")
-    isFocused: bool = Field(default=False, description="Whether action is in focus mode.")
-    recurrence: RecurrenceModel | None = Field(
+    endDate: str | None = Field(
+        default=None, description="Completion timestamp (schema.org endDate).",
+    )
+    isPartOf: dict[str, str] | None = Field(
         default=None,
-        description="Optional recurrence pattern.",
+        description='Owning project reference, e.g. {"@id": "urn:app:project:…"}.',
     )
-    completedAt: str | None = Field(default=None, description="Completion timestamp.")
-    sequenceOrder: int | None = Field(default=None, description="Ordering hint.")
 
 
 class ProjectThingJsonLd(ThingJsonLdBase):
-    type: Literal["gtd:Project"] = Field(..., alias="@type", description="Project type.")
-    bucket: Literal["project"] = Field(..., description="Current GTD bucket.")
-    desiredOutcome: str = Field(..., description="Project desired outcome statement.")
-    status: Literal["active", "completed", "on-hold", "archived"] = Field(
-        ...,
-        description="Project status.",
+    """schema:Project — multi-step outcome."""
+
+    type: Literal["Project"] = Field(..., alias="@type", description="schema.org Project.")
+    endDate: str | None = Field(
+        default=None, description="Completion timestamp (schema.org endDate).",
     )
-    actionIds: list[str] = Field(default_factory=list, description="Child action canonical ids.")
-    reviewDate: str | None = Field(default=None, description="Next review date (YYYY-MM-DD).")
-    completedAt: str | None = Field(default=None, description="Completion timestamp.")
-    isFocused: bool = Field(..., description="Whether project is in focus mode.")
+    hasPart: list[dict[str, str]] = Field(
+        default_factory=list,
+        description='Child action references, e.g. [{"@id": "urn:app:action:…"}].',
+    )
 
 
 class ReferenceThingJsonLd(ThingJsonLdBase):
-    type: Literal["gtd:Reference"] = Field(..., alias="@type", description="Reference type.")
-    bucket: Literal["reference"] = Field(..., description="Current GTD bucket.")
-    contentType: str | None = Field(default=None, description="Reference MIME/content type.")
-    externalUrl: str | None = Field(default=None, description="External URL, if available.")
-    origin: Literal["triaged", "captured", "file"] | None = Field(
-        default=None,
-        description="Reference origin channel.",
+    """schema:CreativeWork — reference material."""
+
+    type: Literal["CreativeWork"] = Field(
+        ..., alias="@type", description="schema.org CreativeWork.",
+    )
+    url: str | None = Field(default=None, description="External URL.")
+    encodingFormat: str | None = Field(
+        default=None, description="MIME type (schema.org encodingFormat).",
     )
 
 
@@ -319,62 +326,30 @@ ThingJsonLd = Annotated[
 
 
 class ThingPatchModel(BaseModel):
+    """Partial JSON-LD for PATCH deep-merge (v2 schema.org format)."""
+
     id: str | None = Field(default=None, alias="@id", description="Canonical id (immutable).")
     type: (
-        Literal[
-            "gtd:InboxItem",
-            "gtd:Action",
-            "gtd:Project",
-            "gtd:Reference",
-        ]
-        | None
+        Literal["Thing", "Action", "Project", "CreativeWork"] | None
     ) = Field(
         default=None,
         alias="@type",
-        description="JSON-LD type override.",
+        description="Schema.org type override.",
     )
     schemaVersion: int | None = Field(default=None, alias="_schemaVersion")
-    title: str | None = None
-    notes: str | None = None
-    tags: list[str] | None = None
-    references: list[TypedReferenceModel] | None = None
-    captureSource: CaptureSourceModel | None = None
-    provenance: ProvenanceModel | None = None
-    ports: list[PortModel] | None = None
-    needsEnrichment: bool | None = None
-    confidence: Literal["high", "medium", "low"] | None = None
-    sourceMetadata: ThingSourceMetadata | None = None
-    bucket: (
-        Literal[
-            "inbox",
-            "next",
-            "waiting",
-            "calendar",
-            "someday",
-            "project",
-            "reference",
-        ]
-        | None
-    ) = None
-    rawCapture: str | None = None
-    contexts: list[str] | None = None
-    projectId: str | None = None
-    delegatedTo: str | None = None
-    scheduledDate: str | None = None
-    scheduledTime: str | None = None
-    dueDate: str | None = None
+    name: str | None = None
+    description: str | None = None
+    keywords: list[str] | None = None
+    dateCreated: str | None = None
+    dateModified: str | None = None
     startDate: str | None = None
-    isFocused: bool | None = None
-    recurrence: RecurrenceModel | None = None
-    completedAt: str | None = None
-    sequenceOrder: int | None = None
-    desiredOutcome: str | None = None
-    status: Literal["active", "completed", "on-hold", "archived"] | None = None
-    actionIds: list[str] | None = None
-    reviewDate: str | None = None
-    contentType: str | None = None
-    externalUrl: str | None = None
-    origin: Literal["triaged", "captured", "file"] | None = None
+    endDate: str | None = None
+    isPartOf: dict[str, str] | None = None
+    hasPart: list[dict[str, str]] | None = None
+    url: str | None = None
+    encodingFormat: str | None = None
+    additionalProperty: list[PropertyValueModel] | None = None
+    sourceMetadata: ThingSourceMetadata | None = None
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 

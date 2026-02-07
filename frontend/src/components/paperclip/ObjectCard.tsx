@@ -4,15 +4,15 @@ import { BucketBadge } from "./BucketBadge";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { AttachmentChip } from "./AttachmentChip";
 import type {
-  GtdBucket,
+  Bucket,
   ConfidenceLevel,
   TypedReference,
-} from "@/model/gtd-types";
+} from "@/model/types";
 
 export interface ObjectCardProps {
   title: string;
   subtitle?: string;
-  bucket: GtdBucket;
+  bucket: Bucket;
   confidence: ConfidenceLevel;
   needsEnrichment: boolean;
   attachments?: Array<TypedReference & { targetTitle: string }>;

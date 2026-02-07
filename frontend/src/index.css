@@ -54,7 +54,7 @@
   --color-border: var(--color-paper-300);
   --color-border-strong: var(--color-paper-400);
   --color-text: oklch(0.25 0.01 260);
-  --color-text-muted: oklch(0.40 0.01 260);
+  --color-text-muted: oklch(0.4 0.01 260);
   --color-text-subtle: oklch(0.43 0.008 260);
   --color-primary: var(--color-blueprint-600);
   --color-primary-hover: var(--color-blueprint-700);

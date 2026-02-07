@@ -4,14 +4,14 @@ import type {
   ThingBucket,
   Project,
   ReferenceMaterial,
-  GtdItem,
+  AppItem,
   CaptureSource,
   Provenance,
   TypedReference,
   Port,
   TriageResult,
   ItemEditableFields,
-} from "@/model/gtd-types";
+} from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
 import { createCanonicalId } from "@/model/canonical-id";
 
@@ -19,34 +19,77 @@ import { createCanonicalId } from "@/model/canonical-id";
 // Constants
 // ---------------------------------------------------------------------------
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
+/** schema.org @type values keyed by our internal bucket concept. */
 const TYPE_MAP = {
-  inbox: "gtd:InboxItem",
-  action: "gtd:Action",
-  project: "gtd:Project",
-  reference: "gtd:Reference",
+  inbox: "Thing",
+  action: "Action",
+  project: "Project",
+  reference: "CreativeWork",
 } as const;
 
 // ---------------------------------------------------------------------------
-// toJsonLd — Frontend GTD entity → JSON-LD dict for the backend
+// PropertyValue helpers
 // ---------------------------------------------------------------------------
 
-function serializeThingFields(
-  result: Record<string, unknown>,
-  thing: Thing,
-): void {
-  result.contexts = thing.contexts;
-  result.projectId = thing.projectId ?? null;
-  result.delegatedTo = thing.delegatedTo ?? null;
-  result.scheduledDate = thing.scheduledDate ?? null;
-  result.scheduledTime = thing.scheduledTime ?? null;
-  result.dueDate = thing.dueDate ?? null;
-  result.startDate = thing.startDate ?? null;
-  result.isFocused = thing.isFocused;
-  result.recurrence = thing.recurrence ?? null;
-  result.completedAt = thing.completedAt ?? null;
-  result.sequenceOrder = thing.sequenceOrder ?? null;
+interface PropertyValue {
+  "@type": "PropertyValue";
+  propertyID: string;
+  value: unknown;
+}
+
+function pv(propertyID: string, value: unknown): PropertyValue {
+  return { "@type": "PropertyValue", propertyID, value };
+}
+
+function getAdditionalProperty(
+  props: PropertyValue[] | undefined,
+  propertyID: string,
+): unknown {
+  return props?.find((p) => p.propertyID === propertyID)?.value;
+}
+
+// ---------------------------------------------------------------------------
+// toJsonLd — Frontend GTD entity → schema.org JSON-LD for the backend
+// ---------------------------------------------------------------------------
+
+function serializeThingAdditionalProps(thing: Thing): PropertyValue[] {
+  const props: PropertyValue[] = [
+    pv("app:bucket", thing.bucket),
+    pv("app:needsEnrichment", thing.needsEnrichment),
+    pv("app:confidence", thing.confidence),
+    pv("app:captureSource", thing.captureSource),
+    pv("app:contexts", thing.contexts),
+    pv("app:isFocused", thing.isFocused),
+    pv("app:ports", thing.ports),
+    pv("app:typedReferences", thing.references),
+    pv("app:provenanceHistory", thing.provenance.history),
+  ];
+
+  if (thing.rawCapture !== undefined) {
+    props.push(pv("app:rawCapture", thing.rawCapture));
+  }
+  if (thing.delegatedTo !== undefined) {
+    props.push(pv("app:delegatedTo", thing.delegatedTo));
+  }
+  if (thing.dueDate !== undefined) {
+    props.push(pv("app:dueDate", thing.dueDate));
+  }
+  if (thing.startDate !== undefined) {
+    props.push(pv("app:startDate", thing.startDate));
+  }
+  if (thing.scheduledTime !== undefined) {
+    props.push(pv("app:scheduledTime", thing.scheduledTime));
+  }
+  if (thing.sequenceOrder !== undefined) {
+    props.push(pv("app:sequenceOrder", thing.sequenceOrder));
+  }
+  if (thing.recurrence !== undefined) {
+    props.push(pv("app:recurrence", thing.recurrence));
+  }
+
+  return props;
 }
 
 export function toJsonLd(
@@ -55,45 +98,70 @@ export function toJsonLd(
   const base: Record<string, unknown> = {
     "@id": item.id,
     _schemaVersion: SCHEMA_VERSION,
-    title: item.title,
-    bucket: item.bucket,
-    notes: item.notes ?? null,
-    tags: item.tags,
-    references: item.references,
-    captureSource: item.captureSource,
-    provenance: item.provenance,
-    ports: item.ports,
-    needsEnrichment: item.needsEnrichment,
-    confidence: item.confidence,
+    name: item.name,
+    description: item.description ?? null,
+    keywords: item.tags,
+    dateCreated: item.provenance.createdAt,
+    dateModified: item.provenance.updatedAt,
   };
 
   if (item.bucket === "inbox") {
+    const thing = item as Thing;
     base["@type"] = TYPE_MAP.inbox;
-    base.rawCapture = (item as Thing).rawCapture ?? (item as Thing).title;
-    serializeThingFields(base, item as Thing);
+    base.additionalProperty = serializeThingAdditionalProps(thing);
   } else if (
     item.bucket === "next" ||
     item.bucket === "waiting" ||
     item.bucket === "calendar" ||
     item.bucket === "someday"
   ) {
+    const thing = item as Thing;
     base["@type"] = TYPE_MAP.action;
-    serializeThingFields(base, item as Thing);
+    // schema.org direct mappings
+    base.startDate = thing.scheduledDate ?? null;
+    base.endDate = thing.completedAt ?? null;
+    if (thing.projectId) {
+      base.isPartOf = { "@id": thing.projectId };
+    }
+    base.additionalProperty = serializeThingAdditionalProps(thing);
   } else if (item.bucket === "project") {
-    base["@type"] = TYPE_MAP.project;
     const project = item as Project;
-    base.desiredOutcome = project.desiredOutcome;
-    base.status = project.status;
-    base.actionIds = project.actionIds;
-    base.reviewDate = project.reviewDate ?? null;
-    base.completedAt = project.completedAt ?? null;
-    base.isFocused = project.isFocused;
+    base["@type"] = TYPE_MAP.project;
+    base.endDate = project.completedAt ?? null;
+    base.hasPart = project.actionIds.map((id) => ({ "@id": id }));
+
+    const props: PropertyValue[] = [
+      pv("app:bucket", "project"),
+      pv("app:desiredOutcome", project.desiredOutcome),
+      pv("app:projectStatus", project.status),
+      pv("app:isFocused", project.isFocused),
+      pv("app:needsEnrichment", project.needsEnrichment),
+      pv("app:confidence", project.confidence),
+      pv("app:captureSource", project.captureSource),
+      pv("app:ports", project.ports),
+      pv("app:typedReferences", project.references),
+      pv("app:provenanceHistory", project.provenance.history),
+    ];
+    if (project.reviewDate !== undefined) {
+      props.push(pv("app:reviewDate", project.reviewDate));
+    }
+    base.additionalProperty = props;
   } else if (item.bucket === "reference") {
-    base["@type"] = TYPE_MAP.reference;
     const ref = item as ReferenceMaterial;
-    base.contentType = ref.contentType ?? null;
-    base.externalUrl = ref.externalUrl ?? null;
-    base.origin = ref.origin ?? null;
+    base["@type"] = TYPE_MAP.reference;
+    base.url = ref.url ?? null;
+    base.encodingFormat = ref.encodingFormat ?? null;
+
+    base.additionalProperty = [
+      pv("app:bucket", "reference"),
+      pv("app:needsEnrichment", ref.needsEnrichment),
+      pv("app:confidence", ref.confidence),
+      pv("app:captureSource", ref.captureSource),
+      pv("app:ports", ref.ports),
+      pv("app:typedReferences", ref.references),
+      pv("app:provenanceHistory", ref.provenance.history),
+      pv("app:origin", ref.origin ?? null),
+    ];
   }
 
   return base;
@@ -103,83 +171,85 @@ export function toJsonLd(
 // fromJsonLd — ThingRecord from backend → Frontend GTD entity
 // ---------------------------------------------------------------------------
 
-export function fromJsonLd(record: ThingRecord): GtdItem {
+export function fromJsonLd(record: ThingRecord): AppItem {
   const t = record.thing;
   const type = t["@type"] as string;
+  const props = t.additionalProperty as PropertyValue[] | undefined;
 
   const base = {
     id:
       (t["@id"] as string as CanonicalId) ??
       (record.canonical_id as CanonicalId),
-    title: t.title as string,
-    notes: (t.notes as string) || undefined,
-    tags: (t.tags as string[]) ?? [],
-    references: (t.references as TypedReference[]) ?? [],
-    captureSource: (t.captureSource as CaptureSource) ?? {
+    name: t.name as string,
+    description: (t.description as string) || undefined,
+    tags: (t.keywords as string[]) ?? [],
+    references: (getAdditionalProperty(props, "app:typedReferences") as TypedReference[]) ?? [],
+    captureSource: (getAdditionalProperty(props, "app:captureSource") as CaptureSource) ?? {
       kind: "thought" as const,
     },
-    provenance: (t.provenance as Provenance) ?? {
-      createdAt: record.created_at,
-      updatedAt: record.updated_at,
-      history: [],
+    provenance: {
+      createdAt: (t.dateCreated as string) ?? record.created_at,
+      updatedAt: (t.dateModified as string) ?? record.updated_at,
+      history: (getAdditionalProperty(props, "app:provenanceHistory") as Provenance["history"]) ?? [],
     },
-    ports: (t.ports as Port[]) ?? [],
-    needsEnrichment: (t.needsEnrichment as boolean) ?? true,
-    confidence: (t.confidence as "high" | "medium" | "low") ?? "low",
+    ports: (getAdditionalProperty(props, "app:ports") as Port[]) ?? [],
+    needsEnrichment: (getAdditionalProperty(props, "app:needsEnrichment") as boolean) ?? true,
+    confidence: (getAdditionalProperty(props, "app:confidence") as "high" | "medium" | "low") ?? "low",
   };
 
   const thingFields = {
-    contexts: (t.contexts as CanonicalId[]) ?? [],
-    projectId: (t.projectId as CanonicalId) || undefined,
-    delegatedTo: (t.delegatedTo as string) || undefined,
-    scheduledDate: (t.scheduledDate as string) || undefined,
-    scheduledTime: (t.scheduledTime as string) || undefined,
-    dueDate: (t.dueDate as string) || undefined,
-    startDate: (t.startDate as string) || undefined,
-    isFocused: (t.isFocused as boolean) ?? false,
-    recurrence: t.recurrence as Thing["recurrence"],
-    completedAt: (t.completedAt as string) || undefined,
-    sequenceOrder: (t.sequenceOrder as number) || undefined,
+    contexts: (getAdditionalProperty(props, "app:contexts") as CanonicalId[]) ?? [],
+    projectId: extractProjectId(t),
+    delegatedTo: (getAdditionalProperty(props, "app:delegatedTo") as string) || undefined,
+    scheduledDate: (t.startDate as string) || (getAdditionalProperty(props, "app:scheduledDate") as string) || undefined,
+    scheduledTime: (getAdditionalProperty(props, "app:scheduledTime") as string) || undefined,
+    dueDate: (getAdditionalProperty(props, "app:dueDate") as string) || undefined,
+    startDate: (getAdditionalProperty(props, "app:startDate") as string) || undefined,
+    isFocused: (getAdditionalProperty(props, "app:isFocused") as boolean) ?? false,
+    recurrence: getAdditionalProperty(props, "app:recurrence") as Thing["recurrence"],
+    completedAt: (t.endDate as string) || undefined,
+    sequenceOrder: (getAdditionalProperty(props, "app:sequenceOrder") as number) || undefined,
   };
 
-  if (type === TYPE_MAP.inbox) {
+  if (type === TYPE_MAP.inbox || type === "Thing") {
     return {
       ...base,
       ...thingFields,
       bucket: "inbox" as const,
-      rawCapture: (t.rawCapture as string) ?? base.title,
+      rawCapture: (getAdditionalProperty(props, "app:rawCapture") as string) ?? base.name,
     };
   }
 
-  if (type === TYPE_MAP.action) {
+  if (type === TYPE_MAP.action || type === "Action") {
+    const bucket = (getAdditionalProperty(props, "app:bucket") as Exclude<ThingBucket, "inbox">) ?? "next";
     return {
       ...base,
       ...thingFields,
-      bucket: (t.bucket as Exclude<ThingBucket, "inbox">) ?? "next",
-      rawCapture: (t.rawCapture as string) || undefined,
+      bucket,
+      rawCapture: (getAdditionalProperty(props, "app:rawCapture") as string) || undefined,
     };
   }
 
-  if (type === TYPE_MAP.project) {
+  if (type === TYPE_MAP.project || type === "Project") {
     return {
       ...base,
       bucket: "project" as const,
-      desiredOutcome: (t.desiredOutcome as string) ?? "",
-      status: (t.status as Project["status"]) ?? "active",
-      actionIds: (t.actionIds as CanonicalId[]) ?? [],
-      reviewDate: (t.reviewDate as string) || undefined,
-      completedAt: (t.completedAt as string) || undefined,
-      isFocused: (t.isFocused as boolean) ?? false,
+      desiredOutcome: (getAdditionalProperty(props, "app:desiredOutcome") as string) ?? "",
+      status: (getAdditionalProperty(props, "app:projectStatus") as Project["status"]) ?? "active",
+      actionIds: extractActionIds(t),
+      reviewDate: (getAdditionalProperty(props, "app:reviewDate") as string) || undefined,
+      completedAt: (t.endDate as string) || undefined,
+      isFocused: (getAdditionalProperty(props, "app:isFocused") as boolean) ?? false,
     };
   }
 
-  if (type === TYPE_MAP.reference) {
+  if (type === TYPE_MAP.reference || type === "CreativeWork") {
     return {
       ...base,
       bucket: "reference" as const,
-      contentType: (t.contentType as string) || undefined,
-      externalUrl: (t.externalUrl as string) || undefined,
-      origin: (t.origin as "triaged" | "captured" | "file") || undefined,
+      encodingFormat: (t.encodingFormat as string) || undefined,
+      url: (t.url as string) || undefined,
+      origin: (getAdditionalProperty(props, "app:origin") as "triaged" | "captured" | "file") || undefined,
     };
   }
 
@@ -188,8 +258,25 @@ export function fromJsonLd(record: ThingRecord): GtdItem {
     ...base,
     ...thingFields,
     bucket: "inbox" as const,
-    rawCapture: (t.rawCapture as string) ?? base.title,
+    rawCapture: (getAdditionalProperty(props, "app:rawCapture") as string) ?? base.name,
   };
+}
+
+/** Extract projectId from isPartOf reference. */
+function extractProjectId(
+  t: Record<string, unknown>,
+): CanonicalId | undefined {
+  const isPartOf = t.isPartOf as { "@id": string } | undefined;
+  if (isPartOf?.["@id"]) {
+    return isPartOf["@id"] as CanonicalId;
+  }
+  return undefined;
+}
+
+/** Extract actionIds from hasPart array. */
+function extractActionIds(t: Record<string, unknown>): CanonicalId[] {
+  const hasPart = t.hasPart as Array<{ "@id": string }> | undefined;
+  return hasPart?.map((ref) => ref["@id"] as CanonicalId) ?? [];
 }
 
 // ---------------------------------------------------------------------------
@@ -203,14 +290,12 @@ export function buildTriagePatch(
   if (result.targetBucket === "reference") {
     return {
       "@type": TYPE_MAP.reference,
-      bucket: "reference",
-      contentType: null,
-      externalUrl: null,
+      additionalProperty: [
+        pv("app:bucket", "reference"),
+      ],
     };
   }
 
-  // All other triage targets produce an action Thing — include all required fields
-  // so the deep-merge with the existing inbox Thing produces a valid action.
   const ports = result.energyLevel
     ? [
         ...(item.ports ?? []),
@@ -218,22 +303,31 @@ export function buildTriagePatch(
       ]
     : (item.ports ?? []);
 
-  return {
+  const additionalProps: PropertyValue[] = [
+    pv("app:bucket", result.targetBucket),
+    pv("app:contexts", result.contexts ?? []),
+    pv("app:isFocused", false),
+    pv("app:dueDate", null),
+    pv("app:startDate", null),
+    pv("app:delegatedTo", null),
+    pv("app:scheduledTime", null),
+    pv("app:sequenceOrder", null),
+    pv("app:recurrence", null),
+    pv("app:ports", ports),
+  ];
+
+  const patch: Record<string, unknown> = {
     "@type": TYPE_MAP.action,
-    bucket: result.targetBucket,
-    contexts: result.contexts ?? [],
-    projectId: result.projectId ?? null,
-    scheduledDate: result.date ?? null,
-    scheduledTime: null,
-    dueDate: null,
-    startDate: null,
-    delegatedTo: null,
-    isFocused: false,
-    completedAt: null,
-    sequenceOrder: null,
-    recurrence: null,
-    ports,
+    startDate: result.date ?? null,
+    endDate: null,
+    additionalProperty: additionalProps,
   };
+
+  if (result.projectId) {
+    patch.isPartOf = { "@id": result.projectId };
+  }
+
+  return patch;
 }
 
 // ---------------------------------------------------------------------------
@@ -244,15 +338,35 @@ export function buildItemEditPatch(
   fields: Partial<ItemEditableFields>,
 ): Record<string, unknown> {
   const patch: Record<string, unknown> = {};
+  const additionalProps: PropertyValue[] = [];
 
-  if ("dueDate" in fields) patch.dueDate = fields.dueDate || null;
-  if ("scheduledDate" in fields)
-    patch.scheduledDate = fields.scheduledDate || null;
-  if ("contexts" in fields) patch.contexts = fields.contexts;
-  if ("projectId" in fields) patch.projectId = fields.projectId ?? null;
-  if ("notes" in fields) patch.notes = fields.notes || null;
+  if ("dueDate" in fields) {
+    additionalProps.push(pv("app:dueDate", fields.dueDate || null));
+  }
+  if ("scheduledDate" in fields) {
+    patch.startDate = fields.scheduledDate || null;
+  }
+  if ("contexts" in fields) {
+    additionalProps.push(pv("app:contexts", fields.contexts));
+  }
+  if ("projectId" in fields) {
+    if (fields.projectId) {
+      patch.isPartOf = { "@id": fields.projectId };
+    } else {
+      patch.isPartOf = null;
+    }
+  }
+  if ("description" in fields) {
+    patch.description = fields.description || null;
+  }
   if ("energyLevel" in fields && fields.energyLevel) {
-    patch.ports = [{ kind: "computation", energyLevel: fields.energyLevel }];
+    additionalProps.push(
+      pv("app:ports", [{ kind: "computation", energyLevel: fields.energyLevel }]),
+    );
+  }
+
+  if (additionalProps.length > 0) {
+    patch.additionalProperty = additionalProps;
   }
 
   return patch;
@@ -270,30 +384,75 @@ export function buildNewInboxJsonLd(rawText: string): Record<string, unknown> {
     "@id": id,
     "@type": TYPE_MAP.inbox,
     _schemaVersion: SCHEMA_VERSION,
-    title: rawText,
-    bucket: "inbox",
-    rawCapture: rawText,
-    notes: null,
-    tags: [],
-    references: [],
-    captureSource: { kind: "thought" },
-    provenance: {
-      createdAt: now,
-      updatedAt: now,
-      history: [{ timestamp: now, action: "created" }],
-    },
-    ports: [],
-    needsEnrichment: true,
-    confidence: "low",
+    name: rawText,
+    description: null,
+    keywords: [],
+    dateCreated: now,
+    dateModified: now,
+    additionalProperty: [
+      pv("app:bucket", "inbox"),
+      pv("app:rawCapture", rawText),
+      pv("app:needsEnrichment", true),
+      pv("app:confidence", "low"),
+      pv("app:captureSource", { kind: "thought" }),
+      pv("app:contexts", []),
+      pv("app:isFocused", false),
+      pv("app:ports", []),
+      pv("app:typedReferences", []),
+      pv("app:provenanceHistory", [{ timestamp: now, action: "created" }]),
+    ],
   };
 }
 
 // ---------------------------------------------------------------------------
-// buildNewReferenceJsonLd — title → full JSON-LD for POST /things
+// buildNewActionJsonLd — rapid action entry → full JSON-LD for POST /things
+// ---------------------------------------------------------------------------
+
+export function buildNewActionJsonLd(
+  name: string,
+  bucket: string,
+  opts?: { projectId?: CanonicalId },
+): Record<string, unknown> {
+  const id = createCanonicalId("action", crypto.randomUUID());
+  const now = new Date().toISOString();
+
+  const result: Record<string, unknown> = {
+    "@id": id,
+    "@type": TYPE_MAP.action,
+    _schemaVersion: SCHEMA_VERSION,
+    name,
+    description: null,
+    keywords: [],
+    dateCreated: now,
+    dateModified: now,
+    startDate: null,
+    endDate: null,
+    additionalProperty: [
+      pv("app:bucket", bucket),
+      pv("app:needsEnrichment", false),
+      pv("app:confidence", "high"),
+      pv("app:captureSource", { kind: "thought" }),
+      pv("app:contexts", []),
+      pv("app:isFocused", false),
+      pv("app:ports", []),
+      pv("app:typedReferences", []),
+      pv("app:provenanceHistory", [{ timestamp: now, action: "created" }]),
+    ],
+  };
+
+  if (opts?.projectId) {
+    result.isPartOf = { "@id": opts.projectId };
+  }
+
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// buildNewReferenceJsonLd — name → full JSON-LD for POST /things
 // ---------------------------------------------------------------------------
 
 export function buildNewReferenceJsonLd(
-  title: string,
+  name: string,
 ): Record<string, unknown> {
   const id = createCanonicalId("reference", crypto.randomUUID());
   const now = new Date().toISOString();
@@ -302,22 +461,22 @@ export function buildNewReferenceJsonLd(
     "@id": id,
     "@type": TYPE_MAP.reference,
     _schemaVersion: SCHEMA_VERSION,
-    title,
-    bucket: "reference",
-    notes: null,
-    tags: [],
-    references: [],
-    captureSource: { kind: "thought" },
-    provenance: {
-      createdAt: now,
-      updatedAt: now,
-      history: [{ timestamp: now, action: "created" }],
-    },
-    ports: [],
-    needsEnrichment: false,
-    confidence: "medium",
-    contentType: null,
-    externalUrl: null,
-    origin: "captured",
+    name,
+    description: null,
+    keywords: [],
+    dateCreated: now,
+    dateModified: now,
+    url: null,
+    encodingFormat: null,
+    additionalProperty: [
+      pv("app:bucket", "reference"),
+      pv("app:needsEnrichment", false),
+      pv("app:confidence", "medium"),
+      pv("app:captureSource", { kind: "thought" }),
+      pv("app:origin", "captured"),
+      pv("app:ports", []),
+      pv("app:typedReferences", []),
+      pv("app:provenanceHistory", [{ timestamp: now, action: "created" }]),
+    ],
   };
 }

@@ -5,8 +5,9 @@ import {
   buildNewInboxJsonLd,
   buildNewReferenceJsonLd,
   buildTriagePatch,
+  buildNewActionJsonLd,
 } from "@/lib/thing-serializer";
-import type { Thing, ThingBucket, TriageResult } from "@/model/gtd-types";
+import type { Thing, ThingBucket, TriageResult } from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
 import { THINGS_QUERY_KEY } from "./use-things";
 
@@ -86,9 +87,9 @@ export function useCompleteAction() {
       const record = cache?.find((r) => r.canonical_id === canonicalId);
       if (!record) throw new Error(`Thing not found: ${canonicalId}`);
 
-      const isCompleted = !!record.thing.completedAt;
+      const isCompleted = !!record.thing.endDate;
       return ThingsApi.update(record.thing_id, {
-        completedAt: isCompleted ? null : new Date().toISOString(),
+        endDate: isCompleted ? null : new Date().toISOString(),
       });
     },
     onSuccess: () => {
@@ -110,8 +111,19 @@ export function useToggleFocus() {
       const record = cache?.find((r) => r.canonical_id === canonicalId);
       if (!record) throw new Error(`Thing not found: ${canonicalId}`);
 
+      const props = record.thing.additionalProperty as
+        | Array<{ propertyID: string; value: unknown }>
+        | undefined;
+      const currentFocused =
+        props?.find((p) => p.propertyID === "app:isFocused")?.value ?? false;
       return ThingsApi.update(record.thing_id, {
-        isFocused: !record.thing.isFocused,
+        additionalProperty: [
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:isFocused",
+            value: !currentFocused,
+          },
+        ],
       });
     },
     onSuccess: () => {
@@ -141,7 +153,15 @@ export function useMoveAction() {
       );
       if (!thingId) throw new Error(`Thing not found: ${canonicalId}`);
 
-      return ThingsApi.update(thingId, { bucket });
+      return ThingsApi.update(thingId, {
+        additionalProperty: [
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:bucket",
+            value: bucket,
+          },
+        ],
+      });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: THINGS_QUERY_KEY });
@@ -193,11 +213,7 @@ export function useAddAction() {
       title: string;
       bucket: ThingBucket;
     }) => {
-      const jsonLd = buildNewInboxJsonLd(title);
-      jsonLd["@type"] = "gtd:Action";
-      jsonLd.bucket = bucket;
-      jsonLd.isFocused = false;
-      jsonLd.contexts = [];
+      const jsonLd = buildNewActionJsonLd(title, bucket);
       return ThingsApi.create(jsonLd, "manual");
     },
     onSuccess: () => {
@@ -239,12 +255,7 @@ export function useAddProjectAction() {
       projectId: CanonicalId;
       title: string;
     }) => {
-      const jsonLd = buildNewInboxJsonLd(title);
-      jsonLd["@type"] = "gtd:Action";
-      jsonLd.bucket = "next";
-      jsonLd.isFocused = false;
-      jsonLd.contexts = [];
-      jsonLd.projectId = projectId;
+      const jsonLd = buildNewActionJsonLd(title, "next", { projectId });
       return ThingsApi.create(jsonLd, "manual");
     },
     onSuccess: () => {

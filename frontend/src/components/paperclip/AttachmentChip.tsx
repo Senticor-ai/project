@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
-import type { ReferenceType } from "@/model/gtd-types";
+import type { ReferenceType } from "@/model/types";
 
 const refConfig: Record<
   ReferenceType,

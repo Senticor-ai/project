@@ -1,0 +1,136 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Engineering/Deployment" />
+
+# Deployment
+
+TerminAndoYo uses a **GitOps** deployment model. Code changes on `main` trigger an automated pipeline that builds container images, pushes them to a private registry, and lets a cluster-side reconciler apply the updated Kubernetes manifests. No manual `kubectl apply` is needed.
+
+---
+
+## Validation Pipeline
+
+The pipeline validates every change before it reaches the cluster:
+
+```
+Push to main
+  │
+  ├─ Build ──────── docker compose builds frontend + backend images
+  │                  from their respective Dockerfiles
+  │
+  ├─ Push ───────── images pushed to private Harbor registry
+  │                  using a CI robot account (credentials in CI/CD variables)
+  │
+  ├─ SAST ───────── GitLab static application security testing
+  │
+  └─ Reconcile ──── Flux CD detects changes in deploy/ directory
+                     and applies Kustomize manifests to the cluster (~5 min)
+```
+
+### What triggers a deployment
+
+| Change | Effect |
+|--------|--------|
+| Application code (frontend/ or backend/) | CI rebuilds images → new pods roll out |
+| Kubernetes manifests (deploy/) | Flux applies updated resources |
+| Both in same commit | Images built first, then Flux reconciles |
+
+### CI/CD Configuration
+
+The pipeline is defined in `.gitlab-ci.yml` and uses `docker-compose.build.yml` to build both images in a single step. Two masked CI/CD variables must be configured in GitLab project settings:
+
+- `HARBOR_USER` — robot account for the private registry
+- `HARBOR_PASSWORD` — robot account secret
+
+These are the only secrets stored in GitLab. All application secrets live in the cluster, managed by ops.
+
+---
+
+## Container Structure
+
+The project has two Dockerfiles, both built from the monorepo root context:
+
+### Frontend (`frontend/Dockerfile`)
+
+Multi-stage build:
+
+1. **Build stage** — `node:22-alpine`, runs `npm ci` and `npx vite build`
+2. **Runtime stage** — `nginx:1.27-alpine`, serves the built static files
+
+Nginx proxies `/api/*` requests to the backend service and serves the SPA with `try_files` fallback. Exposes port **80**.
+
+### Backend (`backend/Dockerfile`)
+
+Single-stage build:
+
+1. `python:3.12-slim` base image
+2. Uses `uv` for dependency management (`uv sync --frozen --no-dev`)
+3. Runs `uvicorn app.main:app` on port **8000**
+
+---
+
+## Kubernetes Architecture
+
+All application resources are declared in the `deploy/` directory using Kustomize. Flux injects the target namespace automatically — manifests must not set `namespace:`.
+
+### Resources managed by the team (in `deploy/`)
+
+| Resource | Type | Notes |
+|----------|------|-------|
+| frontend | Deployment + Service | Nginx serving SPA, proxying `/api/*` to backend |
+| backend | Deployment + Service | FastAPI with init containers for DB readiness + migration |
+| postgres | StatefulSet + Service | PostgreSQL 16 with 10Gi persistent volume |
+| backend-files | PVC (5Gi) | File storage mounted at `/data/storage` |
+| app-config | ConfigMap | Non-sensitive configuration (CORS, logging, feature flags) |
+
+### Resources managed by ops (not in `deploy/`)
+
+| Resource | Purpose |
+|----------|---------|
+| Namespace | Pre-created by ops |
+| Secret | Application secrets (database password, JWT secret, etc.) |
+| Ingress | Routes external traffic to the frontend service |
+
+This separation ensures secrets never appear in version control.
+
+### Database Initialization
+
+The backend Deployment uses init containers instead of a standalone Job (Jobs are not idempotent in GitOps — Flux would recreate them every cycle):
+
+1. **wait-for-postgres** — polls `pg_isready` until the database accepts connections
+2. **db-init** — runs `uv run python -m app.db_init`, which applies the idempotent schema migration (`CREATE IF NOT EXISTS`)
+
+This runs on every pod start, which is safe because the schema is fully idempotent.
+
+### Resource Budget
+
+The cluster namespace has a resource quota. Current allocation:
+
+| Component | CPU request | Memory request | CPU limit | Memory limit |
+|-----------|-------------|----------------|-----------|--------------|
+| Frontend | 50m | 128Mi | 200m | 256Mi |
+| Backend | 200m | 512Mi | 1000m | 2Gi |
+| PostgreSQL | 200m | 256Mi | 500m | 1Gi |
+| **Total** | **450m** | **896Mi** | **1700m** | **3.25Gi** |
+
+Contact ops if the quota needs to be increased.
+
+---
+
+## Observability
+
+Pod logs are collected automatically into Loki. The Grafana dashboard is available on the cluster. For application-level traces and metrics, send OTLP data to the cluster's Alloy collector (configured via `OTEL_EXPORTER_OTLP_ENDPOINT` in the ConfigMap).
+
+---
+
+## Local Development
+
+For local Kubernetes development, use the manifests in `infra/k8s/minimal/` with Rancher Desktop. These are separate from the production `deploy/` manifests and use local image builds.
+
+Infrastructure services (PostgreSQL, Fuseki, Meilisearch) run via `infra/docker-compose.yml`.
+
+---
+
+## Related Documentation
+
+- [Architecture](?path=/docs/engineering-architecture--docs) — Technology stack, dual-store model, and architectural principles

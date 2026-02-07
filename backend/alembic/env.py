@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-# this is the Alembic Config object, which provides access to the values within the .ini file in use.
+from alembic import context
+
+# Alembic Config object — provides access to values within the .ini file.
 config = context.config
 
 # Interpret the config file for Python logging.

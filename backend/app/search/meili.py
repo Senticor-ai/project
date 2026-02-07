@@ -44,6 +44,8 @@ def _headers() -> dict[str, str]:
 
 
 def _client() -> httpx.Client:
+    if not settings.meili_url:
+        raise RuntimeError("Meilisearch is not configured")
     return httpx.Client(base_url=settings.meili_url, timeout=settings.meili_timeout_seconds)
 
 
@@ -80,7 +82,11 @@ def _update_settings(index_uid: str, payload: dict[str, Any]) -> None:
     _INDEX_CONFIGURED.add(index_uid)
 
 
-def ensure_index(index_uid: str, primary_key: str, settings_payload: dict[str, Any] | None = None) -> None:
+def ensure_index(
+    index_uid: str,
+    primary_key: str,
+    settings_payload: dict[str, Any] | None = None,
+) -> None:
     if not is_enabled():
         return
 

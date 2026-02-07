@@ -1,0 +1,11 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    image: harbor.100-114-108-51.nip.io:30443/terminandoyo/frontend:${TAG:-latest}
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: harbor.100-114-108-51.nip.io:30443/terminandoyo/backend:${TAG:-latest}

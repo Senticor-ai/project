@@ -30,13 +30,13 @@ router = APIRouter(
 )
 logger = get_logger("imports")
 
-_SCHEMA_VERSION = 1
+_SCHEMA_VERSION = 2
 _SOURCE_METADATA_SCHEMA_VERSION = 1
 _TYPE_MAP = {
-    "inbox": "gtd:InboxItem",
-    "action": "gtd:Action",
-    "project": "gtd:Project",
-    "reference": "gtd:Reference",
+    "inbox": "Thing",
+    "action": "Action",
+    "project": "Project",
+    "reference": "CreativeWork",
 }
 
 _DEFAULT_STATE_BUCKET_MAP = {
@@ -98,7 +98,7 @@ def _hash_payload(payload: dict) -> str:
 
 
 def _canonical_id(entity_type: str, raw_id: str) -> str:
-    return f"urn:gtd:{entity_type}:{raw_id}"
+    return f"urn:app:{entity_type}:{raw_id}"
 
 
 def _parse_epoch(value) -> datetime | None:
@@ -190,10 +190,12 @@ def _parse_recurrence(raw: str | dict | None) -> dict | None:
         if isinstance(on, dict):
             for value in on.values():
                 if isinstance(value, dict):
-                    try:
-                        day_of_month = int(value.get("nth"))
-                    except Exception:  # noqa: BLE001
-                        day_of_month = None
+                    nth = value.get("nth")
+                    if nth is not None:
+                        try:
+                            day_of_month = int(nth)
+                        except Exception:  # noqa: BLE001
+                            day_of_month = None
                 if day_of_month:
                     break
         if not day_of_month:
@@ -211,34 +213,42 @@ def _parse_recurrence(raw: str | dict | None) -> dict | None:
     return None
 
 
+def _pv(property_id: str, value: object) -> dict:
+    return {
+        "@type": "PropertyValue",
+        "propertyID": property_id,
+        "value": value,
+    }
+
+
 def _build_base_entity(
     *,
     canonical_id: str,
-    title: str,
-    notes: str | None,
-    tags: list[str],
+    name: str,
+    description: str | None,
+    keywords: list[str],
     created_at: datetime,
     updated_at: datetime,
     source: str,
     ports: list[dict],
     source_metadata: dict | None = None,
 ) -> dict:
-    entity = {
+    entity: dict = {
         "@id": canonical_id,
         "_schemaVersion": _SCHEMA_VERSION,
-        "title": title,
-        "notes": notes or None,
-        "tags": tags,
-        "references": [],
-        "captureSource": {"kind": "import", "source": source},
-        "provenance": {
-            "createdAt": created_at.isoformat(),
-            "updatedAt": updated_at.isoformat(),
-            "history": [],
-        },
-        "ports": ports,
-        "needsEnrichment": False,
-        "confidence": "medium",
+        "name": name,
+        "description": description or None,
+        "keywords": keywords,
+        "dateCreated": created_at.isoformat(),
+        "dateModified": updated_at.isoformat(),
+        "additionalProperty": [
+            _pv("app:captureSource", {"kind": "import", "source": source}),
+            _pv("app:provenanceHistory", []),
+            _pv("app:needsEnrichment", False),
+            _pv("app:confidence", "medium"),
+            _pv("app:ports", ports),
+            _pv("app:typedReferences", []),
+        ],
     }
     if source_metadata:
         entity["sourceMetadata"] = source_metadata
@@ -342,9 +352,9 @@ def _build_nirvana_thing(
         raw_item=item,
     )
 
-    focus_order = item.get("seqt")
+    focus_order_raw = item.get("seqt")
     try:
-        focus_order = int(focus_order)
+        focus_order = int(focus_order_raw) if focus_order_raw is not None else 0
     except Exception:  # noqa: BLE001
         focus_order = 0
 
@@ -360,81 +370,79 @@ def _build_nirvana_thing(
             for child_id in project_children.get(raw_id, [])
             if child_id
         ]
-        status = "active"
+        project_status = "active"
         if completed_dt:
-            status = "completed"
+            project_status = "completed"
         elif item.get("deleted") or item.get("cancelled"):
-            status = "archived"
+            project_status = "archived"
         desired_outcome = notes or ""
         thing = _build_base_entity(
             canonical_id=canonical_id,
-            title=title,
-            notes=notes,
-            tags=tags,
+            name=title,
+            description=notes,
+            keywords=tags,
             created_at=created_dt,
             updated_at=updated_dt,
             source=source,
             ports=ports,
             source_metadata=source_metadata,
         )
-        thing.update(
-            {
-                "@type": _TYPE_MAP["project"],
-                "bucket": "project",
-                "desiredOutcome": desired_outcome,
-                "status": status,
-                "actionIds": action_ids,
-                "reviewDate": None,
-                "completedAt": completed_dt.isoformat() if completed_dt else None,
-                "isFocused": is_focused,
-            }
+        thing["@type"] = _TYPE_MAP["project"]
+        thing["endDate"] = (
+            completed_dt.isoformat() if completed_dt else None
         )
+        thing["hasPart"] = [{"@id": aid} for aid in action_ids]
+        thing["additionalProperty"].extend([
+            _pv("app:bucket", "project"),
+            _pv("app:desiredOutcome", desired_outcome),
+            _pv("app:projectStatus", project_status),
+            _pv("app:isFocused", is_focused),
+            _pv("app:reviewDate", None),
+        ])
         return canonical_id, thing, "project", created_dt, updated_dt, completed_dt
 
     if bucket == "inbox":
         canonical_id = _canonical_id("inbox", raw_id)
         thing = _build_base_entity(
             canonical_id=canonical_id,
-            title=title,
-            notes=notes,
-            tags=tags,
+            name=title,
+            description=notes,
+            keywords=tags,
             created_at=created_dt,
             updated_at=updated_dt,
             source=source,
             ports=ports,
             source_metadata=source_metadata,
         )
-        thing.update(
-            {
-                "@type": _TYPE_MAP["inbox"],
-                "bucket": "inbox",
-                "rawCapture": notes or title,
-            }
-        )
+        thing["@type"] = _TYPE_MAP["inbox"]
+        thing["additionalProperty"].extend([
+            _pv("app:bucket", "inbox"),
+            _pv("app:rawCapture", notes or title),
+            _pv("app:contexts", []),
+            _pv("app:isFocused", False),
+        ])
         return canonical_id, thing, "inbox", created_dt, updated_dt, completed_dt
 
     if bucket == "reference":
         canonical_id = _canonical_id("reference", raw_id)
         thing = _build_base_entity(
             canonical_id=canonical_id,
-            title=title,
-            notes=notes,
-            tags=tags,
+            name=title,
+            description=notes,
+            keywords=tags,
             created_at=created_dt,
             updated_at=updated_dt,
             source=source,
             ports=ports,
             source_metadata=source_metadata,
         )
-        thing.update(
-            {
-                "@type": _TYPE_MAP["reference"],
-                "bucket": "reference",
-                "contentType": None,
-                "externalUrl": None,
-                "origin": "captured",
-            }
-        )
+        thing["@type"] = _TYPE_MAP["reference"]
+        thing["url"] = None
+        thing["encodingFormat"] = None
+        thing["additionalProperty"].extend([
+            _pv("app:bucket", "reference"),
+            _pv("app:origin", "captured"),
+        ])
         return canonical_id, thing, "reference", created_dt, updated_dt, completed_dt
 
     canonical_id = _canonical_id("action", raw_id)
@@ -461,9 +469,9 @@ def _build_nirvana_thing(
             # Calendar items should always carry a date visible to date-centric UI lists.
             due_date = start_date
 
-    sequence_order = item.get("seq")
+    seq_raw = item.get("seq")
     try:
-        sequence_order = int(sequence_order)
+        sequence_order = int(seq_raw) if seq_raw is not None else None
     except Exception:  # noqa: BLE001
         sequence_order = None
     if sequence_order == 0:
@@ -473,32 +481,33 @@ def _build_nirvana_thing(
 
     thing = _build_base_entity(
         canonical_id=canonical_id,
-        title=title,
-        notes=notes,
-        tags=tags,
+        name=title,
+        description=notes,
+        keywords=tags,
         created_at=created_dt,
         updated_at=updated_dt,
         source=source,
         ports=ports,
         source_metadata=source_metadata,
     )
-    thing.update(
-        {
-            "@type": _TYPE_MAP["action"],
-            "bucket": bucket,
-            "contexts": [],
-            "projectId": project_id,
-            "delegatedTo": delegated_to,
-            "scheduledDate": start_date,
-            "scheduledTime": None,
-            "dueDate": due_date,
-            "startDate": start_date,
-            "isFocused": is_focused,
-            "recurrence": recurrence,
-            "completedAt": completed_dt.isoformat() if completed_dt else None,
-            "sequenceOrder": sequence_order,
-        }
+    thing["@type"] = _TYPE_MAP["action"]
+    thing["startDate"] = start_date
+    thing["endDate"] = (
+        completed_dt.isoformat() if completed_dt else None
     )
+    if project_id:
+        thing["isPartOf"] = {"@id": project_id}
+    thing["additionalProperty"].extend([
+        _pv("app:bucket", bucket),
+        _pv("app:contexts", []),
+        _pv("app:delegatedTo", delegated_to),
+        _pv("app:dueDate", due_date),
+        _pv("app:startDate", start_date),
+        _pv("app:scheduledTime", None),
+        _pv("app:isFocused", is_focused),
+        _pv("app:recurrence", recurrence),
+        _pv("app:sequenceOrder", sequence_order),
+    ])
 
     return canonical_id, thing, bucket, created_dt, updated_dt, completed_dt
 
@@ -565,7 +574,7 @@ def run_nirvana_import(
             continue
         project_children.setdefault(parent_id, []).append(child_id)
 
-    totals = Counter()
+    totals: Counter[str] = Counter()
     bucket_counts: Counter[str] = Counter()
     sample_errors: list[str] = []
 
@@ -835,7 +844,7 @@ def _fail_stale_queued_jobs(
 def import_nirvana(
     payload: NirvanaImportRequest = Body(
         ...,
-        examples={
+        openapi_examples={
             "validate_only": {
                 "summary": "Validate-only (dry run)",
                 "value": {
@@ -975,7 +984,7 @@ def import_nirvana(
 def inspect_nirvana(
     payload: NirvanaImportInspectRequest = Body(
         ...,
-        examples={
+        openapi_examples={
             "inspect": {
                 "summary": "Validate-only via file_id",
                 "value": {
@@ -1060,7 +1069,7 @@ def inspect_nirvana(
 def import_nirvana_from_file(
     payload: NirvanaImportFromFileRequest = Body(
         ...,
-        examples={
+        openapi_examples={
             "queue": {
                 "summary": "Queue async import",
                 "value": {

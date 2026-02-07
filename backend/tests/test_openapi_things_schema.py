@@ -12,7 +12,14 @@ def test_openapi_things_uses_typed_oneof_models(client):
     assert len(response_thing["oneOf"]) == 4
     assert response_thing["discriminator"]["propertyName"] == "@type"
 
-    action_output = schemas["ActionThingJsonLd-Output"]["properties"]
+    action_name = (
+        "ActionThingJsonLd-Output"
+        if "ActionThingJsonLd-Output" in schemas
+        else "ActionThingJsonLd"
+    )
+    action_output = schemas[action_name]["properties"]
     assert "@type" in action_output
     assert "sourceMetadata" in action_output
-    assert "bucket" in action_output
+    assert "additionalProperty" in action_output
+    assert "startDate" in action_output
+    assert "endDate" in action_output

@@ -1,4 +1,4 @@
-import type { Thing, Project } from "@/model/gtd-types";
+import type { Thing, Project } from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
 
 /** Returns things belonging to a project, sorted by sequenceOrder. */

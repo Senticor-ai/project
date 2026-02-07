@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
-import type { ConfidenceLevel } from "@/model/gtd-types";
+import type { ConfidenceLevel } from "@/model/types";
 
 const confidenceConfig: Record<
   ConfidenceLevel | "enrichment",

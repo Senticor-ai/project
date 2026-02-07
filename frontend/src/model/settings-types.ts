@@ -1,4 +1,4 @@
-import type { GtdBucket } from "./gtd-types";
+import type { Bucket } from "./types";
 
 // ---------------------------------------------------------------------------
 // Language & Regional
@@ -24,7 +24,7 @@ export interface UserPreferences {
   timeFormat: TimeFormat;
   dateFormat: DateFormat;
   weekStart: WeekStart;
-  defaultBucket: GtdBucket;
+  defaultBucket: Bucket;
   theme: ThemePreference;
   weeklyReviewEnabled: boolean;
   weeklyReviewDay: string;
