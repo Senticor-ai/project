@@ -6,7 +6,7 @@ import { LabelsPanel } from "./LabelsPanel";
 import { PreferencesPanel } from "./PreferencesPanel";
 import { DEFAULT_PREFERENCES, type ExportFormat } from "@/model/settings-types";
 
-type SettingsTab = "import-export" | "labels" | "preferences";
+export type SettingsTab = "import-export" | "labels" | "preferences";
 
 const settingsTabs: TabItem[] = [
   { id: "import-export", label: "Import / Export", icon: "swap_horiz" },
@@ -15,6 +15,11 @@ const settingsTabs: TabItem[] = [
 ];
 
 export interface SettingsScreenProps {
+  /** Controlled active tab — when provided, component is fully controlled. */
+  activeTab?: SettingsTab;
+  /** Called when user clicks a tab. Required when using controlled mode. */
+  onTabChange?: (tab: SettingsTab) => void;
+  /** @deprecated Use activeTab instead. Only used in uncontrolled mode. */
   initialTab?: SettingsTab;
   onImportNirvana?: () => void;
   onExport?: (format: ExportFormat) => void;
@@ -22,12 +27,22 @@ export interface SettingsScreenProps {
 }
 
 export function SettingsScreen({
+  activeTab: controlledTab,
+  onTabChange,
   initialTab = "import-export",
   onImportNirvana,
   onExport,
   className,
 }: SettingsScreenProps) {
-  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
+  const [internalTab, setInternalTab] = useState<SettingsTab>(initialTab);
+  const activeTab = controlledTab ?? internalTab;
+  const handleTabChange = (tab: SettingsTab) => {
+    if (onTabChange) {
+      onTabChange(tab);
+    } else {
+      setInternalTab(tab);
+    }
+  };
   const [contexts, setContexts] = useState<string[]>([
     "@Buero",
     "@Telefon",
@@ -43,7 +58,7 @@ export function SettingsScreen({
       <Tabs
         tabs={settingsTabs}
         activeTab={activeTab}
-        onSelect={(id) => setActiveTab(id as SettingsTab)}
+        onSelect={(id) => handleTabChange(id as SettingsTab)}
         className="w-56 shrink-0"
       />
 

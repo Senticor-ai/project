@@ -273,6 +273,16 @@ export const ImportsApi = {
 
   getJob: (jobId: string) =>
     request<ImportJobResponse>(`/imports/jobs/${jobId}`),
+
+  listJobs: (params?: { status?: string[]; limit?: number }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.status) {
+      for (const s of params.status) searchParams.append("status", s);
+    }
+    if (params?.limit) searchParams.set("limit", String(params.limit));
+    const qs = searchParams.toString();
+    return request<ImportJobResponse[]>(`/imports/jobs${qs ? `?${qs}` : ""}`);
+  },
 };
 
 // ---------------------------------------------------------------------------

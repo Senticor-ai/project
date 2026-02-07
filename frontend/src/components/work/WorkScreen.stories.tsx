@@ -61,10 +61,12 @@ const sampleThings: Thing[] = [
 
 function WorkScreenApp({ initialThings = [] }: { initialThings?: Thing[] }) {
   const [things, setThings] = useState<Thing[]>(initialThings);
+  const [bucket, setBucket] = useState<string>("inbox");
 
   return (
     <BucketView
-      initialBucket="inbox"
+      activeBucket={bucket as "inbox"}
+      onBucketChange={(b) => setBucket(b)}
       things={things}
       projects={sampleProjects}
       onAddThing={(title, bucket) => {

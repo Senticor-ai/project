@@ -1,16 +1,19 @@
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
 import { IMPORT_SOURCES, type ExportFormat } from "@/model/settings-types";
+import { ImportJobRow, type ImportJobData } from "./ImportJobRow";
 
 export interface ImportExportPanelProps {
   onImportNirvana: () => void;
   onExport: (format: ExportFormat) => void;
+  importJobs?: ImportJobData[];
   className?: string;
 }
 
 export function ImportExportPanel({
   onImportNirvana,
   onExport,
+  importJobs,
   className,
 }: ImportExportPanelProps) {
   return (
@@ -63,6 +66,23 @@ export function ImportExportPanel({
           ))}
         </div>
       </section>
+
+      {/* Import History */}
+      {importJobs && importJobs.length > 0 && (
+        <section className="space-y-3">
+          <h3 className="text-sm font-medium text-text-primary">
+            <span className="flex items-center gap-1">
+              <Icon name="history" size={14} />
+              Recent imports
+            </span>
+          </h3>
+          <div className="space-y-2">
+            {importJobs.map((job) => (
+              <ImportJobRow key={job.job_id} job={job} />
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Export Section */}
       <section className="space-y-3">

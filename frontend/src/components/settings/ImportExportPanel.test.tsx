@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ImportExportPanel } from "./ImportExportPanel";
+import type { ImportJobData } from "./ImportJobRow";
 
 describe("ImportExportPanel", () => {
   it("renders import source cards", () => {
@@ -60,5 +61,53 @@ describe("ImportExportPanel", () => {
 
     await user.click(screen.getByRole("button", { name: "Export as CSV" }));
     expect(onExport).toHaveBeenCalledWith("csv");
+  });
+
+  it("does not show import history when no jobs", () => {
+    render(<ImportExportPanel onImportNirvana={vi.fn()} onExport={vi.fn()} />);
+    expect(screen.queryByText("Recent imports")).not.toBeInTheDocument();
+  });
+
+  it("shows import history when jobs are provided", () => {
+    const jobs: ImportJobData[] = [
+      {
+        job_id: "job-1",
+        status: "completed",
+        source: "nirvana",
+        total: 42,
+        created_at: "2025-06-15T10:00:00Z",
+        started_at: "2025-06-15T10:00:01Z",
+        finished_at: "2025-06-15T10:00:20Z",
+        summary: {
+          total: 42,
+          created: 40,
+          updated: 2,
+          skipped: 0,
+          errors: 0,
+        },
+        error: null,
+      },
+    ];
+    render(
+      <ImportExportPanel
+        onImportNirvana={vi.fn()}
+        onExport={vi.fn()}
+        importJobs={jobs}
+      />,
+    );
+    expect(screen.getByText("Recent imports")).toBeInTheDocument();
+    expect(screen.getByText("Completed")).toBeInTheDocument();
+    expect(screen.getByText("42 items")).toBeInTheDocument();
+  });
+
+  it("does not show import history when jobs array is empty", () => {
+    render(
+      <ImportExportPanel
+        onImportNirvana={vi.fn()}
+        onExport={vi.fn()}
+        importJobs={[]}
+      />,
+    );
+    expect(screen.queryByText("Recent imports")).not.toBeInTheDocument();
   });
 });

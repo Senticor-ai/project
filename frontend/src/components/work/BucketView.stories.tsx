@@ -103,7 +103,7 @@ const sampleRefs: ReferenceMaterial[] = [
 function StatefulBucketView({
   initialThings = [],
   initialRefs = [],
-  initialBucket,
+  initialBucket = "inbox",
   projects = [],
 }: {
   initialThings?: Thing[];
@@ -113,10 +113,12 @@ function StatefulBucketView({
 }) {
   const [things, setThings] = useState<Thing[]>(initialThings);
   const [refs, setRefs] = useState<ReferenceMaterial[]>(initialRefs);
+  const [bucket, setBucket] = useState<string>(initialBucket);
 
   return (
     <BucketView
-      initialBucket={(initialBucket as ThingBucket) ?? "inbox"}
+      activeBucket={bucket as ThingBucket}
+      onBucketChange={(b) => setBucket(b)}
       things={things}
       referenceItems={refs}
       projects={projects}

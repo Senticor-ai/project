@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import { DndContext, type DragEndEvent } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
 import { BucketNav } from "./BucketNav";
@@ -25,11 +25,8 @@ const thingBuckets = new Set<string>([
 ]);
 
 export interface BucketViewProps {
-  initialBucket?: Bucket;
-  /** When set, overrides internal bucket state (controlled mode). */
-  requestedBucket?: Bucket | null;
-  /** Called whenever the active bucket changes (user click or external navigation). */
-  onBucketChange?: (bucket: Bucket) => void;
+  activeBucket: Bucket;
+  onBucketChange: (bucket: Bucket) => void;
   things: Thing[];
   referenceItems?: ReferenceMaterial[];
   projects?: Project[];
@@ -52,8 +49,7 @@ export interface BucketViewProps {
 }
 
 export function BucketView({
-  initialBucket = "inbox",
-  requestedBucket,
+  activeBucket,
   onBucketChange,
   things,
   referenceItems = [],
@@ -72,28 +68,6 @@ export function BucketView({
   onSelectReference,
   className,
 }: BucketViewProps) {
-  const [activeBucket, setActiveBucketRaw] = useState<Bucket>(initialBucket);
-  const [prevRequestedBucket, setPrevRequestedBucket] = useState<
-    Bucket | null | undefined
-  >(null);
-
-  // Adjust state during render when parent requests a new bucket
-  // (official React pattern: https://react.dev/reference/react/useState#storing-information-from-previous-renders)
-  if (requestedBucket && requestedBucket !== prevRequestedBucket) {
-    setPrevRequestedBucket(requestedBucket);
-    setActiveBucketRaw(requestedBucket);
-  }
-  if (!requestedBucket && prevRequestedBucket) {
-    setPrevRequestedBucket(null);
-  }
-
-  const setActiveBucket = useCallback(
-    (bucket: Bucket) => {
-      setActiveBucketRaw(bucket);
-      onBucketChange?.(bucket);
-    },
-    [onBucketChange],
-  );
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
@@ -126,7 +100,7 @@ export function BucketView({
       <div className={cn("flex gap-6", className)}>
         <BucketNav
           activeBucket={activeBucket}
-          onSelect={setActiveBucket}
+          onSelect={onBucketChange}
           counts={counts}
           className="w-56 shrink-0"
         />

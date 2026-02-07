@@ -1,12 +1,18 @@
 import { useState, useCallback, useRef } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { useNirvanaImport } from "@/hooks/use-nirvana-import";
+import {
+  DuplicateImportWarning,
+  type PreviousImport,
+} from "@/components/settings/DuplicateImportWarning";
 import type { Bucket } from "@/model/types";
 
 export interface NirvanaImportDialogProps {
   open: boolean;
   onClose: () => void;
   onNavigateToBucket?: (bucket: Bucket) => void;
+  /** Check if a file with this SHA256 was previously imported. Return match info or null. */
+  checkDuplicate?: (sha256: string) => PreviousImport | null;
 }
 
 type Step = "select" | "uploading" | "preview" | "importing" | "results";
@@ -15,19 +21,31 @@ export function NirvanaImportDialog({
   open,
   onClose,
   onNavigateToBucket,
+  checkDuplicate,
 }: NirvanaImportDialogProps) {
   const { upload, inspect, startImport, job, setJobId } = useNirvanaImport();
   const [step, setStep] = useState<Step>("select");
   const [fileId, setFileId] = useState<string | null>(null);
   const [includeCompleted, setIncludeCompleted] = useState(true);
+  const [duplicateInfo, setDuplicateInfo] = useState<PreviousImport | null>(
+    null,
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = useCallback(
     async (file: File) => {
       setStep("uploading");
+      setDuplicateInfo(null);
       try {
         const record = await upload.mutateAsync(file);
         setFileId(record.file_id);
+
+        // Check for duplicate file hash
+        if (checkDuplicate) {
+          const dup = checkDuplicate(record.sha256);
+          if (dup) setDuplicateInfo(dup);
+        }
+
         await inspect.mutateAsync({
           fileId: record.file_id,
           includeCompleted,
@@ -37,7 +55,7 @@ export function NirvanaImportDialog({
         setStep("select");
       }
     },
-    [upload, inspect, includeCompleted],
+    [upload, inspect, includeCompleted, checkDuplicate],
   );
 
   const handleFileInput = useCallback(
@@ -142,6 +160,15 @@ export function NirvanaImportDialog({
         {/* Step: Preview */}
         {step === "preview" && preview && (
           <div className="space-y-4">
+            {/* Duplicate warning */}
+            {duplicateInfo && (
+              <DuplicateImportWarning
+                previousImport={duplicateInfo}
+                onContinue={() => setDuplicateInfo(null)}
+                onCancel={onClose}
+              />
+            )}
+
             <p className="text-sm font-medium text-text-primary">
               {preview.total} items found
             </p>

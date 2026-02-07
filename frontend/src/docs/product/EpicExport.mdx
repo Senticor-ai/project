@@ -1,0 +1,157 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Product/Epics/Export" />
+
+# Epic: Export GTD Items
+
+**Status:** Not started
+**Priority:** Current
+
+## Context
+
+The Settings > Import/Export panel has JSON and CSV export buttons, but clicking them does nothing. The UI is wired to an `onExport(format)` callback, but `App.tsx` never provides a handler — it falls back to a no-op `() => {}`. There is also no backend endpoint to produce the export file.
+
+This epic adds a streaming backend export endpoint and wires the frontend buttons to trigger a browser download.
+
+**Design goal:** Users can export all their GTD items as JSON or CSV for backup or migration to another system. The export includes all non-archived things with full schema.org/JSON-LD data preserved.
+
+---
+
+## Phase 1: Backend — Streaming export endpoint
+
+### 1a. RED — Tests for export endpoint
+
+`backend/tests/test_export.py`:
+
+- `GET /things/export?format=json` returns `200` with `Content-Type: application/json`
+- `GET /things/export?format=csv` returns `200` with `Content-Type: text/csv`
+- Both include `Content-Disposition: attachment; filename="things-export-{timestamp}.{ext}"`
+- JSON response is a valid JSON array of thing records
+- CSV response has a header row and one data row per thing
+- Empty database returns empty array (JSON) or header-only (CSV)
+- Unauthenticated request returns `401`
+- Invalid format returns `400`
+
+### 1b. GREEN — Implement streaming endpoint
+
+`backend/app/routes/things.py` — new route on existing router:
+
+```python
+@router.get("/export", summary="Export all things")
+def export_things(format: str = "json", current_org=Depends(get_current_org)):
+```
+
+- Query all non-archived things for the org (no pagination limit)
+- **JSON format**: `StreamingResponse` with `application/json` content type
+  - Stream as JSON array: write `[`, then each record separated by `,\n`, then `]`
+  - Each record matches `ThingResponse` schema
+- **CSV format**: `StreamingResponse` with `text/csv` content type
+  - Flatten `schema_jsonld` top-level keys into columns
+  - Fixed columns: `thing_id`, `canonical_id`, `source`, `created_at`, `updated_at`
+  - Dynamic columns from `schema_jsonld`: `name`, `@type`, `description`, `rawCapture`, `app:bucket` (extracted from `additionalProperty`)
+  - Use Python `csv` module with proper escaping
+- Set `Content-Disposition` header with timestamped filename
+
+### 1c. VERIFY
+
+```bash
+cd backend && uv run ruff check app/routes/things.py
+cd backend && uv run mypy app/routes/things.py
+cd backend && uv run python -m pytest tests/test_export.py -v
+```
+
+---
+
+## Phase 2: Frontend — Wire export download
+
+### 2a. RED — Test for export trigger
+
+`frontend/src/lib/export-things.test.ts`:
+
+- Calling `triggerExport("json")` opens the correct URL
+- Calling `triggerExport("csv")` opens the correct URL
+- URL includes the API base path: `{API_BASE_URL}/things/export?format={format}`
+
+### 2b. GREEN — Implement export trigger
+
+`frontend/src/lib/export-things.ts`:
+
+```typescript
+import type { ExportFormat } from "@/model/settings-types";
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
+
+export function triggerExport(format: ExportFormat): void {
+  window.open(`${API_BASE_URL}/things/export?format=${format}`, "_blank");
+}
+```
+
+Since auth uses HTTP-only cookies with `credentials: "include"`, a direct `window.open` sends cookies automatically — no need for fetch + blob.
+
+### 2c. Wire up in App.tsx
+
+`frontend/src/App.tsx`:
+
+```typescript
+import { triggerExport } from "./lib/export-things";
+// ...
+<SettingsScreen
+  onImportNirvana={() => setShowImport(true)}
+  onExport={triggerExport}
+/>
+```
+
+### 2d. VERIFY
+
+```bash
+cd frontend && CI=1 npx vitest run --project=unit
+cd frontend && npx tsc --noEmit
+cd frontend && npx eslint src/lib/export-things.ts src/App.tsx
+```
+
+---
+
+## Files to create/modify
+
+**New files:**
+
+- `backend/tests/test_export.py` — pytest for export endpoint
+- `frontend/src/lib/export-things.ts` — download trigger utility
+- `frontend/src/lib/export-things.test.ts` — unit test for trigger
+
+**Modified files:**
+
+- `backend/app/routes/things.py` — new `GET /export` route
+- `frontend/src/App.tsx` — pass `onExport={triggerExport}` to SettingsScreen
+
+---
+
+## CSV column mapping
+
+| CSV Column | Source |
+| --- | --- |
+| `thing_id` | `ThingResponse.thing_id` |
+| `canonical_id` | `ThingResponse.canonical_id` |
+| `source` | `ThingResponse.source` |
+| `type` | `schema_jsonld["@type"]` |
+| `name` | `schema_jsonld["name"]` |
+| `raw_capture` | `schema_jsonld["rawCapture"]` |
+| `description` | `schema_jsonld["description"]` |
+| `bucket` | `additionalProperty` where `propertyID == "app:bucket"` |
+| `created_at` | `ThingResponse.created_at` |
+| `updated_at` | `ThingResponse.updated_at` |
+
+---
+
+## Verification checklist
+
+- [ ] `GET /things/export?format=json` returns valid JSON array
+- [ ] `GET /things/export?format=csv` returns valid CSV with headers
+- [ ] Content-Disposition header has timestamped filename
+- [ ] Auth required (401 without session)
+- [ ] Frontend JSON button triggers download
+- [ ] Frontend CSV button triggers download
+- [ ] All backend tests pass (`pytest`)
+- [ ] All frontend tests pass (`vitest run`)
+- [ ] TypeScript clean (`tsc --noEmit`)
+- [ ] Storybook builds

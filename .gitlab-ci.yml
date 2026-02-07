@@ -29,7 +29,7 @@ frontend-lint:
   before_script:
     - cd frontend && npm ci --ignore-scripts --silent
   script:
-    - cd frontend && npm run lint
+    - npm run lint
 
 frontend-typecheck:
   stage: quality
@@ -38,7 +38,7 @@ frontend-typecheck:
   before_script:
     - cd frontend && npm ci --ignore-scripts --silent
   script:
-    - cd frontend && npm run type-check
+    - npm run type-check
 
 backend-lint:
   stage: quality
@@ -48,7 +48,7 @@ backend-lint:
     - pip install -q uv
     - cd backend && uv sync --quiet --all-groups --all-extras
   script:
-    - cd backend && uv run ruff check .
+    - uv run ruff check .
 
 backend-typecheck:
   stage: quality
@@ -58,7 +58,7 @@ backend-typecheck:
     - pip install -q uv
     - cd backend && uv sync --quiet --all-groups --all-extras
   script:
-    - cd backend && uv run mypy app/
+    - uv run mypy app/
 
 frontend-unit:
   stage: test
@@ -67,7 +67,7 @@ frontend-unit:
   before_script:
     - cd frontend && npm ci --ignore-scripts --silent
   script:
-    - cd frontend && CI=1 npx vitest run --project=unit --coverage --coverage.reporter=text --coverage.reporter=cobertura --coverage.reporter=json-summary --coverage.reportsDirectory=coverage/unit
+    - CI=1 npx vitest run --project=unit --coverage --coverage.reporter=text --coverage.reporter=cobertura --coverage.reporter=json-summary --coverage.reportsDirectory=coverage/unit
   artifacts:
     when: always
     paths:
@@ -87,9 +87,9 @@ backend-unit:
   before_script:
     - pip install -q uv
     - cd backend && uv sync --quiet --all-groups --all-extras
-    - cd backend && uv run python -m pip install -q pytest-cov
+    - uv run python -m pip install -q pytest-cov
   script:
-    - cd backend && uv run pytest -q --maxfail=1 --cov=app --cov-report=term-missing --cov-report=xml:coverage/unit.xml --cov-report=html:coverage/unit -k "not integration and not playwright"
+    - uv run pytest -q --maxfail=1 --cov=app --cov-report=term-missing --cov-report=xml:coverage/unit.xml --cov-report=html:coverage/unit -k "not integration and not playwright"
   artifacts:
     when: always
     paths:
@@ -109,9 +109,9 @@ backend-integration:
   before_script:
     - pip install -q uv
     - cd backend && uv sync --quiet --all-groups --all-extras
-    - cd backend && uv run python -m pip install -q pytest-cov
+    - uv run python -m pip install -q pytest-cov
   script:
-    - cd backend && uv run pytest -q --maxfail=1 --cov=app --cov-report=term-missing --cov-report=xml:coverage/integration.xml --cov-report=html:coverage/integration -k "integration and not playwright"
+    - uv run pytest -q --maxfail=1 --cov=app --cov-report=term-missing --cov-report=xml:coverage/integration.xml --cov-report=html:coverage/integration -k "integration and not playwright"
   artifacts:
     when: always
     paths:
@@ -133,10 +133,10 @@ frontend-integration:
     - curl -fsSL https://deb.nodesource.com/setup_24.x | bash - > /dev/null
     - apt-get install -y -qq nodejs > /dev/null
     - pip install -q uv
-    - cd backend && uv sync --quiet --all-groups --all-extras
-    - cd frontend && npm ci --ignore-scripts --silent
+    - cd $CI_PROJECT_DIR/backend && uv sync --quiet --all-groups --all-extras
+    - cd $CI_PROJECT_DIR/frontend && npm ci --ignore-scripts --silent
   script:
-    - cd backend && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+    - cd $CI_PROJECT_DIR/backend && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 &
     - |
       BACKEND_READY=0
       for i in $(seq 1 30); do
@@ -151,7 +151,7 @@ frontend-integration:
         echo "Backend failed to become ready"
         exit 1
       fi
-    - cd frontend && CI=1 npx vitest run --project=unit -t "JSON Schema contract"
+    - cd $CI_PROJECT_DIR/frontend && CI=1 npx vitest run --project=unit -t "JSON Schema contract"
 
 backend-e2e:
   stage: test
@@ -163,7 +163,7 @@ backend-e2e:
     - pip install -q uv
     - cd backend && uv sync --quiet --all-groups --all-extras
   script:
-    - cd backend && uv run pytest -q tests/test_flow_playwright.py
+    - uv run pytest -q tests/test_flow_playwright.py
 
 frontend-e2e:
   stage: test
@@ -176,11 +176,11 @@ frontend-e2e:
     - curl -fsSL https://deb.nodesource.com/setup_24.x | bash - > /dev/null
     - apt-get install -y -qq nodejs > /dev/null
     - pip install -q uv
-    - cd backend && uv sync --quiet --all-groups --all-extras
-    - cd frontend && npm ci --ignore-scripts --silent
-    - cd frontend && npx playwright install --with-deps chromium
+    - cd $CI_PROJECT_DIR/backend && uv sync --quiet --all-groups --all-extras
+    - cd $CI_PROJECT_DIR/frontend && npm ci --ignore-scripts --silent
+    - npx playwright install --with-deps chromium
   script:
-    - cd backend && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+    - cd $CI_PROJECT_DIR/backend && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 &
     - |
       BACKEND_READY=0
       for i in $(seq 1 30); do
@@ -195,7 +195,7 @@ frontend-e2e:
         echo "Backend failed to become ready"
         exit 1
       fi
-    - cd frontend && npm run dev -- --host 0.0.0.0 --port 5173 &
+    - cd $CI_PROJECT_DIR/frontend && npm run dev -- --host 0.0.0.0 --port 5173 &
     - |
       FRONTEND_READY=0
       for i in $(seq 1 60); do
@@ -210,7 +210,7 @@ frontend-e2e:
         echo "Frontend failed to become ready"
         exit 1
       fi
-    - cd frontend && CI=1 npm run test:e2e
+    - cd $CI_PROJECT_DIR/frontend && CI=1 npm run test:e2e
   artifacts:
     when: always
     paths:

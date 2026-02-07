@@ -20,14 +20,13 @@ import { cn } from "@/lib/utils";
 import type { Bucket } from "@/model/types";
 
 export interface ConnectedBucketViewProps {
-  /** When set, navigates BucketView to this bucket. */
-  requestedBucket?: Bucket | null;
-  onBucketChange?: (bucket: Bucket) => void;
+  activeBucket: Bucket;
+  onBucketChange: (bucket: Bucket) => void;
   className?: string;
 }
 
 export function ConnectedBucketView({
-  requestedBucket,
+  activeBucket,
   onBucketChange,
   className,
 }: ConnectedBucketViewProps) {
@@ -162,7 +161,7 @@ export function ConnectedBucketView({
         things={thingsQuery.data ?? []}
         referenceItems={referencesQuery.data ?? []}
         projects={projectsQuery.data ?? []}
-        requestedBucket={requestedBucket}
+        activeBucket={activeBucket}
         onBucketChange={onBucketChange}
         onAddThing={handleAddThing}
         onCompleteThing={handleComplete}

@@ -1,28 +1,47 @@
 import { useState, useCallback } from "react";
 import { useAuth } from "./lib/use-auth";
+import { useLocationState } from "./hooks/use-location-state";
 import { LoginPage } from "./components/auth/LoginPage";
 import { ConnectedBucketView } from "./components/work/ConnectedBucketView";
 import { NirvanaImportDialog } from "./components/work/NirvanaImportDialog";
-import { SettingsScreen } from "./components/settings/SettingsScreen";
-import { AppHeader, type AppView } from "./components/shell/AppHeader";
+import {
+  SettingsScreen,
+  type SettingsTab,
+} from "./components/settings/SettingsScreen";
+import { AppHeader } from "./components/shell/AppHeader";
 import { Icon } from "./components/ui/Icon";
+import type { AppView } from "./lib/route-utils";
 import type { Bucket } from "./model/types";
 
 function App() {
   const { user, isLoading, login, register, logout } = useAuth();
-  const [currentView, setCurrentView] = useState<AppView>("workspace");
+  const { location, navigate } = useLocationState();
   const [showImport, setShowImport] = useState(false);
-  const [requestedBucket, setRequestedBucket] = useState<Bucket | null>(null);
 
-  const handleNavigateToBucket = useCallback((bucket: Bucket) => {
-    setRequestedBucket(bucket);
-    setCurrentView("workspace");
-  }, []);
+  const handleNavigate = useCallback(
+    (view: AppView) => {
+      if (view === "workspace") {
+        navigate("workspace", "inbox");
+      } else {
+        navigate("settings", "import-export");
+      }
+    },
+    [navigate],
+  );
 
-  // Clear requested bucket once BucketView has consumed it
-  const handleBucketChange = useCallback(() => {
-    setRequestedBucket(null);
-  }, []);
+  const handleBucketChange = useCallback(
+    (bucket: Bucket) => {
+      navigate("workspace", bucket);
+    },
+    [navigate],
+  );
+
+  const handleSettingsTabChange = useCallback(
+    (tab: SettingsTab) => {
+      navigate("settings", tab);
+    },
+    [navigate],
+  );
 
   if (isLoading) {
     return (
@@ -44,30 +63,34 @@ function App() {
     <div className="min-h-screen bg-surface p-6">
       <AppHeader
         username={user.username ?? user.email}
-        currentView={currentView}
-        onNavigate={setCurrentView}
+        currentView={location.view}
+        onNavigate={handleNavigate}
         onSignOut={logout}
         className="mb-6"
       />
 
       {/* Main workspace */}
-      {currentView === "workspace" && (
+      {location.view === "workspace" && (
         <ConnectedBucketView
-          requestedBucket={requestedBucket}
+          activeBucket={location.sub as Bucket}
           onBucketChange={handleBucketChange}
         />
       )}
 
       {/* Settings */}
-      {currentView === "settings" && (
-        <SettingsScreen onImportNirvana={() => setShowImport(true)} />
+      {location.view === "settings" && (
+        <SettingsScreen
+          activeTab={location.sub as SettingsTab}
+          onTabChange={handleSettingsTabChange}
+          onImportNirvana={() => setShowImport(true)}
+        />
       )}
 
       {/* Import dialog */}
       <NirvanaImportDialog
         open={showImport}
         onClose={() => setShowImport(false)}
-        onNavigateToBucket={handleNavigateToBucket}
+        onNavigateToBucket={(bucket) => navigate("workspace", bucket)}
       />
     </div>
   );
