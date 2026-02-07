@@ -41,7 +41,9 @@ build-and-push:
   variables:
     DOCKER_TLS_CERTDIR: "/certs"
   before_script:
-    - echo "$HARBOR_PASSWORD" | docker login harbor.100-114-108-51.nip.io:30443 -u "$HARBOR_USER" --password-stdin
+    - mkdir -p "$HOME/.docker"
+    - AUTH_B64="$(printf '%s:%s' "$HARBOR_USER" "$HARBOR_PASSWORD" | base64 | tr -d '\n')"
+    - printf '{"auths":{"harbor.100-114-108-51.nip.io:30443":{"auth":"%s"}}}\n' "$AUTH_B64" > "$HOME/.docker/config.json"
   script:
     - docker compose -f docker-compose.build.yml build
     - docker compose -f docker-compose.build.yml push

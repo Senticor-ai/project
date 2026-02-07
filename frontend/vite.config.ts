@@ -33,6 +33,22 @@ export default defineConfig({
     },
   },
   test: {
+    coverage: {
+      provider: "v8",
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: [
+        "src/**/*.stories.{ts,tsx}",
+        "src/**/*.test.{ts,tsx}",
+        "src/test/**",
+        "src/**/*.d.ts",
+        "src/generated/**",
+        "src/docs/**",
+        "src/vite-env.d.ts",
+      ],
+      all: true,
+      reporter: ["text", "html", "json"],
+      reportsDirectory: "./coverage",
+    },
     projects: [
       // Unit tests (jsdom, fast)
       {

@@ -70,9 +70,9 @@ export type Rawtype = number;
  */
 export type Rawstate = number;
 /**
- * Completion timestamp (schema.org endDate).
+ * Completion timestamp (schema.org endTime).
  */
-export type Enddate = string | null;
+export type Endtime = string | null;
 /**
  * Child action references, e.g. [{"@id": "urn:app:action:…"}].
  */
@@ -97,7 +97,7 @@ export interface ProjectThingJsonLd {
    * Provider-specific source metadata preserved during imports.
    */
   sourceMetadata?: ThingSourceMetadata | null;
-  endDate?: Enddate;
+  endTime?: Endtime;
   hasPart?: Haspart;
   [k: string]: unknown;
 }

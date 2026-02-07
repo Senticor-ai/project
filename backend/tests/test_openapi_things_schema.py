@@ -21,8 +21,8 @@ def test_openapi_things_uses_typed_oneof_models(client):
     assert "@type" in action_output
     assert "sourceMetadata" in action_output
     assert "additionalProperty" in action_output
-    assert "startDate" in action_output
-    assert "endDate" in action_output
+    assert "startTime" in action_output
+    assert "endTime" in action_output
 
     patch_req = schemas["ThingPatchRequest"]["properties"]
     assert "name_source" in patch_req

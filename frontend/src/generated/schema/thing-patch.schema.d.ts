@@ -19,8 +19,8 @@ export type Description = string | null;
 export type Keywords = string[] | null;
 export type Datecreated = string | null;
 export type Datemodified = string | null;
-export type Startdate = string | null;
-export type Enddate = string | null;
+export type Starttime = string | null;
+export type Endtime = string | null;
 export type Ispartof = {
   [k: string]: string;
 } | null;
@@ -73,8 +73,8 @@ export interface ThingPatchModel {
   keywords?: Keywords;
   dateCreated?: Datecreated;
   dateModified?: Datemodified;
-  startDate?: Startdate;
-  endDate?: Enddate;
+  startTime?: Starttime;
+  endTime?: Endtime;
   isPartOf?: Ispartof;
   hasPart?: Haspart;
   url?: Url;

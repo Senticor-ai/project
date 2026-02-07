@@ -116,8 +116,8 @@ These map 1:1 to schema.org and appear as flat fields on the JSON-LD object:
 | `tags` | `keywords` | [keywords](https://schema.org/keywords) | Array of strings |
 | `provenance.createdAt` | `dateCreated` | [dateCreated](https://schema.org/dateCreated) | ISO 8601 |
 | `provenance.updatedAt` | `dateModified` | [dateModified](https://schema.org/dateModified) | ISO 8601 |
-| `scheduledDate` | `startDate` | [startDate](https://schema.org/startDate) | Actions and Events |
-| `completedAt` | `endDate` | [endDate](https://schema.org/endDate) | Completed Actions |
+| `scheduledDate` | `startTime` | [startTime](https://schema.org/startTime) | Actions (schema.org Action property) |
+| `completedAt` | `endTime` | [endTime](https://schema.org/endTime) | Completed Actions and Projects |
 | `url` | `url` | [url](https://schema.org/url) | CreativeWork |
 | `encodingFormat` | `encodingFormat` | [encodingFormat](https://schema.org/encodingFormat) | MIME type |
 | `projectId` | `isPartOf` | [isPartOf](https://schema.org/isPartOf) | Action → Project |
@@ -248,7 +248,7 @@ renames this action, `name` would appear as a top-level property.
   "description": "Reisekostenabrechnung vom 15.11.2025 nachverfolgen",
   "dateCreated": "2026-02-01T10:30:00Z",
   "dateModified": "2026-02-05T14:22:00Z",
-  "startDate": "2026-02-10",
+  "startTime": "2026-02-10",
   "isPartOf": { "@id": "urn:app:project:xyz-789" },
   "keywords": ["dringend"],
   "additionalProperty": [
@@ -429,6 +429,47 @@ frontend's serialization stays consistent with these schemas.
 | `property-value.schema.json` | `PropertyValueModel` | PropertyValue shape |
 
 See also: [Backend API Requests](?path=/docs/engineering-backend-api-requests-import-ux--docs) for endpoint documentation.
+
+---
+
+## Schema.org Conformance Notes
+
+The app uses schema.org as its primary vocabulary but **intentionally extends** several
+property domains beyond their strict schema.org definitions. These deviations are documented
+here so consumers of the JSON-LD data understand what is standard and what is app-specific.
+
+### Correct schema.org usage
+
+| Property | schema.org type | Notes |
+| --- | --- | --- |
+| `name`, `description`, `url` | Thing | Available on all entities |
+| `startTime`, `endTime` | Action | Correct temporal properties for Action |
+| `encodingFormat` | CreativeWork | MIME type for reference material |
+| `PropertyValue` (`propertyID`, `value`) | PropertyValue | Standard extension point |
+
+### Intentional extensions beyond schema.org domains
+
+| Property | Standard domain(s) | Our usage | Rationale |
+| --- | --- | --- | --- |
+| `additionalProperty` | Product, Place, Offer | All entity types | Universal extension mechanism for `app:*` properties. Schema.org validators are lenient about domain. |
+| `keywords` | CreativeWork, Event, Organization | Thing, Action | Tags apply to all entities, not just creative works. Widely used outside strict domain in practice. |
+| `dateCreated`, `dateModified` | CreativeWork, DataFeedItem | All entity types | Timestamps are universal. These are the most natural schema.org properties for creation/modification tracking. |
+| `isPartOf`, `hasPart` | CreativeWork | Action → Project, Project → Actions | Models project membership. `isPartOf` links an Action to its parent Project; `hasPart` lists a Project's child Actions. |
+| `endTime` | Action | Project | Completion timestamp reused for Project. Schema.org `Project` inherits from Organization which has no completion property. |
+
+### Project type and Organization hierarchy
+
+`schema:Project` is a **pending** schema.org type that inherits from `Organization`, not
+CreativeWork. This aligns with the app's backend architecture:
+
+- Every user gets a default **Organization** on registration (`"{username}'s Workspace"`)
+- All things (including projects) are scoped to an Organization via `org_id`
+- Projects live within the user's Organization — the database enforces this relationship
+- Users can belong to multiple Organizations (multi-tenancy ready)
+
+The JSON-LD `@type: "Project"` is an intentional choice despite its pending status because
+it directly expresses the domain concept. The Organization relationship is enforced at the
+API/database layer (not in JSON-LD) via `org_id` scoping.
 
 ---
 

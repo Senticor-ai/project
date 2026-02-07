@@ -388,7 +388,7 @@ def _build_nirvana_thing(
             source_metadata=source_metadata,
         )
         thing["@type"] = _TYPE_MAP["project"]
-        thing["endDate"] = (
+        thing["endTime"] = (
             completed_dt.isoformat() if completed_dt else None
         )
         thing["hasPart"] = [{"@id": aid} for aid in action_ids]
@@ -491,8 +491,8 @@ def _build_nirvana_thing(
         source_metadata=source_metadata,
     )
     thing["@type"] = _TYPE_MAP["action"]
-    thing["startDate"] = start_date
-    thing["endDate"] = (
+    thing["startTime"] = start_date
+    thing["endTime"] = (
         completed_dt.isoformat() if completed_dt else None
     )
     if project_id:

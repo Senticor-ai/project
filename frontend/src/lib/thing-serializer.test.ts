@@ -212,7 +212,7 @@ describe("toJsonLd", () => {
       expect(ld["@type"]).toBe("Action");
     });
 
-    it("maps scheduledDate to schema.org startDate", () => {
+    it("maps scheduledDate to schema.org startTime", () => {
       const action = createAction({
         name: "Meeting",
         bucket: "calendar",
@@ -220,17 +220,17 @@ describe("toJsonLd", () => {
       });
       const ld = toJsonLd(action);
 
-      expect(ld.startDate).toBe("2026-03-01");
+      expect(ld.startTime).toBe("2026-03-01");
     });
 
-    it("maps completedAt to schema.org endDate", () => {
+    it("maps completedAt to schema.org endTime", () => {
       const action = createAction({
         name: "Done task",
         completedAt: "2026-02-01T10:00:00Z",
       });
       const ld = toJsonLd(action);
 
-      expect(ld.endDate).toBe("2026-02-01T10:00:00Z");
+      expect(ld.endTime).toBe("2026-02-01T10:00:00Z");
     });
 
     it("maps projectId to schema.org isPartOf", () => {
@@ -467,8 +467,8 @@ describe("fromJsonLd", () => {
         "@type": "Action",
         _schemaVersion: 2,
         name: "Call dentist",
-        startDate: "2026-03-01",
-        endDate: null,
+        startTime: "2026-03-01",
+        endTime: null,
         isPartOf: { "@id": "urn:app:project:p-1" },
         keywords: ["health"],
         dateCreated: "2025-01-01T00:00:00Z",
@@ -706,14 +706,14 @@ describe("buildTriagePatch", () => {
     expect(patch.isPartOf).toEqual({ "@id": "urn:app:project:p-1" });
   });
 
-  it("maps date to schema.org startDate", () => {
+  it("maps date to schema.org startTime", () => {
     const item = createInboxItem({ name: "Task" });
     const patch = buildTriagePatch(item, {
       targetBucket: "calendar",
       date: "2025-06-15",
     });
 
-    expect(patch.startDate).toBe("2025-06-15");
+    expect(patch.startTime).toBe("2025-06-15");
   });
 
   it("produces @type CreativeWork when triaging to reference", () => {
@@ -760,9 +760,9 @@ describe("buildItemEditPatch", () => {
     expectPropertyValue(patch, "app:dueDate", "2026-06-01");
   });
 
-  it("maps scheduledDate to schema.org startDate", () => {
+  it("maps scheduledDate to schema.org startTime", () => {
     const patch = buildItemEditPatch({ scheduledDate: "2026-06-15" });
-    expect(patch.startDate).toBe("2026-06-15");
+    expect(patch.startTime).toBe("2026-06-15");
   });
 
   it("maps contexts to additionalProperty", () => {
@@ -796,14 +796,14 @@ describe("buildItemEditPatch", () => {
 
   it("nulls scheduledDate when empty string", () => {
     const patch = buildItemEditPatch({ scheduledDate: "" });
-    expect(patch.startDate).toBeNull();
+    expect(patch.startTime).toBeNull();
   });
 
   it("only includes provided fields", () => {
     const patch = buildItemEditPatch({ contexts: ["@home"] });
     const props = patch.additionalProperty as unknown[];
     expect(props).toHaveLength(1);
-    expect(patch).not.toHaveProperty("startDate");
+    expect(patch).not.toHaveProperty("startTime");
     expect(patch).not.toHaveProperty("isPartOf");
     expect(patch).not.toHaveProperty("description");
   });

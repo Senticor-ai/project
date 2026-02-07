@@ -93,18 +93,18 @@ export function LoginPage({
 
           <dl className="space-y-4">
             {DIFFERENTIATORS.map((d) => (
-              <div key={d.title} className="flex gap-3">
-                <Icon
-                  name={d.icon}
-                  size={16}
-                  className="mt-0.5 shrink-0 text-text-subtle"
-                />
-                <div>
-                  <dt className="text-sm font-medium text-text">{d.title}</dt>
-                  <dd className="text-xs leading-relaxed text-text-muted">
-                    {d.description}
-                  </dd>
-                </div>
+              <div key={d.title}>
+                <dt className="flex gap-3 text-sm font-medium text-text">
+                  <Icon
+                    name={d.icon}
+                    size={16}
+                    className="mt-0.5 shrink-0 text-text-subtle"
+                  />
+                  {d.title}
+                </dt>
+                <dd className="pl-7 text-xs leading-relaxed text-text-muted">
+                  {d.description}
+                </dd>
               </div>
             ))}
           </dl>
@@ -190,7 +190,10 @@ export function LoginPage({
                 {mode === "login" ? "Sign in" : "Create account"}
               </span>
               {!isSubmitting && (
-                <kbd className="rounded-sm bg-white/20 px-1.5 py-0.5 font-mono text-[10px] leading-none">
+                <kbd
+                  aria-hidden="true"
+                  className="rounded-sm bg-black/10 px-1.5 py-0.5 font-mono text-[10px] leading-none"
+                >
                   Enter
                 </kbd>
               )}

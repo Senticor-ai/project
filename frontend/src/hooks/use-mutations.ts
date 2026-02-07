@@ -87,9 +87,9 @@ export function useCompleteAction() {
       const record = cache?.find((r) => r.canonical_id === canonicalId);
       if (!record) throw new Error(`Thing not found: ${canonicalId}`);
 
-      const isCompleted = !!record.thing.endDate;
+      const isCompleted = !!record.thing.endTime;
       return ThingsApi.update(record.thing_id, {
-        endDate: isCompleted ? null : new Date().toISOString(),
+        endTime: isCompleted ? null : new Date().toISOString(),
       });
     },
     onSuccess: () => {

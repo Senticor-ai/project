@@ -173,7 +173,7 @@
       "default": null,
       "description": "Provider-specific source metadata preserved during imports."
     },
-    "startDate": {
+    "startTime": {
       "anyOf": [
         {
           "type": "string"
@@ -183,10 +183,10 @@
         }
       ],
       "default": null,
-      "description": "Scheduled date (schema.org startDate).",
-      "title": "Startdate"
+      "description": "Scheduled date/time (schema.org startTime).",
+      "title": "Starttime"
     },
-    "endDate": {
+    "endTime": {
       "anyOf": [
         {
           "type": "string"
@@ -196,8 +196,8 @@
         }
       ],
       "default": null,
-      "description": "Completion timestamp (schema.org endDate).",
-      "title": "Enddate"
+      "description": "Completion timestamp (schema.org endTime).",
+      "title": "Endtime"
     },
     "isPartOf": {
       "anyOf": [

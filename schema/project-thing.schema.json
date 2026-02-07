@@ -173,7 +173,7 @@
       "default": null,
       "description": "Provider-specific source metadata preserved during imports."
     },
-    "endDate": {
+    "endTime": {
       "anyOf": [
         {
           "type": "string"
@@ -183,8 +183,8 @@
         }
       ],
       "default": null,
-      "description": "Completion timestamp (schema.org endDate).",
-      "title": "Enddate"
+      "description": "Completion timestamp (schema.org endTime).",
+      "title": "Endtime"
     },
     "hasPart": {
       "description": "Child action references, e.g. [{\"@id\": \"urn:app:action:\u2026\"}].",

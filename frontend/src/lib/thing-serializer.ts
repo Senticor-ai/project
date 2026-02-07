@@ -121,8 +121,8 @@ export function toJsonLd(
     const thing = item as Thing;
     base["@type"] = TYPE_MAP.action;
     // schema.org direct mappings
-    base.startDate = thing.scheduledDate ?? null;
-    base.endDate = thing.completedAt ?? null;
+    base.startTime = thing.scheduledDate ?? null;
+    base.endTime = thing.completedAt ?? null;
     if (thing.projectId) {
       base.isPartOf = { "@id": thing.projectId };
     }
@@ -130,7 +130,7 @@ export function toJsonLd(
   } else if (item.bucket === "project") {
     const project = item as Project;
     base["@type"] = TYPE_MAP.project;
-    base.endDate = project.completedAt ?? null;
+    base.endTime = project.completedAt ?? null;
     base.hasPart = project.actionIds.map((id) => ({ "@id": id }));
 
     const props: PropertyValue[] = [
@@ -204,13 +204,13 @@ export function fromJsonLd(record: ThingRecord): AppItem {
     contexts: (getAdditionalProperty(props, "app:contexts") as CanonicalId[]) ?? [],
     projectId: extractProjectId(t),
     delegatedTo: (getAdditionalProperty(props, "app:delegatedTo") as string) || undefined,
-    scheduledDate: (t.startDate as string) || (getAdditionalProperty(props, "app:scheduledDate") as string) || undefined,
+    scheduledDate: (t.startTime as string) || (getAdditionalProperty(props, "app:scheduledDate") as string) || undefined,
     scheduledTime: (getAdditionalProperty(props, "app:scheduledTime") as string) || undefined,
     dueDate: (getAdditionalProperty(props, "app:dueDate") as string) || undefined,
     startDate: (getAdditionalProperty(props, "app:startDate") as string) || undefined,
     isFocused: (getAdditionalProperty(props, "app:isFocused") as boolean) ?? false,
     recurrence: getAdditionalProperty(props, "app:recurrence") as Thing["recurrence"],
-    completedAt: (t.endDate as string) || undefined,
+    completedAt: (t.endTime as string) || undefined,
     sequenceOrder: (getAdditionalProperty(props, "app:sequenceOrder") as number) || undefined,
   };
 
@@ -241,7 +241,7 @@ export function fromJsonLd(record: ThingRecord): AppItem {
       status: (getAdditionalProperty(props, "app:projectStatus") as Project["status"]) ?? "active",
       actionIds: extractActionIds(t),
       reviewDate: (getAdditionalProperty(props, "app:reviewDate") as string) || undefined,
-      completedAt: (t.endDate as string) || undefined,
+      completedAt: (t.endTime as string) || undefined,
       isFocused: (getAdditionalProperty(props, "app:isFocused") as boolean) ?? false,
     };
   }
@@ -321,8 +321,8 @@ export function buildTriagePatch(
 
   const patch: Record<string, unknown> = {
     "@type": TYPE_MAP.action,
-    startDate: result.date ?? null,
-    endDate: null,
+    startTime: result.date ?? null,
+    endTime: null,
     additionalProperty: additionalProps,
   };
 
@@ -347,7 +347,7 @@ export function buildItemEditPatch(
     additionalProps.push(pv("app:dueDate", fields.dueDate || null));
   }
   if ("scheduledDate" in fields) {
-    patch.startDate = fields.scheduledDate || null;
+    patch.startTime = fields.scheduledDate || null;
   }
   if ("contexts" in fields) {
     additionalProps.push(pv("app:contexts", fields.contexts));
@@ -426,8 +426,8 @@ export function buildNewActionJsonLd(
     keywords: [],
     dateCreated: now,
     dateModified: now,
-    startDate: null,
-    endDate: null,
+    startTime: null,
+    endTime: null,
     additionalProperty: [
       pv("app:bucket", bucket),
       pv("app:rawCapture", text),

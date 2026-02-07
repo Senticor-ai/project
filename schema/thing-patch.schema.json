@@ -183,7 +183,7 @@
       "default": null,
       "title": "Datemodified"
     },
-    "startDate": {
+    "startTime": {
       "anyOf": [
         {
           "type": "string"
@@ -193,9 +193,9 @@
         }
       ],
       "default": null,
-      "title": "Startdate"
+      "title": "Starttime"
     },
-    "endDate": {
+    "endTime": {
       "anyOf": [
         {
           "type": "string"
@@ -205,7 +205,7 @@
         }
       ],
       "default": null,
-      "title": "Enddate"
+      "title": "Endtime"
     },
     "isPartOf": {
       "anyOf": [

@@ -285,11 +285,11 @@ class ActionThingJsonLd(ThingJsonLdBase):
     """schema:Action — next/waiting/calendar/someday action."""
 
     type: Literal["Action"] = Field(..., alias="@type", description="schema.org Action.")
-    startDate: str | None = Field(
-        default=None, description="Scheduled date (schema.org startDate).",
+    startTime: str | None = Field(
+        default=None, description="Scheduled date/time (schema.org startTime).",
     )
-    endDate: str | None = Field(
-        default=None, description="Completion timestamp (schema.org endDate).",
+    endTime: str | None = Field(
+        default=None, description="Completion timestamp (schema.org endTime).",
     )
     isPartOf: dict[str, str] | None = Field(
         default=None,
@@ -301,8 +301,8 @@ class ProjectThingJsonLd(ThingJsonLdBase):
     """schema:Project — multi-step outcome."""
 
     type: Literal["Project"] = Field(..., alias="@type", description="schema.org Project.")
-    endDate: str | None = Field(
-        default=None, description="Completion timestamp (schema.org endDate).",
+    endTime: str | None = Field(
+        default=None, description="Completion timestamp (schema.org endTime).",
     )
     hasPart: list[dict[str, str]] = Field(
         default_factory=list,
@@ -345,8 +345,8 @@ class ThingPatchModel(BaseModel):
     keywords: list[str] | None = None
     dateCreated: str | None = None
     dateModified: str | None = None
-    startDate: str | None = None
-    endDate: str | None = None
+    startTime: str | None = None
+    endTime: str | None = None
     isPartOf: dict[str, str] | None = None
     hasPart: list[dict[str, str]] | None = None
     url: str | None = None

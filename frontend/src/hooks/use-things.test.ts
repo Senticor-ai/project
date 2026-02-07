@@ -75,8 +75,8 @@ const ACTION_RECORD = makeRecord({
     keywords: [],
     dateCreated: "2026-01-01T00:00:00Z",
     dateModified: "2026-01-01T00:00:00Z",
-    startDate: null,
-    endDate: null,
+    startTime: null,
+    endTime: null,
     additionalProperty: [
       pvFixture("app:bucket", "next"),
       pvFixture("app:needsEnrichment", false),

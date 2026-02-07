@@ -1,0 +1,389 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import {
+  ApiError,
+  AuthApi,
+  ThingsApi,
+  FilesApi,
+  ImportsApi,
+  setUserContext,
+  setCsrfToken,
+  refreshCsrfToken,
+} from "./api-client";
+
+// ---------------------------------------------------------------------------
+// Shared helpers
+// ---------------------------------------------------------------------------
+
+const MOCK_USER = {
+  id: "u-1",
+  email: "test@example.com",
+  username: "test",
+  created_at: "2026-01-01T00:00:00Z",
+};
+
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+function errorResponse(detail: string, status: number) {
+  return new Response(JSON.stringify({ detail }), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Setup
+// ---------------------------------------------------------------------------
+
+let fetchSpy: ReturnType<typeof vi.spyOn>;
+
+beforeEach(() => {
+  fetchSpy = vi.spyOn(globalThis, "fetch");
+  setUserContext(null);
+  setCsrfToken(null);
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+// ---------------------------------------------------------------------------
+// ApiError
+// ---------------------------------------------------------------------------
+
+describe("ApiError", () => {
+  it("captures status and details", () => {
+    const err = new ApiError({
+      message: "Not found",
+      status: 404,
+      details: { code: "THING_NOT_FOUND" },
+    });
+    expect(err).toBeInstanceOf(Error);
+    expect(err.message).toBe("Not found");
+    expect(err.status).toBe(404);
+    expect(err.details).toEqual({ code: "THING_NOT_FOUND" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// request() internals (tested via AuthApi/ThingsApi)
+// ---------------------------------------------------------------------------
+
+describe("request()", () => {
+  it("sends X-Request-ID header", async () => {
+    fetchSpy.mockResolvedValue(jsonResponse(MOCK_USER));
+    await AuthApi.me();
+
+    const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    const headers = new Headers(init.headers);
+    expect(headers.has("X-Request-ID")).toBe(true);
+  });
+
+  it("sends Content-Type: application/json for POST with body", async () => {
+    // login calls fetch twice: login + CSRF refresh
+    fetchSpy
+      .mockResolvedValueOnce(jsonResponse(MOCK_USER))
+      .mockResolvedValueOnce(jsonResponse({ csrf_token: "tok" }));
+    await AuthApi.login("a@b.com", "password123");
+
+    const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    const headers = new Headers(init.headers);
+    expect(headers.get("Content-Type")).toBe("application/json");
+  });
+
+  it("sends X-User-ID when user context is set", async () => {
+    setUserContext({ id: "u-42", email: "a@b.com", created_at: "" });
+    fetchSpy.mockResolvedValue(jsonResponse([]));
+    await ThingsApi.list();
+
+    const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    const headers = new Headers(init.headers);
+    expect(headers.get("X-User-ID")).toBe("u-42");
+  });
+
+  it("sends X-CSRF-Token on unsafe methods when set", async () => {
+    setCsrfToken("tok-123");
+    fetchSpy.mockResolvedValue(jsonResponse({ ok: true }));
+    await AuthApi.logout();
+
+    const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    const headers = new Headers(init.headers);
+    expect(headers.get("X-CSRF-Token")).toBe("tok-123");
+  });
+
+  it("does NOT send X-CSRF-Token on GET requests", async () => {
+    setCsrfToken("tok-123");
+    fetchSpy.mockResolvedValue(jsonResponse(MOCK_USER));
+    await AuthApi.me();
+
+    const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    const headers = new Headers(init.headers);
+    expect(headers.has("X-CSRF-Token")).toBe(false);
+  });
+
+  it("throws ApiError on non-ok response", async () => {
+    fetchSpy.mockResolvedValueOnce(errorResponse("Unauthorized", 401));
+    await expect(AuthApi.me()).rejects.toThrow(ApiError);
+
+    fetchSpy.mockResolvedValueOnce(errorResponse("Unauthorized", 401));
+    const status = await AuthApi.me().catch((e: ApiError) => e.status);
+    expect(status).toBe(401);
+  });
+
+  it("handles empty response body (204-like)", async () => {
+    fetchSpy.mockResolvedValue(new Response("", { status: 200 }));
+    const result = await ThingsApi.get("t-1");
+    expect(result).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AuthApi
+// ---------------------------------------------------------------------------
+
+describe("AuthApi", () => {
+  it("register sends email, username, password", async () => {
+    fetchSpy.mockResolvedValue(jsonResponse(MOCK_USER));
+    const user = await AuthApi.register("test@example.com", "securepass");
+
+    expect(user).toEqual(MOCK_USER);
+    const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/auth/register");
+    expect(JSON.parse(init.body as string)).toEqual({
+      email: "test@example.com",
+      username: "test",
+      password: "securepass",
+    });
+  });
+
+  it("login calls /auth/login then refreshes CSRF token", async () => {
+    fetchSpy
+      .mockResolvedValueOnce(jsonResponse(MOCK_USER)) // login
+      .mockResolvedValueOnce(jsonResponse({ csrf_token: "new-csrf" })); // csrf
+
+    const user = await AuthApi.login("test@example.com", "password123");
+    expect(user).toEqual(MOCK_USER);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+
+    const [csrfUrl] = fetchSpy.mock.calls[1] as [string];
+    expect(csrfUrl).toContain("/auth/csrf");
+  });
+
+  it("logout clears user and CSRF context", async () => {
+    setUserContext(MOCK_USER);
+    setCsrfToken("old-csrf");
+    fetchSpy.mockResolvedValue(jsonResponse({ ok: true }));
+
+    await AuthApi.logout();
+
+    // Verify subsequent requests don't include the cleared context
+    fetchSpy.mockResolvedValue(jsonResponse([]));
+    await ThingsApi.list();
+    const [, init] = fetchSpy.mock.calls[1] as [string, RequestInit];
+    const headers = new Headers(init.headers);
+    expect(headers.has("X-User-ID")).toBe(false);
+  });
+
+  it("me sends GET to /auth/me and sets user context", async () => {
+    fetchSpy.mockResolvedValue(jsonResponse(MOCK_USER));
+    const user = await AuthApi.me();
+    expect(user).toEqual(MOCK_USER);
+
+    const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/auth/me");
+    expect(init.method ?? "GET").toBe("GET");
+  });
+
+  it("refresh calls /auth/refresh and refreshes CSRF", async () => {
+    fetchSpy
+      .mockResolvedValueOnce(
+        jsonResponse({
+          user: MOCK_USER,
+          expires_at: "2026-01-01T01:00:00Z",
+          refresh_expires_at: "2026-01-02T00:00:00Z",
+        }),
+      )
+      .mockResolvedValueOnce(jsonResponse({ csrf_token: "refreshed-csrf" }));
+
+    const session = await AuthApi.refresh();
+    expect(session.user).toEqual(MOCK_USER);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// refreshCsrfToken
+// ---------------------------------------------------------------------------
+
+describe("refreshCsrfToken", () => {
+  it("fetches and stores CSRF token", async () => {
+    fetchSpy.mockResolvedValue(jsonResponse({ csrf_token: "csrf-new" }));
+    const token = await refreshCsrfToken();
+    expect(token).toBe("csrf-new");
+
+    // Verify it's used in subsequent requests
+    fetchSpy.mockResolvedValue(jsonResponse({ ok: true }));
+    await AuthApi.logout();
+    const [, init] = fetchSpy.mock.calls[1] as [string, RequestInit];
+    const headers = new Headers(init.headers);
+    expect(headers.get("X-CSRF-Token")).toBe("csrf-new");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ThingsApi
+// ---------------------------------------------------------------------------
+
+describe("ThingsApi", () => {
+  it("list sends GET with limit and offset", async () => {
+    fetchSpy.mockResolvedValue(jsonResponse([]));
+    await ThingsApi.list(10, 20);
+    const [url] = fetchSpy.mock.calls[0] as [string];
+    expect(url).toContain("/things?limit=10&offset=20");
+  });
+
+  it("sync builds query string from params", async () => {
+    fetchSpy.mockResolvedValue(
+      jsonResponse({
+        items: [],
+        has_more: false,
+        next_cursor: null,
+        server_time: "2026-01-01T00:00:00Z",
+      }),
+    );
+    await ThingsApi.sync({ limit: 100, cursor: "c-1", since: "2026-01-01" });
+    const [url] = fetchSpy.mock.calls[0] as [string];
+    expect(url).toContain("limit=100");
+    expect(url).toContain("cursor=c-1");
+    expect(url).toContain("since=2026-01-01");
+  });
+
+  it("sync with no params sends no query string", async () => {
+    fetchSpy.mockResolvedValue(
+      jsonResponse({
+        items: [],
+        has_more: false,
+        next_cursor: null,
+        server_time: "2026-01-01T00:00:00Z",
+      }),
+    );
+    await ThingsApi.sync();
+    const [url] = fetchSpy.mock.calls[0] as [string];
+    expect(url).toMatch(/\/things\/sync$/);
+  });
+
+  it("create sends POST with thing and source", async () => {
+    const record = { thing_id: "t-1" };
+    fetchSpy.mockResolvedValue(jsonResponse(record));
+    await ThingsApi.create({ name: "Test" }, "manual");
+
+    const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/things");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual({
+      thing: { name: "Test" },
+      source: "manual",
+    });
+  });
+
+  it("update sends PATCH with Idempotency-Key header when provided", async () => {
+    fetchSpy.mockResolvedValue(jsonResponse({ thing_id: "t-1" }));
+    await ThingsApi.update("t-1", { name: "Updated" }, "manual", "key-abc");
+
+    const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(init.method).toBe("PATCH");
+    const headers = new Headers(init.headers);
+    expect(headers.get("Idempotency-Key")).toBe("key-abc");
+  });
+
+  it("archive sends DELETE", async () => {
+    fetchSpy.mockResolvedValue(
+      jsonResponse({ thing_id: "t-1", archived_at: "2026-01-01", ok: true }),
+    );
+    await ThingsApi.archive("t-1");
+
+    const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/things/t-1");
+    expect(init.method).toBe("DELETE");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// FilesApi
+// ---------------------------------------------------------------------------
+
+describe("FilesApi", () => {
+  it("initiate sends POST with file metadata", async () => {
+    fetchSpy.mockResolvedValue(
+      jsonResponse({
+        upload_id: "up-1",
+        upload_url: "/upload",
+        chunk_size: 1024,
+        chunk_total: 2,
+        expires_at: "2026-01-01",
+      }),
+    );
+    await FilesApi.initiate("doc.pdf", "application/pdf", 2048);
+
+    const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toEqual({
+      filename: "doc.pdf",
+      content_type: "application/pdf",
+      total_size: 2048,
+    });
+  });
+
+  it("uploadChunk sends PUT with binary body and chunk headers", async () => {
+    fetchSpy.mockResolvedValue(jsonResponse({ received: 1 }));
+    const blob = new Blob(["data"]);
+    await FilesApi.uploadChunk("up-1", blob, 0, 2);
+
+    const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/files/upload/up-1");
+    expect(init.method).toBe("PUT");
+    const headers = new Headers(init.headers);
+    expect(headers.get("X-Chunk-Index")).toBe("0");
+    expect(headers.get("X-Chunk-Total")).toBe("2");
+  });
+
+  it("complete sends POST with upload_id", async () => {
+    fetchSpy.mockResolvedValue(
+      jsonResponse({ file_id: "f-1", original_name: "doc.pdf" }),
+    );
+    await FilesApi.complete("up-1");
+
+    const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toEqual({ upload_id: "up-1" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ImportsApi
+// ---------------------------------------------------------------------------
+
+describe("ImportsApi", () => {
+  it("inspectNirvana sends POST", async () => {
+    fetchSpy.mockResolvedValue(
+      jsonResponse({ total: 5, created: 5, updated: 0, skipped: 0, errors: 0 }),
+    );
+    await ImportsApi.inspectNirvana({ file_id: "f-1" });
+
+    const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/imports/nirvana/inspect");
+    expect(init.method).toBe("POST");
+  });
+
+  it("getJob sends GET to /imports/jobs/:id", async () => {
+    fetchSpy.mockResolvedValue(
+      jsonResponse({ job_id: "j-1", status: "completed" }),
+    );
+    await ImportsApi.getJob("j-1");
+
+    const [url] = fetchSpy.mock.calls[0] as [string];
+    expect(url).toContain("/imports/jobs/j-1");
+  });
+});

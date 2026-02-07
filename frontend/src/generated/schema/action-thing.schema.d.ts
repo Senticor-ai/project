@@ -70,13 +70,13 @@ export type Rawtype = number;
  */
 export type Rawstate = number;
 /**
- * Scheduled date (schema.org startDate).
+ * Scheduled date/time (schema.org startTime).
  */
-export type Startdate = string | null;
+export type Starttime = string | null;
 /**
- * Completion timestamp (schema.org endDate).
+ * Completion timestamp (schema.org endTime).
  */
-export type Enddate = string | null;
+export type Endtime = string | null;
 /**
  * Owning project reference, e.g. {"@id": "urn:app:project:…"}.
  */
@@ -101,8 +101,8 @@ export interface ActionThingJsonLd {
    * Provider-specific source metadata preserved during imports.
    */
   sourceMetadata?: ThingSourceMetadata | null;
-  startDate?: Startdate;
-  endDate?: Enddate;
+  startTime?: Starttime;
+  endTime?: Endtime;
   isPartOf?: Ispartof;
   [k: string]: unknown;
 }
