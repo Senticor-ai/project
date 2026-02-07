@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { useNirvanaImport } from "@/hooks/use-nirvana-import";
 import {
@@ -31,6 +31,17 @@ export function NirvanaImportDialog({
     null,
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Reset dialog state when opened
+  useEffect(() => {
+    if (open) {
+      setStep("select");
+      setFileId(null);
+      setIncludeCompleted(true);
+      setDuplicateInfo(null);
+      setJobId(null);
+    }
+  }, [open, setJobId]);
 
   const handleFile = useCallback(
     async (file: File) => {

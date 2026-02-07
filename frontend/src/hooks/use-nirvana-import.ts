@@ -4,6 +4,7 @@ import { ImportsApi } from "@/lib/api-client";
 import type { NirvanaImportSummary, ImportJobResponse } from "@/lib/api-client";
 import { useFileUpload } from "./use-file-upload";
 import { THINGS_QUERY_KEY } from "./use-things";
+import { IMPORT_JOBS_QUERY_KEY } from "./use-import-jobs";
 
 export function useNirvanaImport() {
   const qc = useQueryClient();
@@ -62,6 +63,7 @@ export function useNirvanaImport() {
     if (jobStatus === "completed" && !hasCompletedInvalidation.current) {
       hasCompletedInvalidation.current = true;
       qc.invalidateQueries({ queryKey: THINGS_QUERY_KEY });
+      qc.invalidateQueries({ queryKey: IMPORT_JOBS_QUERY_KEY });
     }
   }, [jobStatus, qc]);
 

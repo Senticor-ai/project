@@ -297,6 +297,16 @@ export type SyncResponse = {
   server_time: string;
 };
 
+export function downloadExport(format: "json" | "csv") {
+  const url = `${API_BASE_URL}/things/export?format=${format}`;
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
 export const ThingsApi = {
   list: (limit = 50, offset = 0) =>
     request<ThingRecord[]>(`/things?limit=${limit}&offset=${offset}`),

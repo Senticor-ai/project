@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { useAuth } from "./lib/use-auth";
 import { useLocationState } from "./hooks/use-location-state";
 import { useImportJobs } from "./hooks/use-import-jobs";
+import { downloadExport } from "./lib/api-client";
 import { LoginPage } from "./components/auth/LoginPage";
 import { ConnectedBucketView } from "./components/work/ConnectedBucketView";
 import { NirvanaImportDialog } from "./components/work/NirvanaImportDialog";
@@ -85,6 +86,7 @@ function App() {
           activeTab={location.sub as SettingsTab}
           onTabChange={handleSettingsTabChange}
           onImportNirvana={() => setShowImport(true)}
+          onExport={downloadExport}
           importJobs={importJobs}
         />
       )}

@@ -46,10 +46,10 @@ From repo root:
 docker compose -f infra/docker-compose.yml up -d postgres
 ```
 
-Optional services:
+Optional services (Fuseki, Meilisearch) — only when needed:
 
 ```bash
-docker compose -f infra/docker-compose.yml up -d fuseki meilisearch
+docker compose -f infra/docker-compose.yml --profile optional up -d
 ```
 
 ### 4) Install backend deps

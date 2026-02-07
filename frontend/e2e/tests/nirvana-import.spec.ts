@@ -1,6 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, expect } from "../fixtures/auth.fixture";
+import { SettingsPage } from "../pages/settings.page";
 import { WorkspacePage } from "../pages/workspace.page";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -16,8 +17,10 @@ test.describe("Nirvana Import", () => {
     // Generous timeout for a 12 MB / 20k item import
     test.setTimeout(180_000);
 
-    // 1. Open import dialog
-    await page.getByRole("button", { name: "Import" }).click();
+    // 1. Open import dialog via Settings
+    const settings = new SettingsPage(page);
+    await settings.openSettings();
+    await settings.importNirvanaButton().click();
     await expect(
       page.getByText("Drop your Nirvana JSON export file"),
     ).toBeVisible();
