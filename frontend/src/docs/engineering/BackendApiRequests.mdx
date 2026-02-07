@@ -351,6 +351,13 @@ An SSE endpoint (`GET /things/events`) with `thing_upserted`, `thing_archived`, 
 
 ## JSON-LD Payload Schemas
 
-The exact JSON-LD shapes the frontend sends in `POST /things` and `PATCH /things/{id}` requests are documented as machine-readable JSON Schema files in `schema/` at the monorepo root. These are generated from the backend Pydantic models.
+The exact JSON-LD shapes accepted by `POST /things` and `PATCH /things/{id}` are available as machine-readable JSON Schema via the backend API:
 
-See [Data Model — JSON Schema Contract](?path=/docs/engineering-ontology--docs) for the full list of schema files and generation instructions.
+| Endpoint | Description |
+|----------|-------------|
+| `GET /schemas` | List available schema names |
+| `GET /schemas/{name}` | Download a JSON Schema (`application/schema+json`) |
+
+Available schemas: `inbox-thing`, `action-thing`, `project-thing`, `reference-thing`, `thing-patch`, `property-value`.
+
+These are generated at runtime from the backend Pydantic models — the API is the single source of truth. Frontend tests can fetch schemas directly from the API for validation.

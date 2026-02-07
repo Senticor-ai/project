@@ -23,16 +23,16 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">12.94% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/85</span>
+                <span class='fraction'>11/85</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">3.92% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/51</span>
+                <span class='fraction'>2/51</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">13.58% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/81</span>
+                <span class='fraction'>11/81</span>
             </div>
         
             
@@ -409,11 +409,11 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -423,8 +423,8 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -498,7 +498,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -577,7 +577,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -652,7 +652,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -680,7 +680,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -738,11 +738,11 @@ export class ApiError extends Error {
   }
 }
 &nbsp;
-const API_BASE_URL = <span class="cstat-no" title="statement not covered" >import.meta.env.VITE_API_BASE_URL ?? "/api";</span>
-const REQUEST_ID_HEADER = <span class="cstat-no" title="statement not covered" >"X-Request-ID";</span>
-const USER_ID_HEADER = <span class="cstat-no" title="statement not covered" >"X-User-ID";</span>
-const CSRF_HEADER = <span class="cstat-no" title="statement not covered" >"X-CSRF-Token";</span>
-const SAFE_METHODS = <span class="cstat-no" title="statement not covered" >new Set(["GET", "HEAD", "OPTIONS", "TRACE"]);</span>
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
+const REQUEST_ID_HEADER = "X-Request-ID";
+const USER_ID_HEADER = "X-User-ID";
+const CSRF_HEADER = "X-CSRF-Token";
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS", "TRACE"]);
 &nbsp;
 async function <span class="fstat-no" title="function not covered" >parseJson(r</span>esponse: Response) {
   const text = <span class="cstat-no" title="statement not covered" >await response.text();</span>
@@ -752,8 +752,8 @@ async function <span class="fstat-no" title="function not covered" >parseJson(r<
 <span class="cstat-no" title="statement not covered" >  return JSON.parse(text);</span>
 }
 &nbsp;
-let currentUserId: string | null = <span class="cstat-no" title="statement not covered" >null;</span>
-let csrfToken: string | null = <span class="cstat-no" title="statement not covered" >null;</span>
+let currentUserId: string | null = null;
+let csrfToken: string | null = null;
 &nbsp;
 export function <span class="fstat-no" title="function not covered" >setUserContext(u</span>ser: AuthUser | null) {
 <span class="cstat-no" title="statement not covered" >  currentUserId = user?.id ?? null;</span>
@@ -827,7 +827,7 @@ export type SessionRefreshResponse = {
   refresh_expires_at: string;
 };
 &nbsp;
-export const AuthApi = <span class="cstat-no" title="statement not covered" >{</span>
+export const AuthApi = {
   register: <span class="fstat-no" title="function not covered" >async (e</span>mail: string, password: string) =&gt; {
     const username = <span class="cstat-no" title="statement not covered" >email.split("@")[0];</span>
     const user = <span class="cstat-no" title="statement not covered" >await request&lt;AuthUser&gt;("/auth/register", {</span>
@@ -906,7 +906,7 @@ export type FileRecord = {
   download_url: string;
 };
 &nbsp;
-export const FilesApi = <span class="cstat-no" title="statement not covered" >{</span>
+export const FilesApi = {
   initiate: <span class="fstat-no" title="function not covered" >(f</span>ilename: string, contentType: string, totalSize: number) =&gt;
 <span class="cstat-no" title="statement not covered" >    request&lt;FileInitiateResponse&gt;("/files/initiate", {</span>
       method: "POST",
@@ -981,7 +981,7 @@ export type ImportJobResponse = {
   error: string | null;
 };
 &nbsp;
-export const ImportsApi = <span class="cstat-no" title="statement not covered" >{</span>
+export const ImportsApi = {
   inspectNirvana: <span class="fstat-no" title="function not covered" >(r</span>eq: NirvanaInspectRequest) =&gt;
 <span class="cstat-no" title="statement not covered" >    request&lt;NirvanaImportSummary&gt;("/imports/nirvana/inspect", {</span>
       method: "POST",
@@ -1009,7 +1009,7 @@ export type SyncResponse = {
   server_time: string;
 };
 &nbsp;
-export const ThingsApi = <span class="cstat-no" title="statement not covered" >{</span>
+export const ThingsApi = {
   list: <span class="fstat-no" title="function not covered" >(l</span>imit = <span class="branch-0 cbranch-no" title="branch not covered" >50, o</span>ffset = <span class="branch-0 cbranch-no" title="branch not covered" >0) =&gt;</span>
 <span class="cstat-no" title="statement not covered" >    request&lt;ThingRecord[]&gt;(`/things?limit=${limit}&amp;offset=${offset}`),</span>
 &nbsp;
@@ -1057,7 +1057,7 @@ export const ThingsApi = <span class="cstat-no" title="statement not covered" >{
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-02-07T19:14:10.726Z
+                at 2026-02-07T19:35:31.454Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

@@ -136,8 +136,8 @@ cd backend && uv run python -m pytest
 
 ### 4c. Kubernetes (environment-aware)
 
-All files in `infra/k8s/minimal/` — namespace `terminandoyo` → `procedere-dev`, images `terminandoyo-*` → `procedere-*`:
-namespace.yaml, configmap.yaml, secret.yaml, postgres.yaml, backend.yaml, frontend.yaml, pvc-backend-files.yaml, ingress.yaml, job-db-init.yaml
+All files in `infra/k8s/` (base + overlays) — namespace `terminandoyo` → `procedere-dev`, images `terminandoyo-*` → `procedere-*`:
+base/ (postgres.yaml, backend.yaml, frontend.yaml, pvc-backend-files.yaml), overlays/local/ (namespace.yaml, configmap.yaml, secret.yaml, ingress.yaml), overlays/production/ (configmap.yaml, kustomization.yaml image refs)
 
 ### 4d. Documentation
 

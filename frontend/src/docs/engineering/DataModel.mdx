@@ -16,6 +16,7 @@ App-specific concepts that have no schema.org equivalent use `additionalProperty
 | [FRBR Knowledge Graph](?path=/docs/engineering-ontology-frbr-knowledge-graph--docs) | Document hierarchy for the knowledge graph projection |
 | [LexCEL Architecture](?path=/docs/engineering-ontology-lexcel-architecture--docs) | Typed references, ports, and rule layer |
 | [Legal Reference Normalization](?path=/docs/engineering-ontology-legal-reference-normalization--docs) | Citation parsing and normalization |
+| [Schema Contract Validation](?path=/docs/engineering-ontology-schema-contract-validation--docs) | Backend API schemas, AJV contract tests, CI validation |
 
 ---
 
@@ -407,28 +408,26 @@ Actions: `created`, `clarified`, `moved`, `updated`, `archived`,
 
 ## JSON Schema Contract
 
-The machine-readable contract for JSON-LD payloads lives in `schema/*.schema.json` at the
-monorepo root. These files are **generated from the Pydantic models** in `backend/app/models.py`
-and serve as the cross-team agreement between frontend and backend.
+The machine-readable contract for JSON-LD payloads is **served by the backend API** at
+`GET /schemas/{name}`. Schemas are generated at runtime from the Pydantic models in
+`backend/app/models.py` — no static files to keep in sync.
 
-**Generate schemas**: `cd backend && uv run python scripts/export_jsonld_schemas.py`
+The serializer contract tests in `thing-serializer.test.ts` fetch these schemas, compile
+AJV validators, and verify that every `build*` and `toJsonLd` output conforms. Tests skip
+gracefully when the backend is unreachable.
 
-**Generate TypeScript types**: `cd frontend && npm run generate:schema-types`
-
-Generated types land in `frontend/src/generated/schema/` and can be used for compile-time
-validation. The serializer roundtrip tests in `thing-serializer.test.ts` verify that the
-frontend's serialization stays consistent with these schemas.
-
-| Schema file | Pydantic model | Purpose |
+| Schema name | Pydantic model | Purpose |
 | --- | --- | --- |
-| `inbox-thing.schema.json` | `InboxThingJsonLd` | Inbox capture payload |
-| `action-thing.schema.json` | `ActionThingJsonLd` | Action payload |
-| `project-thing.schema.json` | `ProjectThingJsonLd` | Project payload |
-| `reference-thing.schema.json` | `ReferenceThingJsonLd` | Reference payload |
-| `thing-patch.schema.json` | `ThingPatchModel` | PATCH payload |
-| `property-value.schema.json` | `PropertyValueModel` | PropertyValue shape |
+| `inbox-thing` | `InboxThingJsonLd` | Inbox capture payload |
+| `action-thing` | `ActionThingJsonLd` | Action payload |
+| `project-thing` | `ProjectThingJsonLd` | Project payload |
+| `reference-thing` | `ReferenceThingJsonLd` | Reference payload |
+| `thing-patch` | `ThingPatchModel` | PATCH payload |
+| `property-value` | `PropertyValueModel` | PropertyValue shape |
 
-See also: [Backend API Requests](?path=/docs/engineering-backend-api-requests-import-ux--docs) for endpoint documentation.
+See [Schema Contract Validation](?path=/docs/engineering-ontology-schema-contract-validation--docs)
+for the full pipeline documentation, and
+[Backend API Requests](?path=/docs/engineering-backend-api-requests-import-ux--docs) for endpoint docs.
 
 ---
 

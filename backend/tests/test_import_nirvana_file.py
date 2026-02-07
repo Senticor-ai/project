@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from app.config import settings
 from app.db import db_conn, jsonb
 from app.routes.imports import _IMPORT_JOB_STALE_ERROR
+from app.storage import get_storage
 from app.worker import process_batch
 
 
@@ -29,10 +30,9 @@ def _create_file_record(
     content = fixture_path.read_bytes()
     digest = hashlib.sha256(content).hexdigest()
     file_id = str(uuid.uuid4())
-    storage_dir = settings.file_storage_path
-    storage_dir.mkdir(parents=True, exist_ok=True)
-    storage_path = storage_dir / file_id
-    storage_path.write_bytes(content)
+    storage = get_storage()
+    storage_key = f"files/{file_id}"
+    storage.write(storage_key, content)
 
     with db_conn() as conn:
         with conn.cursor() as cur:
@@ -58,7 +58,7 @@ def _create_file_record(
                     "application/json",
                     len(content),
                     digest,
-                    str(storage_path),
+                    storage_key,
                 ),
             )
         conn.commit()

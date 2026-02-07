@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+  - configmap.yaml
+
+images:
+  - name: terminandoyo-backend
+    newName: harbor.100-114-108-51.nip.io:30443/terminandoyo/backend
+    newTag: latest
+  - name: terminandoyo-frontend
+    newName: harbor.100-114-108-51.nip.io:30443/terminandoyo/frontend
+    newTag: latest
+
+patches:
+  - path: patches/backend.yaml
+  - path: patches/frontend.yaml
+  - path: patches/postgres.yaml

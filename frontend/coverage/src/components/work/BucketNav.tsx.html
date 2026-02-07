@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/8</span>
+                <span class='fraction'>9/9</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">91.66% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/12</span>
+                <span class='fraction'>11/12</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>0/4</span>
+                <span class='fraction'>4/4</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/8</span>
+                <span class='fraction'>9/9</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line low'></div>
+    <div class='status-line high'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -188,7 +188,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">3x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -200,7 +200,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">3x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -230,14 +230,14 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">304x</span>
+<span class="cline-any cline-yes">304x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">304x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -251,6 +251,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">3x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -274,18 +275,17 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">38x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">304x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">13x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -302,7 +302,7 @@ interface BucketNavItemConfig {
   icon: string;
 }
 &nbsp;
-const navItems: BucketNavItemConfig[] = <span class="cstat-no" title="statement not covered" >[</span>
+const navItems: BucketNavItemConfig[] = [
   { bucket: "inbox", label: "Inbox", icon: "inbox" },
   { bucket: "focus", label: "Focus", icon: "center_focus_strong" },
   { bucket: "next", label: "Next Actions", icon: "bolt" },
@@ -314,7 +314,7 @@ const navItems: BucketNavItemConfig[] = <span class="cstat-no" title="statement 
 ];
 &nbsp;
 // Drop targets: buckets where items can be dragged to
-const droppableBuckets = <span class="cstat-no" title="statement not covered" >new Set&lt;string&gt;([</span>
+const droppableBuckets = new Set&lt;string&gt;([
   "next",
   "waiting",
   "calendar",
@@ -329,7 +329,7 @@ export interface BucketNavProps {
   className?: string;
 }
 &nbsp;
-function <span class="fstat-no" title="function not covered" >BucketNavItem({</span>
+function BucketNavItem({
   bucket,
   label,
   icon,
@@ -344,14 +344,14 @@ function <span class="fstat-no" title="function not covered" >BucketNavItem({</s
   count: number | undefined;
   onSelect: () =&gt; void;
 }) {
-  const isDropTarget = <span class="cstat-no" title="statement not covered" >droppableBuckets.has(bucket);</span>
-  const { setNodeRef, isOver <span class="cstat-no" title="statement not covered" >} = useDroppable({</span>
+  const isDropTarget = droppableBuckets.has(bucket);
+  const { setNodeRef, isOver } = useDroppable({
     id: `bucket-${bucket}`,
     data: { bucket },
     disabled: !isDropTarget,
   });
 &nbsp;
-<span class="cstat-no" title="statement not covered" >  return (</span>
+  return (
     &lt;button
       ref={setNodeRef}
       onClick={onSelect}
@@ -361,7 +361,7 @@ function <span class="fstat-no" title="function not covered" >BucketNavItem({</s
         isActive
           ? "bg-blueprint-50 font-medium text-blueprint-700"
           : "text-text-muted hover:bg-paper-100 hover:text-text",
-        isOver &amp;&amp; "ring-2 ring-blueprint-300 bg-blueprint-50/50",
+        isOver &amp;&amp; <span class="branch-1 cbranch-no" title="branch not covered" >"ring-2 ring-blueprint-300 bg-blueprint-50/50",</span>
       )}
       aria-current={isActive ? "page" : undefined}
     &gt;
@@ -383,23 +383,23 @@ function <span class="fstat-no" title="function not covered" >BucketNavItem({</s
   );
 }
 &nbsp;
-export function <span class="fstat-no" title="function not covered" >BucketNav({</span>
+export function BucketNav({
   activeBucket,
   onSelect,
-  counts = <span class="branch-0 cbranch-no" title="branch not covered" >{},</span>
+  counts = {},
   className,
 }: BucketNavProps) {
-<span class="cstat-no" title="statement not covered" >  return (</span>
+  return (
     &lt;nav className={cn("space-y-0.5", className)} aria-label="Buckets"&gt;
-      {navItems.map(<span class="fstat-no" title="function not covered" >({</span> bucket, label, icon }) =&gt; (
-<span class="cstat-no" title="statement not covered" >        &lt;BucketNavItem</span>
+      {navItems.map(({ bucket, label, icon }) =&gt; (
+        &lt;BucketNavItem
           key={bucket}
           bucket={bucket}
           label={label}
           icon={icon}
           isActive={activeBucket === bucket}
           count={counts[bucket]}
-          onSelect={<span class="fstat-no" title="function not covered" >() =&gt; <span class="cstat-no" title="statement not covered" >o</span>nSelect(bucket)}</span>
+          onSelect={() =&gt; onSelect(bucket)}
         /&gt;
       ))}
     &lt;/nav&gt;
@@ -412,7 +412,7 @@ export function <span class="fstat-no" title="function not covered" >BucketNav({
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-02-07T19:14:10.726Z
+                at 2026-02-07T19:35:31.454Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>

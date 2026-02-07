@@ -9,6 +9,7 @@ from pypdf import PdfReader
 
 from ..config import settings
 from ..observability import get_logger
+from ..storage import get_storage
 from .meili import (
     add_documents,
     delete_document,
@@ -268,15 +269,18 @@ def build_file_document(
 ) -> dict[str, Any]:
     original_name = row.get("original_name") or ""
     content_type = _guess_content_type(original_name, row.get("content_type"))
-    storage_path = Path(row.get("storage_path") or "")
+    storage_key = row.get("storage_path") or ""
+    storage = get_storage()
     extracted_text = ""
-    if settings.meili_index_files_enabled and storage_path.is_file():
-        extracted_text = _extract_file_text(
-            storage_path,
-            content_type,
-            row.get("size_bytes"),
-            ocr_config or default_ocr_config(),
-        )
+    if settings.meili_index_files_enabled and storage.exists(storage_key):
+        local_path = storage.resolve_path(storage_key)
+        if local_path:
+            extracted_text = _extract_file_text(
+                local_path,
+                content_type,
+                row.get("size_bytes"),
+                ocr_config or default_ocr_config(),
+            )
     search_text = "\n".join(part for part in [original_name, extracted_text] if part)
     return {
         "file_id": str(row.get("file_id")),

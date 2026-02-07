@@ -23,7 +23,7 @@ Push to main
   │
   ├─ SAST ───────── GitLab static application security testing
   │
-  └─ Reconcile ──── Flux CD detects changes in deploy/ directory
+  └─ Reconcile ──── Flux CD detects changes in infra/k8s/overlays/production/
                      and applies Kustomize manifests to the cluster (~5 min)
 ```
 
@@ -32,7 +32,7 @@ Push to main
 | Change | Effect |
 |--------|--------|
 | Application code (frontend/ or backend/) | CI rebuilds images → new pods roll out |
-| Kubernetes manifests (deploy/) | Flux applies updated resources |
+| Kubernetes manifests (infra/k8s/overlays/production/) | Flux applies updated resources |
 | Both in same commit | Images built first, then Flux reconciles |
 
 ### CI/CD Configuration
@@ -74,9 +74,9 @@ Single-stage build:
 
 ## Kubernetes Architecture
 
-All application resources are declared in the `deploy/` directory using Kustomize. Flux injects the target namespace automatically — manifests must not set `namespace:`.
+All application resources are declared in `infra/k8s/` using a Kustomize base/overlay structure. The production overlay lives in `infra/k8s/overlays/production/`. Flux injects the target namespace automatically — production manifests must not set `namespace:`.
 
-### Resources managed by the team (in `deploy/`)
+### Resources managed by the team (in `infra/k8s/`)
 
 | Resource | Type | Notes |
 |----------|------|-------|
@@ -86,7 +86,7 @@ All application resources are declared in the `deploy/` directory using Kustomiz
 | backend-files | PVC (5Gi) | File storage mounted at `/data/storage` |
 | app-config | ConfigMap | Non-sensitive configuration (CORS, logging, feature flags) |
 
-### Resources managed by ops (not in `deploy/`)
+### Resources managed by ops (not in version control)
 
 | Resource | Purpose |
 |----------|---------|
@@ -128,7 +128,7 @@ Pod logs are collected automatically into Loki. The Grafana dashboard is availab
 
 ## Local Development
 
-For local Kubernetes development, use the manifests in `infra/k8s/minimal/` with Rancher Desktop. These are separate from the production `deploy/` manifests and use local image builds.
+For local Kubernetes development, use the local overlay (`infra/k8s/overlays/local/`) with Rancher Desktop. It shares the same base manifests as production but uses local image builds, dev-friendly ConfigMap values, and includes namespace/secret/ingress resources.
 
 Infrastructure services (PostgreSQL, Fuseki, Meilisearch) run via `infra/docker-compose.yml`.
 

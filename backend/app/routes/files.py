@@ -1,10 +1,7 @@
-import hashlib
-import os
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import JSONResponse
 
 from ..config import settings
 from ..db import db_conn
@@ -24,17 +21,9 @@ from ..models import (
 )
 from ..outbox import enqueue_event
 from ..search.jobs import enqueue_job, get_job, serialize_job
+from ..storage import get_storage
 
 router = APIRouter(prefix="/files", tags=["files"], dependencies=[Depends(get_current_user)])
-
-
-def _ensure_dirs() -> tuple[Path, Path]:
-    base = settings.file_storage_path
-    uploads = base / "uploads"
-    files = base / "files"
-    uploads.mkdir(parents=True, exist_ok=True)
-    files.mkdir(parents=True, exist_ok=True)
-    return uploads, files
 
 
 @router.post(
@@ -64,7 +53,7 @@ def initiate_upload(
                 status_code=cached["status_code"],
             )
 
-    uploads_dir, _ = _ensure_dirs()
+    storage = get_storage()
     chunk_size = settings.upload_chunk_size
     chunk_total = max(1, (payload.total_size + chunk_size - 1) // chunk_size)
 
@@ -98,7 +87,7 @@ def initiate_upload(
         conn.commit()
 
     upload_id = str(row["upload_id"])
-    (uploads_dir / upload_id).mkdir(parents=True, exist_ok=True)
+    storage.ensure_dir(f"uploads/{upload_id}")
 
     expires_at = (datetime.now(UTC) + timedelta(hours=24)).isoformat()
 
@@ -134,10 +123,9 @@ async def upload_chunk(
     current_org=Depends(get_current_org),
 ):
     org_id = current_org["org_id"]
-    uploads_dir, _ = _ensure_dirs()
-    upload_path = uploads_dir / upload_id
+    storage = get_storage()
 
-    if not upload_path.exists():
+    if not storage.exists(f"uploads/{upload_id}"):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Upload not found")
 
     body = await request.body()
@@ -174,8 +162,7 @@ async def upload_chunk(
                 detail="Invalid chunk index",
             )
 
-        part_path = upload_path / f"part-{chunk_index}"
-        part_path.write_bytes(body)
+        storage.write(f"uploads/{upload_id}/part-{chunk_index}", body)
 
         with conn.cursor() as cur:
             cur.execute(
@@ -217,7 +204,7 @@ def complete_upload(
                 status_code=cached["status_code"],
             )
 
-    uploads_dir, files_dir = _ensure_dirs()
+    storage = get_storage()
 
     with db_conn() as conn:
         with conn.cursor() as cur:
@@ -282,37 +269,27 @@ def complete_upload(
                     status_code=status.HTTP_200_OK,
                 )
 
-        upload_path = uploads_dir / str(upload["upload_id"])
-        if not upload_path.exists():
+        upload_prefix = f"uploads/{upload['upload_id']}"
+        if not storage.exists(upload_prefix):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Upload parts missing",
             )
 
         chunk_total = int(upload["chunk_total"])
-        missing = [i for i in range(chunk_total) if not (upload_path / f"part-{i}").exists()]
+        missing = [
+            i for i in range(chunk_total)
+            if not storage.exists(f"{upload_prefix}/part-{i}")
+        ]
         if missing:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=f"Missing chunks: {missing}",
             )
 
-        sha256 = hashlib.sha256()
-        target_path = files_dir / f"{payload.upload_id}"
-
-        with open(target_path, "wb") as target:
-            for i in range(chunk_total):
-                part_path = upload_path / f"part-{i}"
-                with open(part_path, "rb") as part_file:
-                    while True:
-                        chunk = part_file.read(8192)
-                        if not chunk:
-                            break
-                        target.write(chunk)
-                        sha256.update(chunk)
-
-        size_bytes = os.path.getsize(target_path)
-        digest = sha256.hexdigest()
+        part_keys = [f"{upload_prefix}/part-{i}" for i in range(chunk_total)]
+        target_key = f"files/{payload.upload_id}"
+        size_bytes, digest = storage.concatenate(part_keys, target_key)
 
         if size_bytes != int(upload["total_size"]):
             raise HTTPException(
@@ -342,7 +319,7 @@ def complete_upload(
                     upload["content_type"],
                     size_bytes,
                     digest,
-                    str(target_path),
+                    target_key,
                 ),
             )
             file_row = cur.fetchone()
@@ -367,9 +344,7 @@ def complete_upload(
     )
     enqueue_event("file_uploaded", {"file_id": str(file_row["file_id"]), "org_id": org_id})
 
-    for part_path in upload_path.glob("part-*"):
-        part_path.unlink(missing_ok=True)
-    upload_path.rmdir()
+    storage.delete_prefix(upload_prefix)
 
     response = FileRecord(
         file_id=str(file_row["file_id"]),
@@ -434,8 +409,9 @@ def get_file(
             headers={"ETag": etag, "Last-Modified": last_modified},
         )
 
-    return FileResponse(
-        path=row["storage_path"],
+    storage = get_storage()
+    return storage.get_file_response(
+        row["storage_path"],
         media_type=row["content_type"] or "application/octet-stream",
         filename=row["original_name"],
         headers={

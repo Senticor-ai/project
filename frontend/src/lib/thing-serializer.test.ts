@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach } from "vitest";
 import {
   toJsonLd,
   fromJsonLd,
@@ -19,12 +19,10 @@ import type { ThingRecord } from "./api-client";
 import type { Thing, Project, ReferenceMaterial } from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
 import {
-  validateInboxThing,
-  validateActionThing,
-  validateProjectThing,
-  validateReferenceThing,
-  validateThingPatch,
+  isBackendAvailable,
+  loadValidators,
   formatErrors,
+  type SchemaValidators,
 } from "./__tests__/schema-validator";
 
 // ---------------------------------------------------------------------------
@@ -1105,50 +1103,68 @@ describe("roundtrip rawCapture-only", () => {
 // JSON Schema contract validation
 // ---------------------------------------------------------------------------
 // These tests validate that the serializer output conforms to the JSON Schema
-// generated from the backend Pydantic models. If the backend changes its
-// models and the schemas are regenerated, these tests break automatically.
+// served by the backend /schemas API endpoint. If the backend changes its
+// Pydantic models, these tests break automatically — catching contract drift.
+//
+// Requires a running backend. Tests skip gracefully when unreachable.
 // ---------------------------------------------------------------------------
 
 describe("JSON Schema contract validation", () => {
+  let validators: SchemaValidators;
+  let backendUp: boolean;
+
+  beforeAll(async () => {
+    backendUp = await isBackendAvailable();
+    if (backendUp) {
+      validators = await loadValidators();
+    }
+  });
+
   beforeEach(() => resetFactoryCounter());
 
   describe("build* functions produce schema-valid payloads", () => {
-    it("buildNewInboxJsonLd → inbox-thing.schema.json", () => {
+    it("buildNewInboxJsonLd → inbox-thing schema", ({ skip }) => {
+      if (!backendUp) skip();
       const ld = buildNewInboxJsonLd("Anruf bei Frau Müller");
-      const valid = validateInboxThing(ld);
-      expect(valid, formatErrors(validateInboxThing)).toBe(true);
+      const valid = validators.validateInboxThing(ld);
+      expect(valid, formatErrors(validators.validateInboxThing)).toBe(true);
     });
 
-    it("buildNewActionJsonLd → action-thing.schema.json", () => {
+    it("buildNewActionJsonLd → action-thing schema", ({ skip }) => {
+      if (!backendUp) skip();
       const ld = buildNewActionJsonLd("Wireframes erstellen", "next");
-      const valid = validateActionThing(ld);
-      expect(valid, formatErrors(validateActionThing)).toBe(true);
+      const valid = validators.validateActionThing(ld);
+      expect(valid, formatErrors(validators.validateActionThing)).toBe(true);
     });
 
-    it("buildNewActionJsonLd with projectId → action-thing.schema.json", () => {
+    it("buildNewActionJsonLd with projectId → action-thing schema", ({ skip }) => {
+      if (!backendUp) skip();
       const ld = buildNewActionJsonLd("Sub-task", "next", {
         projectId: "urn:app:project:p-1" as CanonicalId,
       });
-      const valid = validateActionThing(ld);
-      expect(valid, formatErrors(validateActionThing)).toBe(true);
+      const valid = validators.validateActionThing(ld);
+      expect(valid, formatErrors(validators.validateActionThing)).toBe(true);
     });
 
-    it("buildNewReferenceJsonLd → reference-thing.schema.json", () => {
+    it("buildNewReferenceJsonLd → reference-thing schema", ({ skip }) => {
+      if (!backendUp) skip();
       const ld = buildNewReferenceJsonLd("SGB III § 159");
-      const valid = validateReferenceThing(ld);
-      expect(valid, formatErrors(validateReferenceThing)).toBe(true);
+      const valid = validators.validateReferenceThing(ld);
+      expect(valid, formatErrors(validators.validateReferenceThing)).toBe(true);
     });
   });
 
   describe("toJsonLd produces schema-valid payloads", () => {
-    it("inbox item → inbox-thing.schema.json", () => {
+    it("inbox item → inbox-thing schema", ({ skip }) => {
+      if (!backendUp) skip();
       const item = createInboxItem({ rawCapture: "Buy milk" });
       const ld = toJsonLd(item);
-      const valid = validateInboxThing(ld);
-      expect(valid, formatErrors(validateInboxThing)).toBe(true);
+      const valid = validators.validateInboxThing(ld);
+      expect(valid, formatErrors(validators.validateInboxThing)).toBe(true);
     });
 
-    it("action → action-thing.schema.json", () => {
+    it("action → action-thing schema", ({ skip }) => {
+      if (!backendUp) skip();
       const action = createAction({
         rawCapture: "Call dentist",
         bucket: "next",
@@ -1156,49 +1172,53 @@ describe("JSON Schema contract validation", () => {
         dueDate: "2026-06-01",
       });
       const ld = toJsonLd(action);
-      const valid = validateActionThing(ld);
-      expect(valid, formatErrors(validateActionThing)).toBe(true);
+      const valid = validators.validateActionThing(ld);
+      expect(valid, formatErrors(validators.validateActionThing)).toBe(true);
     });
 
-    it("project → project-thing.schema.json", () => {
+    it("project → project-thing schema", ({ skip }) => {
+      if (!backendUp) skip();
       const project = createProject({
         name: "Renovate kitchen",
         desiredOutcome: "Modern kitchen",
         actionIds: ["urn:app:action:a-1" as CanonicalId],
       });
       const ld = toJsonLd(project);
-      const valid = validateProjectThing(ld);
-      expect(valid, formatErrors(validateProjectThing)).toBe(true);
+      const valid = validators.validateProjectThing(ld);
+      expect(valid, formatErrors(validators.validateProjectThing)).toBe(true);
     });
 
-    it("reference → reference-thing.schema.json", () => {
+    it("reference → reference-thing schema", ({ skip }) => {
+      if (!backendUp) skip();
       const ref = createReferenceMaterial({
         name: "Tax docs",
         url: "https://example.com",
         encodingFormat: "text/html",
       });
       const ld = toJsonLd(ref);
-      const valid = validateReferenceThing(ld);
-      expect(valid, formatErrors(validateReferenceThing)).toBe(true);
+      const valid = validators.validateReferenceThing(ld);
+      expect(valid, formatErrors(validators.validateReferenceThing)).toBe(true);
     });
   });
 
   describe("patch functions produce schema-valid payloads", () => {
-    it("buildTriagePatch → thing-patch.schema.json", () => {
+    it("buildTriagePatch → thing-patch schema", ({ skip }) => {
+      if (!backendUp) skip();
       const item = createInboxItem({ rawCapture: "Buy milk" });
       const patch = buildTriagePatch(item, { targetBucket: "next" });
-      const valid = validateThingPatch(patch);
-      expect(valid, formatErrors(validateThingPatch)).toBe(true);
+      const valid = validators.validateThingPatch(patch);
+      expect(valid, formatErrors(validators.validateThingPatch)).toBe(true);
     });
 
-    it("buildItemEditPatch → thing-patch.schema.json", () => {
+    it("buildItemEditPatch → thing-patch schema", ({ skip }) => {
+      if (!backendUp) skip();
       const patch = buildItemEditPatch({
         dueDate: "2026-06-01",
         contexts: ["@phone"],
         description: "Updated notes",
       });
-      const valid = validateThingPatch(patch);
-      expect(valid, formatErrors(validateThingPatch)).toBe(true);
+      const valid = validators.validateThingPatch(patch);
+      expect(valid, formatErrors(validators.validateThingPatch)).toBe(true);
     });
   });
 });

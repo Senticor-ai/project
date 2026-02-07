@@ -6,6 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import { playwright } from "@vitest/browser-playwright";
+import { resolvePathInStorybookCache } from "storybook/internal/common";
 
 const dirname =
   typeof __dirname !== "undefined"
@@ -44,10 +45,11 @@ export default defineConfig({
         "src/generated/**",
         "src/docs/**",
         "src/vite-env.d.ts",
+        "src/main.tsx",
       ],
       all: true,
       reporter: ["text", "html", "json"],
-      reportsDirectory: "./coverage",
+      reportsDirectory: resolvePathInStorybookCache("coverage"),
     },
     projects: [
       // Unit tests (jsdom, fast)

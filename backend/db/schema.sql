@@ -257,6 +257,11 @@ CREATE TABLE IF NOT EXISTS push_outbox (
   last_error TEXT
 );
 
+-- Normalize absolute storage_path values to relative keys (idempotent).
+UPDATE files
+SET storage_path = regexp_replace(storage_path, '^.*/storage/', '')
+WHERE storage_path LIKE '/%';
+
 CREATE INDEX IF NOT EXISTS idx_outbox_events_processed ON outbox_events (processed_at, created_at);
 CREATE INDEX IF NOT EXISTS idx_push_outbox_processed ON push_outbox (processed_at, created_at);
 CREATE INDEX IF NOT EXISTS idx_files_owner ON files (owner_id);

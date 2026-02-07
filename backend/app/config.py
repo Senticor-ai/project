@@ -76,6 +76,7 @@ class Settings:
     meili_file_text_max_bytes: int
     meili_file_text_max_chars: int
     docling_enabled: bool
+    storage_backend: str
     file_storage_path: Path
     upload_chunk_size: int
     import_job_queue_timeout_seconds: int
@@ -174,6 +175,7 @@ def load_settings() -> Settings:
         ),
         meili_file_text_max_chars=int(_get_env("MEILI_FILE_TEXT_MAX_CHARS", "100000") or "100000"),
         docling_enabled=_get_bool_env("DOCLING_ENABLED", True),
+        storage_backend=_get_env("STORAGE_BACKEND", "local") or "local",
         file_storage_path=Path(
             _get_env("FILE_STORAGE_PATH", str(ROOT_DIR / "storage")) or str(ROOT_DIR / "storage")
         ),

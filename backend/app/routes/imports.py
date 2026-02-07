@@ -4,7 +4,6 @@ import hashlib
 import json
 from collections import Counter
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
@@ -22,6 +21,7 @@ from ..models import (
 )
 from ..observability import get_logger
 from ..outbox import enqueue_event
+from ..storage import get_storage
 
 router = APIRouter(
     prefix="/imports",
@@ -513,11 +513,12 @@ def _build_nirvana_thing(
 
 
 def _load_items_from_file(file_row: dict) -> list[dict]:
-    storage_path = Path(file_row.get("storage_path") or "")
-    if not storage_path.is_file():
+    storage = get_storage()
+    storage_key = file_row.get("storage_path") or ""
+    if not storage.exists(storage_key):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
     try:
-        raw = storage_path.read_text(encoding="utf-8")
+        raw = storage.read_text(storage_key, encoding="utf-8")
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

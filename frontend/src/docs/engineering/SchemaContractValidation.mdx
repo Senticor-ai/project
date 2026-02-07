@@ -1,0 +1,159 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Engineering/Ontology/Schema Contract Validation" />
+
+# Schema Contract Validation
+
+The backend Pydantic models in `backend/app/models.py` are the **single source of truth**
+for JSON-LD payload shapes. Schemas are generated at runtime and served via API —
+no static files to keep in sync. The frontend validates serializer output against
+these schemas at test time using AJV.
+
+---
+
+## Architecture
+
+```
+backend/app/models.py              Pydantic models (source of truth)
+        │
+        ▼
+GET /schemas/{name}                JSON Schema (application/schema+json)
+        │
+        ▼
+schema-validator.ts                fetch + AJV compile
+        │
+        ▼
+thing-serializer.test.ts           10 contract tests (skip if backend unreachable)
+```
+
+---
+
+## Backend API
+
+The `/schemas` endpoints are served by `backend/app/routes/schemas.py`.
+Full OpenAPI documentation is available at [`/docs`](http://localhost:8000/docs)
+under the **schemas** tag.
+
+| Endpoint | Response | Description |
+| --- | --- | --- |
+| `GET /schemas` | `{ "schemas": ["action-thing", ...] }` | List all available schema names |
+| `GET /schemas/{name}` | JSON Schema (`application/schema+json`) | Full schema for a specific entity type |
+
+### Available schemas
+
+| Schema name | Pydantic model | Purpose |
+| --- | --- | --- |
+| `inbox-thing` | `InboxThingJsonLd` | Inbox capture (`@type: "Thing"`) |
+| `action-thing` | `ActionThingJsonLd` | Next/waiting/calendar/someday (`@type: "Action"`) |
+| `project-thing` | `ProjectThingJsonLd` | Multi-step outcome (`@type: "Project"`) |
+| `reference-thing` | `ReferenceThingJsonLd` | Reference material (`@type: "CreativeWork"`) |
+| `thing-patch` | `ThingPatchModel` | Partial JSON-LD for PATCH deep-merge |
+| `property-value` | `PropertyValueModel` | `additionalProperty` entry shape |
+
+Schemas are generated from `model.model_json_schema(by_alias=True, mode="serialization")`,
+so they always reflect the exact Pydantic model that validates incoming requests.
+
+---
+
+## Frontend Validation Helper
+
+**File**: `frontend/src/lib/__tests__/schema-validator.ts`
+
+The helper fetches schemas from the backend API and compiles AJV validators:
+
+```typescript
+import { loadValidators, isBackendAvailable, formatErrors } from "./__tests__/schema-validator";
+
+// Check connectivity (2 s timeout)
+const backendUp = await isBackendAvailable();
+
+// Fetch and compile all 5 entity validators
+const validators = await loadValidators();
+
+// Validate a payload
+const valid = validators.validateInboxThing(payload);
+if (!valid) console.error(formatErrors(validators.validateInboxThing));
+```
+
+| Export | Purpose |
+| --- | --- |
+| `isBackendAvailable()` | Probe `GET /schemas` with a 2 s timeout |
+| `loadValidators()` | Fetch all 5 schemas, return compiled `ValidateFunction` map |
+| `formatErrors(validate)` | Convert AJV errors to a readable string |
+
+The backend URL defaults to `http://localhost:8000` and can be overridden
+via `VITE_API_BASE_URL`.
+
+---
+
+## Contract Tests
+
+**File**: `frontend/src/lib/thing-serializer.test.ts` — `describe("JSON Schema contract validation")`
+
+Ten tests validate that every `build*` and `toJsonLd` output conforms to the
+corresponding backend schema. Tests skip gracefully when the backend is unreachable.
+
+### Test matrix
+
+| Test | Validates against |
+| --- | --- |
+| `buildNewInboxJsonLd` | `inbox-thing` |
+| `buildNewActionJsonLd` | `action-thing` |
+| `buildNewActionJsonLd` (with projectId) | `action-thing` |
+| `buildNewReferenceJsonLd` | `reference-thing` |
+| `toJsonLd` (inbox item) | `inbox-thing` |
+| `toJsonLd` (action) | `action-thing` |
+| `toJsonLd` (project) | `project-thing` |
+| `toJsonLd` (reference) | `reference-thing` |
+| `buildTriagePatch` | `thing-patch` |
+| `buildItemEditPatch` | `thing-patch` |
+
+### Skip pattern
+
+Tests use the Vitest `skip` context to bail out when the backend is down:
+
+```typescript
+describe("JSON Schema contract validation", () => {
+  let validators: SchemaValidators;
+  let backendUp: boolean;
+
+  beforeAll(async () => {
+    backendUp = await isBackendAvailable();
+    if (backendUp) {
+      validators = await loadValidators();
+    }
+  });
+
+  it("buildNewInboxJsonLd → inbox-thing schema", ({ skip }) => {
+    if (!backendUp) skip();
+    const ld = buildNewInboxJsonLd("Anruf bei Frau Müller");
+    const valid = validators.validateInboxThing(ld);
+    expect(valid, formatErrors(validators.validateInboxThing)).toBe(true);
+  });
+});
+```
+
+This means `CI=1 npx vitest run --project=unit` always passes —
+contract tests report as **skipped** without a running backend,
+and **fail loudly** when the backend is up and the schema has drifted.
+
+---
+
+## Workflow: When Backend Models Change
+
+1. Edit Pydantic models in `backend/app/models.py`
+2. Restart the backend (`uvicorn app.main:app --reload`)
+3. Run frontend contract tests: `cd frontend && CI=1 npx vitest run --project=unit`
+4. If a serializer test fails, update `thing-serializer.ts` to match the new schema
+5. Commit both backend and frontend changes together
+
+No regeneration step, no static files, no drift detection scripts.
+The contract tests are the enforcement mechanism.
+
+---
+
+## See also
+
+- [Ontology Overview](?path=/docs/engineering-ontology--docs) — Core data model and entity types
+- [Schema.org Vocabulary](?path=/docs/engineering-ontology-schema-org-vocabulary--docs) — Full catalog of schema.org types
+- [Backend API Requests](?path=/docs/engineering-backend-api-requests-import-ux--docs) — Endpoint documentation and import UX

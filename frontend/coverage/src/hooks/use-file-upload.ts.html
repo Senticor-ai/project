@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">11.11% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>9/9</span>
+                <span class='fraction'>1/9</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>2/2</span>
+                <span class='fraction'>0/2</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">50% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>2/2</span>
+                <span class='fraction'>1/2</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">12.5% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>8/8</span>
+                <span class='fraction'>1/8</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line high'></div>
+    <div class='status-line low'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -92,22 +92,22 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">43x</span>
+<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">10x</span>
-<span class="cline-any cline-yes">10x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">9x</span>
-<span class="cline-any cline-yes">11x</span>
-<span class="cline-any cline-yes">11x</span>
-<span class="cline-any cline-yes">11x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -117,21 +117,21 @@ import type { FileRecord } from "@/lib/api-client";
 &nbsp;
 export function useFileUpload() {
   return useMutation&lt;FileRecord, Error, File&gt;({
-    mutationFn: async (file: File) =&gt; {
-      const contentType = file.type || "application/json";
-      const { upload_id, chunk_size, chunk_total } = await FilesApi.initiate(
+    mutationFn: <span class="fstat-no" title="function not covered" >async (f</span>ile: File) =&gt; {
+      const contentType = <span class="cstat-no" title="statement not covered" >file.type || "application/json";</span>
+      const { upload_id, chunk_size, chunk_total } = <span class="cstat-no" title="statement not covered" >await FilesApi.initiate(</span>
         file.name,
         contentType,
         file.size,
       );
 &nbsp;
-      for (let i = 0; i &lt; chunk_total; i++) {
-        const start = i * chunk_size;
-        const chunk = file.slice(start, start + chunk_size);
-        await FilesApi.uploadChunk(upload_id, chunk, i, chunk_total);
+<span class="cstat-no" title="statement not covered" >      for (let i = <span class="cstat-no" title="statement not covered" >0; i</span> &lt; chunk_total; i++) {</span>
+        const start = <span class="cstat-no" title="statement not covered" >i * chunk_size;</span>
+        const chunk = <span class="cstat-no" title="statement not covered" >file.slice(start, start + chunk_size);</span>
+<span class="cstat-no" title="statement not covered" >        await FilesApi.uploadChunk(upload_id, chunk, i, chunk_total);</span>
       }
 &nbsp;
-      return FilesApi.complete(upload_id);
+<span class="cstat-no" title="statement not covered" >      return FilesApi.complete(upload_id);</span>
     },
   });
 }
@@ -142,7 +142,7 @@ export function useFileUpload() {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-02-07T19:14:10.726Z
+                at 2026-02-07T19:35:31.454Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

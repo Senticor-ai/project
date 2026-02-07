@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">40% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>10/10</span>
+                <span class='fraction'>4/10</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">83.33% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>6/6</span>
+                <span class='fraction'>5/6</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">16.66% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>6/6</span>
+                <span class='fraction'>1/6</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">25% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>8/8</span>
+                <span class='fraction'>2/8</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line high'></div>
+    <div class='status-line low'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -679,25 +679,25 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -705,9 +705,9 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">123x</span>
-<span class="cline-any cline-yes">4x</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">322x</span>
+<span class="cline-any cline-yes">321x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import type { CanonicalId } from "./canonical-id";
 &nbsp;
@@ -1001,26 +1001,26 @@ export type Bucket =
 // Type Guards
 // ---------------------------------------------------------------------------
 &nbsp;
-export function isThing(item: AppItem): item is Thing {
-  return ["inbox", "next", "waiting", "calendar", "someday"].includes(
+export function <span class="fstat-no" title="function not covered" >isThing(i</span>tem: AppItem): item is Thing {
+<span class="cstat-no" title="statement not covered" >  return ["inbox", "next", "waiting", "calendar", "someday"].includes(</span>
     item.bucket,
   );
 }
 &nbsp;
-export function isInboxItem(item: AppItem): item is Thing {
-  return item.bucket === "inbox";
+export function <span class="fstat-no" title="function not covered" >isInboxItem(i</span>tem: AppItem): item is Thing {
+<span class="cstat-no" title="statement not covered" >  return item.bucket === "inbox";</span>
 }
 &nbsp;
-export function isAction(item: AppItem): item is Thing {
-  return ["next", "waiting", "calendar", "someday"].includes(item.bucket);
+export function <span class="fstat-no" title="function not covered" >isAction(i</span>tem: AppItem): item is Thing {
+<span class="cstat-no" title="statement not covered" >  return ["next", "waiting", "calendar", "someday"].includes(item.bucket);</span>
 }
 &nbsp;
-export function isProject(item: AppItem): item is Project {
-  return item.bucket === "project";
+export function <span class="fstat-no" title="function not covered" >isProject(i</span>tem: AppItem): item is Project {
+<span class="cstat-no" title="statement not covered" >  return item.bucket === "project";</span>
 }
 &nbsp;
-export function isReferenceMaterial(item: AppItem): item is ReferenceMaterial {
-  return item.bucket === "reference";
+export function <span class="fstat-no" title="function not covered" >isReferenceMaterial(i</span>tem: AppItem): item is ReferenceMaterial {
+<span class="cstat-no" title="statement not covered" >  return item.bucket === "reference";</span>
 }
 &nbsp;
 // ---------------------------------------------------------------------------
@@ -1029,8 +1029,8 @@ export function isReferenceMaterial(item: AppItem): item is ReferenceMaterial {
 &nbsp;
 export function getDisplayName(item: AppItem): string {
   if (item.name) return item.name;
-  if ("rawCapture" in item &amp;&amp; item.rawCapture) return item.rawCapture;
-  return "Untitled";
+  <span class="missing-if-branch" title="else path not taken" >E</span>if ("rawCapture" in item &amp;&amp; item.rawCapture) return item.rawCapture;
+<span class="cstat-no" title="statement not covered" >  return "Untitled";</span>
 }
 &nbsp;</pre></td></tr></table></pre>
 
@@ -1039,7 +1039,7 @@ export function getDisplayName(item: AppItem): string {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-02-07T19:14:10.726Z
+                at 2026-02-07T19:35:31.454Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

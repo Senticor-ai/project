@@ -1,40 +1,63 @@
 /**
  * JSON Schema validation helper for serializer tests.
  *
- * Loads the generated JSON Schema files from schema/ and validates
- * serializer output against them using ajv. If the backend changes
- * its Pydantic models and the schemas are regenerated, these
- * validations break — catching contract drift automatically.
+ * Fetches JSON Schemas from the backend `/schemas` API endpoint and
+ * validates serializer output against them using ajv. If the backend
+ * changes its Pydantic models, these validations break — catching
+ * contract drift automatically.
+ *
+ * Requires a running backend at VITE_API_BASE_URL (default: http://localhost:8000).
+ * Tests using these validators should skip gracefully when the backend
+ * is unreachable.
  */
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import Ajv from "ajv";
+import Ajv, { type ValidateFunction } from "ajv";
 
-const SCHEMA_DIR = resolve(__dirname, "../../../../schema");
+const API_BASE = process.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
 const ajv = new Ajv({ allErrors: true, strict: false });
 
-function loadSchema(filename: string): object {
-  const raw = readFileSync(resolve(SCHEMA_DIR, filename), "utf-8");
-  return JSON.parse(raw) as object;
+async function fetchSchema(name: string): Promise<object> {
+  const res = await fetch(`${API_BASE}/schemas/${name}`);
+  if (!res.ok) throw new Error(`Failed to fetch schema ${name}: ${res.status}`);
+  return (await res.json()) as object;
 }
 
-// Pre-compile validators for each entity type
-export const validateInboxThing = ajv.compile(
-  loadSchema("inbox-thing.schema.json"),
-);
-export const validateActionThing = ajv.compile(
-  loadSchema("action-thing.schema.json"),
-);
-export const validateProjectThing = ajv.compile(
-  loadSchema("project-thing.schema.json"),
-);
-export const validateReferenceThing = ajv.compile(
-  loadSchema("reference-thing.schema.json"),
-);
-export const validateThingPatch = ajv.compile(
-  loadSchema("thing-patch.schema.json"),
-);
+/** Check if the backend is reachable. */
+export async function isBackendAvailable(): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/schemas`, { signal: AbortSignal.timeout(2000) });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export interface SchemaValidators {
+  validateInboxThing: ValidateFunction;
+  validateActionThing: ValidateFunction;
+  validateProjectThing: ValidateFunction;
+  validateReferenceThing: ValidateFunction;
+  validateThingPatch: ValidateFunction;
+}
+
+/** Fetch and compile all schema validators from the backend API. */
+export async function loadValidators(): Promise<SchemaValidators> {
+  const [inbox, action, project, reference, patch] = await Promise.all([
+    fetchSchema("inbox-thing"),
+    fetchSchema("action-thing"),
+    fetchSchema("project-thing"),
+    fetchSchema("reference-thing"),
+    fetchSchema("thing-patch"),
+  ]);
+
+  return {
+    validateInboxThing: ajv.compile(inbox),
+    validateActionThing: ajv.compile(action),
+    validateProjectThing: ajv.compile(project),
+    validateReferenceThing: ajv.compile(reference),
+    validateThingPatch: ajv.compile(patch),
+  };
+}
 
 /** Format ajv errors into a readable string. */
 export function formatErrors(

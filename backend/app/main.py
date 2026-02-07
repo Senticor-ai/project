@@ -26,7 +26,7 @@ from .observability import (
     generate_request_id,
     get_logger,
 )
-from .routes import assertions, auth, files, imports, orgs, push, search, things
+from .routes import assertions, auth, files, imports, orgs, push, schemas, search, things
 
 configure_logging()
 logger = get_logger("app")
@@ -149,6 +149,7 @@ app.include_router(assertions.router)
 app.include_router(files.router)
 app.include_router(orgs.router)
 app.include_router(push.router)
+app.include_router(schemas.router)
 app.include_router(search.router)
 
 
