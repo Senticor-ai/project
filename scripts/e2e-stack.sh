@@ -89,6 +89,14 @@ run_psql() {
   fi
 }
 
+# Admin psql — runs inside the container where the app user has superuser
+# privileges (CREATEDB, etc.), bypassing host-level pg_hba restrictions.
+run_psql_admin() {
+  local db="$1"; shift
+  docker compose -f "$DOCKER_COMPOSE_FILE" exec -T \
+    postgres psql -U "$PG_USER" -d "$db" "$@"
+}
+
 # ── Cleanup on exit ──────────────────────────────────────────────────
 cleanup() {
   local exit_code=$?
@@ -106,7 +114,7 @@ cleanup() {
 
   if [ "$CLEAN_DB" = true ]; then
     echo "[e2e] Dropping database $E2E_DB..."
-    run_psql postgres -c "DROP DATABASE IF EXISTS $E2E_DB;" 2>/dev/null || true
+    run_psql_admin postgres -c "DROP DATABASE IF EXISTS $E2E_DB;" 2>/dev/null || true
     echo "[e2e] Removing storage-e2e/..."
     rm -rf "$ROOT_DIR/storage-e2e"
   fi
@@ -122,7 +130,7 @@ echo "[e2e] Using psql via: $PSQL_CMD"
 
 # ── Step 2: Check postgres connectivity ──────────────────────────────
 echo "[e2e] Checking postgres at $PG_HOST:$PG_PORT..."
-if ! run_psql postgres -c "SELECT 1;" >/dev/null 2>&1; then
+if ! run_psql_admin postgres -c "SELECT 1;" >/dev/null 2>&1; then
   echo "[e2e] ERROR: PostgreSQL not reachable."
   echo "[e2e] Start it with: docker compose -f infra/docker-compose.yml up -d"
   exit 1
@@ -130,9 +138,9 @@ fi
 
 # ── Step 3: Create E2E database (idempotent) ─────────────────────────
 echo "[e2e] Ensuring database '$E2E_DB' exists..."
-DB_EXISTS=$(run_psql postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '$E2E_DB'" 2>/dev/null || echo "")
+DB_EXISTS=$(run_psql_admin postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '$E2E_DB'" 2>/dev/null || echo "")
 if [ "$DB_EXISTS" != "1" ]; then
-  run_psql postgres -c "CREATE DATABASE $E2E_DB OWNER $PG_USER;"
+  run_psql_admin postgres -c "CREATE DATABASE $E2E_DB OWNER $PG_USER;"
   echo "[e2e] Database created."
 else
   echo "[e2e] Database already exists."
