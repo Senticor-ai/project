@@ -650,6 +650,10 @@ class ImportJobResponse(BaseModel):
         description="Current job status.",
     )
     file_id: str = Field(..., description="File identifier being imported.")
+    file_sha256: str | None = Field(
+        default=None,
+        description="SHA-256 hash of the imported file (for duplicate detection).",
+    )
     source: ImportSource = Field(..., description="Import source identifier.")
     created_at: datetime = Field(..., description="Job creation timestamp (UTC).")
     updated_at: datetime = Field(..., description="Last status update timestamp (UTC).")

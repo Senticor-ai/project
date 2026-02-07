@@ -1,0 +1,85 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Engineering/Routing" />
+
+# URL Routing & Deep Linking
+
+The frontend uses **URL-based navigation** so that every screen and tab selection has a shareable, bookmarkable URL. Browser back/forward buttons work as expected.
+
+---
+
+## URL Structure
+
+| URL | Screen | Selection |
+| --- | --- | --- |
+| `/workspace/inbox` | Workspace | Inbox bucket |
+| `/workspace/focus` | Workspace | Focus bucket |
+| `/workspace/next` | Workspace | Next Actions bucket |
+| `/workspace/project` | Workspace | Projects bucket |
+| `/workspace/waiting` | Workspace | Waiting For bucket |
+| `/workspace/calendar` | Workspace | Calendar bucket |
+| `/workspace/someday` | Workspace | Someday/Maybe bucket |
+| `/workspace/reference` | Workspace | Reference bucket |
+| `/settings/import-export` | Settings | Import / Export tab |
+| `/settings/labels` | Settings | Labels & Contexts tab |
+| `/settings/preferences` | Settings | Preferences tab |
+
+### Defaults & Redirects
+
+| Input | Redirects to |
+| --- | --- |
+| `/` | `/workspace/inbox` |
+| `/workspace` | `/workspace/inbox` |
+| `/settings` | `/settings/import-export` |
+| Invalid paths | `/workspace/inbox` |
+
+Redirects use `replaceState` so they don't pollute the browser history stack.
+
+---
+
+## Implementation
+
+### No routing library
+
+The app uses a custom `useLocationState` hook wrapping the History API (`pushState` / `popstate`). With only two top-level views and one sub-selection each, a full routing library would be over-engineering.
+
+### Key files
+
+| File | Role |
+| --- | --- |
+| `src/lib/route-utils.ts` | `parsePathname()`, `buildPath()`, type definitions (`AppView`, `SettingsTab`) |
+| `src/hooks/use-location-state.ts` | Hook that syncs URL with React state |
+| `src/App.tsx` | Wires the hook to `ConnectedBucketView` and `SettingsScreen` |
+
+### Component contract
+
+Both `BucketView` and `SettingsScreen` are **controlled components** — they receive their active selection as a prop and call back when the user clicks a different tab/bucket. This means:
+
+- **Stories work without routing.** Storybook wrappers use local `useState` to control the selection.
+- **Tests work without URL setup.** Component-level tests pass props directly.
+- **App.tsx is the only consumer of `useLocationState`.** All URL logic is isolated there.
+
+---
+
+## Authentication & Deep Links
+
+The login page is shown based on auth state, not URL. When an unauthenticated user visits `/settings/labels`:
+
+1. The URL stays at `/settings/labels`
+2. The login page is displayed
+3. After successful login, the app reads the preserved URL and navigates to Settings > Labels
+
+No redirect logic is needed — the URL persists naturally through the auth transition.
+
+---
+
+## Deployment Note
+
+The Vite dev server serves `index.html` for all non-file requests by default (SPA mode). For production, the server (nginx/ingress) must be configured to return `index.html` for all paths so that client-side routing works.
+
+---
+
+## Related
+
+- [Architecture](?path=/docs/engineering-architecture--docs) — Overall system architecture
+- [Deployment](?path=/docs/engineering-deployment--docs) — Container structure and CI/CD

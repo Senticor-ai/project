@@ -123,7 +123,10 @@ function StatefulBucketView({
       referenceItems={refs}
       projects={projects}
       onAddThing={(title, bucket) => {
-        setThings((prev) => [...prev, createThing({ rawCapture: title, bucket })]);
+        setThings((prev) => [
+          ...prev,
+          createThing({ rawCapture: title, bucket }),
+        ]);
       }}
       onCompleteThing={(id) => {
         setThings((prev) =>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   parsePathname,
   buildPath,
@@ -14,18 +14,13 @@ export interface UseLocationStateReturn {
 export function useLocationState(): UseLocationStateReturn {
   const [location, setLocation] = useState<LocationState>(() => {
     const parsed = parsePathname(window.location.pathname);
-    return parsed;
-  });
-
-  // On mount, fix up the URL if it was incomplete (e.g. "/" or "/workspace")
-  const didFixup = useRef(false);
-  if (!didFixup.current) {
-    didFixup.current = true;
-    const canonical = buildPath(location.view, location.sub);
+    // Fix up the URL synchronously during init if it was incomplete
+    const canonical = buildPath(parsed.view, parsed.sub);
     if (window.location.pathname !== canonical) {
       window.history.replaceState({}, "", canonical);
     }
-  }
+    return parsed;
+  });
 
   const navigate = useCallback((view: AppView, sub: string) => {
     const path = buildPath(view, sub);

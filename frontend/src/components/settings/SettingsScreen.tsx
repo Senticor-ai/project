@@ -5,6 +5,7 @@ import { ImportExportPanel } from "./ImportExportPanel";
 import { LabelsPanel } from "./LabelsPanel";
 import { PreferencesPanel } from "./PreferencesPanel";
 import { DEFAULT_PREFERENCES, type ExportFormat } from "@/model/settings-types";
+import type { ImportJobData } from "./ImportJobRow";
 
 export type SettingsTab = "import-export" | "labels" | "preferences";
 
@@ -23,6 +24,7 @@ export interface SettingsScreenProps {
   initialTab?: SettingsTab;
   onImportNirvana?: () => void;
   onExport?: (format: ExportFormat) => void;
+  importJobs?: ImportJobData[];
   className?: string;
 }
 
@@ -32,6 +34,7 @@ export function SettingsScreen({
   initialTab = "import-export",
   onImportNirvana,
   onExport,
+  importJobs,
   className,
 }: SettingsScreenProps) {
   const [internalTab, setInternalTab] = useState<SettingsTab>(initialTab);
@@ -68,6 +71,7 @@ export function SettingsScreen({
             <ImportExportPanel
               onImportNirvana={onImportNirvana ?? (() => {})}
               onExport={onExport ?? (() => {})}
+              importJobs={importJobs}
             />
           )}
           {activeTab === "labels" && (

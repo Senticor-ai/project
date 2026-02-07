@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { useAuth } from "./lib/use-auth";
 import { useLocationState } from "./hooks/use-location-state";
+import { useImportJobs } from "./hooks/use-import-jobs";
 import { LoginPage } from "./components/auth/LoginPage";
 import { ConnectedBucketView } from "./components/work/ConnectedBucketView";
 import { NirvanaImportDialog } from "./components/work/NirvanaImportDialog";
@@ -17,6 +18,7 @@ function App() {
   const { user, isLoading, login, register, logout } = useAuth();
   const { location, navigate } = useLocationState();
   const [showImport, setShowImport] = useState(false);
+  const { jobs: importJobs, checkDuplicate } = useImportJobs();
 
   const handleNavigate = useCallback(
     (view: AppView) => {
@@ -83,6 +85,7 @@ function App() {
           activeTab={location.sub as SettingsTab}
           onTabChange={handleSettingsTabChange}
           onImportNirvana={() => setShowImport(true)}
+          importJobs={importJobs}
         />
       )}
 
@@ -91,6 +94,7 @@ function App() {
         open={showImport}
         onClose={() => setShowImport(false)}
         onNavigateToBucket={(bucket) => navigate("workspace", bucket)}
+        checkDuplicate={checkDuplicate}
       />
     </div>
   );

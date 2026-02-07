@@ -748,6 +748,7 @@ def _build_job_response(row: dict) -> ImportJobResponse:
         job_id=str(row["job_id"]),
         status=row["status"],
         file_id=str(row["file_id"]),
+        file_sha256=row.get("file_sha256"),
         source=row["source"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
@@ -1268,21 +1269,23 @@ def list_import_jobs(
             cur.execute(
                 """
                 SELECT
-                    job_id,
-                    file_id,
-                    source,
-                    status,
-                    created_at,
-                    updated_at,
-                    started_at,
-                    finished_at,
-                    summary,
-                    error
-                FROM import_jobs
-                WHERE org_id = %s
-                  AND owner_id = %s
-                  AND status = ANY(%s)
-                ORDER BY created_at DESC
+                    j.job_id,
+                    j.file_id,
+                    f.sha256 AS file_sha256,
+                    j.source,
+                    j.status,
+                    j.created_at,
+                    j.updated_at,
+                    j.started_at,
+                    j.finished_at,
+                    j.summary,
+                    j.error
+                FROM import_jobs j
+                LEFT JOIN files f ON f.file_id = j.file_id
+                WHERE j.org_id = %s
+                  AND j.owner_id = %s
+                  AND j.status = ANY(%s)
+                ORDER BY j.created_at DESC
                 LIMIT %s
                 """,
                 (org_id, user_id, status_filter, limit),
@@ -1343,20 +1346,22 @@ def get_import_job(
             cur.execute(
                 """
                 SELECT
-                    job_id,
-                    file_id,
-                    source,
-                    status,
-                    created_at,
-                    updated_at,
-                    started_at,
-                    finished_at,
-                    summary,
-                    error
-                FROM import_jobs
-                WHERE job_id = %s
-                  AND org_id = %s
-                  AND owner_id = %s
+                    j.job_id,
+                    j.file_id,
+                    f.sha256 AS file_sha256,
+                    j.source,
+                    j.status,
+                    j.created_at,
+                    j.updated_at,
+                    j.started_at,
+                    j.finished_at,
+                    j.summary,
+                    j.error
+                FROM import_jobs j
+                LEFT JOIN files f ON f.file_id = j.file_id
+                WHERE j.job_id = %s
+                  AND j.org_id = %s
+                  AND j.owner_id = %s
                 """,
                 (job_id, org_id, user_id),
             )

@@ -70,7 +70,10 @@ function WorkScreenApp({ initialThings = [] }: { initialThings?: Thing[] }) {
       things={things}
       projects={sampleProjects}
       onAddThing={(title, bucket) => {
-        setThings((prev) => [...prev, createThing({ rawCapture: title, bucket })]);
+        setThings((prev) => [
+          ...prev,
+          createThing({ rawCapture: title, bucket }),
+        ]);
       }}
       onCompleteThing={(id) => {
         setThings((prev) =>

@@ -126,12 +126,12 @@ describe("parsePathname", () => {
   });
 
   it("ignores extra path segments", () => {
-    expect(parsePathname("/workspace/inbox/extra/stuff")).toEqual<LocationState>(
-      {
-        view: "workspace",
-        sub: "inbox",
-      },
-    );
+    expect(
+      parsePathname("/workspace/inbox/extra/stuff"),
+    ).toEqual<LocationState>({
+      view: "workspace",
+      sub: "inbox",
+    });
   });
 });
 

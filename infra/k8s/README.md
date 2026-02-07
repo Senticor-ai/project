@@ -8,7 +8,9 @@ Kustomize base/overlay structure for deploying TerminAndoYo to Kubernetes.
 k8s/
 ├── base/                   # Shared resource definitions
 │   ├── kustomization.yaml
-│   ├── backend.yaml        # Deployment + Service (includes init containers)
+│   ├── backend.yaml        # API Deployment + Service (includes init containers)
+│   ├── worker.yaml         # Outbox worker Deployment (imports, search indexing)
+│   ├── push-worker.yaml    # Push notification worker Deployment
 │   ├── frontend.yaml       # Deployment + Service
 │   ├── postgres.yaml       # StatefulSet + Service
 │   └── pvc-backend-files.yaml
@@ -24,6 +26,8 @@ k8s/
         ├── configmap.yaml
         └── patches/
             ├── backend.yaml
+            ├── worker.yaml
+            ├── push-worker.yaml
             ├── frontend.yaml
             └── postgres.yaml
 ```
@@ -35,13 +39,25 @@ environment-specific configuration. Images default to local builds
 (`terminandoyo-backend:local`, `terminandoyo-frontend:local`) with
 `imagePullPolicy: IfNotPresent`.
 
-The backend Deployment includes two init containers:
+The backend API Deployment includes two init containers:
 
 1. **wait-for-postgres** — polls `pg_isready` until the database is available
 2. **db-init** — runs `uv run python -m app.db_init` (idempotent schema migration)
 
 This eliminates the need for a separate Job resource. Init containers run on
 every pod start, which is safe because the schema migration is idempotent.
+
+Both worker Deployments (`worker`, `push-worker`) use the same backend image
+with a different `command:`. Each worker exposes a health/metrics HTTP sidecar:
+
+| Worker       | Health port | Command |
+|--------------|-------------|---------|
+| worker       | 9090        | `python -m app.worker --loop` |
+| push-worker  | 9091        | `python -m app.push_worker --loop` |
+
+The sidecar provides:
+- `GET /health` — 200 if polling loop is alive, 503 if stuck
+- `GET /metrics` — Prometheus format (batches, events, duration, up gauge)
 
 Both overlays provide their own ConfigMap (`app-config`) as a resource since
 environment values differ completely between local and production.
@@ -120,7 +136,7 @@ The production overlay:
 - Adds resource requests/limits via strategic merge patches
 - Sets `imagePullPolicy: Always` for application images
 - Provides production ConfigMap (HTTPS CORS, CSRF enabled, JSON logging, OTEL)
-- Exposes backend Prometheus metrics at `GET /metrics` on port `8000`
+- Exposes Prometheus metrics: backend API on `:8000/metrics`, worker on `:9090/metrics`, push-worker on `:9091/metrics`
 
 Namespace, Secret, and Ingress are managed by ops (not in version control).
 
@@ -132,12 +148,14 @@ kubectl kustomize infra/k8s/overlays/production
 
 ### Resource budget
 
-| Component  | CPU request | Memory request | CPU limit | Memory limit |
-|------------|-------------|----------------|-----------|--------------|
-| Frontend   | 50m         | 128Mi          | 200m      | 256Mi        |
-| Backend    | 200m        | 512Mi          | 1000m     | 2Gi          |
-| PostgreSQL | 200m        | 256Mi          | 500m      | 1Gi          |
-| **Total**  | **450m**    | **896Mi**      | **1700m** | **3.25Gi**   |
+| Component    | CPU request | Memory request | CPU limit | Memory limit |
+|--------------|-------------|----------------|-----------|--------------|
+| Frontend     | 50m         | 128Mi          | 200m      | 256Mi        |
+| Backend API  | 200m        | 512Mi          | 1000m     | 2Gi          |
+| Worker       | 100m        | 256Mi          | 500m      | 1Gi          |
+| Push Worker  | 50m         | 128Mi          | 250m      | 512Mi        |
+| PostgreSQL   | 200m        | 256Mi          | 500m      | 1Gi          |
+| **Total**    | **600m**    | **1280Mi**     | **2450m** | **4.75Gi**   |
 
 ## Notes
 
@@ -145,4 +163,4 @@ kubectl kustomize infra/k8s/overlays/production
 - ConfigMap is entirely overlay-specific (not patched from base) because local and production values differ completely.
 - The `app-secrets` Secret name is standardized across both environments.
 - PVCs use the default StorageClass (no explicit `storageClassName`). k3s bundles `local-path` provisioner which works for local/single-node setups.
-- This setup does not include Fuseki/Meilisearch workers.
+- Fuseki and Meilisearch are optional services — enable via `FUSEKI_ENABLED=true` and `MEILI_*` env vars in the ConfigMap.

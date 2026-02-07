@@ -1,8 +1,9 @@
 import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { AppMenu, type AppMenuSection } from "./AppMenu";
+import type { AppView } from "@/lib/route-utils";
 
-export type AppView = "workspace" | "settings";
+export type { AppView };
 
 export interface AppHeaderProps {
   username: string;

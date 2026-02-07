@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App from "./App";
 
@@ -26,12 +26,20 @@ vi.mock("./lib/use-auth", () => ({
 }));
 
 vi.mock("./components/work/ConnectedBucketView", () => ({
-  ConnectedBucketView: () => <div data-testid="connected-bucket-view" />,
+  ConnectedBucketView: ({ activeBucket }: { activeBucket: string }) => (
+    <div data-testid="connected-bucket-view" data-bucket={activeBucket} />
+  ),
 }));
 
 vi.mock("./components/settings/SettingsScreen", () => ({
-  SettingsScreen: ({ onImportNirvana }: { onImportNirvana?: () => void }) => (
-    <div data-testid="settings-screen">
+  SettingsScreen: ({
+    activeTab,
+    onImportNirvana,
+  }: {
+    activeTab?: string;
+    onImportNirvana?: () => void;
+  }) => (
+    <div data-testid="settings-screen" data-tab={activeTab}>
       <button onClick={onImportNirvana}>Import from Nirvana</button>
     </div>
   ),
@@ -52,8 +60,18 @@ vi.mock("./components/work/NirvanaImportDialog", () => ({
     ) : null,
 }));
 
+vi.mock("./hooks/use-import-jobs", () => ({
+  useImportJobs: () => ({
+    jobs: [],
+    checkDuplicate: () => null,
+    isLoading: false,
+  }),
+}));
+
 beforeEach(() => {
   vi.clearAllMocks();
+  // Reset URL to default before each test
+  window.history.replaceState({}, "", "/workspace/inbox");
 });
 
 // ---------------------------------------------------------------------------
@@ -131,6 +149,7 @@ describe("App", () => {
     expect(
       screen.queryByTestId("connected-bucket-view"),
     ).not.toBeInTheDocument();
+    expect(window.location.pathname).toBe("/settings/import-export");
   });
 
   it("navigates back to workspace from settings", async () => {
@@ -147,6 +166,7 @@ describe("App", () => {
     await user.click(screen.getByText("Workspace"));
     expect(screen.getByTestId("connected-bucket-view")).toBeInTheDocument();
     expect(screen.queryByTestId("settings-screen")).not.toBeInTheDocument();
+    expect(window.location.pathname).toBe("/workspace/inbox");
   });
 
   it("opens import dialog from settings", async () => {
@@ -160,5 +180,83 @@ describe("App", () => {
     // Click import in settings
     await user.click(screen.getByText("Import from Nirvana"));
     expect(screen.getByTestId("import-dialog")).toBeInTheDocument();
+  });
+
+  // -------------------------------------------------------------------------
+  // Deep linking tests
+  // -------------------------------------------------------------------------
+
+  it("renders settings when URL starts at /settings/labels", () => {
+    window.history.replaceState({}, "", "/settings/labels");
+    renderAuthenticated();
+    expect(screen.getByTestId("settings-screen")).toBeInTheDocument();
+    expect(screen.getByTestId("settings-screen")).toHaveAttribute(
+      "data-tab",
+      "labels",
+    );
+    expect(
+      screen.queryByTestId("connected-bucket-view"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders workspace with specific bucket from URL", () => {
+    window.history.replaceState({}, "", "/workspace/next");
+    renderAuthenticated();
+    expect(screen.getByTestId("connected-bucket-view")).toBeInTheDocument();
+    expect(screen.getByTestId("connected-bucket-view")).toHaveAttribute(
+      "data-bucket",
+      "next",
+    );
+  });
+
+  it("preserves URL through login for deep linking", () => {
+    window.history.replaceState({}, "", "/settings/preferences");
+    mockUseAuth.mockReturnValue({
+      user: null,
+      isLoading: false,
+      login: mockLogin,
+      register: mockRegister,
+      logout: mockLogout,
+    });
+
+    const { rerender } = render(<App />);
+    // URL preserved while showing login
+    expect(window.location.pathname).toBe("/settings/preferences");
+
+    // Simulate successful login
+    mockUseAuth.mockReturnValue({
+      user: { id: "u-1", email: "test@example.com", username: "testuser" },
+      isLoading: false,
+      login: mockLogin,
+      register: mockRegister,
+      logout: mockLogout,
+    });
+    rerender(<App />);
+
+    // Now shows settings at the deep-linked tab
+    expect(screen.getByTestId("settings-screen")).toBeInTheDocument();
+    expect(screen.getByTestId("settings-screen")).toHaveAttribute(
+      "data-tab",
+      "preferences",
+    );
+  });
+
+  it("handles browser back navigation via popstate", async () => {
+    const user = userEvent.setup();
+    renderAuthenticated();
+
+    // Navigate to settings
+    await user.click(screen.getByRole("button", { name: "Main menu" }));
+    await user.click(screen.getByText("Settings"));
+    expect(screen.getByTestId("settings-screen")).toBeInTheDocument();
+
+    // Simulate browser back: set URL and dispatch popstate
+    act(() => {
+      window.history.replaceState({}, "", "/workspace/inbox");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+
+    expect(screen.getByTestId("connected-bucket-view")).toBeInTheDocument();
+    expect(screen.queryByTestId("settings-screen")).not.toBeInTheDocument();
   });
 });

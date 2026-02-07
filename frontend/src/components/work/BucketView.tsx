@@ -68,7 +68,6 @@ export function BucketView({
   onSelectReference,
   className,
 }: BucketViewProps) {
-
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       const { active, over } = event;

@@ -249,6 +249,7 @@ export type ImportJobResponse = {
   job_id: string;
   status: string;
   file_id: string;
+  file_sha256: string | null;
   source: string;
   created_at: string;
   updated_at: string;
