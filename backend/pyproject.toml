@@ -78,6 +78,7 @@ skips = ["B101"]
 
 [dependency-groups]
 dev = [
+    "pytest-cov>=6.0",
     "pytest-playwright>=0.7.2",
     "uvicorn>=0.40.0",
     "websockets>=16.0",

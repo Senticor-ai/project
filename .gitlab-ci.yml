@@ -130,9 +130,12 @@ frontend-unit:
   allow_failure: true
   image: node:24-bullseye
   extends: [.default-rules, .failure-issue, .frontend-cache]
+  variables:
+    NODE_OPTIONS: "--max-old-space-size=4096"
   before_script:
     - cd frontend && npm ci --ignore-scripts --silent
   script:
+    - npx esbuild --version
     - CI=1 npx vitest run --project=unit --coverage --coverage.reporter=text --coverage.reporter=cobertura --coverage.reporter=json-summary --coverage.reportsDirectory=coverage/unit
   artifacts:
     when: always
@@ -153,7 +156,6 @@ backend-unit:
   before_script:
     - pip install -q uv
     - cd backend && uv sync --quiet --all-groups --all-extras
-    - uv run python -m pip install -q pytest-cov
   script:
     - uv run pytest -q --maxfail=1 --cov=app --cov-report=term-missing --cov-report=xml:coverage/unit.xml --cov-report=html:coverage/unit -k "not integration and not playwright"
   artifacts:
@@ -175,7 +177,6 @@ backend-integration:
   before_script:
     - pip install -q uv
     - cd backend && uv sync --quiet --all-groups --all-extras
-    - uv run python -m pip install -q pytest-cov
   script:
     - uv run pytest -q --maxfail=1 --cov=app --cov-report=term-missing --cov-report=xml:coverage/integration.xml --cov-report=html:coverage/integration -k "integration and not playwright"
   artifacts:
@@ -198,6 +199,7 @@ frontend-integration:
     - cd $CI_PROJECT_DIR/backend && uv sync --quiet --all-groups --all-extras
     - cd $CI_PROJECT_DIR/frontend && npm ci --ignore-scripts --silent
   script:
+    - cd $CI_PROJECT_DIR/backend && uv run python -m app.db_init
     - cd $CI_PROJECT_DIR/backend && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 &
     - |
       BACKEND_READY=0
@@ -225,6 +227,7 @@ backend-e2e:
     - pip install -q uv
     - cd backend && uv sync --quiet --all-groups --all-extras
   script:
+    - uv run python -m app.db_init
     - uv run pytest -q tests/test_flow_playwright.py
 
 frontend-e2e:
@@ -238,6 +241,7 @@ frontend-e2e:
     - cd $CI_PROJECT_DIR/frontend && npm ci --ignore-scripts --silent
     - npx playwright install chromium
   script:
+    - cd $CI_PROJECT_DIR/backend && uv run python -m app.db_init
     - cd $CI_PROJECT_DIR/backend && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 &
     - |
       BACKEND_READY=0
@@ -349,7 +353,10 @@ update-manifests:
       git config user.email "ci@terminandoyo.dev"
       git config user.name "GitLab CI"
       git config http.sslVerify false
-      git remote set-url origin "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+      echo "Clone URL from runner: $(git remote get-url origin)"
+      CLONE_URL=$(git remote get-url origin | sed "s|://[^@]*@|://gitlab-ci-token:${CI_JOB_TOKEN}@|")
+      git remote set-url origin "$CLONE_URL"
+      echo "Push URL: $(git remote get-url origin | sed 's|://[^@]*@|://***@|')"
       git add infra/k8s/overlays/production/kustomization.yaml
       git commit -m "deploy: update image tag to ${IMAGE_TAG} [skip ci]"
       git push origin HEAD:main
