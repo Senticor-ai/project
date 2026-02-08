@@ -4,14 +4,38 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
-import { playwright } from "@vitest/browser-playwright";
-import { resolvePathInStorybookCache } from "storybook/internal/common";
 
 const dirname =
   typeof __dirname !== "undefined"
     ? __dirname
     : path.dirname(fileURLToPath(import.meta.url));
+
+// Storybook vitest plugins load presets via esbuild at config evaluation
+// time, which deadlocks in constrained CI k8s pods.  Only import them for
+// local dev where storybook interaction tests are actually run.
+const storybookProject = process.env.CI
+  ? null
+  : await (async () => {
+      const { storybookTest } =
+        await import("@storybook/addon-vitest/vitest-plugin");
+      const { playwright } = await import("@vitest/browser-playwright");
+      return {
+        extends: true as const,
+        plugins: [
+          storybookTest({ configDir: path.join(dirname, ".storybook") }),
+        ],
+        test: {
+          name: "storybook",
+          browser: {
+            enabled: true,
+            headless: true,
+            provider: playwright({}),
+            instances: [{ browser: "chromium" }],
+          },
+          setupFiles: [".storybook/vitest.setup.ts"],
+        },
+      };
+    })();
 
 export default defineConfig({
   envDir: path.resolve(dirname, ".."),
@@ -49,10 +73,9 @@ export default defineConfig({
       ],
       all: true,
       reporter: ["text", "html", "json"],
-      reportsDirectory: resolvePathInStorybookCache("coverage"),
+      reportsDirectory: "./coverage",
     },
     projects: [
-      // Unit tests (jsdom, fast)
       {
         extends: true,
         test: {
@@ -62,25 +85,7 @@ export default defineConfig({
           setupFiles: ["./src/test/setup.ts"],
         },
       },
-      // Storybook interaction tests (browser, slower)
-      {
-        extends: true,
-        plugins: [
-          storybookTest({
-            configDir: path.join(dirname, ".storybook"),
-          }),
-        ],
-        test: {
-          name: "storybook",
-          browser: {
-            enabled: true,
-            headless: true,
-            provider: playwright({}),
-            instances: [{ browser: "chromium" }],
-          },
-          setupFiles: [".storybook/vitest.setup.ts"],
-        },
-      },
+      ...(storybookProject ? [storybookProject] : []),
     ],
   },
 });

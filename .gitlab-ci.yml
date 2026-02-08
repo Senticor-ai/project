@@ -11,7 +11,9 @@ stages:
 variables:
   # Pre-built CI image with Node 24 + Python 3.12 + Playwright deps.
   # Auto-built by build-ci-image job when ci/Dockerfile.ci changes.
-  # Falls back gracefully: before_script installs Node if image is bare python:3.12-slim.
+  # NOTE: Using this image requires an imagePullSecret for Harbor in the
+  # gitlab runner namespace.  Until that is configured, fullstack jobs
+  # fall back to python:3.12-slim + inline Node.js installation.
   CI_NODE_PYTHON_IMAGE: harbor.100-114-108-51.nip.io:30443/terminandoyo/ci:latest
   # Cache directories (must be inside $CI_PROJECT_DIR for GitLab cache)
   npm_config_cache: '$CI_PROJECT_DIR/.npm-cache'
@@ -130,12 +132,9 @@ frontend-unit:
   allow_failure: true
   image: node:24-bullseye
   extends: [.default-rules, .failure-issue, .frontend-cache]
-  variables:
-    NODE_OPTIONS: "--max-old-space-size=4096"
   before_script:
     - cd frontend && npm ci --ignore-scripts --silent
   script:
-    - npx esbuild --version
     - CI=1 npx vitest run --project=unit --coverage --coverage.reporter=text --coverage.reporter=cobertura --coverage.reporter=json-summary --coverage.reportsDirectory=coverage/unit
   artifacts:
     when: always
@@ -193,9 +192,16 @@ frontend-integration:
   stage: test
   needs: []
   allow_failure: true
-  image: $CI_NODE_PYTHON_IMAGE
+  image: python:3.12-slim
   extends: [.default-rules, .backend-postgres, .failure-issue, .fullstack-cache]
   before_script:
+    - |
+      apt-get update -qq
+      apt-get install -y -qq --no-install-recommends curl ca-certificates gnupg
+      curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
+      apt-get install -y -qq --no-install-recommends nodejs
+      rm -rf /var/lib/apt/lists/*
+    - pip install -q uv
     - cd $CI_PROJECT_DIR/backend && uv sync --quiet --all-groups --all-extras
     - cd $CI_PROJECT_DIR/frontend && npm ci --ignore-scripts --silent
   script:
@@ -234,11 +240,19 @@ frontend-e2e:
   stage: test
   needs: []
   allow_failure: true
-  image: $CI_NODE_PYTHON_IMAGE
+  image: python:3.12-slim
   extends: [.default-rules, .backend-postgres, .failure-issue, .fullstack-cache]
   before_script:
+    - |
+      apt-get update -qq
+      apt-get install -y -qq --no-install-recommends curl ca-certificates gnupg
+      curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
+      apt-get install -y -qq --no-install-recommends nodejs
+      rm -rf /var/lib/apt/lists/*
+    - pip install -q uv
     - cd $CI_PROJECT_DIR/backend && uv sync --quiet --all-groups --all-extras
     - cd $CI_PROJECT_DIR/frontend && npm ci --ignore-scripts --silent
+    - npx playwright install-deps chromium
     - npx playwright install chromium
   script:
     - cd $CI_PROJECT_DIR/backend && uv run python -m app.db_init

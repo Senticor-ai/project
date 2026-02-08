@@ -81,12 +81,12 @@ export const ToggleModes: Story = {
 export const FillAndSubmitLogin: Story = {
   play: async ({ canvas, userEvent, args }) => {
     await userEvent.type(canvas.getByLabelText("Email"), "test@example.com");
-    await userEvent.type(canvas.getByLabelText("Password"), "password123");
+    await userEvent.type(canvas.getByLabelText("Password"), "T3st!Passw0rd#2025");
     await userEvent.click(canvas.getByRole("button", { name: /Sign in/ }));
 
     expect(args.onLogin).toHaveBeenCalledWith(
       "test@example.com",
-      "password123",
+      "T3st!Passw0rd#2025",
     );
   },
 };
@@ -96,14 +96,14 @@ export const FillAndSubmitRegister: Story = {
     await userEvent.click(canvas.getByText("Request access"));
 
     await userEvent.type(canvas.getByLabelText("Email"), "new@example.com");
-    await userEvent.type(canvas.getByLabelText("Password"), "password123");
+    await userEvent.type(canvas.getByLabelText("Password"), "T3st!Passw0rd#2025");
     await userEvent.click(
       canvas.getByRole("button", { name: "Create account" }),
     );
 
     expect(args.onRegister).toHaveBeenCalledWith(
       "new@example.com",
-      "password123",
+      "T3st!Passw0rd#2025",
     );
   },
 };
