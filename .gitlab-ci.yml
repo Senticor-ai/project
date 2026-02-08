@@ -192,7 +192,7 @@ frontend-integration:
   stage: test
   needs: []
   allow_failure: true
-  image: $CI_NODE_PYTHON_IMAGE
+  image: python:3.12-slim
   extends: [.default-rules, .backend-postgres, .failure-issue, .fullstack-cache]
   before_script:
     # Remove these 3 lines once CI_NODE_PYTHON_IMAGE points to pre-built image
@@ -236,7 +236,7 @@ frontend-e2e:
   stage: test
   needs: []
   allow_failure: true
-  image: $CI_NODE_PYTHON_IMAGE
+  image: python:3.12-slim
   extends: [.default-rules, .backend-postgres, .failure-issue, .fullstack-cache]
   before_script:
     # Remove these 3 lines once CI_NODE_PYTHON_IMAGE points to pre-built image
