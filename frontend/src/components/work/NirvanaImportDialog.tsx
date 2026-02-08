@@ -16,7 +16,10 @@ export interface NirvanaImportDialogProps {
 }
 
 /** Wrapper: mounts/unmounts the inner dialog so state resets naturally. */
-export function NirvanaImportDialog({ open, ...rest }: NirvanaImportDialogProps) {
+export function NirvanaImportDialog({
+  open,
+  ...rest
+}: NirvanaImportDialogProps) {
   if (!open) return null;
   return <NirvanaImportDialogContent {...rest} />;
 }
@@ -178,15 +181,27 @@ function NirvanaImportDialogContent({
 
             {/* Bucket breakdown */}
             <div className="space-y-1">
-              {Object.entries(preview.bucket_counts).map(([bucket, count]) => (
-                <div
-                  key={bucket}
-                  className="flex items-center justify-between text-sm"
-                >
-                  <span className="capitalize text-text-muted">{bucket}</span>
-                  <span className="font-mono text-text-primary">{count}</span>
-                </div>
-              ))}
+              {Object.entries(preview.bucket_counts).map(([bucket, count]) => {
+                const completed = preview.completed_counts?.[bucket] ?? 0;
+                return (
+                  <div
+                    key={bucket}
+                    className="flex items-center justify-between text-sm"
+                  >
+                    <span className="capitalize text-text-muted">{bucket}</span>
+                    <span className="flex items-center gap-2">
+                      <span className="font-mono text-text-primary">
+                        {count}
+                      </span>
+                      {completed > 0 && (
+                        <span className="text-xs text-text-subtle">
+                          ({completed} completed)
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
 
             {/* Include completed toggle */}
@@ -218,7 +233,7 @@ function NirvanaImportDialogContent({
               onClick={handleImport}
               className="w-full rounded-[var(--radius-md)] bg-blueprint-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blueprint-700"
             >
-              Import {preview.total - preview.errors} items
+              Import {preview.total - preview.skipped - preview.errors} items
             </button>
           </div>
         )}
@@ -286,24 +301,35 @@ function NirvanaImportDialogContent({
                     By bucket
                   </p>
                   {Object.entries(finalSummary.bucket_counts).map(
-                    ([bucket, count]) => (
-                      <button
-                        key={bucket}
-                        type="button"
-                        onClick={() => {
-                          onNavigateToBucket?.(bucket as Bucket);
-                          onClose();
-                        }}
-                        className="flex w-full items-center justify-between rounded-[var(--radius-sm)] px-2 py-1 text-sm transition-colors hover:bg-paper-100"
-                      >
-                        <span className="capitalize text-text-muted">
-                          {bucket}
-                        </span>
-                        <span className="font-mono text-text-primary">
-                          {count}
-                        </span>
-                      </button>
-                    ),
+                    ([bucket, count]) => {
+                      const completed =
+                        finalSummary.completed_counts?.[bucket] ?? 0;
+                      return (
+                        <button
+                          key={bucket}
+                          type="button"
+                          onClick={() => {
+                            onNavigateToBucket?.(bucket as Bucket);
+                            onClose();
+                          }}
+                          className="flex w-full items-center justify-between rounded-[var(--radius-sm)] px-2 py-1 text-sm transition-colors hover:bg-paper-100"
+                        >
+                          <span className="capitalize text-text-muted">
+                            {bucket}
+                          </span>
+                          <span className="flex items-center gap-2">
+                            <span className="font-mono text-text-primary">
+                              {count}
+                            </span>
+                            {completed > 0 && (
+                              <span className="text-xs text-text-subtle">
+                                ({completed} completed)
+                              </span>
+                            )}
+                          </span>
+                        </button>
+                      );
+                    },
                   )}
                 </div>
               )}

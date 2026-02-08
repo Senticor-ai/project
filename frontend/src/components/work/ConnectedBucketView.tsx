@@ -77,7 +77,7 @@ export function ConnectedBucketView({
   );
 
   const handleMove = useCallback(
-    (id: CanonicalId, bucket: ThingBucket) =>
+    (id: CanonicalId, bucket: string) =>
       moveMutation.mutate({ canonicalId: id, bucket }),
     [moveMutation],
   );

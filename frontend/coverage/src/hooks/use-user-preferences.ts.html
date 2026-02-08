@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/14</span>
+                <span class='fraction'>14/14</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/2</span>
+                <span class='fraction'>2/2</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>0/4</span>
+                <span class='fraction'>4/4</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/14</span>
+                <span class='fraction'>14/14</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line low'></div>
+    <div class='status-line high'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -103,33 +103,33 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">4x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">7x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">7x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">7x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import { useState, useCallback } from "react";
 import {
@@ -137,33 +137,33 @@ import {
   DEFAULT_PREFERENCES,
 } from "@/model/settings-types";
 &nbsp;
-const STORAGE_KEY = <span class="cstat-no" title="statement not covered" >"tay-user-preferences";</span>
+const STORAGE_KEY = "tay-user-preferences";
 &nbsp;
-function <span class="fstat-no" title="function not covered" >loadPreferences(): UserPreferences {</span>
-  const stored = <span class="cstat-no" title="statement not covered" >localStorage.getItem(STORAGE_KEY);</span>
-<span class="cstat-no" title="statement not covered" >  if (stored) {</span>
-<span class="cstat-no" title="statement not covered" >    try {</span>
-<span class="cstat-no" title="statement not covered" >      return { ...DEFAULT_PREFERENCES, ...JSON.parse(stored) };</span>
+function loadPreferences(): UserPreferences {
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (stored) {
+    try {
+      return { ...DEFAULT_PREFERENCES, ...JSON.parse(stored) };
     } catch {
-<span class="cstat-no" title="statement not covered" >      console.warn("Failed to parse stored preferences, using defaults");</span>
+      console.warn("Failed to parse stored preferences, using defaults");
     }
   }
-<span class="cstat-no" title="statement not covered" >  return DEFAULT_PREFERENCES;</span>
+  return DEFAULT_PREFERENCES;
 }
 &nbsp;
-export function <span class="fstat-no" title="function not covered" >useUserPreferences() {</span>
-  const [preferences, setPreferences<span class="cstat-no" title="statement not covered" >] =</span>
+export function useUserPreferences() {
+  const [preferences, setPreferences] =
     useState&lt;UserPreferences&gt;(loadPreferences);
 &nbsp;
-  const <span class="cstat-no" title="statement not covered" >updatePreferences = useCallback(<span class="fstat-no" title="function not covered" >(u</span>pdate: Partial&lt;UserPreferences&gt;) =&gt; {</span>
-<span class="cstat-no" title="statement not covered" >    setPreferences(<span class="fstat-no" title="function not covered" >(p</span>rev) =&gt; {</span>
-      const next = <span class="cstat-no" title="statement not covered" >{ ...prev, ...update };</span>
-<span class="cstat-no" title="statement not covered" >      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));</span>
-<span class="cstat-no" title="statement not covered" >      return next;</span>
+  const updatePreferences = useCallback((update: Partial&lt;UserPreferences&gt;) =&gt; {
+    setPreferences((prev) =&gt; {
+      const next = { ...prev, ...update };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      return next;
     });
   }, []);
 &nbsp;
-<span class="cstat-no" title="statement not covered" >  return { preferences, updatePreferences };</span>
+  return { preferences, updatePreferences };
 }
 &nbsp;</pre></td></tr></table></pre>
 
@@ -172,7 +172,7 @@ export function <span class="fstat-no" title="function not covered" >useUserPref
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-02-07T19:35:31.454Z
+                at 2026-02-08T09:42:50.056Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

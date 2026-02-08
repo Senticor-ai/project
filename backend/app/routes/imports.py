@@ -45,7 +45,7 @@ _DEFAULT_STATE_BUCKET_MAP = {
     2: "waiting",
     3: "calendar",
     4: "someday",
-    5: "next",       # Logged/Done — original bucket unknown, default to next
+    5: "next",  # Logged/Done — original bucket unknown, default to next
     7: "next",
     9: "calendar",
 }
@@ -405,17 +405,17 @@ def _build_nirvana_thing(
             source_metadata=source_metadata,
         )
         thing["@type"] = _TYPE_MAP["project"]
-        thing["endTime"] = (
-            completed_dt.isoformat() if completed_dt else None
-        )
+        thing["endTime"] = completed_dt.isoformat() if completed_dt else None
         thing["hasPart"] = [{"@id": aid} for aid in action_ids]
-        thing["additionalProperty"].extend([
-            _pv("app:bucket", "project"),
-            _pv("app:desiredOutcome", desired_outcome),
-            _pv("app:projectStatus", project_status),
-            _pv("app:isFocused", is_focused),
-            _pv("app:reviewDate", None),
-        ])
+        thing["additionalProperty"].extend(
+            [
+                _pv("app:bucket", "project"),
+                _pv("app:desiredOutcome", desired_outcome),
+                _pv("app:projectStatus", project_status),
+                _pv("app:isFocused", is_focused),
+                _pv("app:reviewDate", None),
+            ]
+        )
         return canonical_id, thing, "project", created_dt, updated_dt, completed_dt
 
     if bucket == "inbox":
@@ -432,12 +432,14 @@ def _build_nirvana_thing(
             source_metadata=source_metadata,
         )
         thing["@type"] = _TYPE_MAP["inbox"]
-        thing["additionalProperty"].extend([
-            _pv("app:bucket", "inbox"),
-            _pv("app:rawCapture", notes or title),
-            _pv("app:contexts", []),
-            _pv("app:isFocused", False),
-        ])
+        thing["additionalProperty"].extend(
+            [
+                _pv("app:bucket", "inbox"),
+                _pv("app:rawCapture", notes or title),
+                _pv("app:contexts", []),
+                _pv("app:isFocused", False),
+            ]
+        )
         return canonical_id, thing, "inbox", created_dt, updated_dt, completed_dt
 
     if bucket == "reference":
@@ -456,10 +458,12 @@ def _build_nirvana_thing(
         thing["@type"] = _TYPE_MAP["reference"]
         thing["url"] = None
         thing["encodingFormat"] = None
-        thing["additionalProperty"].extend([
-            _pv("app:bucket", "reference"),
-            _pv("app:origin", "captured"),
-        ])
+        thing["additionalProperty"].extend(
+            [
+                _pv("app:bucket", "reference"),
+                _pv("app:origin", "captured"),
+            ]
+        )
         return canonical_id, thing, "reference", created_dt, updated_dt, completed_dt
 
     canonical_id = _canonical_id("action", raw_id)
@@ -509,22 +513,22 @@ def _build_nirvana_thing(
     )
     thing["@type"] = _TYPE_MAP["action"]
     thing["startTime"] = start_date
-    thing["endTime"] = (
-        completed_dt.isoformat() if completed_dt else None
-    )
+    thing["endTime"] = completed_dt.isoformat() if completed_dt else None
     if project_id:
         thing["isPartOf"] = {"@id": project_id}
-    thing["additionalProperty"].extend([
-        _pv("app:bucket", bucket),
-        _pv("app:contexts", []),
-        _pv("app:delegatedTo", delegated_to),
-        _pv("app:dueDate", due_date),
-        _pv("app:startDate", start_date),
-        _pv("app:scheduledTime", None),
-        _pv("app:isFocused", is_focused),
-        _pv("app:recurrence", recurrence),
-        _pv("app:sequenceOrder", sequence_order),
-    ])
+    thing["additionalProperty"].extend(
+        [
+            _pv("app:bucket", bucket),
+            _pv("app:contexts", []),
+            _pv("app:delegatedTo", delegated_to),
+            _pv("app:dueDate", due_date),
+            _pv("app:startDate", start_date),
+            _pv("app:scheduledTime", None),
+            _pv("app:isFocused", is_focused),
+            _pv("app:recurrence", recurrence),
+            _pv("app:sequenceOrder", sequence_order),
+        ]
+    )
 
     return canonical_id, thing, bucket, created_dt, updated_dt, completed_dt
 
@@ -589,9 +593,7 @@ def run_nirvana_import(
         if not child_id:
             continue
         if not include_completed and (
-            _parse_epoch(item.get("completed"))
-            or item.get("deleted")
-            or item.get("cancelled")
+            _parse_epoch(item.get("completed")) or item.get("deleted") or item.get("cancelled")
         ):
             continue
         try:
@@ -604,6 +606,7 @@ def run_nirvana_import(
 
     totals: Counter[str] = Counter()
     bucket_counts: Counter[str] = Counter()
+    completed_counts: Counter[str] = Counter()
     sample_errors: list[str] = []
 
     with db_conn() as conn:
@@ -660,6 +663,8 @@ def run_nirvana_import(
                     else:
                         totals["created"] += 1
                     bucket_counts[bucket] += 1
+                    if completed_dt:
+                        completed_counts[bucket] += 1
                     continue
 
                 if update_existing:
@@ -705,6 +710,8 @@ def run_nirvana_import(
                     else:
                         totals["updated"] += 1
                     bucket_counts[bucket] += 1
+                    if completed_dt:
+                        completed_counts[bucket] += 1
                 else:
                     cur.execute(
                         """
@@ -739,6 +746,8 @@ def run_nirvana_import(
                         continue
                     totals["created"] += 1
                     bucket_counts[bucket] += 1
+                    if completed_dt:
+                        completed_counts[bucket] += 1
 
                 if emit_events and row:
                     enqueue_event(
@@ -754,6 +763,7 @@ def run_nirvana_import(
         skipped=totals["skipped"],
         errors=totals["errors"],
         bucket_counts=dict(bucket_counts),
+        completed_counts=dict(completed_counts),
         sample_errors=sample_errors,
     )
 
@@ -838,7 +848,7 @@ def _fail_stale_queued_jobs(
             error = %s,
             finished_at = %s,
             updated_at = %s
-        WHERE {' AND '.join(clauses)}
+        WHERE {" AND ".join(clauses)}
     """
     now = datetime.now(UTC)
     final_params = [_IMPORT_JOB_STALE_ERROR, now, now, *params]
@@ -1297,12 +1307,16 @@ def list_import_jobs(
 ):
     org_id = current_org["org_id"]
     user_id = current_user["id"]
-    status_filter = [value.value for value in statuses] if statuses else [
-        ImportJobStatus.QUEUED.value,
-        ImportJobStatus.RUNNING.value,
-        ImportJobStatus.COMPLETED.value,
-        ImportJobStatus.FAILED.value,
-    ]
+    status_filter = (
+        [value.value for value in statuses]
+        if statuses
+        else [
+            ImportJobStatus.QUEUED.value,
+            ImportJobStatus.RUNNING.value,
+            ImportJobStatus.COMPLETED.value,
+            ImportJobStatus.FAILED.value,
+        ]
+    )
 
     with db_conn() as conn:
         _fail_stale_queued_jobs(org_id=org_id, conn=conn)

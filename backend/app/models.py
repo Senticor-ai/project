@@ -128,15 +128,18 @@ class PredicatePortModel(BaseModel):
 
 class ComputationPortModel(BaseModel):
     kind: Literal["computation"] = "computation"
-    timeEstimate: Literal[
-        "5min",
-        "15min",
-        "30min",
-        "1hr",
-        "2hr",
-        "half-day",
-        "full-day",
-    ] | None = Field(default=None, description="Estimated effort.")
+    timeEstimate: (
+        Literal[
+            "5min",
+            "15min",
+            "30min",
+            "1hr",
+            "2hr",
+            "half-day",
+            "full-day",
+        ]
+        | None
+    ) = Field(default=None, description="Estimated effort.")
     energyLevel: Literal["low", "medium", "high"] | None = Field(
         default=None,
         description="Estimated energy requirement.",
@@ -247,17 +250,21 @@ class ThingJsonLdBase(BaseModel):
         description="Domain schema version for this record.",
     )
     name: str | None = Field(
-        default=None, description="Optional deliberate name (schema.org name).",
+        default=None,
+        description="Optional deliberate name (schema.org name).",
     )
     description: str | None = Field(default=None, description="Long-form description.")
     keywords: list[str] = Field(
-        default_factory=list, description="Free-form tags (schema.org keywords).",
+        default_factory=list,
+        description="Free-form tags (schema.org keywords).",
     )
     dateCreated: str | None = Field(
-        default=None, description="Creation timestamp (ISO-8601).",
+        default=None,
+        description="Creation timestamp (ISO-8601).",
     )
     dateModified: str | None = Field(
-        default=None, description="Last-modified timestamp (ISO-8601).",
+        default=None,
+        description="Last-modified timestamp (ISO-8601).",
     )
     additionalProperty: list[PropertyValueModel] = Field(
         default_factory=list,
@@ -286,10 +293,12 @@ class ActionThingJsonLd(ThingJsonLdBase):
 
     type: Literal["Action"] = Field(..., alias="@type", description="schema.org Action.")
     startTime: str | None = Field(
-        default=None, description="Scheduled date/time (schema.org startTime).",
+        default=None,
+        description="Scheduled date/time (schema.org startTime).",
     )
     endTime: str | None = Field(
-        default=None, description="Completion timestamp (schema.org endTime).",
+        default=None,
+        description="Completion timestamp (schema.org endTime).",
     )
     isPartOf: dict[str, str] | None = Field(
         default=None,
@@ -302,7 +311,8 @@ class ProjectThingJsonLd(ThingJsonLdBase):
 
     type: Literal["Project"] = Field(..., alias="@type", description="schema.org Project.")
     endTime: str | None = Field(
-        default=None, description="Completion timestamp (schema.org endTime).",
+        default=None,
+        description="Completion timestamp (schema.org endTime).",
     )
     hasPart: list[dict[str, str]] = Field(
         default_factory=list,
@@ -314,11 +324,14 @@ class ReferenceThingJsonLd(ThingJsonLdBase):
     """schema:CreativeWork — reference material."""
 
     type: Literal["CreativeWork"] = Field(
-        ..., alias="@type", description="schema.org CreativeWork.",
+        ...,
+        alias="@type",
+        description="schema.org CreativeWork.",
     )
     url: str | None = Field(default=None, description="External URL.")
     encodingFormat: str | None = Field(
-        default=None, description="MIME type (schema.org encodingFormat).",
+        default=None,
+        description="MIME type (schema.org encodingFormat).",
     )
 
 
@@ -332,9 +345,7 @@ class ThingPatchModel(BaseModel):
     """Partial JSON-LD for PATCH deep-merge (v2 schema.org format)."""
 
     id: str | None = Field(default=None, alias="@id", description="Canonical id (immutable).")
-    type: (
-        Literal["Thing", "Action", "Project", "CreativeWork"] | None
-    ) = Field(
+    type: Literal["Thing", "Action", "Project", "CreativeWork"] | None = Field(
         default=None,
         alias="@type",
         description="Schema.org type override.",
@@ -559,6 +570,10 @@ class NirvanaImportSummary(BaseModel):
         default_factory=list,
         description="Sample error messages (truncated set).",
     )
+    completed_counts: dict[str, int] = Field(
+        default_factory=dict,
+        description="Per-bucket count of items that are completed (have endTime).",
+    )
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -576,6 +591,9 @@ class NirvanaImportSummary(BaseModel):
                         "calendar": 2,
                         "someday": 1,
                         "inbox": 1,
+                    },
+                    "completed_counts": {
+                        "next": 1,
                     },
                     "sample_errors": [],
                 }

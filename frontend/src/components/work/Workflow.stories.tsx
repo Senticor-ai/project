@@ -57,11 +57,8 @@ function WorkflowApp({
         ]);
       }}
       onComplete={(id) => {
-        setThings((prev) =>
-          prev.map((t) =>
-            t.id === id ? { ...t, completedAt: new Date().toISOString() } : t,
-          ),
-        );
+        // In production, completing removes from the active query results
+        setThings((prev) => prev.filter((t) => t.id !== id));
       }}
       onToggleFocus={(id) => {
         setThings((prev) =>
@@ -157,7 +154,9 @@ export const CaptureThreeTodos: Story = {
 export const TriageToNext: Story = {
   render: () => (
     <WorkflowApp
-      initialThings={[createThing({ rawCapture: "Review annual budget report" })]}
+      initialThings={[
+        createThing({ rawCapture: "Review annual budget report" }),
+      ]}
     />
   ),
   play: async ({ canvas, userEvent, step }) => {
@@ -187,7 +186,9 @@ export const TriageToNext: Story = {
 export const TriageToWaiting: Story = {
   render: () => (
     <WorkflowApp
-      initialThings={[createThing({ rawCapture: "Call client about Q1 proposal" })]}
+      initialThings={[
+        createThing({ rawCapture: "Call client about Q1 proposal" }),
+      ]}
     />
   ),
   play: async ({ canvas, userEvent, step }) => {

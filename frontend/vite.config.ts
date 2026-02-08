@@ -12,30 +12,31 @@ const dirname =
 
 // Storybook vitest plugins load presets via esbuild at config evaluation
 // time, which deadlocks in constrained CI k8s pods.  Only import them for
-// local dev where storybook interaction tests are actually run.
-const storybookProject = process.env.CI
-  ? null
-  : await (async () => {
-      const { storybookTest } =
-        await import("@storybook/addon-vitest/vitest-plugin");
-      const { playwright } = await import("@vitest/browser-playwright");
-      return {
-        extends: true as const,
-        plugins: [
-          storybookTest({ configDir: path.join(dirname, ".storybook") }),
-        ],
-        test: {
-          name: "storybook",
-          browser: {
-            enabled: true,
-            headless: true,
-            provider: playwright({}),
-            instances: [{ browser: "chromium" }],
+// local dev or when explicitly opted-in via STORYBOOK_TESTS=1.
+const storybookProject =
+  process.env.CI && !process.env.STORYBOOK_TESTS
+    ? null
+    : await (async () => {
+        const { storybookTest } =
+          await import("@storybook/addon-vitest/vitest-plugin");
+        const { playwright } = await import("@vitest/browser-playwright");
+        return {
+          extends: true as const,
+          plugins: [
+            storybookTest({ configDir: path.join(dirname, ".storybook") }),
+          ],
+          test: {
+            name: "storybook",
+            browser: {
+              enabled: true,
+              headless: true,
+              provider: playwright({}),
+              instances: [{ browser: "chromium" }],
+            },
+            setupFiles: [".storybook/vitest.setup.ts"],
           },
-          setupFiles: [".storybook/vitest.setup.ts"],
-        },
-      };
-    })();
+        };
+      })();
 
 export default defineConfig({
   envDir: path.resolve(dirname, ".."),

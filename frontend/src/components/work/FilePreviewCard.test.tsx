@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { FilePreviewCard } from "./FilePreviewCard";
 
@@ -51,26 +51,25 @@ describe("FilePreviewCard", () => {
     expect(input.value).toBe("annual-report");
   });
 
-  it("allows editing the title", async () => {
-    const user = userEvent.setup();
+  it("allows editing the title", () => {
     const file = createFile("doc.pdf", 1024, "application/pdf");
     render(
       <FilePreviewCard file={file} onConfirm={vi.fn()} onDiscard={vi.fn()} />,
     );
     const input = screen.getByLabelText("Title") as HTMLInputElement;
-    await user.clear(input);
-    await user.type(input, "Custom title");
+    fireEvent.change(input, { target: { value: "Custom title" } });
     expect(input.value).toBe("Custom title");
   });
 
-  it("allows editing notes", async () => {
-    const user = userEvent.setup();
+  it("allows editing notes", () => {
     const file = createFile("doc.pdf", 1024, "application/pdf");
     render(
       <FilePreviewCard file={file} onConfirm={vi.fn()} onDiscard={vi.fn()} />,
     );
     const textarea = screen.getByLabelText("Notes") as HTMLTextAreaElement;
-    await user.type(textarea, "Some notes about this file");
+    fireEvent.change(textarea, {
+      target: { value: "Some notes about this file" },
+    });
     expect(textarea.value).toBe("Some notes about this file");
   });
 

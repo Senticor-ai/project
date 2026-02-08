@@ -1,4 +1,8 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
 import { ThingsApi } from "@/lib/api-client";
 import type { ThingRecord } from "@/lib/api-client";
 import {
@@ -12,14 +16,38 @@ import type { CanonicalId } from "@/model/canonical-id";
 import { THINGS_QUERY_KEY } from "./use-things";
 
 // ---------------------------------------------------------------------------
-// Helper: find thing_id from canonical_id in the cache
+// Cache keys for active and completed partitions
+// ---------------------------------------------------------------------------
+
+const ACTIVE_KEY = [...THINGS_QUERY_KEY, { completed: "false" }];
+const COMPLETED_KEY = [...THINGS_QUERY_KEY, { completed: "true" }];
+
+// ---------------------------------------------------------------------------
+// Helpers: search both active + completed caches
 // ---------------------------------------------------------------------------
 
 function findThingId(
-  cache: ThingRecord[] | undefined,
+  qc: QueryClient,
   canonicalId: CanonicalId,
 ): string | undefined {
-  return cache?.find((r) => r.canonical_id === canonicalId)?.thing_id;
+  const active = qc.getQueryData<ThingRecord[]>(ACTIVE_KEY);
+  const match = active?.find((r) => r.canonical_id === canonicalId);
+  if (match) return match.thing_id;
+
+  const completed = qc.getQueryData<ThingRecord[]>(COMPLETED_KEY);
+  return completed?.find((r) => r.canonical_id === canonicalId)?.thing_id;
+}
+
+function findRecord(
+  qc: QueryClient,
+  canonicalId: CanonicalId,
+): ThingRecord | undefined {
+  const active = qc.getQueryData<ThingRecord[]>(ACTIVE_KEY);
+  const match = active?.find((r) => r.canonical_id === canonicalId);
+  if (match) return match;
+
+  const completed = qc.getQueryData<ThingRecord[]>(COMPLETED_KEY);
+  return completed?.find((r) => r.canonical_id === canonicalId);
 }
 
 // ---------------------------------------------------------------------------
@@ -55,10 +83,7 @@ export function useTriageItem() {
       item: Thing;
       result: TriageResult;
     }) => {
-      const thingId = findThingId(
-        qc.getQueryData<ThingRecord[]>(THINGS_QUERY_KEY),
-        item.id,
-      );
+      const thingId = findThingId(qc, item.id);
       if (!thingId) throw new Error(`Thing not found: ${item.id}`);
 
       if (result.targetBucket === "archive") {
@@ -83,8 +108,7 @@ export function useCompleteAction() {
 
   return useMutation({
     mutationFn: async (canonicalId: CanonicalId) => {
-      const cache = qc.getQueryData<ThingRecord[]>(THINGS_QUERY_KEY);
-      const record = cache?.find((r) => r.canonical_id === canonicalId);
+      const record = findRecord(qc, canonicalId);
       if (!record) throw new Error(`Thing not found: ${canonicalId}`);
 
       const isCompleted = !!record.thing.endTime;
@@ -107,8 +131,7 @@ export function useToggleFocus() {
 
   return useMutation({
     mutationFn: async (canonicalId: CanonicalId) => {
-      const cache = qc.getQueryData<ThingRecord[]>(THINGS_QUERY_KEY);
-      const record = cache?.find((r) => r.canonical_id === canonicalId);
+      const record = findRecord(qc, canonicalId);
       if (!record) throw new Error(`Thing not found: ${canonicalId}`);
 
       const props = record.thing.additionalProperty as
@@ -147,10 +170,7 @@ export function useMoveAction() {
       canonicalId: CanonicalId;
       bucket: string;
     }) => {
-      const thingId = findThingId(
-        qc.getQueryData<ThingRecord[]>(THINGS_QUERY_KEY),
-        canonicalId,
-      );
+      const thingId = findThingId(qc, canonicalId);
       if (!thingId) throw new Error(`Thing not found: ${canonicalId}`);
 
       return ThingsApi.update(thingId, {
@@ -184,10 +204,7 @@ export function useUpdateItem() {
       canonicalId: CanonicalId;
       patch: Record<string, unknown>;
     }) => {
-      const thingId = findThingId(
-        qc.getQueryData<ThingRecord[]>(THINGS_QUERY_KEY),
-        canonicalId,
-      );
+      const thingId = findThingId(qc, canonicalId);
       if (!thingId) throw new Error(`Thing not found: ${canonicalId}`);
 
       return ThingsApi.update(thingId, patch);
@@ -273,10 +290,7 @@ export function useArchiveReference() {
 
   return useMutation({
     mutationFn: async (canonicalId: CanonicalId) => {
-      const thingId = findThingId(
-        qc.getQueryData<ThingRecord[]>(THINGS_QUERY_KEY),
-        canonicalId,
-      );
+      const thingId = findThingId(qc, canonicalId);
       if (!thingId) throw new Error(`Thing not found: ${canonicalId}`);
 
       return ThingsApi.archive(thingId);

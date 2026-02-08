@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { createElement } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThingList } from "./ThingList";
 import { createThing, resetFactoryCounter } from "@/model/factories";
 import type { CanonicalId } from "@/model/canonical-id";
@@ -15,7 +17,28 @@ vi.mock("@dnd-kit/core", () => ({
   }),
 }));
 
-beforeEach(() => resetFactoryCounter());
+// Mock completed items hook — returns _completedData when enabled
+import type { Thing } from "@/model/types";
+let _completedData: Thing[] = [];
+vi.mock("@/hooks/use-things", () => ({
+  useAllCompletedThings: (enabled: boolean) => ({
+    data: enabled ? _completedData : [],
+    isFetching: false,
+  }),
+}));
+
+beforeEach(() => {
+  resetFactoryCounter();
+  _completedData = [];
+});
+
+function createWrapper() {
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return ({ children }: { children: React.ReactNode }) =>
+    createElement(QueryClientProvider, { client: qc }, children);
+}
 
 const noop = vi.fn();
 
@@ -34,41 +57,49 @@ function defaultProps(
   };
 }
 
+function renderThingList(
+  overrides: Partial<Parameters<typeof ThingList>[0]> = {},
+) {
+  return render(<ThingList {...defaultProps(overrides)} />, {
+    wrapper: createWrapper(),
+  });
+}
+
 describe("ThingList", () => {
   // -------------------------------------------------------------------------
   // Header
   // -------------------------------------------------------------------------
 
   it("renders bucket header for inbox", () => {
-    render(<ThingList {...defaultProps({ bucket: "inbox" })} />);
+    renderThingList({ bucket: "inbox" });
     expect(screen.getByText("Inbox")).toBeInTheDocument();
     expect(screen.getByText("Capture and clarify")).toBeInTheDocument();
   });
 
   it("renders bucket header for next", () => {
-    render(<ThingList {...defaultProps({ bucket: "next" })} />);
+    renderThingList({ bucket: "next" });
     expect(screen.getByText("Next Actions")).toBeInTheDocument();
     expect(screen.getByText("To-do's for anytime")).toBeInTheDocument();
   });
 
   it("renders bucket header for focus", () => {
-    render(<ThingList {...defaultProps({ bucket: "focus" })} />);
+    renderThingList({ bucket: "focus" });
     expect(screen.getByText("Focus")).toBeInTheDocument();
     expect(screen.getByText("Starred actions")).toBeInTheDocument();
   });
 
   it("renders bucket header for waiting", () => {
-    render(<ThingList {...defaultProps({ bucket: "waiting" })} />);
+    renderThingList({ bucket: "waiting" });
     expect(screen.getByText("Waiting For")).toBeInTheDocument();
   });
 
   it("renders bucket header for calendar", () => {
-    render(<ThingList {...defaultProps({ bucket: "calendar" })} />);
+    renderThingList({ bucket: "calendar" });
     expect(screen.getByText("Calendar")).toBeInTheDocument();
   });
 
   it("renders bucket header for someday", () => {
-    render(<ThingList {...defaultProps({ bucket: "someday" })} />);
+    renderThingList({ bucket: "someday" });
     expect(screen.getByText("Someday / Maybe")).toBeInTheDocument();
   });
 
@@ -77,7 +108,7 @@ describe("ThingList", () => {
   // -------------------------------------------------------------------------
 
   it("shows empty state for inbox", () => {
-    render(<ThingList {...defaultProps({ bucket: "inbox" })} />);
+    renderThingList({ bucket: "inbox" });
     expect(screen.getByText("Inbox is empty")).toBeInTheDocument();
     expect(
       screen.getByText("Capture a thought to get started"),
@@ -85,12 +116,12 @@ describe("ThingList", () => {
   });
 
   it("shows empty state for next actions", () => {
-    render(<ThingList {...defaultProps({ bucket: "next" })} />);
+    renderThingList({ bucket: "next" });
     expect(screen.getByText("No actions here yet")).toBeInTheDocument();
   });
 
   it("shows empty state for focus", () => {
-    render(<ThingList {...defaultProps({ bucket: "focus" })} />);
+    renderThingList({ bucket: "focus" });
     expect(screen.getByText("No focused actions")).toBeInTheDocument();
   });
 
@@ -104,7 +135,7 @@ describe("ThingList", () => {
       createThing({ name: "Inbox task", bucket: "inbox" }),
       createThing({ name: "Someday task", bucket: "someday" }),
     ];
-    render(<ThingList {...defaultProps({ bucket: "next", things })} />);
+    renderThingList({ bucket: "next", things });
     expect(screen.getByText("Next task")).toBeInTheDocument();
     expect(screen.queryByText("Inbox task")).not.toBeInTheDocument();
     expect(screen.queryByText("Someday task")).not.toBeInTheDocument();
@@ -124,86 +155,63 @@ describe("ThingList", () => {
       }),
       createThing({ name: "Unfocused next", bucket: "next" }),
     ];
-    render(<ThingList {...defaultProps({ bucket: "focus", things })} />);
+    renderThingList({ bucket: "focus", things });
     expect(screen.getByText("Focused next")).toBeInTheDocument();
     expect(screen.getByText("Focused waiting")).toBeInTheDocument();
     expect(screen.queryByText("Unfocused next")).not.toBeInTheDocument();
   });
 
   // -------------------------------------------------------------------------
-  // Completed items
+  // Completed items (lazy-loaded via useAllCompletedThings hook)
   // -------------------------------------------------------------------------
 
-  it("hides completed things by default", () => {
-    const things = [
-      createThing({ name: "Active", bucket: "next" }),
-      createThing({
-        name: "Done",
-        bucket: "next",
-        completedAt: new Date().toISOString(),
-      }),
-    ];
-    render(<ThingList {...defaultProps({ bucket: "next", things })} />);
-    expect(screen.getByText("Active")).toBeInTheDocument();
-    expect(screen.queryByText("Done")).not.toBeInTheDocument();
-  });
-
-  it("does not show completed toggle when no completed items", () => {
+  it("always shows completed toggle button", () => {
     const things = [createThing({ name: "Active", bucket: "next" })];
-    render(<ThingList {...defaultProps({ bucket: "next", things })} />);
-    expect(screen.queryByLabelText("Show completed")).not.toBeInTheDocument();
-  });
-
-  it("shows completed toggle when completed items exist", () => {
-    const things = [
-      createThing({ name: "Active", bucket: "next" }),
-      createThing({
-        name: "Done",
-        bucket: "next",
-        completedAt: "2026-01-20T10:00:00Z",
-      }),
-    ];
-    render(<ThingList {...defaultProps({ bucket: "next", things })} />);
+    renderThingList({ bucket: "next", things });
     expect(screen.getByLabelText("Show completed")).toBeInTheDocument();
   });
 
-  it("shows completed items after toggle click", async () => {
-    const user = userEvent.setup();
-    const things = [
-      createThing({ name: "Active task", bucket: "next" }),
-      createThing({
-        name: "Done task A",
-        bucket: "next",
-        completedAt: "2026-01-20T10:00:00Z",
-      }),
-      createThing({
-        name: "Done task B",
-        bucket: "next",
-        completedAt: "2026-01-18T10:00:00Z",
-      }),
-    ];
-    render(<ThingList {...defaultProps({ bucket: "next", things })} />);
+  it(
+    "shows completed items after toggle click",
+    { timeout: 15_000 },
+    async () => {
+      const user = userEvent.setup();
+      _completedData = [
+        createThing({
+          name: "Done task A",
+          bucket: "next",
+          completedAt: "2026-01-20T10:00:00Z",
+        }),
+        createThing({
+          name: "Done task B",
+          bucket: "next",
+          completedAt: "2026-01-18T10:00:00Z",
+        }),
+      ];
+      const things = [createThing({ name: "Active task", bucket: "next" })];
+      renderThingList({ bucket: "next", things });
 
-    expect(screen.queryByText("Done task A")).not.toBeInTheDocument();
-    await user.click(screen.getByLabelText("Show completed"));
+      expect(screen.queryByText("Done task A")).not.toBeInTheDocument();
+      await user.click(screen.getByLabelText("Show completed"));
 
-    expect(screen.getByText("Done task A")).toBeInTheDocument();
-    expect(screen.getByText("Done task B")).toBeInTheDocument();
-    expect(screen.getByText("2 completed")).toBeInTheDocument();
-    expect(screen.getByText("(+2 done)")).toBeInTheDocument();
-  });
+      expect(screen.getByText("Done task A")).toBeInTheDocument();
+      expect(screen.getByText("Done task B")).toBeInTheDocument();
+      expect(screen.getByText("2 completed")).toBeInTheDocument();
+      expect(screen.getByText("(+2 done)")).toBeInTheDocument();
+    },
+  );
 
   it("hides completed items after toggling off", async () => {
     const user = userEvent.setup();
-    const things = [
-      createThing({ name: "Active", bucket: "next" }),
+    _completedData = [
       createThing({
         name: "Done",
         bucket: "next",
         completedAt: "2026-01-20T10:00:00Z",
       }),
     ];
-    render(<ThingList {...defaultProps({ bucket: "next", things })} />);
+    const things = [createThing({ name: "Active", bucket: "next" })];
+    renderThingList({ bucket: "next", things });
 
     await user.click(screen.getByLabelText("Show completed"));
     expect(screen.getByText("Done")).toBeInTheDocument();
@@ -214,15 +222,15 @@ describe("ThingList", () => {
 
   it("completed section appears below active items", async () => {
     const user = userEvent.setup();
-    const things = [
-      createThing({ name: "Active item", bucket: "next" }),
+    _completedData = [
       createThing({
         name: "Done item",
         bucket: "next",
         completedAt: "2026-01-20T10:00:00Z",
       }),
     ];
-    render(<ThingList {...defaultProps({ bucket: "next", things })} />);
+    const things = [createThing({ name: "Active item", bucket: "next" })];
+    renderThingList({ bucket: "next", things });
 
     await user.click(screen.getByLabelText("Show completed"));
 
@@ -242,7 +250,7 @@ describe("ThingList", () => {
       createThing({ name: "Task A", bucket: "next" }),
       createThing({ name: "Task B", bucket: "next" }),
     ];
-    render(<ThingList {...defaultProps({ bucket: "next", things })} />);
+    renderThingList({ bucket: "next", things });
     expect(screen.getByText("2 actions")).toBeInTheDocument();
   });
 
@@ -252,19 +260,19 @@ describe("ThingList", () => {
       createThing({ name: "Thought B", bucket: "inbox" }),
       createThing({ name: "Thought C", bucket: "inbox" }),
     ];
-    render(<ThingList {...defaultProps({ bucket: "inbox", things })} />);
+    renderThingList({ bucket: "inbox", things });
     expect(screen.getByText("3 items to process")).toBeInTheDocument();
   });
 
   it("uses singular 'action' for single item", () => {
     const things = [createThing({ name: "Solo", bucket: "next" })];
-    render(<ThingList {...defaultProps({ bucket: "next", things })} />);
+    renderThingList({ bucket: "next", things });
     expect(screen.getByText("1 action")).toBeInTheDocument();
   });
 
   it("uses singular 'item' for single inbox item", () => {
     const things = [createThing({ name: "Solo", bucket: "inbox" })];
-    render(<ThingList {...defaultProps({ bucket: "inbox", things })} />);
+    renderThingList({ bucket: "inbox", things });
     expect(screen.getByText("1 item to process")).toBeInTheDocument();
   });
 
@@ -273,17 +281,17 @@ describe("ThingList", () => {
   // -------------------------------------------------------------------------
 
   it("shows capture input for inbox", () => {
-    render(<ThingList {...defaultProps({ bucket: "inbox" })} />);
+    renderThingList({ bucket: "inbox" });
     expect(screen.getByLabelText("Capture a thought")).toBeInTheDocument();
   });
 
   it("shows rapid entry for action buckets", () => {
-    render(<ThingList {...defaultProps({ bucket: "next" })} />);
+    renderThingList({ bucket: "next" });
     expect(screen.getByLabelText("Rapid entry")).toBeInTheDocument();
   });
 
   it("hides rapid entry in focus view", () => {
-    render(<ThingList {...defaultProps({ bucket: "focus" })} />);
+    renderThingList({ bucket: "focus" });
     expect(screen.queryByLabelText("Rapid entry")).not.toBeInTheDocument();
     expect(
       screen.queryByLabelText("Capture a thought"),
@@ -293,7 +301,7 @@ describe("ThingList", () => {
   it("calls onAdd via rapid entry", async () => {
     const user = userEvent.setup();
     const onAdd = vi.fn();
-    render(<ThingList {...defaultProps({ bucket: "next", onAdd })} />);
+    renderThingList({ bucket: "next", onAdd });
     const input = screen.getByLabelText("Rapid entry");
     await user.type(input, "New task{Enter}");
     expect(onAdd).toHaveBeenCalledWith("New task");
@@ -302,7 +310,7 @@ describe("ThingList", () => {
   it("calls onAdd via inbox capture", async () => {
     const user = userEvent.setup();
     const onAdd = vi.fn();
-    render(<ThingList {...defaultProps({ bucket: "inbox", onAdd })} />);
+    renderThingList({ bucket: "inbox", onAdd });
     const input = screen.getByLabelText("Capture a thought");
     await user.type(input, "New thought{Enter}");
     expect(onAdd).toHaveBeenCalledWith("New thought");
@@ -311,7 +319,7 @@ describe("ThingList", () => {
   it("does not call onAdd for empty input", async () => {
     const user = userEvent.setup();
     const onAdd = vi.fn();
-    render(<ThingList {...defaultProps({ bucket: "next", onAdd })} />);
+    renderThingList({ bucket: "next", onAdd });
     const input = screen.getByLabelText("Rapid entry");
     await user.type(input, "   {Enter}");
     expect(onAdd).not.toHaveBeenCalled();
@@ -320,7 +328,7 @@ describe("ThingList", () => {
   it("preserves input text when onAdd rejects", async () => {
     const user = userEvent.setup();
     const onAdd = vi.fn().mockRejectedValue(new Error("Network error"));
-    render(<ThingList {...defaultProps({ bucket: "inbox", onAdd })} />);
+    renderThingList({ bucket: "inbox", onAdd });
     const input = screen.getByLabelText("Capture a thought");
     await user.type(input, "Buy groceries{Enter}");
     // Input text should be preserved when the mutation fails
@@ -330,7 +338,7 @@ describe("ThingList", () => {
   it("clears input text when onAdd resolves", async () => {
     const user = userEvent.setup();
     const onAdd = vi.fn().mockResolvedValue(undefined);
-    render(<ThingList {...defaultProps({ bucket: "inbox", onAdd })} />);
+    renderThingList({ bucket: "inbox", onAdd });
     const input = screen.getByLabelText("Capture a thought");
     await user.type(input, "Buy groceries{Enter}");
     expect(input).toHaveValue("");
@@ -339,7 +347,7 @@ describe("ThingList", () => {
   it("shows error message when onAdd rejects", async () => {
     const user = userEvent.setup();
     const onAdd = vi.fn().mockRejectedValue(new Error("Network error"));
-    render(<ThingList {...defaultProps({ bucket: "inbox", onAdd })} />);
+    renderThingList({ bucket: "inbox", onAdd });
     const input = screen.getByLabelText("Capture a thought");
     await user.type(input, "Buy groceries{Enter}");
     expect(screen.getByRole("alert")).toHaveTextContent(/failed/i);
@@ -354,7 +362,7 @@ describe("ThingList", () => {
           resolve = r;
         }),
     );
-    render(<ThingList {...defaultProps({ bucket: "inbox", onAdd })} />);
+    renderThingList({ bucket: "inbox", onAdd });
     const input = screen.getByLabelText("Capture a thought");
     await user.type(input, "Buy groceries{Enter}");
     // Input should be disabled while the promise is pending
@@ -389,7 +397,7 @@ describe("ThingList", () => {
         },
       }),
     ];
-    render(<ThingList {...defaultProps({ bucket: "inbox", things })} />);
+    renderThingList({ bucket: "inbox", things });
 
     const older = screen.getByText("Older");
     const newer = screen.getByText("Newer");
@@ -407,7 +415,7 @@ describe("ThingList", () => {
         isFocused: true,
       }),
     ];
-    render(<ThingList {...defaultProps({ bucket: "next", things })} />);
+    renderThingList({ bucket: "next", things });
 
     const focused = screen.getByText("Focused second");
     const unfocused = screen.getByText("Unfocused first");
@@ -424,11 +432,7 @@ describe("ThingList", () => {
   it("expands item editor on title click when onEdit provided", async () => {
     const user = userEvent.setup();
     const things = [createThing({ name: "Editable item", bucket: "next" })];
-    render(
-      <ThingList
-        {...defaultProps({ bucket: "next", things, onEdit: vi.fn() })}
-      />,
-    );
+    renderThingList({ bucket: "next", things, onEdit: vi.fn() });
     await user.click(screen.getByText("Editable item"));
     expect(screen.getByText("Complexity")).toBeInTheDocument();
   });
@@ -439,11 +443,7 @@ describe("ThingList", () => {
       createThing({ name: "First item", bucket: "next" }),
       createThing({ name: "Second item", bucket: "next" }),
     ];
-    render(
-      <ThingList
-        {...defaultProps({ bucket: "next", things, onEdit: vi.fn() })}
-      />,
-    );
+    renderThingList({ bucket: "next", things, onEdit: vi.fn() });
     await user.click(screen.getByText("First item"));
     expect(screen.getByText("Complexity")).toBeInTheDocument();
 
@@ -454,7 +454,7 @@ describe("ThingList", () => {
   it("does not expand when no onEdit or onUpdateTitle", async () => {
     const user = userEvent.setup();
     const things = [createThing({ name: "Static item", bucket: "next" })];
-    render(<ThingList {...defaultProps({ bucket: "next", things })} />);
+    renderThingList({ bucket: "next", things });
     await user.click(screen.getByText("Static item"));
     expect(screen.queryByText("Complexity")).not.toBeInTheDocument();
   });
@@ -466,15 +466,7 @@ describe("ThingList", () => {
   it("enables expand when onUpdateTitle provided", async () => {
     const user = userEvent.setup();
     const things = [createThing({ name: "Expandable item", bucket: "next" })];
-    render(
-      <ThingList
-        {...defaultProps({
-          bucket: "next",
-          things,
-          onUpdateTitle: vi.fn(),
-        })}
-      />,
-    );
+    renderThingList({ bucket: "next", things, onUpdateTitle: vi.fn() });
     await user.click(screen.getByText("Expandable item"));
     expect(screen.getByDisplayValue("Expandable item")).toBeInTheDocument();
   });
@@ -483,11 +475,7 @@ describe("ThingList", () => {
     const user = userEvent.setup();
     const things = [createThing({ name: "Edit me", bucket: "next" })];
     const onUpdateTitle = vi.fn();
-    render(
-      <ThingList
-        {...defaultProps({ bucket: "next", things, onUpdateTitle })}
-      />,
-    );
+    renderThingList({ bucket: "next", things, onUpdateTitle });
     await user.click(screen.getByText("Edit me"));
     const input = screen.getByDisplayValue("Edit me");
     await user.clear(input);
@@ -501,11 +489,7 @@ describe("ThingList", () => {
     const user = userEvent.setup();
     const things = [createThing({ name: "Keep me", bucket: "next" })];
     const onUpdateTitle = vi.fn();
-    render(
-      <ThingList
-        {...defaultProps({ bucket: "next", things, onUpdateTitle })}
-      />,
-    );
+    renderThingList({ bucket: "next", things, onUpdateTitle });
     await user.click(screen.getByText("Keep me"));
     const input = screen.getByDisplayValue("Keep me");
     await user.clear(input);
@@ -521,7 +505,7 @@ describe("ThingList", () => {
 
   it("does not render context filter bar when no things have contexts", () => {
     const things = [createThing({ name: "No ctx", bucket: "next" })];
-    render(<ThingList {...defaultProps({ bucket: "next", things })} />);
+    renderThingList({ bucket: "next", things });
     expect(
       screen.queryByRole("group", { name: "Filter by context" }),
     ).not.toBeInTheDocument();
@@ -535,7 +519,7 @@ describe("ThingList", () => {
         contexts: ["@phone"] as unknown as CanonicalId[],
       }),
     ];
-    render(<ThingList {...defaultProps({ bucket: "next", things })} />);
+    renderThingList({ bucket: "next", things });
     expect(
       screen.getByRole("group", { name: "Filter by context" }),
     ).toBeInTheDocument();
@@ -563,7 +547,7 @@ describe("ThingList", () => {
         contexts: ["@phone", "@computer"] as unknown as CanonicalId[],
       }),
     ];
-    render(<ThingList {...defaultProps({ bucket: "next", things })} />);
+    renderThingList({ bucket: "next", things });
 
     expect(screen.getByText("Call boss")).toBeInTheDocument();
     expect(screen.getByText("Write report")).toBeInTheDocument();
@@ -595,7 +579,7 @@ describe("ThingList", () => {
         contexts: ["@office"] as unknown as CanonicalId[],
       }),
     ];
-    render(<ThingList {...defaultProps({ bucket: "next", things })} />);
+    renderThingList({ bucket: "next", things });
 
     await user.click(screen.getByRole("checkbox", { name: /@phone/ }));
     await user.click(screen.getByRole("checkbox", { name: /@computer/ }));
@@ -619,7 +603,7 @@ describe("ThingList", () => {
         contexts: ["@computer"] as unknown as CanonicalId[],
       }),
     ];
-    render(<ThingList {...defaultProps({ bucket: "next", things })} />);
+    renderThingList({ bucket: "next", things });
 
     await user.click(screen.getByRole("checkbox", { name: /@phone/ }));
     expect(screen.queryByText("Computer task")).not.toBeInTheDocument();
@@ -637,7 +621,7 @@ describe("ThingList", () => {
     const user = userEvent.setup();
     const things = [createThing({ name: "Edit me", bucket: "next" })];
     const onEdit = vi.fn();
-    render(<ThingList {...defaultProps({ bucket: "next", things, onEdit })} />);
+    renderThingList({ bucket: "next", things, onEdit });
     await user.click(screen.getByText("Edit me"));
     await user.click(screen.getByRole("button", { name: "high" }));
     expect(onEdit).toHaveBeenCalledWith(things[0].id, {

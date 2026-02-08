@@ -223,6 +223,19 @@ frontend-integration:
       fi
     - cd $CI_PROJECT_DIR/frontend && CI=1 npx vitest run --project=unit -t "JSON Schema contract"
 
+frontend-storybook:
+  stage: test
+  needs: []
+  allow_failure: true
+  image: node:24-bullseye
+  extends: [.default-rules, .failure-issue, .frontend-cache]
+  before_script:
+    - cd frontend && npm ci --silent
+    - npx playwright install-deps chromium
+    - npx playwright install chromium
+  script:
+    - STORYBOOK_TESTS=1 CI=1 npx vitest run --project=storybook
+
 backend-e2e:
   stage: test
   needs: []

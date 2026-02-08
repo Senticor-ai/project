@@ -13,7 +13,7 @@ export interface ThingRowProps {
   thing: Thing;
   onComplete: (id: CanonicalId) => void;
   onToggleFocus: (id: CanonicalId) => void;
-  onMove: (id: CanonicalId, bucket: Thing["bucket"]) => void;
+  onMove: (id: CanonicalId, bucket: string) => void;
   onArchive: (id: CanonicalId) => void;
   isExpanded?: boolean;
   onToggleExpand?: () => void;
@@ -64,7 +64,7 @@ function thingToEditorValues(thing: Thing): ItemEditableFields {
 }
 
 const triageTargets: Array<{
-  bucket: Thing["bucket"];
+  bucket: string;
   label: string;
   icon: string;
   colorClass: string;
@@ -88,6 +88,12 @@ const triageTargets: Array<{
     icon: "cloud",
     colorClass: "text-gtd-someday",
   },
+  {
+    bucket: "reference",
+    label: "Reference",
+    icon: "description",
+    colorClass: "text-text-muted",
+  },
 ];
 
 export function ThingRow({
@@ -105,6 +111,7 @@ export function ThingRow({
   className,
 }: ThingRowProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showMore, setShowMore] = useState(false);
   const displayName = getDisplayName(thing);
   const isCompleted = !!thing.completedAt;
   const dueDateInfo = thing.dueDate ? formatDueDate(thing.dueDate) : null;
@@ -296,43 +303,69 @@ export function ThingRow({
         <div className="mt-1 ml-8">
           {/* Triage quick-buttons for inbox items */}
           {isInbox && (
-            <div className="mb-3 flex flex-wrap gap-1.5">
-              {triageTargets.map(({ bucket, label, icon, colorClass }) => (
+            <>
+              <div className="mb-3 flex flex-wrap gap-1.5">
+                {triageTargets.map(({ bucket, label, icon, colorClass }) => (
+                  <button
+                    key={bucket}
+                    onClick={() => {
+                      onMove(thing.id, bucket);
+                    }}
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-[var(--radius-md)]",
+                      "border border-border px-2 py-1 text-xs font-medium",
+                      "transition-colors duration-[var(--duration-fast)]",
+                      "hover:bg-paper-100",
+                    )}
+                    aria-label={`Move to ${label}`}
+                  >
+                    <Icon name={icon} size={12} className={colorClass} />
+                    {label}
+                  </button>
+                ))}
                 <button
-                  key={bucket}
-                  onClick={() => {
-                    onMove(thing.id, bucket);
-                  }}
+                  onClick={() => onArchive(thing.id)}
                   className={cn(
                     "inline-flex items-center gap-1 rounded-[var(--radius-md)]",
-                    "border border-border px-2 py-1 text-xs font-medium",
+                    "border border-border px-2 py-1 text-xs font-medium text-text-muted",
                     "transition-colors duration-[var(--duration-fast)]",
                     "hover:bg-paper-100",
                   )}
-                  aria-label={`Move to ${label}`}
+                  aria-label="Archive"
                 >
-                  <Icon name={icon} size={12} className={colorClass} />
-                  {label}
+                  <Icon name="archive" size={12} />
+                  Archive
                 </button>
-              ))}
-              <button
-                onClick={() => onArchive(thing.id)}
-                className={cn(
-                  "inline-flex items-center gap-1 rounded-[var(--radius-md)]",
-                  "border border-border px-2 py-1 text-xs font-medium text-text-muted",
-                  "transition-colors duration-[var(--duration-fast)]",
-                  "hover:bg-paper-100",
-                )}
-                aria-label="Archive"
-              >
-                <Icon name="archive" size={12} />
-                Archive
-              </button>
-            </div>
+              </div>
+
+              {/* More options toggle for inline triage */}
+              {onEdit && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setShowMore((prev) => !prev)}
+                    className="mb-2 flex items-center gap-1 text-xs text-text-subtle hover:text-text"
+                  >
+                    <Icon
+                      name={showMore ? "expand_less" : "expand_more"}
+                      size={14}
+                    />
+                    {showMore ? "Less options" : "More options"}
+                  </button>
+                  {showMore && (
+                    <ItemEditor
+                      values={thingToEditorValues(thing)}
+                      onChange={handleEditorChange}
+                      projects={projects}
+                    />
+                  )}
+                </>
+              )}
+            </>
           )}
 
-          {/* Item editor */}
-          {onEdit && (
+          {/* Item editor for non-inbox items */}
+          {!isInbox && onEdit && (
             <ItemEditor
               values={thingToEditorValues(thing)}
               onChange={handleEditorChange}

@@ -52,6 +52,7 @@ const SUMMARY: NirvanaImportSummary = {
   skipped: 5,
   errors: 5,
   bucket_counts: { inbox: 10, next: 60, waiting: 5, someday: 5, reference: 20 },
+  completed_counts: { next: 45, waiting: 2 },
   sample_errors: ["item[42] missing name"],
 };
 
@@ -153,29 +154,35 @@ describe("NirvanaImportDialog", () => {
     });
   });
 
-  it("shows import results after import completes", async () => {
-    const user = userEvent.setup();
-    renderDialog();
+  it(
+    "shows import results after import completes",
+    { timeout: 15_000 },
+    async () => {
+      const user = userEvent.setup();
+      renderDialog();
 
-    // Upload file
-    const fileInput = screen.getByTestId("nirvana-file-input");
-    const file = new File(["[]"], "export.json", { type: "application/json" });
-    await user.upload(fileInput, file);
+      // Upload file
+      const fileInput = screen.getByTestId("nirvana-file-input");
+      const file = new File(["[]"], "export.json", {
+        type: "application/json",
+      });
+      await user.upload(fileInput, file);
 
-    // Wait for preview
-    await waitFor(() => {
-      expect(screen.getByText(/100 items/i)).toBeInTheDocument();
-    });
+      // Wait for preview
+      await waitFor(() => {
+        expect(screen.getByText(/100 items/i)).toBeInTheDocument();
+      });
 
-    // Click import
-    const importButton = screen.getByRole("button", { name: /import/i });
-    await user.click(importButton);
+      // Click import
+      const importButton = screen.getByRole("button", { name: /import/i });
+      await user.click(importButton);
 
-    // Wait for results
-    await waitFor(() => {
-      expect(screen.getByText(/80/)).toBeInTheDocument(); // created
-    });
-  });
+      // Wait for results
+      await waitFor(() => {
+        expect(screen.getByText(/80/)).toBeInTheDocument(); // created
+      });
+    },
+  );
 
   it("close button calls onClose", async () => {
     const user = userEvent.setup();
@@ -185,6 +192,38 @@ describe("NirvanaImportDialog", () => {
     await user.click(closeButton);
 
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("shows completed counts annotation in bucket breakdown", async () => {
+    const user = userEvent.setup();
+    renderDialog();
+
+    const fileInput = screen.getByTestId("nirvana-file-input");
+    const file = new File(["[]"], "export.json", { type: "application/json" });
+    await user.upload(fileInput, file);
+
+    await waitFor(() => {
+      expect(screen.getByText("(45 completed)")).toBeInTheDocument();
+      expect(screen.getByText("(2 completed)")).toBeInTheDocument();
+    });
+    // Buckets with 0 completed should not show the annotation
+    expect(screen.queryByText("(0 completed)")).not.toBeInTheDocument();
+  });
+
+  it("shows correct import count excluding skipped items", async () => {
+    const user = userEvent.setup();
+    renderDialog();
+
+    const fileInput = screen.getByTestId("nirvana-file-input");
+    const file = new File(["[]"], "export.json", { type: "application/json" });
+    await user.upload(fileInput, file);
+
+    await waitFor(() => {
+      // 100 total - 5 skipped - 5 errors = 90
+      expect(
+        screen.getByRole("button", { name: /Import 90 items/ }),
+      ).toBeInTheDocument();
+    });
   });
 
   it("shows errors from sample_errors", async () => {

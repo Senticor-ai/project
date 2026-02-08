@@ -14,12 +14,16 @@ export const THINGS_QUERY_KEY = ["things"] as const;
 
 const SYNC_PAGE_SIZE = 5000;
 
-async function fetchAllThings(): Promise<ThingRecord[]> {
+async function fetchThings(completed: string): Promise<ThingRecord[]> {
   const all: ThingRecord[] = [];
   let cursor: string | undefined;
 
   do {
-    const page = await ThingsApi.sync({ limit: SYNC_PAGE_SIZE, cursor });
+    const page = await ThingsApi.sync({
+      limit: SYNC_PAGE_SIZE,
+      cursor,
+      completed,
+    });
     all.push(...page.items);
     cursor = page.has_more && page.next_cursor ? page.next_cursor : undefined;
   } while (cursor);
@@ -28,13 +32,22 @@ async function fetchAllThings(): Promise<ThingRecord[]> {
 }
 
 // ---------------------------------------------------------------------------
-// Base hook: raw ThingRecords
+// Base hook: raw ThingRecords (active only by default)
 // ---------------------------------------------------------------------------
 
 export function useThings() {
   return useQuery({
-    queryKey: THINGS_QUERY_KEY,
-    queryFn: fetchAllThings,
+    queryKey: [...THINGS_QUERY_KEY, { completed: "false" }],
+    queryFn: () => fetchThings("false"),
+  });
+}
+
+/** Completed items — enabled lazily when needed. */
+export function useCompletedThings(enabled: boolean) {
+  return useQuery({
+    queryKey: [...THINGS_QUERY_KEY, { completed: "true" }],
+    queryFn: () => fetchThings("true"),
+    enabled,
   });
 }
 
@@ -42,22 +55,35 @@ export function useThings() {
 // Derived hooks: filter + deserialize
 // ---------------------------------------------------------------------------
 
+function deserializeThings(records: ThingRecord[] | undefined): Thing[] {
+  return (
+    records
+      ?.filter(
+        (r) => r.thing["@type"] === "Thing" || r.thing["@type"] === "Action",
+      )
+      .map((r) => {
+        const item = fromJsonLd(r);
+        return isThing(item) ? item : undefined;
+      })
+      .filter((x): x is Thing => x !== undefined) ?? []
+  );
+}
+
 /** All Things (inbox + action buckets). */
 export function useAllThings() {
   const query = useThings();
   const items = useMemo<Thing[]>(
-    () =>
-      query.data
-        ?.filter(
-          (r) =>
-            r.thing["@type"] === "Thing" ||
-            r.thing["@type"] === "Action",
-        )
-        .map((r) => {
-          const item = fromJsonLd(r);
-          return isThing(item) ? item : undefined;
-        })
-        .filter((x): x is Thing => x !== undefined) ?? [],
+    () => deserializeThings(query.data),
+    [query.data],
+  );
+  return { ...query, data: items };
+}
+
+/** Completed Things — enabled lazily. */
+export function useAllCompletedThings(enabled: boolean) {
+  const query = useCompletedThings(enabled);
+  const items = useMemo<Thing[]>(
+    () => deserializeThings(query.data),
     [query.data],
   );
   return { ...query, data: items };

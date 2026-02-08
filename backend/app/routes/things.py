@@ -7,7 +7,7 @@ from collections.abc import Iterator
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from ..db import db_conn, jsonb
@@ -123,7 +123,8 @@ def _deep_merge(base: dict, patch: dict) -> dict:
     for key, value in patch.items():
         if key == "additionalProperty" and isinstance(value, list):
             merged[key] = _merge_additional_property(
-                merged.get(key, []), value,
+                merged.get(key, []),
+                value,
             )
         elif isinstance(value, dict) and isinstance(merged.get(key), dict):
             merged[key] = _deep_merge(merged[key], value)
@@ -202,11 +203,13 @@ def _apply_rename_provenance(
             existing_history = []
         history_pv["value"] = existing_history + [history_entry]
     else:
-        additional.append({
-            "@type": "PropertyValue",
-            "propertyID": "app:provenanceHistory",
-            "value": [history_entry],
-        })
+        additional.append(
+            {
+                "@type": "PropertyValue",
+                "propertyID": "app:provenanceHistory",
+                "value": [history_entry],
+            }
+        )
 
     merged["additionalProperty"] = additional
     return merged
@@ -439,6 +442,15 @@ def sync_things(
     limit: int = 50,
     since: str | None = None,
     cursor: str | None = None,
+    completed: str | None = Query(
+        default=None,
+        description=(
+            "Filter by completion status. "
+            "'false' (default) = active only, "
+            "'true' = completed only, "
+            "'all' = both."
+        ),
+    ),
     if_none_match: str | None = Header(
         default=None,
         alias="If-None-Match",
@@ -451,6 +463,21 @@ def sync_things(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Use either since or cursor, not both",
         )
+
+    # Validate and build completed filter clause
+    completed_value = (completed or "false").lower()
+    if completed_value == "false":
+        endtime_clause = "AND (schema_jsonld->>'endTime') IS NULL"
+    elif completed_value == "true":
+        endtime_clause = "AND (schema_jsonld->>'endTime') IS NOT NULL"
+    elif completed_value == "all":
+        endtime_clause = ""
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid completed value: '{completed}'. Use 'false', 'true', or 'all'.",
+        )
+
     since_filter = _parse_since(since) if since else None
     cursor_filter = _decode_cursor(cursor) if cursor else None
     org_id = current_org["org_id"]
@@ -459,7 +486,7 @@ def sync_things(
         with conn.cursor() as cur:
             if cursor_filter:
                 cur.execute(
-                    """
+                    f"""
                     SELECT
                         thing_id,
                         canonical_id,
@@ -470,6 +497,7 @@ def sync_things(
                         updated_at
                     FROM things
                     WHERE archived_at IS NULL AND org_id = %s
+                      {endtime_clause}
                       AND (created_at, thing_id) > (%s, %s)
                     ORDER BY created_at ASC, thing_id ASC
                     LIMIT %s
@@ -478,7 +506,7 @@ def sync_things(
                 )
             elif since_filter:
                 cur.execute(
-                    """
+                    f"""
                     SELECT
                         thing_id,
                         canonical_id,
@@ -489,6 +517,7 @@ def sync_things(
                         updated_at
                     FROM things
                     WHERE archived_at IS NULL AND org_id = %s AND updated_at > %s
+                      {endtime_clause}
                     ORDER BY created_at ASC, thing_id ASC
                     LIMIT %s
                     """,
@@ -496,7 +525,7 @@ def sync_things(
                 )
             else:
                 cur.execute(
-                    """
+                    f"""
                     SELECT
                         thing_id,
                         canonical_id,
@@ -507,6 +536,7 @@ def sync_things(
                         updated_at
                     FROM things
                     WHERE archived_at IS NULL AND org_id = %s
+                      {endtime_clause}
                     ORDER BY created_at ASC, thing_id ASC
                     LIMIT %s
                     """,
@@ -537,6 +567,7 @@ def sync_things(
             str(since_filter) if since_filter else "",
             cursor or "",
             str(org_id),
+            completed_value,
         ]
     )
 
@@ -824,6 +855,7 @@ def archive_thing(
         "archived_at": row["archived_at"].isoformat(),
         "ok": True,
     }
+
 
 @router.post("", response_model=ThingResponse, summary="Create a thing (idempotent)")
 def create_thing(

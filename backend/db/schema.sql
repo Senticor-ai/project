@@ -91,6 +91,10 @@ CREATE INDEX IF NOT EXISTS idx_things_jsonld_gin
   ON things USING gin (schema_jsonld jsonb_path_ops)
   WHERE archived_at IS NULL;
 
+CREATE INDEX IF NOT EXISTS idx_things_endtime
+  ON things ((schema_jsonld->>'endTime'))
+  WHERE archived_at IS NULL;
+
 CREATE TABLE IF NOT EXISTS assertions (
   assertion_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID NOT NULL REFERENCES organizations(id),

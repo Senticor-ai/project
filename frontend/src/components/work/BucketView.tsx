@@ -33,7 +33,7 @@ export interface BucketViewProps {
   onAddThing: (title: string, bucket: ThingBucket) => Promise<void> | void;
   onCompleteThing: (id: CanonicalId) => void;
   onToggleFocus: (id: CanonicalId) => void;
-  onMoveThing: (id: CanonicalId, bucket: ThingBucket) => void;
+  onMoveThing: (id: CanonicalId, bucket: string) => void;
   onArchiveThing: (id: CanonicalId) => void;
   onEditThing?: (id: CanonicalId, fields: Partial<ItemEditableFields>) => void;
   onUpdateTitle?: (id: CanonicalId, newTitle: string) => void;

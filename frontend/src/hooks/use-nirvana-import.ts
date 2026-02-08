@@ -33,6 +33,11 @@ export function useNirvanaImport() {
         file_id: params.fileId,
         include_completed: params.includeCompleted,
       }),
+    onSuccess: () => {
+      // Immediately refresh import jobs list so the settings page picks up
+      // the new job even if the dialog is closed before polling completes.
+      qc.invalidateQueries({ queryKey: IMPORT_JOBS_QUERY_KEY });
+    },
   });
 
   const job = useQuery<ImportJobResponse>({

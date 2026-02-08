@@ -269,12 +269,29 @@ describe("ThingRow move menu", () => {
 describe("ThingRow expanded", () => {
   it("shows ItemEditor when expanded and onEdit provided", () => {
     renderRow({
-      thing: createThing({ name: "Task" }),
+      thing: createThing({ name: "Task", bucket: "next" }),
       isExpanded: true,
       onEdit: vi.fn(),
       onToggleExpand: vi.fn(),
     });
     expect(screen.getByLabelText("Notes")).toBeInTheDocument();
+  });
+
+  it("hides ItemEditor behind More options toggle for inbox items", async () => {
+    const user = userEvent.setup();
+    renderRow({
+      thing: createThing({ name: "Inbox task", bucket: "inbox" }),
+      isExpanded: true,
+      onEdit: vi.fn(),
+      onToggleExpand: vi.fn(),
+    });
+    // ItemEditor not visible by default for inbox
+    expect(screen.queryByLabelText("Notes")).not.toBeInTheDocument();
+    expect(screen.getByText("More options")).toBeInTheDocument();
+    // Click "More options" to reveal editor
+    await user.click(screen.getByText("More options"));
+    expect(screen.getByLabelText("Notes")).toBeInTheDocument();
+    expect(screen.getByText("Less options")).toBeInTheDocument();
   });
 
   it("hides ItemEditor when collapsed", () => {
@@ -296,6 +313,7 @@ describe("ThingRow expanded", () => {
     expect(screen.getByLabelText("Move to Waiting")).toBeInTheDocument();
     expect(screen.getByLabelText("Move to Calendar")).toBeInTheDocument();
     expect(screen.getByLabelText("Move to Someday")).toBeInTheDocument();
+    expect(screen.getByLabelText("Move to Reference")).toBeInTheDocument();
     expect(screen.getByLabelText("Archive")).toBeInTheDocument();
   });
 

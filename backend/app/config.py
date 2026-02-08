@@ -2,6 +2,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, cast
+from urllib.parse import quote
 
 from dotenv import load_dotenv
 
@@ -98,16 +99,18 @@ def _build_database_url() -> str:
     if database_url:
         return database_url
 
-    user = _get_env("POSTGRES_USER", "terminandoyo")
+    user = _get_env("POSTGRES_USER", "terminandoyo") or "terminandoyo"
     password = _get_env("POSTGRES_PASSWORD", "")
-    host = _get_env("POSTGRES_HOST", "localhost")
-    port = _get_env("POSTGRES_PORT", "5432")
-    database = _get_env("POSTGRES_DB", "terminandoyo")
+    host = _get_env("POSTGRES_HOST", "localhost") or "localhost"
+    port = _get_env("POSTGRES_PORT", "5432") or "5432"
+    database = _get_env("POSTGRES_DB", "terminandoyo") or "terminandoyo"
 
     if not password:
         raise RuntimeError("POSTGRES_PASSWORD or DATABASE_URL must be set")
 
-    return f"postgresql://{user}:{password}@{host}:{port}/{database}"
+    encoded_user = quote(user, safe="")
+    encoded_password = quote(password, safe="")
+    return f"postgresql://{encoded_user}:{encoded_password}@{host}:{port}/{database}"
 
 
 def load_settings() -> Settings:

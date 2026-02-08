@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, expect } from "../fixtures/auth.fixture";
@@ -10,7 +11,12 @@ const NIRVANA_EXPORT_PATH = path.resolve(
   "../../../tmp/Nirvana_Export_1770390824.json",
 );
 
+const fixtureExists = fs.existsSync(NIRVANA_EXPORT_PATH);
+
 test.describe("Nirvana Import", () => {
+  // Skip the entire suite when the large export fixture is not present (e.g. CI)
+  test.skip(!fixtureExists, "Nirvana export fixture not found — skipping");
+
   test("uploads file, previews, imports, and shows results", async ({
     authenticatedPage: page,
   }) => {
@@ -36,9 +42,7 @@ test.describe("Nirvana Import", () => {
     });
 
     // 4. Verify preview shows bucket breakdown and item count
-    const previewText = await page
-      .getByText(/\d+ items found/)
-      .textContent();
+    const previewText = await page.getByText(/\d+ items found/).textContent();
     expect(previewText).toBeTruthy();
     const itemCount = parseInt(previewText!.match(/(\d+)/)?.[1] ?? "0", 10);
     expect(itemCount).toBeGreaterThan(0);

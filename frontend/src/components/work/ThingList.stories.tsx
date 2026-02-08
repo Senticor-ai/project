@@ -228,11 +228,8 @@ export const CompleteFromList: Story = {
         things={things}
         onAdd={fn()}
         onComplete={(id) => {
-          setThings((prev) =>
-            prev.map((t) =>
-              t.id === id ? { ...t, completedAt: new Date().toISOString() } : t,
-            ),
-          );
+          // In production, completing removes from the active query results
+          setThings((prev) => prev.filter((t) => t.id !== id));
         }}
         onToggleFocus={fn()}
         onMove={fn()}
@@ -255,57 +252,21 @@ export const CompleteFromList: Story = {
   },
 };
 
-/** Toggle completed items visible/hidden. */
+/** Shows the completed toggle button (completed items come from the API). */
 export const ToggleCompletedInteractive: Story = {
-  render: function ToggleCompleted() {
-    const [things] = useState<Thing[]>([
+  args: {
+    bucket: "next",
+    things: [
       createThing({ rawCapture: "Active task one", bucket: "next" }),
       createThing({ rawCapture: "Active task two", bucket: "next" }),
-      createThing({
-        rawCapture: "Done task one",
-        bucket: "next",
-        completedAt: "2026-01-20T10:00:00Z",
-      }),
-      createThing({
-        rawCapture: "Done task two",
-        bucket: "next",
-        completedAt: "2026-01-18T10:00:00Z",
-      }),
-    ]);
-
-    return (
-      <ThingList
-        bucket="next"
-        things={things}
-        onAdd={fn()}
-        onComplete={fn()}
-        onToggleFocus={fn()}
-        onMove={fn()}
-        onArchive={fn()}
-      />
-    );
+    ],
   },
-  play: async ({ canvas, userEvent, step }) => {
+  play: async ({ canvas }) => {
     await expect(canvas.getByText("Active task one")).toBeInTheDocument();
     await expect(canvas.getByText("Active task two")).toBeInTheDocument();
-    await expect(canvas.queryByText("Done task one")).not.toBeInTheDocument();
     await expect(canvas.getByText("2 actions")).toBeInTheDocument();
-
-    await step("Show completed", async () => {
-      await userEvent.click(canvas.getByLabelText("Show completed"));
-    });
-
-    await expect(canvas.getByText("Done task one")).toBeInTheDocument();
-    await expect(canvas.getByText("Done task two")).toBeInTheDocument();
-    await expect(canvas.getByText("2 completed")).toBeInTheDocument();
-    await expect(canvas.getByText("(+2 done)")).toBeInTheDocument();
-
-    await step("Hide completed", async () => {
-      await userEvent.click(canvas.getByLabelText("Hide completed"));
-    });
-
-    await expect(canvas.queryByText("Done task one")).not.toBeInTheDocument();
-    await expect(canvas.getByText("2 actions")).toBeInTheDocument();
+    // Toggle button is always visible
+    await expect(canvas.getByLabelText("Show completed")).toBeInTheDocument();
   },
 };
 

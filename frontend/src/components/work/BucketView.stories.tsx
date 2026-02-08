@@ -129,11 +129,8 @@ function StatefulBucketView({
         ]);
       }}
       onCompleteThing={(id) => {
-        setThings((prev) =>
-          prev.map((t) =>
-            t.id === id ? { ...t, completedAt: new Date().toISOString() } : t,
-          ),
-        );
+        // In production, completing removes from the active query results
+        setThings((prev) => prev.filter((t) => t.id !== id));
       }}
       onToggleFocus={(id) => {
         setThings((prev) =>

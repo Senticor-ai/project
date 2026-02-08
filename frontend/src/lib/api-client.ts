@@ -26,7 +26,11 @@ async function parseJson(response: Response) {
   if (!text) {
     return null;
   }
-  return JSON.parse(text);
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
 }
 
 let currentUserId: string | null = null;
@@ -72,12 +76,20 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     headers.set(CSRF_HEADER, csrfToken);
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    credentials: "include",
-    cache: "no-cache",
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      credentials: "include",
+      cache: "no-cache",
+      headers,
+    });
+  } catch {
+    throw new ApiError({
+      message: "Server is not reachable. Please try again later.",
+      status: 0,
+    });
+  }
 
   if (!response.ok) {
     const details = await parseJson(response);
@@ -243,6 +255,7 @@ export type NirvanaImportSummary = {
   skipped: number;
   errors: number;
   bucket_counts: Record<string, number>;
+  completed_counts?: Record<string, number>;
   sample_errors: string[];
 };
 
@@ -325,11 +338,17 @@ export const ThingsApi = {
   list: (limit = 50, offset = 0) =>
     request<ThingRecord[]>(`/things?limit=${limit}&offset=${offset}`),
 
-  sync: (params?: { limit?: number; cursor?: string; since?: string }) => {
+  sync: (params?: {
+    limit?: number;
+    cursor?: string;
+    since?: string;
+    completed?: string;
+  }) => {
     const sp = new URLSearchParams();
     if (params?.limit) sp.set("limit", String(params.limit));
     if (params?.cursor) sp.set("cursor", params.cursor);
     if (params?.since) sp.set("since", params.since);
+    if (params?.completed) sp.set("completed", params.completed);
     const qs = sp.toString();
     return request<SyncResponse>(`/things/sync${qs ? `?${qs}` : ""}`);
   },

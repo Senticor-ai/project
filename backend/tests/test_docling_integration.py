@@ -1,16 +1,21 @@
-import os
+from dataclasses import replace
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
-os.environ.setdefault("DOCLING_ENABLED", "true")
-os.environ.setdefault("MEILI_INDEX_FILES_ENABLED", "true")
-os.environ.setdefault("MEILI_FILE_TEXT_MAX_BYTES", "20000000")
-os.environ.setdefault("MEILI_FILE_TEXT_MAX_CHARS", "20000")
-os.environ.setdefault("MEILI_DOCUMENT_MAX_CHARS", "20000")
+from app.config import settings
+from app.search.indexer import build_file_document
+from app.storage import get_storage
 
-from app.search.indexer import build_file_document  # noqa: E402
-from app.storage import get_storage  # noqa: E402
+_docling_settings = replace(
+    settings,
+    docling_enabled=True,
+    meili_index_files_enabled=True,
+    meili_file_text_max_bytes=20_000_000,
+    meili_file_text_max_chars=20_000,
+    meili_document_max_chars=20_000,
+)
 
 
 def _build_row(storage_key: str, original_name: str, size_bytes: int) -> dict:
@@ -46,9 +51,10 @@ def test_docling_extracts_text_from_sample_files(
     storage_key = f"files/{filename}"
     storage.write(storage_key, source_path.read_bytes())
 
-    doc = build_file_document(
-        _build_row(storage_key, filename, source_path.stat().st_size)
-    )
+    with patch("app.search.indexer.settings", _docling_settings):
+        doc = build_file_document(
+            _build_row(storage_key, filename, source_path.stat().st_size)
+        )
     search_text = doc.get("search_text") or ""
 
     assert filename in search_text

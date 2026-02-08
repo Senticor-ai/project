@@ -56,10 +56,7 @@ const ACTION_RECORD = makeRecord({
     "@id": "urn:app:action:1",
     name: "Buy milk",
     endTime: null,
-    additionalProperty: [
-      pv("app:bucket", "next"),
-      pv("app:isFocused", false),
-    ],
+    additionalProperty: [pv("app:bucket", "next"), pv("app:isFocused", false)],
   },
 });
 
@@ -86,12 +83,15 @@ const REFERENCE_RECORD = makeRecord({
   },
 });
 
+// The production code now partitions active/completed into separate cache keys
+const ACTIVE_KEY = [...THINGS_QUERY_KEY, { completed: "false" }];
+
 function createWrapper(initialData?: ThingRecord[]) {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   if (initialData) {
-    qc.setQueryData(THINGS_QUERY_KEY, initialData);
+    qc.setQueryData(ACTIVE_KEY, initialData);
   }
   return ({ children }: { children: React.ReactNode }) =>
     createElement(QueryClientProvider, { client: qc }, children);
@@ -120,8 +120,13 @@ describe("useCaptureInbox", () => {
     const [jsonLd, source] = mocked.create.mock.calls[0];
     expect(jsonLd).toHaveProperty("@type", "Thing");
     expect(jsonLd).not.toHaveProperty("name");
-    const props = jsonLd.additionalProperty as Array<{ propertyID: string; value: unknown }>;
-    expect(props.find((p) => p.propertyID === "app:rawCapture")?.value).toBe("Buy groceries");
+    const props = jsonLd.additionalProperty as Array<{
+      propertyID: string;
+      value: unknown;
+    }>;
+    expect(props.find((p) => p.propertyID === "app:rawCapture")?.value).toBe(
+      "Buy groceries",
+    );
     expect(source).toBe("manual");
   });
 });
@@ -144,8 +149,13 @@ describe("useAddAction", () => {
     const [jsonLd] = mocked.create.mock.calls[0];
     expect(jsonLd).toHaveProperty("@type", "Action");
     expect(jsonLd).not.toHaveProperty("name");
-    const props = jsonLd.additionalProperty as Array<{ propertyID: string; value: unknown }>;
-    expect(props.find((p) => p.propertyID === "app:rawCapture")?.value).toBe("Call Bob");
+    const props = jsonLd.additionalProperty as Array<{
+      propertyID: string;
+      value: unknown;
+    }>;
+    expect(props.find((p) => p.propertyID === "app:rawCapture")?.value).toBe(
+      "Call Bob",
+    );
   });
 });
 
@@ -182,9 +192,7 @@ describe("useCompleteAction", () => {
       wrapper: createWrapper([ACTION_RECORD]),
     });
 
-    act(() =>
-      result.current.mutate("urn:app:action:1" as CanonicalId),
-    );
+    act(() => result.current.mutate("urn:app:action:1" as CanonicalId));
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(mocked.update).toHaveBeenCalledTimes(1);
@@ -200,9 +208,7 @@ describe("useCompleteAction", () => {
       wrapper: createWrapper([COMPLETED_RECORD]),
     });
 
-    act(() =>
-      result.current.mutate("urn:app:completed:1" as CanonicalId),
-    );
+    act(() => result.current.mutate("urn:app:completed:1" as CanonicalId));
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     const [, patch] = mocked.update.mock.calls[0];
@@ -214,9 +220,7 @@ describe("useCompleteAction", () => {
       wrapper: createWrapper([]),
     });
 
-    act(() =>
-      result.current.mutate("urn:app:missing:1" as CanonicalId),
-    );
+    act(() => result.current.mutate("urn:app:missing:1" as CanonicalId));
 
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(result.current.error?.message).toMatch(/not found/i);
@@ -235,9 +239,7 @@ describe("useToggleFocus", () => {
       wrapper: createWrapper([ACTION_RECORD]),
     });
 
-    act(() =>
-      result.current.mutate("urn:app:action:1" as CanonicalId),
-    );
+    act(() => result.current.mutate("urn:app:action:1" as CanonicalId));
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     const [, patch] = mocked.update.mock.calls[0];
@@ -370,8 +372,13 @@ describe("useAddProjectAction", () => {
     const [jsonLd] = mocked.create.mock.calls[0];
     expect(jsonLd).toHaveProperty("@type", "Action");
     expect(jsonLd).not.toHaveProperty("name");
-    const props = jsonLd.additionalProperty as Array<{ propertyID: string; value: unknown }>;
-    expect(props.find((p) => p.propertyID === "app:rawCapture")?.value).toBe("Design mockups");
+    const props = jsonLd.additionalProperty as Array<{
+      propertyID: string;
+      value: unknown;
+    }>;
+    expect(props.find((p) => p.propertyID === "app:rawCapture")?.value).toBe(
+      "Design mockups",
+    );
     expect(jsonLd).toHaveProperty("isPartOf", { "@id": "urn:app:project:1" });
   });
 });
@@ -392,9 +399,7 @@ describe("useArchiveReference", () => {
       wrapper: createWrapper([REFERENCE_RECORD]),
     });
 
-    act(() =>
-      result.current.mutate("urn:app:reference:1" as CanonicalId),
-    );
+    act(() => result.current.mutate("urn:app:reference:1" as CanonicalId));
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(mocked.archive).toHaveBeenCalledWith("tid-ref-1");

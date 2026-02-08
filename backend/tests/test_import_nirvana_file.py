@@ -180,9 +180,10 @@ def test_import_from_file_matrix_fixture_preserves_fields(auth_client):
     payload = job.json()
     assert payload["status"] == "completed"
     assert payload["summary"]["errors"] == 0
-    # 7 skipped: COMPLETED, LOGGED (completed), TRASHED (state 6),
-    # DELETED, CANCELLED, DELETED-FLAG, DELETED-CHILD (deleted/cancelled flags)
-    assert payload["summary"]["skipped"] == 7
+    # 12 skipped: TRASHED (state 6), COMPLETED, LOGGED, DELETED, CANCELLED,
+    # DELETED-FLAG, DELETED-CHILD, INBOX-COMPLETED, PROJ-COMPLETED,
+    # WAITING-COMPLETED, SOMEDAY-COMPLETED, CALENDAR-COMPLETED
+    assert payload["summary"]["skipped"] == 12
 
     things = {row["canonical_id"]: row for row in auth_client.get("/things?limit=2000").json()}
     assert "urn:app:action:TASK-MATRIX-COMPLETED" not in things

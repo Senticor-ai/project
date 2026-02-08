@@ -1,9 +1,10 @@
-import { useState, useRef, useCallback, useMemo } from "react";
+import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
 import { AutoGrowTextarea } from "@/components/ui/AutoGrowTextarea";
 import { ThingRow } from "./ThingRow";
 import { ContextFilterBar } from "./ContextFilterBar";
+import { useAllCompletedThings } from "@/hooks/use-things";
 import type { Thing, Project, ItemEditableFields } from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
 
@@ -49,7 +50,7 @@ export interface ThingListProps {
   onAdd: (title: string) => Promise<void> | void;
   onComplete: (id: CanonicalId) => void;
   onToggleFocus: (id: CanonicalId) => void;
-  onMove: (id: CanonicalId, bucket: Thing["bucket"]) => void;
+  onMove: (id: CanonicalId, bucket: string) => void;
   onArchive: (id: CanonicalId) => void;
   onEdit?: (id: CanonicalId, fields: Partial<ItemEditableFields>) => void;
   onUpdateTitle?: (id: CanonicalId, newTitle: string) => void;
@@ -81,6 +82,9 @@ export function ThingList({
   const isInbox = bucket === "inbox";
   const isFocusView = bucket === "focus";
 
+  // Lazy-load completed items from the API when the toggle is active
+  const completedQuery = useAllCompletedThings(showCompleted);
+
   const toggleExpand = useCallback((id: CanonicalId) => {
     setExpandedId((prev) => (prev === id ? null : id));
   }, []);
@@ -101,24 +105,25 @@ export function ThingList({
     }
   }, [entryText, onAdd]);
 
-  // Filter active items
+  // Filter active items (active query never returns completed items)
   const filtered = useMemo(() => {
     if (isFocusView) {
-      return things.filter((t) => t.isFocused && !t.completedAt);
+      return things.filter((t) => t.isFocused);
     }
-    return things.filter((t) => t.bucket === bucket && !t.completedAt);
+    return things.filter((t) => t.bucket === bucket);
   }, [things, bucket, isFocusView]);
 
-  // Completed items
+  // Completed items — from the lazy-loaded completed query
   const completedItems = useMemo(() => {
+    if (!completedQuery.data) return [];
     const items = isFocusView
-      ? things.filter((t) => t.isFocused && !!t.completedAt)
-      : things.filter((t) => t.bucket === bucket && !!t.completedAt);
+      ? completedQuery.data.filter((t) => t.isFocused)
+      : completedQuery.data.filter((t) => t.bucket === bucket);
     return items.sort(
       (a, b) =>
         new Date(b.completedAt!).getTime() - new Date(a.completedAt!).getTime(),
     );
-  }, [things, bucket, isFocusView]);
+  }, [completedQuery.data, bucket, isFocusView]);
 
   // Context counts
   const contextCounts = useMemo(() => {
@@ -168,6 +173,14 @@ export function ThingList({
     });
   }, [contextFiltered, isInbox]);
 
+  // Auto-expand the first inbox item so triage buttons are immediately visible
+  useEffect(() => {
+    if (bucket !== "inbox" || sorted.length === 0) return;
+    // Only auto-expand if no item is expanded or current expanded item left the list
+    if (expandedId && sorted.some((t) => t.id === expandedId)) return;
+    setExpandedId(sorted[0].id);
+  }, [bucket, sorted, expandedId]);
+
   return (
     <div className={cn("space-y-4", className)}>
       {/* Header */}
@@ -179,25 +192,29 @@ export function ThingList({
           </h1>
           <p className="text-xs text-text-muted">{meta.subtitle}</p>
         </div>
-        {completedItems.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setShowCompleted((prev) => !prev)}
-            aria-label={showCompleted ? "Hide completed" : "Show completed"}
-            aria-pressed={showCompleted}
-            className={cn(
-              "rounded-[var(--radius-md)] p-1.5 transition-colors duration-[var(--duration-fast)]",
-              showCompleted
-                ? "bg-blueprint-50 text-blueprint-500"
-                : "text-text-subtle hover:bg-paper-100 hover:text-text",
-            )}
-          >
-            <Icon
-              name={showCompleted ? "visibility" : "visibility_off"}
-              size={16}
-            />
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => setShowCompleted((prev) => !prev)}
+          aria-label={showCompleted ? "Hide completed" : "Show completed"}
+          aria-pressed={showCompleted}
+          className={cn(
+            "rounded-[var(--radius-md)] p-1.5 transition-colors duration-[var(--duration-fast)]",
+            showCompleted
+              ? "bg-blueprint-50 text-blueprint-500"
+              : "text-text-subtle hover:bg-paper-100 hover:text-text",
+          )}
+        >
+          <Icon
+            name={
+              completedQuery.isFetching
+                ? "progress_activity"
+                : showCompleted
+                  ? "visibility"
+                  : "visibility_off"
+            }
+            size={16}
+          />
+        </button>
       </div>
 
       {/* Rapid Entry / Capture */}

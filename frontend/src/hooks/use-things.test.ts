@@ -184,6 +184,7 @@ describe("useThings — cursor-based sync", () => {
     expect(mockedThings.sync).toHaveBeenCalledWith({
       limit: 5000,
       cursor: undefined,
+      completed: "false",
     });
   });
 
@@ -208,14 +209,17 @@ describe("useThings — cursor-based sync", () => {
     expect(mockedThings.sync).toHaveBeenNthCalledWith(1, {
       limit: 5000,
       cursor: undefined,
+      completed: "false",
     });
     expect(mockedThings.sync).toHaveBeenNthCalledWith(2, {
       limit: 5000,
       cursor: "cursor-page-2",
+      completed: "false",
     });
     expect(mockedThings.sync).toHaveBeenNthCalledWith(3, {
       limit: 5000,
       cursor: "cursor-page-3",
+      completed: "false",
     });
   });
 

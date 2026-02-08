@@ -134,6 +134,32 @@ describe("request()", () => {
     expect(status).toBe(401);
   });
 
+  it("throws ApiError with friendly message when backend returns HTML (e.g. proxy 502)", async () => {
+    const htmlBody =
+      "<html> <head><title>502 Bad Gateway</title></head></html>";
+    fetchSpy.mockResolvedValueOnce(
+      new Response(htmlBody, {
+        status: 502,
+        headers: { "Content-Type": "text/html" },
+      }),
+    );
+    const err = await AuthApi.me().catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).status).toBe(502);
+    // Must NOT leak raw HTML or JSON parse errors to the user
+    expect((err as ApiError).message).not.toContain("<html>");
+    expect((err as ApiError).message).not.toContain("Unexpected token");
+  });
+
+  it("throws ApiError with friendly message on network error (backend unreachable)", async () => {
+    fetchSpy.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    const err = await AuthApi.me().catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).status).toBe(0);
+    // Must NOT leak raw TypeError message
+    expect((err as ApiError).message).not.toContain("Failed to fetch");
+  });
+
   it("handles empty response body (204-like)", async () => {
     fetchSpy.mockResolvedValue(new Response("", { status: 200 }));
     const result = await ThingsApi.get("t-1");
