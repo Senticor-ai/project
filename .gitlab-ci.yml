@@ -358,6 +358,7 @@ update-manifests:
       cat infra/k8s/overlays/production/kustomization.yaml
       git config user.email "ci@terminandoyo.dev"
       git config user.name "GitLab CI"
+      git config http.sslVerify false
       git remote set-url origin "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
       git add infra/k8s/overlays/production/kustomization.yaml
       git commit -m "deploy: update image tag to ${IMAGE_TAG} [skip ci]"

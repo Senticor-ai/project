@@ -68,7 +68,7 @@ handle_failure() {
 
   # Check for an existing open issue (label + title search)
   local existing
-  existing=$(curl -fsSL \
+  existing=$(curl -fsSLk \
     -H "$AUTH_HEADER" \
     "${API_BASE}/issues?labels=${encoded_label}&search=${encoded_title}&in=title&state=opened&per_page=1")
 
@@ -92,7 +92,7 @@ handle_failure() {
         "- Commit: `" + $commit + "`\n" +
         "- Job: " + $job_url)}')
 
-    curl -fsSL \
+    curl -fsSLk \
       -H "$AUTH_HEADER" \
       -H "Content-Type: application/json" \
       -X POST \
@@ -105,7 +105,7 @@ handle_failure() {
 
   # ── Fetch job log (last 100 lines, ANSI codes stripped) ──
   local job_log
-  job_log=$(curl -fsSL \
+  job_log=$(curl -fsSLk \
     -H "$AUTH_HEADER" \
     "${API_BASE}/jobs/${CI_JOB_ID}/trace" 2>/dev/null \
     | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' \
@@ -144,7 +144,7 @@ handle_failure() {
     --arg labels "$ISSUE_LABEL" \
     '{title: $title, description: $description, labels: $labels}')
 
-  response=$(curl -fsSL \
+  response=$(curl -fsSLk \
     -H "$AUTH_HEADER" \
     -H "Content-Type: application/json" \
     -X POST \
@@ -163,7 +163,7 @@ handle_success() {
 
   # Find open issues with the matching label
   local issues
-  issues=$(curl -fsSL \
+  issues=$(curl -fsSLk \
     -H "$AUTH_HEADER" \
     "${API_BASE}/issues?labels=${encoded_label}&state=opened&per_page=100")
 
@@ -188,7 +188,7 @@ handle_success() {
       '{body: ("**Resolved** :white_check_mark:\n\n" +
         "Job passed in commit `" + $commit + "`: " + $job_url)}')
 
-    curl -fsSL \
+    curl -fsSLk \
       -H "$AUTH_HEADER" \
       -H "Content-Type: application/json" \
       -X POST \
@@ -196,7 +196,7 @@ handle_success() {
       "${API_BASE}/issues/${iid}/notes" > /dev/null
 
     # Close the issue
-    curl -fsSL \
+    curl -fsSLk \
       -H "$AUTH_HEADER" \
       -H "Content-Type: application/json" \
       -X PUT \
