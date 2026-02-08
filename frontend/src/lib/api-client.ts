@@ -239,6 +239,7 @@ export type NirvanaImportSummary = {
   total: number;
   created: number;
   updated: number;
+  unchanged?: number;
   skipped: number;
   errors: number;
   bucket_counts: Record<string, number>;
@@ -284,6 +285,19 @@ export const ImportsApi = {
     const qs = searchParams.toString();
     return request<ImportJobResponse[]>(`/imports/jobs${qs ? `?${qs}` : ""}`);
   },
+};
+
+// ---------------------------------------------------------------------------
+// Dev API
+// ---------------------------------------------------------------------------
+
+export type FlushResponse = {
+  ok: boolean;
+  deleted: Record<string, number>;
+};
+
+export const DevApi = {
+  flush: () => request<FlushResponse>("/dev/flush", { method: "POST" }),
 };
 
 // ---------------------------------------------------------------------------

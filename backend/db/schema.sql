@@ -124,7 +124,8 @@ CREATE TABLE IF NOT EXISTS outbox_events (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   processed_at TIMESTAMPTZ,
   attempts INTEGER NOT NULL DEFAULT 0,
-  last_error TEXT
+  last_error TEXT,
+  dead_lettered_at TIMESTAMPTZ
 );
 
 CREATE TABLE IF NOT EXISTS files (
@@ -262,7 +263,9 @@ UPDATE files
 SET storage_path = regexp_replace(storage_path, '^.*/storage/', '')
 WHERE storage_path LIKE '/%';
 
+ALTER TABLE outbox_events ADD COLUMN IF NOT EXISTS dead_lettered_at TIMESTAMPTZ;
 CREATE INDEX IF NOT EXISTS idx_outbox_events_processed ON outbox_events (processed_at, created_at);
+CREATE INDEX IF NOT EXISTS idx_outbox_events_dead_lettered ON outbox_events (dead_lettered_at) WHERE dead_lettered_at IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_push_outbox_processed ON push_outbox (processed_at, created_at);
 CREATE INDEX IF NOT EXISTS idx_files_owner ON files (owner_id);
 CREATE INDEX IF NOT EXISTS idx_files_org ON files (org_id);

@@ -42,7 +42,9 @@ def test_matrix_fixture_dry_run_validates_without_writing(auth_client):
 
     assert summary["total"] == len(items)
     assert summary["errors"] == 0
-    assert summary["created"] == len(items)
+    # Trashed item (state 6) is skipped
+    assert summary["skipped"] == 1
+    assert summary["created"] == len(items) - 1
 
     things = auth_client.get("/things?limit=10").json()
     assert things == []
@@ -52,11 +54,14 @@ def test_matrix_fixture_imports_core_fields(auth_client):
     items = _load_fixture(MATRIX_FIXTURE_PATH)
     summary = _run_import(auth_client, items, include_completed=False)
     assert summary["errors"] == 0
-    assert summary["skipped"] == 1
+    # 3 skipped: COMPLETED (completed+include_completed=False), LOGGED (same), TRASHED (state 6)
+    assert summary["skipped"] == 3
 
     things = _things_by_canonical(auth_client)
 
     assert "urn:app:action:TASK-MATRIX-COMPLETED" not in things
+    assert "urn:app:action:TASK-MATRIX-LOGGED" not in things
+    assert "urn:app:action:TASK-MATRIX-TRASHED" not in things
 
     focused = things["urn:app:action:TASK-MATRIX-FOCUS"]["thing"]
     assert _get_prop(focused, "app:isFocused") is True
@@ -97,6 +102,32 @@ def test_matrix_fixture_preserves_source_metadata_and_state_override(auth_client
     assert ref["sourceMetadata"]["raw"]["seqp"] == 3
     assert ref["sourceMetadata"]["raw"]["ps"] == 2
     assert ref["sourceMetadata"]["raw"]["reminder"] == "1700000000"
+
+
+def test_logged_items_become_completed_actions_not_inbox(auth_client):
+    """State 5 (Logged/Done) items should be imported as completed Actions with endTime,
+    NOT as inbox Things (which lose completion status)."""
+    items = _load_fixture(MATRIX_FIXTURE_PATH)
+    summary = _run_import(auth_client, items, include_completed=True)
+    assert summary["errors"] == 0
+    # Trashed item (state 6) still skipped even with include_completed=True
+    assert summary["skipped"] == 1
+
+    things = _things_by_canonical(auth_client)
+
+    # State 5 item should exist as a completed action
+    logged = things["urn:app:action:TASK-MATRIX-LOGGED"]["thing"]
+    assert logged["@type"] == "Action"
+    assert _get_prop(logged, "app:bucket") == "next"
+    assert logged["endTime"] is not None  # completion timestamp preserved
+
+    # State 1 completed item should also have endTime
+    completed = things["urn:app:action:TASK-MATRIX-COMPLETED"]["thing"]
+    assert completed["@type"] == "Action"
+    assert completed["endTime"] is not None
+
+    # Trashed item should NOT be imported
+    assert "urn:app:action:TASK-MATRIX-TRASHED" not in things
 
 
 @pytest.mark.skipif(

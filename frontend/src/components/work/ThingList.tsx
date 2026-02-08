@@ -230,7 +230,7 @@ export function ThingList({
             />
           </div>
           {captureError && (
-            <p role="alert" className="pl-6 text-xs text-red-500">
+            <p role="alert" className="pl-6 text-xs text-red-600">
               {captureError}
             </p>
           )}

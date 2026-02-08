@@ -1,16 +1,23 @@
 import type { Page, Locator } from "@playwright/test";
 
 export class WorkspacePage {
-  readonly signOutButton: Locator;
+  readonly menuTrigger: Locator;
+  readonly signOutMenuItem: Locator;
   readonly captureInput: Locator;
   readonly bucketNav: Locator;
   readonly contentArea: Locator;
 
   constructor(private page: Page) {
-    this.signOutButton = page.getByRole("button", { name: /Sign out/ });
+    this.menuTrigger = page.getByRole("button", { name: "Main menu" });
+    this.signOutMenuItem = page.getByRole("menuitem", { name: "Sign out" });
     this.captureInput = page.getByLabel("Capture a thought");
     this.bucketNav = page.getByRole("navigation", { name: "Buckets" });
     this.contentArea = page.getByRole("main", { name: "Bucket content" });
+  }
+
+  async signOut() {
+    await this.menuTrigger.click();
+    await this.signOutMenuItem.click();
   }
 
   // ----- Navigation -----

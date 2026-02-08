@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { ImportJobRow, type ImportJobData } from "./ImportJobRow";
 
 const baseJob: ImportJobData = {
@@ -21,7 +21,7 @@ const baseJob: ImportJobData = {
 };
 
 describe("ImportJobRow", () => {
-  it("renders source and item count", () => {
+  it("renders source and item count from summary", () => {
     render(<ImportJobRow job={baseJob} />);
     expect(screen.getByText("nirvana")).toBeInTheDocument();
     expect(screen.getByText("142 items")).toBeInTheDocument();
@@ -89,7 +89,6 @@ describe("ImportJobRow", () => {
 
   it("shows timestamps for completed job", () => {
     render(<ImportJobRow job={baseJob} />);
-    // Should show started and finished times
     expect(screen.getByText(/Started/)).toBeInTheDocument();
     expect(screen.getByText(/Finished/)).toBeInTheDocument();
   });
@@ -112,5 +111,59 @@ describe("ImportJobRow", () => {
     };
     render(<ImportJobRow job={noErrors} />);
     expect(screen.queryByText("errors")).not.toBeInTheDocument();
+  });
+
+  it("shows 'importing...' instead of '0 items' while running", () => {
+    const running: ImportJobData = {
+      ...baseJob,
+      status: "running",
+      finished_at: null,
+      summary: null,
+    };
+    render(<ImportJobRow job={running} />);
+    expect(screen.getByText("importing...")).toBeInTheDocument();
+    expect(screen.queryByText(/items/)).not.toBeInTheDocument();
+  });
+
+  it("shows 'importing...' instead of '0 items' while queued", () => {
+    const queued: ImportJobData = {
+      ...baseJob,
+      status: "queued",
+      started_at: null,
+      finished_at: null,
+      summary: null,
+    };
+    render(<ImportJobRow job={queued} />);
+    expect(screen.getByText("importing...")).toBeInTheDocument();
+    expect(screen.queryByText(/items/)).not.toBeInTheDocument();
+  });
+
+  it("shows live elapsed time while running", async () => {
+    const running: ImportJobData = {
+      ...baseJob,
+      status: "running",
+      started_at: new Date(Date.now() - 65_000).toISOString(),
+      finished_at: null,
+      summary: null,
+    };
+    render(<ImportJobRow job={running} />);
+    await waitFor(() =>
+      expect(screen.getByText(/Running for 1m/)).toBeInTheDocument(),
+    );
+  });
+
+  it("shows live elapsed time while queued", async () => {
+    const queued: ImportJobData = {
+      ...baseJob,
+      status: "queued",
+      started_at: null,
+      finished_at: null,
+      summary: null,
+      created_at: new Date(Date.now() - 30_000).toISOString(),
+    };
+    render(<ImportJobRow job={queued} />);
+    await waitFor(() =>
+      expect(screen.getByText(/Queued for/)).toBeInTheDocument(),
+    );
   });
 });

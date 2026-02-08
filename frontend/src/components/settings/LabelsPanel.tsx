@@ -96,12 +96,12 @@ export function LabelsPanel({
     <div className={cn("space-y-6", className)}>
       {/* Context Labels */}
       <section className="space-y-3">
-        <h3 className="text-sm font-medium text-text-primary">
+        <h2 className="text-sm font-medium text-text-primary">
           <span className="flex items-center gap-1">
             <Icon name="label" size={14} />
             Context Labels
           </span>
-        </h3>
+        </h2>
         <p className="text-xs text-text-subtle">
           Contexts represent where or how you can do work (@phone, @computer,
           @office)
@@ -112,12 +112,12 @@ export function LabelsPanel({
 
       {/* Energy Levels */}
       <section className="space-y-3">
-        <h3 className="text-sm font-medium text-text-primary">
+        <h2 className="text-sm font-medium text-text-primary">
           <span className="flex items-center gap-1">
             <Icon name="speed" size={14} />
             Energy Levels
           </span>
-        </h3>
+        </h2>
         <p className="text-xs text-text-subtle">
           System-defined energy levels for actions
         </p>
@@ -135,12 +135,12 @@ export function LabelsPanel({
 
       {/* Custom Tags */}
       <section className="space-y-3">
-        <h3 className="text-sm font-medium text-text-primary">
+        <h2 className="text-sm font-medium text-text-primary">
           <span className="flex items-center gap-1">
             <Icon name="sell" size={14} />
             Custom Tags
           </span>
-        </h3>
+        </h2>
         <p className="text-xs text-text-subtle">
           Tags for additional categorization beyond GTD contexts
         </p>

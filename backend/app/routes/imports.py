@@ -45,9 +45,13 @@ _DEFAULT_STATE_BUCKET_MAP = {
     2: "waiting",
     3: "calendar",
     4: "someday",
+    5: "next",       # Logged/Done — original bucket unknown, default to next
     7: "next",
     9: "calendar",
 }
+
+# Nirvana states that should be silently skipped during import.
+_SKIP_STATES: frozenset[int] = frozenset({6})  # 6 = Trashed
 
 _IMPORT_JOB_STALE_ERROR = "Import job timed out in queue; worker appears unavailable"
 
@@ -344,6 +348,12 @@ def _build_nirvana_thing(
     notes = item.get("note") or None
     ports = _build_ports(item.get("energy"), item.get("etime"))
     bucket = _derive_bucket(state_value, state_map, default_bucket)
+
+    # A completed item cannot be an inbox Thing (inbox items have no endTime).
+    # Redirect to "next" so it goes through the Action code path which preserves endTime.
+    if completed_dt and bucket == "inbox":
+        bucket = "next"
+
     source_metadata = _build_nirvana_source_metadata(
         source=source,
         raw_id=raw_id,
@@ -573,6 +583,12 @@ def run_nirvana_import(
             continue
         if not include_completed and _parse_epoch(item.get("completed")):
             continue
+        try:
+            child_state = int(item.get("state", 0))
+        except (TypeError, ValueError):
+            child_state = 0
+        if child_state in _SKIP_STATES:
+            continue
         project_children.setdefault(parent_id, []).append(child_id)
 
     totals: Counter[str] = Counter()
@@ -584,6 +600,15 @@ def run_nirvana_import(
             conn.autocommit = True
         with conn.cursor() as cur:
             for index, item in enumerate(items):
+                # Skip trashed items early (before building the thing).
+                try:
+                    raw_state = int(item.get("state", 0))
+                except (TypeError, ValueError):
+                    raw_state = 0
+                if raw_state in _SKIP_STATES:
+                    totals["skipped"] += 1
+                    continue
+
                 try:
                     canonical_id, thing, bucket, created_dt, updated_dt, completed_dt = (
                         _build_nirvana_thing(
@@ -645,6 +670,7 @@ def run_nirvana_import(
                             source = EXCLUDED.source,
                             content_hash = EXCLUDED.content_hash,
                             updated_at = EXCLUDED.updated_at
+                        WHERE things.content_hash IS DISTINCT FROM EXCLUDED.content_hash
                         RETURNING thing_id, (xmax = 0) AS inserted
                         """,
                         (
@@ -659,7 +685,10 @@ def run_nirvana_import(
                         ),
                     )
                     row = cur.fetchone()
-                    inserted = bool(row and row.get("inserted"))
+                    if row is None:
+                        totals["unchanged"] += 1
+                        continue
+                    inserted = bool(row.get("inserted"))
                     if inserted:
                         totals["created"] += 1
                     else:
@@ -710,6 +739,7 @@ def run_nirvana_import(
         total=len(items),
         created=totals["created"],
         updated=totals["updated"],
+        unchanged=totals["unchanged"],
         skipped=totals["skipped"],
         errors=totals["errors"],
         bucket_counts=dict(bucket_counts),

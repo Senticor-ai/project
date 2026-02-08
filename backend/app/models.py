@@ -548,6 +548,7 @@ class NirvanaImportSummary(BaseModel):
     total: int = Field(..., description="Total number of input items processed.")
     created: int = Field(..., description="Number of new things created.")
     updated: int = Field(..., description="Number of existing things updated.")
+    unchanged: int = Field(0, description="Items with identical content (no update needed).")
     skipped: int = Field(..., description="Number of items skipped (duplicates/filtered).")
     errors: int = Field(..., description="Number of items that failed import.")
     bucket_counts: dict[str, int] = Field(

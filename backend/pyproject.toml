@@ -16,6 +16,11 @@ dependencies = [
   "prometheus-client",
   "pytest",
   "httpx",
+  # Pin to CPU-only wheels (transitive from docling, declared here so
+  # [tool.uv.sources] can redirect them to the pytorch-cpu index).
+  "torch",
+  "torchvision",
+  "triton",
 ]
 
 [project.optional-dependencies]
@@ -29,6 +34,16 @@ dev = [
 
 [tool.uv]
 package = false
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+torchvision = { index = "pytorch-cpu" }
+triton = { index = "pytorch-cpu" }
 
 [tool.ruff]
 line-length = 100

@@ -20,12 +20,12 @@ export function ImportExportPanel({
     <div className={cn("space-y-6", className)}>
       {/* Import Section */}
       <section className="space-y-3">
-        <h3 className="text-sm font-medium text-text-primary">
+        <h2 className="text-sm font-medium text-text-primary">
           <span className="flex items-center gap-1">
             <Icon name="download" size={14} />
             Import
           </span>
-        </h3>
+        </h2>
         <div className="grid gap-3 sm:grid-cols-2">
           {IMPORT_SOURCES.map((source) => (
             <div
@@ -70,12 +70,12 @@ export function ImportExportPanel({
       {/* Import History */}
       {importJobs && importJobs.length > 0 && (
         <section className="space-y-3">
-          <h3 className="text-sm font-medium text-text-primary">
+          <h2 className="text-sm font-medium text-text-primary">
             <span className="flex items-center gap-1">
               <Icon name="history" size={14} />
               Recent imports
             </span>
-          </h3>
+          </h2>
           <div className="space-y-2">
             {importJobs.map((job) => (
               <ImportJobRow key={job.job_id} job={job} />
@@ -86,12 +86,12 @@ export function ImportExportPanel({
 
       {/* Export Section */}
       <section className="space-y-3">
-        <h3 className="text-sm font-medium text-text-primary">
+        <h2 className="text-sm font-medium text-text-primary">
           <span className="flex items-center gap-1">
             <Icon name="upload" size={14} />
             Export
           </span>
-        </h3>
+        </h2>
         <p className="text-xs text-text-subtle">
           Export all your GTD items to a file for backup or migration.
         </p>

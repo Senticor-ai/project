@@ -148,7 +148,8 @@ fi
 
 # ── Step 4: Apply schema ─────────────────────────────────────────────
 echo "[e2e] Applying schema..."
-run_psql "$E2E_DB" -f "$SCHEMA_FILE" >/dev/null 2>&1
+# Pipe via stdin so it works with both local psql and docker exec
+run_psql "$E2E_DB" < "$SCHEMA_FILE" >/dev/null 2>&1
 echo "[e2e] Schema applied."
 
 # ── Step 5: Prepare environment ──────────────────────────────────────

@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
 
@@ -40,7 +41,7 @@ const statusConfig: Record<
   completed: {
     icon: "check_circle",
     label: "Completed",
-    color: "text-green-600",
+    color: "text-green-700",
   },
   failed: {
     icon: "error",
@@ -69,6 +70,43 @@ function formatDuration(startIso: string, endIso: string): string {
   return `${minutes}m ${remaining}s`;
 }
 
+function formatElapsed(ms: number): string {
+  const seconds = Math.round(ms / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remaining = seconds % 60;
+  return `${minutes}m ${remaining}s`;
+}
+
+/** Live elapsed-time display that ticks every second while active. */
+function useElapsedTime(
+  sinceIso: string | null,
+  active: boolean,
+): string | null {
+  const [elapsed, setElapsed] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!active || !sinceIso) return;
+
+    const compute = () => {
+      const ms = Date.now() - new Date(sinceIso).getTime();
+      setElapsed(formatElapsed(Math.max(0, ms)));
+    };
+
+    // Async first fire (avoids synchronous setState in effect body),
+    // then periodic updates every second.
+    const immediateId = setTimeout(compute, 0);
+    const intervalId = setInterval(compute, 1000);
+    return () => {
+      clearTimeout(immediateId);
+      clearInterval(intervalId);
+    };
+  }, [sinceIso, active]);
+
+  if (!active) return null;
+  return elapsed;
+}
+
 export interface ImportJobRowProps {
   job: ImportJobData;
   className?: string;
@@ -76,6 +114,11 @@ export interface ImportJobRowProps {
 
 export function ImportJobRow({ job, className }: ImportJobRowProps) {
   const config = statusConfig[job.status];
+  const isActive = job.status === "running" || job.status === "queued";
+  const elapsed = useElapsedTime(
+    job.status === "running" ? job.started_at : job.created_at,
+    isActive,
+  );
 
   return (
     <div
@@ -91,7 +134,13 @@ export function ImportJobRow({ job, className }: ImportJobRowProps) {
           <span className="text-sm font-medium text-text-primary capitalize">
             {job.source}
           </span>
-          <span className="text-xs text-text-subtle">{job.total} items</span>
+          {job.summary ? (
+            <span className="text-xs text-text-subtle">
+              {job.summary.total} items
+            </span>
+          ) : isActive ? (
+            <span className="text-xs text-text-subtle">importing...</span>
+          ) : null}
         </div>
         <div
           className={cn(
@@ -133,15 +182,25 @@ export function ImportJobRow({ job, className }: ImportJobRowProps) {
 
       {/* Timestamps */}
       <div className="mt-2 flex items-center gap-3 text-[11px] text-text-subtle">
-        <span>Started {job.started_at ? formatTime(job.started_at) : "—"}</span>
-        {job.finished_at && job.started_at && (
+        {job.status === "running" && elapsed ? (
+          <span>Running for {elapsed}</span>
+        ) : job.status === "queued" && elapsed ? (
+          <span>Queued for {elapsed}</span>
+        ) : (
           <>
-            <span>Finished {formatTime(job.finished_at)}</span>
-            <span>({formatDuration(job.started_at, job.finished_at)})</span>
+            <span>
+              Started {job.started_at ? formatTime(job.started_at) : "—"}
+            </span>
+            {job.finished_at && job.started_at && (
+              <>
+                <span>Finished {formatTime(job.finished_at)}</span>
+                <span>({formatDuration(job.started_at, job.finished_at)})</span>
+              </>
+            )}
+            {!job.finished_at && !job.started_at && (
+              <span>Queued {formatTime(job.created_at)}</span>
+            )}
           </>
-        )}
-        {!job.finished_at && !job.started_at && (
-          <span>Queued {formatTime(job.created_at)}</span>
         )}
       </div>
     </div>

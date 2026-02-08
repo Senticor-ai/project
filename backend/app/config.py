@@ -82,6 +82,7 @@ class Settings:
     upload_chunk_size: int
     import_job_queue_timeout_seconds: int
     outbox_worker_poll_seconds: float
+    outbox_max_attempts: int
     push_worker_poll_seconds: float
     worker_health_port: int
     push_worker_health_port: int
@@ -89,6 +90,7 @@ class Settings:
     vapid_public_key: str | None
     vapid_private_key: str | None
     vapid_subject: str | None
+    dev_tools_enabled: bool
 
 
 def _build_database_url() -> str:
@@ -189,6 +191,7 @@ def load_settings() -> Settings:
             _get_env("IMPORT_JOB_QUEUE_TIMEOUT_SECONDS", "300") or "300"
         ),
         outbox_worker_poll_seconds=float(_get_env("OUTBOX_WORKER_POLL_SECONDS", "1.0") or "1.0"),
+        outbox_max_attempts=int(_get_env("OUTBOX_MAX_ATTEMPTS", "5") or "5"),
         push_worker_poll_seconds=float(_get_env("PUSH_WORKER_POLL_SECONDS", "1.0") or "1.0"),
         worker_health_port=int(_get_env("WORKER_HEALTH_PORT", "9090") or "9090"),
         push_worker_health_port=int(_get_env("PUSH_WORKER_HEALTH_PORT", "9091") or "9091"),
@@ -198,6 +201,7 @@ def load_settings() -> Settings:
         vapid_public_key=_get_env("VAPID_PUBLIC_KEY"),
         vapid_private_key=_get_env("VAPID_PRIVATE_KEY"),
         vapid_subject=_get_env("VAPID_SUBJECT", "mailto:admin@example.com"),
+        dev_tools_enabled=_get_bool_env("DEV_TOOLS_ENABLED", False),
     )
 
 

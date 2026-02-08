@@ -1,18 +1,24 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Tabs, type TabItem } from "@/components/ui/Tabs";
+import { DeveloperPanel } from "./DeveloperPanel";
 import { ImportExportPanel } from "./ImportExportPanel";
 import { LabelsPanel } from "./LabelsPanel";
 import { PreferencesPanel } from "./PreferencesPanel";
 import { DEFAULT_PREFERENCES, type ExportFormat } from "@/model/settings-types";
 import type { ImportJobData } from "./ImportJobRow";
 
-export type SettingsTab = "import-export" | "labels" | "preferences";
+export type SettingsTab =
+  | "import-export"
+  | "labels"
+  | "preferences"
+  | "developer";
 
 const settingsTabs: TabItem[] = [
   { id: "import-export", label: "Import / Export", icon: "swap_horiz" },
   { id: "labels", label: "Labels & Contexts", icon: "label" },
   { id: "preferences", label: "Preferences", icon: "tune" },
+  { id: "developer", label: "Developer", icon: "code" },
 ];
 
 export interface SettingsScreenProps {
@@ -24,6 +30,7 @@ export interface SettingsScreenProps {
   initialTab?: SettingsTab;
   onImportNirvana?: () => void;
   onExport?: (format: ExportFormat) => void;
+  onFlush?: () => Promise<import("@/lib/api-client").FlushResponse>;
   importJobs?: ImportJobData[];
   className?: string;
 }
@@ -34,6 +41,7 @@ export function SettingsScreen({
   initialTab = "import-export",
   onImportNirvana,
   onExport,
+  onFlush,
   importJobs,
   className,
 }: SettingsScreenProps) {
@@ -101,6 +109,7 @@ export function SettingsScreen({
               }
             />
           )}
+          {activeTab === "developer" && <DeveloperPanel onFlush={onFlush} />}
         </div>
       </main>
     </div>

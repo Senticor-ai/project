@@ -39,25 +39,17 @@ ISSUE_TITLE="CI failure: ${CI_JOB_NAME} on ${BRANCH}"
 # ── Ensure dependencies (curl + jq) ────────────────────────────────
 
 ensure_deps() {
-  if ! command -v jq &>/dev/null; then
-    echo "[issue-bot] Installing jq..."
-    local jq_url="https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-amd64"
-    if command -v curl &>/dev/null; then
-      curl -fsSL "$jq_url" -o /usr/local/bin/jq
-    elif command -v wget &>/dev/null; then
-      wget -q "$jq_url" -O /usr/local/bin/jq
-    elif command -v python3 &>/dev/null; then
-      python3 -c "import urllib.request; urllib.request.urlretrieve('${jq_url}', '/usr/local/bin/jq')"
-    else
-      echo "[issue-bot] Cannot install jq (no curl/wget/python3), aborting."
-      exit 0
-    fi
-    chmod +x /usr/local/bin/jq
-  fi
+  local need_install=false
+  if ! command -v jq &>/dev/null; then need_install=true; fi
+  if ! command -v curl &>/dev/null; then need_install=true; fi
 
-  if ! command -v curl &>/dev/null; then
-    echo "[issue-bot] Installing curl..."
-    apt-get update -qq && apt-get install -y -qq curl > /dev/null 2>&1
+  if [ "$need_install" = true ]; then
+    echo "[issue-bot] Installing missing dependencies..."
+    apt-get update -qq 2>/dev/null
+    apt-get install -y -qq curl jq 2>/dev/null || {
+      echo "[issue-bot] apt-get install failed, aborting."
+      exit 0
+    }
   fi
 }
 

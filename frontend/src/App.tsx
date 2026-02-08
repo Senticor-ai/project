@@ -2,7 +2,8 @@ import { useState, useCallback } from "react";
 import { useAuth } from "./lib/use-auth";
 import { useLocationState } from "./hooks/use-location-state";
 import { useImportJobs } from "./hooks/use-import-jobs";
-import { downloadExport } from "./lib/api-client";
+import { DevApi, downloadExport } from "./lib/api-client";
+import type { AuthUser } from "./lib/api-client";
 import { LoginPage } from "./components/auth/LoginPage";
 import { ConnectedBucketView } from "./components/work/ConnectedBucketView";
 import { NirvanaImportDialog } from "./components/work/NirvanaImportDialog";
@@ -17,6 +18,33 @@ import type { Bucket } from "./model/types";
 
 function App() {
   const { user, isLoading, login, register, logout } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-surface">
+        <Icon
+          name="progress_activity"
+          size={32}
+          className="animate-spin text-blueprint-500"
+        />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginPage onLogin={login} onRegister={register} />;
+  }
+
+  return <AuthenticatedApp user={user} onSignOut={logout} />;
+}
+
+function AuthenticatedApp({
+  user,
+  onSignOut,
+}: {
+  user: AuthUser;
+  onSignOut: () => void;
+}) {
   const { location, navigate } = useLocationState();
   const [showImport, setShowImport] = useState(false);
   const { jobs: importJobs, checkDuplicate } = useImportJobs();
@@ -46,29 +74,13 @@ function App() {
     [navigate],
   );
 
-  if (isLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-surface">
-        <Icon
-          name="progress_activity"
-          size={32}
-          className="animate-spin text-blueprint-500"
-        />
-      </div>
-    );
-  }
-
-  if (!user) {
-    return <LoginPage onLogin={login} onRegister={register} />;
-  }
-
   return (
     <div className="min-h-screen bg-surface p-6">
       <AppHeader
         username={user.username ?? user.email}
         currentView={location.view}
         onNavigate={handleNavigate}
-        onSignOut={logout}
+        onSignOut={onSignOut}
         className="mb-6"
       />
 
@@ -87,6 +99,7 @@ function App() {
           onTabChange={handleSettingsTabChange}
           onImportNirvana={() => setShowImport(true)}
           onExport={downloadExport}
+          onFlush={DevApi.flush}
           importJobs={importJobs}
         />
       )}

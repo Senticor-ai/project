@@ -44,6 +44,25 @@ def _mark_failed(conn, event_id: str, error: str) -> None:
         )
 
 
+def _mark_dead_letter(conn, event_id: str, error: str) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE outbox_events
+            SET dead_lettered_at = %s, attempts = attempts + 1, last_error = %s
+            WHERE event_id = %s
+            """,
+            (datetime.now(UTC), error[:500], event_id),
+        )
+
+
+def _get_attempts(conn, event_id: str) -> int:
+    with conn.cursor() as cur:
+        cur.execute("SELECT attempts FROM outbox_events WHERE event_id = %s", (event_id,))
+        row = cur.fetchone()
+        return int(row["attempts"]) if row else 0
+
+
 def _emit_index_event(
     *,
     status: str,
@@ -233,7 +252,7 @@ def process_batch(limit: int = 25) -> int:
                 """
                 SELECT event_id, event_type, payload
                 FROM outbox_events
-                WHERE processed_at IS NULL
+                WHERE processed_at IS NULL AND dead_lettered_at IS NULL
                 ORDER BY created_at ASC
                 LIMIT %s
                 FOR UPDATE SKIP LOCKED
@@ -252,7 +271,7 @@ def process_batch(limit: int = 25) -> int:
             event_type = event["event_type"]
             payload = event["payload"] or {}
             started_at = time.monotonic()
-            logger.info("outbox.event_start", event_id=str(event_id), event_type=event_type)
+            logger.debug("outbox.event_start", event_id=str(event_id), event_type=event_type)
 
             entity_type = None
             entity_id = None
@@ -413,7 +432,7 @@ def process_batch(limit: int = 25) -> int:
 
                 _mark_processed(conn, event_id)
                 processed += 1
-                logger.info(
+                logger.debug(
                     "outbox.event_processed",
                     event_id=str(event_id),
                     event_type=event_type,
@@ -424,31 +443,50 @@ def process_batch(limit: int = 25) -> int:
                 if event_type == "nirvana_import_job":
                     _mark_import_failed(payload.get("job_id"), str(exc))
                 if org_id and entity_type and entity_id:
-                    mark_failed(
-                        org_id,
-                        entity_type,
-                        entity_id,
-                        str(exc),
-                        action=action,
+                    try:
+                        mark_failed(
+                            org_id,
+                            entity_type,
+                            entity_id,
+                            str(exc),
+                            action=action,
+                        )
+                        _emit_index_event(
+                            status="failed",
+                            entity_type=entity_type,
+                            entity_id=entity_id,
+                            org_id=org_id,
+                            action=action,
+                            title="Search indexing failed",
+                            body=f"Indexing failed for {entity_type} {entity_id}.",
+                            target_user_id=target_user_id,
+                        )
+                    except Exception:  # noqa: BLE001
+                        logger.warning(
+                            "outbox.search_job_update_failed",
+                            event_id=str(event_id),
+                            entity_type=entity_type,
+                            entity_id=entity_id,
+                        )
+                new_attempts = _get_attempts(conn, event_id) + 1
+                if new_attempts >= settings.outbox_max_attempts:
+                    _mark_dead_letter(conn, event_id, str(exc))
+                    logger.warning(
+                        "outbox.event_dead_lettered",
+                        event_id=str(event_id),
+                        event_type=event_type,
+                        attempts=new_attempts,
+                        error=str(exc)[:500],
                     )
-                    _emit_index_event(
-                        status="failed",
-                        entity_type=entity_type,
-                        entity_id=entity_id,
-                        org_id=org_id,
-                        action=action,
-                        title="Search indexing failed",
-                        body=f"Indexing failed for {entity_type} {entity_id}.",
-                        target_user_id=target_user_id,
+                else:
+                    _mark_failed(conn, event_id, str(exc))
+                    logger.error(
+                        "outbox.event_failed",
+                        event_id=str(event_id),
+                        event_type=event_type,
+                        duration_ms=int((time.monotonic() - started_at) * 1000),
+                        error=str(exc)[:500],
                     )
-                _mark_failed(conn, event_id, str(exc))
-                logger.error(
-                    "outbox.event_failed",
-                    event_id=str(event_id),
-                    event_type=event_type,
-                    duration_ms=int((time.monotonic() - started_at) * 1000),
-                    error=str(exc)[:500],
-                )
 
         conn.commit()
         logger.info("outbox.batch_done", fetched=len(events), processed=processed, limit=limit)

@@ -37,7 +37,7 @@ export function DuplicateImportWarning({
         <Icon
           name="warning"
           size={20}
-          className="mt-0.5 shrink-0 text-amber-600"
+          className="mt-0.5 shrink-0 text-amber-700"
         />
         <div className="space-y-2">
           <p className="text-sm font-medium text-amber-900">
@@ -53,7 +53,7 @@ export function DuplicateImportWarning({
             <button
               type="button"
               onClick={onContinue}
-              className="rounded-[var(--radius-md)] bg-amber-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-amber-700"
+              className="rounded-[var(--radius-md)] bg-amber-700 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-amber-800"
             >
               Import anyway
             </button>

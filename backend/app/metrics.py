@@ -52,6 +52,12 @@ APP_QUEUE_JOBS_BY_STATUS = Gauge(
     ["queue", "status"],
 )
 
+APP_QUEUE_DEAD_LETTERED = Gauge(
+    "app_queue_dead_lettered",
+    "Number of dead-lettered events per queue.",
+    ["queue"],
+)
+
 
 def metrics_payload() -> bytes:
     return generate_latest()
@@ -133,7 +139,7 @@ def refresh_queue_metrics() -> None:
                         """
                         SELECT COUNT(*) AS pending_count, MIN(created_at) AS oldest_pending
                         FROM outbox_events
-                        WHERE processed_at IS NULL
+                        WHERE processed_at IS NULL AND dead_lettered_at IS NULL
                         """,
                     )
                     row = cur.fetchone() or {}
@@ -142,6 +148,17 @@ def refresh_queue_metrics() -> None:
                         pending_count=int(row.get("pending_count") or 0),
                         oldest_pending=row.get("oldest_pending"),
                         table_available=1,
+                    )
+                    cur.execute(
+                        """
+                        SELECT COUNT(*) AS cnt
+                        FROM outbox_events
+                        WHERE dead_lettered_at IS NOT NULL
+                        """,
+                    )
+                    dl_row = cur.fetchone() or {}
+                    APP_QUEUE_DEAD_LETTERED.labels(queue="outbox_events").set(
+                        float(int(dl_row.get("cnt") or 0))
                     )
                 except psycopg_errors.UndefinedTable:
                     _set_queue_pending(

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useRef } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { useNirvanaImport } from "@/hooks/use-nirvana-import";
 import {
@@ -15,14 +15,19 @@ export interface NirvanaImportDialogProps {
   checkDuplicate?: (sha256: string) => PreviousImport | null;
 }
 
+/** Wrapper: mounts/unmounts the inner dialog so state resets naturally. */
+export function NirvanaImportDialog({ open, ...rest }: NirvanaImportDialogProps) {
+  if (!open) return null;
+  return <NirvanaImportDialogContent {...rest} />;
+}
+
 type Step = "select" | "uploading" | "preview" | "importing" | "results";
 
-export function NirvanaImportDialog({
-  open,
+function NirvanaImportDialogContent({
   onClose,
   onNavigateToBucket,
   checkDuplicate,
-}: NirvanaImportDialogProps) {
+}: Omit<NirvanaImportDialogProps, "open">) {
   const { upload, inspect, startImport, job, setJobId } = useNirvanaImport();
   const [step, setStep] = useState<Step>("select");
   const [fileId, setFileId] = useState<string | null>(null);
@@ -31,17 +36,6 @@ export function NirvanaImportDialog({
     null,
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Reset dialog state when opened
-  useEffect(() => {
-    if (open) {
-      setStep("select");
-      setFileId(null);
-      setIncludeCompleted(true);
-      setDuplicateInfo(null);
-      setJobId(null);
-    }
-  }, [open, setJobId]);
 
   const handleFile = useCallback(
     async (file: File) => {
@@ -101,8 +95,6 @@ export function NirvanaImportDialog({
       setStep("preview");
     }
   }, [fileId, includeCompleted, startImport, setJobId]);
-
-  if (!open) return null;
 
   const preview = inspect.data;
   const jobData = job.data;
@@ -254,7 +246,7 @@ export function NirvanaImportDialog({
             <div className="space-y-4">
               <div className="flex items-center gap-2">
                 {jobData?.error ? (
-                  <Icon name="error" size={20} className="text-red-500" />
+                  <Icon name="error" size={20} className="text-red-600" />
                 ) : (
                   <Icon
                     name="check_circle"

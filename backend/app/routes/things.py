@@ -740,13 +740,6 @@ def update_thing(
         action="upsert",
         requested_by_user_id=str(current_user["id"]),
     )
-    enqueue_job(
-        org_id=org_id,
-        entity_type="thing",
-        entity_id=str(row["thing_id"]),
-        action="upsert",
-        requested_by_user_id=str(current_user["id"]),
-    )
 
     response = _build_thing_response(row)
     if idempotency_key:

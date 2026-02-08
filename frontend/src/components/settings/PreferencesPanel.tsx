@@ -60,9 +60,9 @@ export function PreferencesPanel({
     <div className={cn("space-y-6", className)}>
       {/* Language & Regional */}
       <section className="space-y-3">
-        <h3 className="text-sm font-medium text-text-primary">
+        <h2 className="text-sm font-medium text-text-primary">
           Language & Regional
-        </h3>
+        </h2>
 
         <div>
           <label htmlFor="pref-language" className={labelClass}>
@@ -138,7 +138,7 @@ export function PreferencesPanel({
 
       {/* Display */}
       <section className="space-y-3">
-        <h3 className="text-sm font-medium text-text-primary">Display</h3>
+        <h2 className="text-sm font-medium text-text-primary">Display</h2>
 
         <div>
           <label htmlFor="pref-default-bucket" className={labelClass}>
@@ -184,7 +184,7 @@ export function PreferencesPanel({
 
       {/* GTD Review */}
       <section className="space-y-3">
-        <h3 className="text-sm font-medium text-text-primary">GTD Review</h3>
+        <h2 className="text-sm font-medium text-text-primary">GTD Review</h2>
 
         <label className="flex items-center gap-2 text-sm text-text-muted">
           <input
