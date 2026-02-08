@@ -344,6 +344,13 @@ def _build_nirvana_thing(
     updated_dt = _parse_epoch(item.get("updated")) or created_dt
     completed_dt = _parse_epoch(item.get("completed"))
 
+    # Non-project items with deleted/cancelled flags should be treated as
+    # completed so they show up under "done" instead of cluttering active lists.
+    # Projects handle deleted/cancelled via project_status="archived" separately.
+    if not completed_dt and type_value != 1:
+        if item.get("deleted") or item.get("cancelled"):
+            completed_dt = updated_dt
+
     tags = _parse_tags(item.get("tags"))
     notes = item.get("note") or None
     ports = _build_ports(item.get("energy"), item.get("etime"))
@@ -581,7 +588,11 @@ def run_nirvana_import(
         child_id = str(item.get("id") or "").strip()
         if not child_id:
             continue
-        if not include_completed and _parse_epoch(item.get("completed")):
+        if not include_completed and (
+            _parse_epoch(item.get("completed"))
+            or item.get("deleted")
+            or item.get("cancelled")
+        ):
             continue
         try:
             child_state = int(item.get("state", 0))

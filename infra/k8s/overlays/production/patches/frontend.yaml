@@ -5,6 +5,8 @@ metadata:
 spec:
   template:
     spec:
+      imagePullSecrets:
+        - name: harbor-pull-secret
       containers:
         - name: frontend
           imagePullPolicy: Always

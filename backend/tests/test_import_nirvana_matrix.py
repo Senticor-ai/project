@@ -54,8 +54,9 @@ def test_matrix_fixture_imports_core_fields(auth_client):
     items = _load_fixture(MATRIX_FIXTURE_PATH)
     summary = _run_import(auth_client, items, include_completed=False)
     assert summary["errors"] == 0
-    # 3 skipped: COMPLETED (completed+include_completed=False), LOGGED (same), TRASHED (state 6)
-    assert summary["skipped"] == 3
+    # 7 skipped: COMPLETED, LOGGED (completed), TRASHED (state 6),
+    # DELETED, CANCELLED, DELETED-FLAG, DELETED-CHILD (deleted/cancelled flags)
+    assert summary["skipped"] == 7
 
     things = _things_by_canonical(auth_client)
 
@@ -128,6 +129,73 @@ def test_logged_items_become_completed_actions_not_inbox(auth_client):
 
     # Trashed item should NOT be imported
     assert "urn:app:action:TASK-MATRIX-TRASHED" not in things
+
+
+def test_deleted_actions_imported_as_completed(auth_client):
+    """Non-trashed items with deleted/cancelled flags should be imported with endTime set,
+    so they appear as 'done' rather than active."""
+    items = _load_fixture(MATRIX_FIXTURE_PATH)
+    summary = _run_import(auth_client, items, include_completed=True)
+    assert summary["errors"] == 0
+
+    things = _things_by_canonical(auth_client)
+
+    # Deleted action (epoch timestamp) should have endTime
+    deleted = things["urn:app:action:TASK-MATRIX-DELETED"]["thing"]
+    assert deleted["@type"] == "Action"
+    assert deleted["endTime"] is not None
+
+    # Cancelled action should have endTime
+    cancelled = things["urn:app:action:TASK-MATRIX-CANCELLED"]["thing"]
+    assert cancelled["@type"] == "Action"
+    assert cancelled["endTime"] is not None
+
+    # Deleted with flag=1 (not epoch) should also have endTime
+    deleted_flag = things["urn:app:action:TASK-MATRIX-DELETED-FLAG"]["thing"]
+    assert deleted_flag["@type"] == "Action"
+    assert deleted_flag["endTime"] is not None
+
+
+def test_deleted_actions_skipped_when_include_completed_false(auth_client):
+    """Deleted/cancelled items should be skipped like completed items
+    when include_completed=False."""
+    items = _load_fixture(MATRIX_FIXTURE_PATH)
+    summary = _run_import(auth_client, items, include_completed=False)
+    assert summary["errors"] == 0
+
+    things = _things_by_canonical(auth_client)
+
+    # Deleted and cancelled actions should NOT be imported
+    assert "urn:app:action:TASK-MATRIX-DELETED" not in things
+    assert "urn:app:action:TASK-MATRIX-CANCELLED" not in things
+    assert "urn:app:action:TASK-MATRIX-DELETED-FLAG" not in things
+
+
+def test_cancelled_project_keeps_archived_status(auth_client):
+    """Cancelled projects should keep project_status='archived' (not 'completed')."""
+    items = _load_fixture(MATRIX_FIXTURE_PATH)
+    summary = _run_import(auth_client, items, include_completed=True)
+    assert summary["errors"] == 0
+
+    things = _things_by_canonical(auth_client)
+
+    proj = things["urn:app:project:PROJ-MATRIX-CANCELLED"]["thing"]
+    assert proj["@type"] == "Project"
+    assert _get_prop(proj, "app:projectStatus") == "archived"
+
+
+def test_deleted_child_excluded_from_project_hasPart(auth_client):
+    """When include_completed=False, deleted children should not appear
+    in their parent project's hasPart list."""
+    items = _load_fixture(MATRIX_FIXTURE_PATH)
+    summary = _run_import(auth_client, items, include_completed=False)
+    assert summary["errors"] == 0
+
+    things = _things_by_canonical(auth_client)
+
+    project = things["urn:app:project:PROJ-MATRIX"]["thing"]
+    child_ids = {ref["@id"] for ref in project.get("hasPart", [])}
+    assert "urn:app:action:TASK-MATRIX-DELETED-CHILD" not in child_ids
 
 
 @pytest.mark.skipif(
