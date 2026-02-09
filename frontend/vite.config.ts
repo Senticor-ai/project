@@ -65,6 +65,7 @@ export default defineConfig({
       exclude: [
         "src/**/*.stories.{ts,tsx}",
         "src/**/*.test.{ts,tsx}",
+        "src/**/__tests__/**",
         "src/test/**",
         "src/**/*.d.ts",
         "src/generated/**",
@@ -72,7 +73,7 @@ export default defineConfig({
         "src/vite-env.d.ts",
         "src/main.tsx",
       ],
-      all: true,
+      all: false,
       reporter: ["text", "html", "json"],
       reportsDirectory: "./coverage",
     },

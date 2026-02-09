@@ -1,0 +1,418 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+import { Mermaid } from "../../components/docs/Mermaid";
+
+<Meta title="Flows/Tax Prep Journey" />
+
+# Flow: Tax Prep → CPA Handoff
+
+This document traces a real-world use case through TerminAndoYo: preparing
+US federal tax documents (tax year 2025) for handoff to a CPA. It maps each
+phase against current capabilities, schema.org model fit, FRBR applicability,
+and Tay AI agent potential.
+
+---
+
+## Overview
+
+<Mermaid
+  chart={`flowchart TD
+    A["Drop PDFs into Inbox\\n(W-2, 1099s, 1098, etc.)"] --> B["Triage & Label\\n(IRS form type + schedule)"]
+    B --> C{"Have the doc?"}
+    C -- "Yes (PDF attached)" --> D["Reference: Extract Fields\\n(box values, amounts)"]
+    C -- "No (still needed)" --> E["Next Action:\\nDownload from account"]
+    E --> F["Download PDF\\n+ attach to item"]
+    F --> D
+    D --> G{"Corrected version\\nissued?"}
+    G -- "Yes" --> H["New FRBR Expression\\n(keep both, mark current)"]
+    H --> D
+    G -- "No" --> I["Tax Organizer\\n(project table view)"]
+    I --> J["Export: Summary + Files\\n(CSV/PDF + ZIP)"]
+    J --> K["Handoff to CPA"]`}
+/>
+
+---
+
+## Phase 1: Import What You Have
+
+**User story**: "I have a folder of tax PDFs I've been collecting all year.
+I want to drag-drop them into TAY one by one, then process each."
+
+**Documents**: W-2, 1099-INT, 1099-DIV, 1099-B, 1098, 1095-A, K-1, charitable
+receipts, property tax statements, medical expense records.
+
+**Flow**:
+
+1. User drops a PDF into the inbox area
+2. Each becomes a `Thing` with `captureSource: { kind: "import" }`
+3. File is uploaded via chunked upload API
+4. Item appears in inbox with file thumbnail and filename
+
+| Capability              | Status  | Notes                                                                             |
+| ----------------------- | ------- | --------------------------------------------------------------------------------- |
+| Text capture to inbox   | Works   | `rawCapture` field via InboxCapture                                               |
+| PDF drag-drop to inbox  | **Gap** | InboxCapture is text-only; FilePreviewCard exists but only in NirvanaImportDialog |
+| Chunked file upload API | Works   | `FilesApi.initiate()` + `uploadChunk()` + `complete()`                            |
+| File→Thing linking      | **Gap** | No FK between files and Things; no `app:fileRefs` property                        |
+
+**Schema.org fit**: Each imported file should become a `CreativeWork` with
+`encodingFormat: "application/pdf"` and `url` pointing to the uploaded file's
+storage path. The schema supports this; the wiring is missing.
+
+**What Tay could do**: When a PDF is dropped, Tay uses **Docling** (already in
+backend dependencies) to parse the document, identify the IRS form type,
+and auto-populate the name and tags.
+
+---
+
+## Phase 2: Triage & Label
+
+**User story**: "For each document in my inbox, I want to identify the form
+type, tag it with the relevant IRS schedule, and move it to references."
+
+**Flow**:
+
+1. First inbox item auto-expands with triage action bar
+2. User identifies document type (e.g., "1099-INT from Schwab")
+3. Tags with IRS schedule: `1099-int`, `schedule-b`
+4. Taps "Reference" bucket button → item moves to reference library
+5. Repeat for each document
+
+**IRS schedule mapping**:
+
+| Tag          | IRS Schedule             | Document types              |
+| ------------ | ------------------------ | --------------------------- |
+| `w2`         | Form 1040 (line 1)       | W-2                         |
+| `1099-int`   | Schedule B               | 1099-INT                    |
+| `1099-div`   | Schedule B               | 1099-DIV                    |
+| `1099-b`     | Schedule D / Form 8949   | 1099-B                      |
+| `1098`       | Schedule A (line 8a)     | 1098 (mortgage interest)    |
+| `charitable` | Schedule A (lines 11-14) | Donation receipts           |
+| `medical`    | Schedule A (lines 1-4)   | Medical expense receipts    |
+| `business`   | Schedule C               | 1099-NEC, business receipts |
+| `k-1`        | Schedule E               | K-1 (partnership/S-corp)    |
+
+| Capability               | Status      | Notes                                                  |
+| ------------------------ | ----------- | ------------------------------------------------------ |
+| Triage inbox → reference | Works       | InboxTriage routes to reference bucket                 |
+| Keyword tagging          | Model ready | `keywords` array exists but no tag picker UI in triage |
+| Category vocabulary      | **Gap**     | No IRS form type vocabulary; just free-text tags       |
+
+**Schema.org fit**: `keywords` is a standard schema.org property. Tags like
+`1099-int` and `schedule-b` are valid keyword values. No special modeling needed.
+
+---
+
+## Phase 3: Identify Missing Documents
+
+**User story**: "After processing what I have, I realize I'm missing the
+1099-INT from my savings account and the K-1 from the partnership."
+
+**Flow**:
+
+1. User captures: "Download 1099-INT from Ally Bank"
+2. Triages to Next Actions with context `@computer`
+3. Captures: "Request K-1 from XYZ Partners"
+4. Triages to Waiting (delegated to partnership)
+
+| Capability                           | Status      | Notes                                            |
+| ------------------------------------ | ----------- | ------------------------------------------------ |
+| Capture text → triage to next action | Works       | Standard GTD flow                                |
+| Waiting with delegation              | Works       | `delegatedTo` property + waiting bucket          |
+| Context assignment                   | Model ready | `contexts` field exists but no context picker UI |
+
+---
+
+## Phase 4: Download & Attach Missing Docs
+
+**User story**: "I log into Ally Bank, download the 1099-INT PDF, and want
+to attach it to the reference item I'll create from this action."
+
+**Flow**:
+
+1. Work through next actions list
+2. Download PDF from each account
+3. Complete the action → create a reference item with the PDF attached
+4. Link the reference to the tax project
+
+| Capability                         | Status  | Notes                                                |
+| ---------------------------------- | ------- | ---------------------------------------------------- |
+| Next action list                   | Works   | ActionList component                                 |
+| File upload                        | Works   | Chunked upload API                                   |
+| Attach file to reference item      | **Gap** | No file→thing linking                                |
+| Complete action → create reference | **Gap** | No `Action.result` linking to resulting CreativeWork |
+
+**Schema.org fit**: `Action.result` is a standard schema.org property that
+points to the thing produced by completing the action. TAY could use this
+to link "Download 1099-INT" (Action) → "1099-INT from Ally" (CreativeWork).
+
+---
+
+## Phase 5: Extract Key Details
+
+**User story**: "For each document, I want to record the key amounts. My CPA
+needs to see gross wages from the W-2, interest amounts from the 1099-INT, etc."
+
+**Example data to extract**:
+
+| Document            | Field                | Box    | Amount     |
+| ------------------- | -------------------- | ------ | ---------- |
+| W-2 (Employer A)    | Gross wages          | Box 1  | $85,000    |
+| W-2 (Employer A)    | Federal tax withheld | Box 2  | $18,200    |
+| W-2 (Employer A)    | State wages          | Box 16 | $85,000    |
+| 1099-INT (Schwab)   | Interest income      | Box 1  | $1,247.33  |
+| 1099-INT (Ally)     | Interest income      | Box 1  | $892.18    |
+| 1099-DIV (Vanguard) | Ordinary dividends   | Box 1a | $3,450.00  |
+| 1099-DIV (Vanguard) | Qualified dividends  | Box 1b | $2,890.00  |
+| 1098 (Mortgage Co)  | Mortgage interest    | Box 1  | $12,350.00 |
+| 1098 (Mortgage Co)  | Property taxes       | Box 10 | $4,200.00  |
+
+| Capability                  | Status  | Notes                                         |
+| --------------------------- | ------- | --------------------------------------------- |
+| Free-text description       | Works   | Can put amounts in description field          |
+| Structured key-value fields | **Gap** | PropertyValue model supports it, no UI editor |
+| MonetaryAmount type         | **Gap** | schema.org has it, TAY doesn't use it         |
+| Table/grid view             | **Gap** | No columnar view for structured data          |
+
+**Schema.org fit**: Tax amounts map to PropertyValue with a `tax:` namespace:
+
+```json
+{
+  "@type": "PropertyValue",
+  "propertyID": "tax:w2:box1",
+  "name": "Gross wages",
+  "value": {
+    "@type": "MonetaryAmount",
+    "value": 85000,
+    "currency": "USD"
+  }
+}
+```
+
+This is valid JSON-LD with schema.org extensibility. PropertyValue is already
+the carrier for all app-specific data in TAY. The gap is purely UI.
+
+**What Tay could do**: This is the **highest-value AI capability**. Docling
+(already installed in backend) parses the PDF, identifies IRS form layout,
+and extracts box values. Tay populates PropertyValues automatically:
+
+> "I found your W-2 from Employer A. Gross wages: $85,000, Federal tax
+> withheld: $18,200. Does this look right?"
+
+User confirms → structured data attached to the reference item.
+
+---
+
+## Phase 6: Tax Organizer (Project View)
+
+**User story**: "I want to see all my tax documents in one table with their
+key amounts. This IS the tax organizer my CPA needs."
+
+**Desired view**:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│ Tax Prep 2025                                    12/15 docs ✓      │
+├─────────────┬──────────┬──────────┬───────────┬──────────┬─────────┤
+│ Document    │ Issuer   │ Schedule │ Key Amount│ Status   │ File    │
+├─────────────┼──────────┼──────────┼───────────┼──────────┼─────────┤
+│ W-2         │ Acme Inc │ 1040     │ $85,000   │ ✓ Have   │ 📄 PDF  │
+│ 1099-INT    │ Schwab   │ Sch B    │ $1,247    │ ✓ Have   │ 📄 PDF  │
+│ 1099-INT    │ Ally     │ Sch B    │ $892      │ ✓ Have   │ 📄 PDF  │
+│ 1099-DIV    │ Vanguard │ Sch B    │ $3,450    │ ✓ Have   │ 📄 PDF  │
+│ 1098        │ Wells F  │ Sch A    │ $12,350   │ ✓ Have   │ 📄 PDF  │
+│ K-1         │ XYZ LP   │ Sch E    │ —         │ ⏳ Wait  │ —       │
+│ Charitable  │ Red Cross│ Sch A    │ $500      │ ✓ Have   │ 📄 PDF  │
+│ ...         │          │          │           │          │         │
+├─────────────┴──────────┴──────────┴───────────┴──────────┴─────────┤
+│ Totals      │          │          │           │          │         │
+│ Wages: $85,000  Interest: $2,139  Dividends: $3,450               │
+│ Deductions: $17,050                                                │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+| Capability               | Status  | Notes                                                 |
+| ------------------------ | ------- | ----------------------------------------------------- |
+| Reference list           | Works   | ReferenceList shows CreativeWork items                |
+| Project-scoped filtering | **Gap** | All bucket views are global; no project filter        |
+| Table/columnar view      | **Gap** | Only card-based list view                             |
+| Column configuration     | **Gap** | No way to choose which PropertyValues show as columns |
+| Aggregation/totals       | **Gap** | No sum/count logic                                    |
+
+---
+
+## Phase 7: Export & Handoff to CPA
+
+**User story**: "I want to export everything: a summary document listing all
+forms with their key amounts, plus a ZIP of all the PDFs organized by schedule."
+
+**Export package**:
+
+```
+tax-prep-2025/
+├── tax-organizer-2025.csv      # Summary with all fields
+├── tax-organizer-2025.pdf      # Formatted summary
+├── schedule-a/
+│   ├── 1098-wells-fargo.pdf
+│   ├── charitable-red-cross.pdf
+│   └── medical-receipts.pdf
+├── schedule-b/
+│   ├── 1099-int-schwab.pdf
+│   ├── 1099-int-ally.pdf
+│   └── 1099-div-vanguard.pdf
+├── schedule-e/
+│   └── k-1-xyz-partners.pdf
+└── income/
+    └── w2-acme-inc.pdf
+```
+
+| Capability                 | Status  | Notes                                              |
+| -------------------------- | ------- | -------------------------------------------------- |
+| JSON export API            | Exists  | `GET /things/export?format=json` (not wired to UI) |
+| CSV export API             | Exists  | `GET /things/export?format=csv` (not wired to UI)  |
+| Formatted PDF export       | **Gap** | No report generation                               |
+| File bundling (ZIP)        | **Gap** | No file download/bundling endpoint                 |
+| Organized folder structure | **Gap** | No schedule-based file organization                |
+
+**What Tay could do**: Generate the tax organizer summary and organize files:
+
+> "Your tax organizer is ready. 15 documents across 5 schedules. Total wages:
+> $85,000. Total interest: $2,139. Total itemized deductions: $17,050.
+> Download the package?"
+
+---
+
+## FRBR: Why It Matters for Tax Documents
+
+### The Corrected Document Problem
+
+Tax documents get corrected and re-issued. This is common:
+
+- Broker issues 1099-B in February → **corrected** 1099-B in March (adjusted cost basis)
+- Employer issues W-2 → **W-2c** (corrected wage statement)
+- Health marketplace issues 1095-A → corrected 1095-A
+- Partnership issues K-1 → **revised K-1** (sometimes months later)
+
+You need **both versions** in the system:
+
+- The original (for provenance — "what did I file with initially?")
+- The corrected (for accuracy — "what's the actual number?")
+- A clear marker of which is current
+
+### FRBR Models This Naturally
+
+```
+Work:         "1099-INT from Schwab for TY2025"  (the abstract document)
+  │
+  ├── Expression 1: Original (issued Jan 31, 2026)
+  │     └── Manifestation: PDF
+  │           └── Item: schwab-1099-int-original.pdf
+  │
+  └── Expression 2: Corrected (issued Mar 15, 2026)  ← CURRENT
+        └── Manifestation: PDF
+              └── Item: schwab-1099-int-corrected.pdf
+```
+
+**Provenance tracks** when the correction arrived and which version the CPA
+should use. If the IRS questions a filing, you can show the full version
+history.
+
+### Also Useful for Tax Law References
+
+Internal Revenue Code sections follow the FRBR hierarchy naturally:
+
+```
+Work:         IRC § 170 (Charitable Contributions)
+Expression:   IRC § 170, as amended through 2025
+Manifestation: § 170(b)(1)(A) — 60% AGI limitation
+Item:          Downloaded PDF of IRS Publication 526
+```
+
+### Recommendation
+
+Use FRBR for **all** tax documents (personal and law references):
+
+- **Personal docs**: Work = abstract form type per issuer per year.
+  Expression = each version (original, corrected). This handles W-2c,
+  corrected 1099s, revised K-1s naturally.
+- **Law references**: Work = code section. Expression = year-specific version.
+  Link personal docs to law sections via `TypedReference.refers_to`.
+
+---
+
+## Schema.org Model Scorecard
+
+| Aspect                      | Fit           | Notes                                                        |
+| --------------------------- | ------------- | ------------------------------------------------------------ |
+| Documents as CreativeWork   | **Excellent** | `name`, `url`, `encodingFormat`, `description` all natural   |
+| Tasks as Action             | **Excellent** | `startTime`, `endTime`, `location`, `result` all relevant    |
+| Project container           | **Good**      | `Project` with `desiredOutcome` + child actions works        |
+| Delegation                  | **Good**      | `delegatedTo` + waiting bucket is clean                      |
+| Financial amounts           | **Poor**      | No `MonetaryAmount` usage; no structured numeric fields      |
+| Document issuer             | **Poor**      | No `Organization` entity; issuers are just free text         |
+| Document versioning (FRBR)  | **Excellent** | Expression hierarchy handles corrections naturally           |
+| Document status (have/need) | **Fair**      | Action→CreativeWork lifecycle works but no `result` link     |
+| Cross-doc dependencies      | **Good**      | `TypedReference` covers `depends_on`, `refers_to`, `part_of` |
+| IRS form vocabulary         | **Fair**      | `keywords` works for tags; no formal vocabulary              |
+| Custom domain fields        | **Fair**      | PropertyValue extensible but no UI; `tax:` namespace works   |
+
+---
+
+## Tay Automation Matrix
+
+| Capability                     | User Value    | Infrastructure Ready?                               |
+| ------------------------------ | ------------- | --------------------------------------------------- |
+| PDF parsing → field extraction | **Very High** | Partially — Docling + pypdf in backend, no pipeline |
+| Auto-categorize IRS form type  | High          | Partially — Docling for layout, no classifier model |
+| Generate tax organizer table   | **Very High** | No — no table view, no aggregation                  |
+| Completeness check             | High          | No — no project-scoped review step                  |
+| Export formatted package       | High          | No — no file bundling, no PDF report                |
+| Suggest missing documents      | Medium        | No — no prior-year analysis                         |
+| FRBR version detection         | Medium        | No — no comparison logic for corrected docs         |
+
+**Highest-leverage Tay feature**: PDF upload → Docling extraction → structured
+PropertyValues with IRS box numbers and amounts. The backend has the library;
+it needs the pipeline.
+
+---
+
+## Build Roadmap
+
+### Layer 1: Data Flow
+
+Make documents flow from inbox to organized project.
+
+1. **File→Thing linking** — `app:fileRefs` PropertyValue + upload UI on items
+2. **PDF drag-drop to inbox** — extend InboxCapture to accept file drops
+3. **Project-scoped filtering** — filter any bucket view by project
+
+### Layer 2: Structured Data
+
+Make tax amounts and categories visible and editable.
+
+4. **PropertyValue editor** — add/edit custom key-value pairs on any item
+5. **Tag filtering** — filter lists by keywords (IRS form types)
+6. **Table view for references** — columnar display (the tax organizer)
+
+### Layer 3: Document Versioning
+
+Handle corrected and re-issued documents.
+
+7. **FRBR Expressions** — version tracking for corrected docs (W-2c, corrected 1099s)
+8. **Provenance UI** — visual version history showing original vs. corrected
+
+### Layer 4: AI Pipeline
+
+Let Tay parse and categorize documents.
+
+9. **Docling extraction pipeline** — PDF → text + layout → field identification
+10. **IRS form classifier** — recognize form type from content
+11. **Box value extraction** — pull amounts into PropertyValues automatically
+
+### Layer 5: Full Journey
+
+Complete the CPA handoff experience.
+
+12. **Tax organizer export** — CSV/PDF summary with all fields
+13. **File bundling** — ZIP with PDFs organized by schedule
+14. **Action.result linking** — connect completed action to resulting reference
+15. **Project templates** — "Tax Prep 2025" as a reusable starting point

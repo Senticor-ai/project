@@ -182,8 +182,10 @@ Storybook stories use MSW to intercept API requests in-browser, enabling "connec
 - **OpenAPI UI**: `http://localhost:8000/docs`
 
 
-## Git
+## GitLab
 
+- **CLI**: Use `glab` (not `gh`) for all GitLab operations — issues, MRs, labels, milestones.
+- **Issue tracking**: Create GitLab issues for open/unvalidated work, features pending human testing, or tasks that need follow-up. This keeps work visible even when not yet code-complete.
 - Don't push unless explicitly asked.
 - Don't amend commits unless explicitly asked.
 - Don't force-push.
