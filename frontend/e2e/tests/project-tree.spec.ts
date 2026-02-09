@@ -34,7 +34,6 @@ test.describe("ProjectTree", () => {
     await apiSeed.createAction("Set up CI/CD", "next", {
       projectId,
       sequenceOrder: 1,
-      completedAt: new Date().toISOString(),
     });
     await apiSeed.createAction("Implement auth", "next", {
       projectId,

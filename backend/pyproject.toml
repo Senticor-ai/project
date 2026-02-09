@@ -20,7 +20,7 @@ dependencies = [
   # [tool.uv.sources] can redirect them to the pytorch-cpu index).
   "torch",
   "torchvision",
-  "triton",
+  "triton; sys_platform == 'linux'",
 ]
 
 [project.optional-dependencies]

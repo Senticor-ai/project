@@ -5,6 +5,7 @@ import {
   DuplicateImportWarning,
   type PreviousImport,
 } from "@/components/settings/DuplicateImportWarning";
+import { ImportSummaryBreakdown } from "./ImportSummaryBreakdown";
 import type { Bucket } from "@/model/types";
 
 export interface NirvanaImportDialogProps {
@@ -180,29 +181,10 @@ function NirvanaImportDialogContent({
             </p>
 
             {/* Bucket breakdown */}
-            <div className="space-y-1">
-              {Object.entries(preview.bucket_counts).map(([bucket, count]) => {
-                const completed = preview.completed_counts?.[bucket] ?? 0;
-                return (
-                  <div
-                    key={bucket}
-                    className="flex items-center justify-between text-sm"
-                  >
-                    <span className="capitalize text-text-muted">{bucket}</span>
-                    <span className="flex items-center gap-2">
-                      <span className="font-mono text-text-primary">
-                        {count}
-                      </span>
-                      {completed > 0 && (
-                        <span className="text-xs text-text-subtle">
-                          ({completed} completed)
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+            <ImportSummaryBreakdown
+              bucketCounts={preview.bucket_counts}
+              completedCounts={preview.completed_counts}
+            />
 
             {/* Include completed toggle */}
             <label className="flex items-center gap-2 text-sm text-text-muted">
@@ -295,44 +277,14 @@ function NirvanaImportDialogContent({
               </div>
 
               {/* Bucket breakdown — clickable rows */}
-              {Object.keys(finalSummary.bucket_counts).length > 0 && (
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-text-muted">
-                    By bucket
-                  </p>
-                  {Object.entries(finalSummary.bucket_counts).map(
-                    ([bucket, count]) => {
-                      const completed =
-                        finalSummary.completed_counts?.[bucket] ?? 0;
-                      return (
-                        <button
-                          key={bucket}
-                          type="button"
-                          onClick={() => {
-                            onNavigateToBucket?.(bucket as Bucket);
-                            onClose();
-                          }}
-                          className="flex w-full items-center justify-between rounded-[var(--radius-sm)] px-2 py-1 text-sm transition-colors hover:bg-paper-100"
-                        >
-                          <span className="capitalize text-text-muted">
-                            {bucket}
-                          </span>
-                          <span className="flex items-center gap-2">
-                            <span className="font-mono text-text-primary">
-                              {count}
-                            </span>
-                            {completed > 0 && (
-                              <span className="text-xs text-text-subtle">
-                                ({completed} completed)
-                              </span>
-                            )}
-                          </span>
-                        </button>
-                      );
-                    },
-                  )}
-                </div>
-              )}
+              <ImportSummaryBreakdown
+                bucketCounts={finalSummary.bucket_counts}
+                completedCounts={finalSummary.completed_counts}
+                onBucketClick={(bucket) => {
+                  onNavigateToBucket?.(bucket as Bucket);
+                  onClose();
+                }}
+              />
 
               {/* Error details */}
               {jobData?.error && (

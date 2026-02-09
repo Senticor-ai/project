@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect } from "storybook/test";
 import { ThingList } from "./ThingList";
-import type { Thing, ItemEditableFields } from "@/model/types";
+import type { Thing, ItemEditableFields, ThingBucket } from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
 import {
   createThing,
@@ -69,7 +69,9 @@ function WorkflowApp({
       }}
       onMove={(id, targetBucket) => {
         setThings((prev) =>
-          prev.map((t) => (t.id === id ? { ...t, bucket: targetBucket } : t)),
+          prev.map((t) =>
+            t.id === id ? { ...t, bucket: targetBucket as ThingBucket } : t,
+          ),
         );
       }}
       onArchive={(id) => {
@@ -77,7 +79,7 @@ function WorkflowApp({
       }}
       onEdit={(id: CanonicalId, fields: Partial<ItemEditableFields>) => {
         setThings((prev) =>
-          prev.map((t) => (t.id === id ? { ...t, ...fields } : t)),
+          prev.map((t) => (t.id === id ? ({ ...t, ...fields } as Thing) : t)),
         );
       }}
       onUpdateTitle={(id: CanonicalId, newTitle: string) => {
@@ -119,27 +121,18 @@ export const CaptureThreeTodos: Story = {
     const input = canvas.getByLabelText("Capture a thought");
 
     await step("Capture personal todo", async () => {
-      await userEvent.type(input, "Buy groceries for the week{Enter}");
-      await expect(
-        canvas.getByText("Buy groceries for the week"),
-      ).toBeInTheDocument();
+      await userEvent.type(input, "Buy groceries{Enter}");
+      await expect(canvas.getByText("Buy groceries")).toBeInTheDocument();
     });
 
     await step("Capture business call todo", async () => {
-      await userEvent.type(input, "Call client about Q1 proposal{Enter}");
-      await expect(
-        canvas.getByText("Call client about Q1 proposal"),
-      ).toBeInTheDocument();
+      await userEvent.type(input, "Call client{Enter}");
+      await expect(canvas.getByText("Call client")).toBeInTheDocument();
     });
 
     await step("Capture project todo", async () => {
-      await userEvent.type(
-        input,
-        "Draft project brief for website redesign{Enter}",
-      );
-      await expect(
-        canvas.getByText("Draft project brief for website redesign"),
-      ).toBeInTheDocument();
+      await userEvent.type(input, "Draft brief{Enter}");
+      await expect(canvas.getByText("Draft brief")).toBeInTheDocument();
     });
 
     await expect(canvas.getByText(/3 items to process/)).toBeInTheDocument();

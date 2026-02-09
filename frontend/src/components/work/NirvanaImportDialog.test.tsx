@@ -140,7 +140,7 @@ describe("NirvanaImportDialog", () => {
     );
   });
 
-  it("shows bucket breakdown in preview", async () => {
+  it("shows bucket breakdown in preview with active/completed split", async () => {
     const user = userEvent.setup();
     renderDialog();
 
@@ -149,8 +149,11 @@ describe("NirvanaImportDialog", () => {
     await user.upload(fileInput, file);
 
     await waitFor(() => {
-      expect(screen.getByText(/next/i)).toBeInTheDocument();
-      expect(screen.getByText("60")).toBeInTheDocument();
+      // Active section: next = 60 - 45 = 15
+      expect(screen.getByText(/Active items/)).toBeInTheDocument();
+      expect(screen.getByText("15")).toBeInTheDocument();
+      // Completed section header
+      expect(screen.getByText(/Completed/)).toBeInTheDocument();
     });
   });
 
@@ -194,7 +197,7 @@ describe("NirvanaImportDialog", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("shows completed counts annotation in bucket breakdown", async () => {
+  it("shows active and completed sections in bucket breakdown", async () => {
     const user = userEvent.setup();
     renderDialog();
 
@@ -203,11 +206,13 @@ describe("NirvanaImportDialog", () => {
     await user.upload(fileInput, file);
 
     await waitFor(() => {
-      expect(screen.getByText("(45 completed)")).toBeInTheDocument();
-      expect(screen.getByText("(2 completed)")).toBeInTheDocument();
+      // Active section shows active counts
+      expect(screen.getByText(/Active items/)).toBeInTheDocument();
+      // Completed section shows completed counts (45 + 2 = 47)
+      expect(
+        screen.getByText(/Completed \/ archived \(47\)/),
+      ).toBeInTheDocument();
     });
-    // Buckets with 0 completed should not show the annotation
-    expect(screen.queryByText("(0 completed)")).not.toBeInTheDocument();
   });
 
   it("shows correct import count excluding skipped items", async () => {

@@ -263,7 +263,7 @@ def process_batch(limit: int = 25) -> int:
         if not events:
             logger.debug("outbox.idle")
             return 0
-        logger.info("outbox.batch_fetched", fetched=len(events), limit=limit)
+        logger.debug("outbox.batch_fetched", fetched=len(events), limit=limit)
 
         processed = 0
         for event in events:
@@ -489,7 +489,7 @@ def process_batch(limit: int = 25) -> int:
                     )
 
         conn.commit()
-        logger.info("outbox.batch_done", fetched=len(events), processed=processed, limit=limit)
+        logger.debug("outbox.batch_done", fetched=len(events), processed=processed, limit=limit)
         return processed
 
 
