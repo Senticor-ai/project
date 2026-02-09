@@ -10,11 +10,15 @@ images:
     newTag: "42010d96"
   - name: terminandoyo-frontend
     newName: harbor.100-114-108-51.nip.io:30443/terminandoyo/frontend
-    newTag: "42010d96"
+    newTag: "d1adad7"
+  - name: terminandoyo-storybook
+    newName: harbor.100-114-108-51.nip.io:30443/terminandoyo/storybook
+    newTag: "6c71b4de"
 
 patches:
   - path: patches/backend.yaml
   - path: patches/worker.yaml
   - path: patches/push-worker.yaml
   - path: patches/frontend.yaml
+  - path: patches/storybook.yaml
   - path: patches/postgres.yaml

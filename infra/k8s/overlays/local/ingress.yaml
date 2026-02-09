@@ -7,6 +7,13 @@ spec:
   rules:
     - http:
         paths:
+          - path: /storybook
+            pathType: Prefix
+            backend:
+              service:
+                name: storybook
+                port:
+                  number: 80
           - path: /
             pathType: Prefix
             backend:

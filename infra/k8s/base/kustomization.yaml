@@ -7,3 +7,4 @@ resources:
   - worker.yaml
   - push-worker.yaml
   - frontend.yaml
+  - storybook.yaml

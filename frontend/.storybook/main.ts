@@ -1,12 +1,9 @@
-import type { StorybookConfig } from '@storybook/react-vite';
-import remarkGfm from 'remark-gfm';
+import type { StorybookConfig } from "@storybook/react-vite";
+import remarkGfm from "remark-gfm";
 
 const config: StorybookConfig = {
-  "stories": [
-    "../src/**/*.mdx",
-    "../src/**/*.stories.@(js|jsx|mjs|ts|tsx)"
-  ],
-  "addons": [
+  stories: ["../src/**/*.mdx", "../src/**/*.stories.@(js|jsx|mjs|ts|tsx)"],
+  addons: [
     "@chromatic-com/storybook",
     "@storybook/addon-vitest",
     "@storybook/addon-a11y",
@@ -20,8 +17,14 @@ const config: StorybookConfig = {
         },
       },
     },
-    "@storybook/addon-onboarding"
+    "@storybook/addon-onboarding",
   ],
-  "framework": "@storybook/react-vite"
+  framework: "@storybook/react-vite",
+  viteFinal: (config) => {
+    if (process.env.STORYBOOK_BASE) {
+      config.base = process.env.STORYBOOK_BASE;
+    }
+    return config;
+  },
 };
 export default config;

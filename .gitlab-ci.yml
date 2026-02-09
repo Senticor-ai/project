@@ -11,7 +11,6 @@ stages:
   - build
   - push
   - deploy
-  - pages
 
 variables:
   # Pre-built CI image with Node 24 + Python 3.12 + Playwright + uv.
@@ -316,26 +315,7 @@ frontend-e2e:
       - frontend/playwright-report/
       - frontend/test-results/
 
-# ==================== PAGES (Storybook → GitLab Pages) ====================
-
-pages:
-  stage: pages
-  needs:
-    - job: build-ci-image
-      optional: true
-  image: $CI_NODE_PYTHON_IMAGE
-  extends: [.frontend-cache]
-  before_script:
-    - cd frontend && npm ci --silent
-  script:
-    - npx storybook build -o ../public
-  artifacts:
-    paths:
-      - public
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
-
-# ==================== BUILD (parallel frontend + backend, starts immediately) ====================
+# ==================== BUILD (parallel frontend + backend + storybook, starts immediately) ====================
 
 .build-base:
   stage: build
@@ -362,7 +342,16 @@ build-backend:
     paths: [/tmp/backend.tar]
     expire_in: 1 hour
 
-# ==================== PUSH (parallel frontend + backend) ====================
+build-storybook:
+  extends: .build-base
+  needs: []
+  script:
+    - /kaniko/executor --context "$CI_PROJECT_DIR" --dockerfile "$CI_PROJECT_DIR/frontend/Dockerfile.storybook" --build-arg STORYBOOK_BASE=/storybook/ --no-push --tarPath /tmp/storybook.tar
+  artifacts:
+    paths: [/tmp/storybook.tar]
+    expire_in: 1 hour
+
+# ==================== PUSH (parallel frontend + backend + storybook) ====================
 
 .push-base:
   stage: push
@@ -392,12 +381,20 @@ push-backend:
       IMAGE_TAG="${CI_COMMIT_SHORT_SHA}"
       /kaniko/executor --context "$CI_PROJECT_DIR" --dockerfile "$CI_PROJECT_DIR/backend/Dockerfile" --destination "${HARBOR_REGISTRY}/terminandoyo/backend:${IMAGE_TAG}" --insecure --skip-tls-verify
 
+push-storybook:
+  extends: .push-base
+  needs: [build-storybook]
+  script:
+    - |
+      IMAGE_TAG="${CI_COMMIT_SHORT_SHA}"
+      /kaniko/executor --context "$CI_PROJECT_DIR" --dockerfile "$CI_PROJECT_DIR/frontend/Dockerfile.storybook" --build-arg STORYBOOK_BASE=/storybook/ --destination "${HARBOR_REGISTRY}/terminandoyo/storybook:${IMAGE_TAG}" --insecure --skip-tls-verify
+
 # ==================== DEPLOY ====================
 
 update-manifests:
   stage: deploy
   image: alpine:3.20
-  needs: [push-frontend, push-backend]
+  needs: [push-frontend, push-backend, push-storybook]
   before_script:
     - apk add --no-cache git sed
   script:
@@ -407,6 +404,7 @@ update-manifests:
       echo "Updating kustomization to registry: ${HARBOR_REGISTRY}, tag: ${IMAGE_TAG}"
       sed -i "s|newName: .*/backend|newName: ${HARBOR_REGISTRY}/terminandoyo/backend|" "$KUST"
       sed -i "s|newName: .*/frontend|newName: ${HARBOR_REGISTRY}/terminandoyo/frontend|" "$KUST"
+      sed -i "s|newName: .*/storybook|newName: ${HARBOR_REGISTRY}/terminandoyo/storybook|" "$KUST"
       sed -i "s/newTag: .*/newTag: \"${IMAGE_TAG}\"/" "$KUST"
       cat "$KUST"
       git config user.email "ci@terminandoyo.dev"
