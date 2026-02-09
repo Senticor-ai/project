@@ -75,7 +75,6 @@ export function ThingList({
   const [expandedId, setExpandedId] = useState<CanonicalId | null>(null);
   const [selectedContexts, setSelectedContexts] = useState<string[]>([]);
   const [showCompleted, setShowCompleted] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [captureError, setCaptureError] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const meta = bucketMeta[bucket];
@@ -89,20 +88,16 @@ export function ThingList({
     setExpandedId((prev) => (prev === id ? null : id));
   }, []);
 
-  const handleAdd = useCallback(async () => {
+  const handleAdd = useCallback(() => {
     const trimmed = entryText.trim();
     if (!trimmed) return;
     setCaptureError(null);
-    setIsSubmitting(true);
-    try {
-      await onAdd(trimmed);
-      setEntryText("");
-      inputRef.current?.focus();
-    } catch {
+    setEntryText("");
+    inputRef.current?.focus();
+    // Fire and forget — show error on failure but don't restore text
+    Promise.resolve(onAdd(trimmed)).catch(() => {
       setCaptureError("Capture failed — please try again.");
-    } finally {
-      setIsSubmitting(false);
-    }
+    });
   }, [entryText, onAdd]);
 
   // Filter active items (active query never returns completed items)
@@ -222,10 +217,7 @@ export function ThingList({
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <span className="text-text-subtle">
-              <Icon
-                name={isSubmitting ? "progress_activity" : "add"}
-                size={16}
-              />
+              <Icon name="add" size={16} />
             </span>
             <AutoGrowTextarea
               ref={inputRef}
@@ -236,14 +228,13 @@ export function ThingList({
               }}
               submitOnEnter
               onSubmit={handleAdd}
-              disabled={isSubmitting}
               placeholder={
                 isInbox
                   ? "Capture a thought..."
                   : "Rapid Entry — type here and hit enter"
               }
               aria-label={isInbox ? "Capture a thought" : "Rapid entry"}
-              className="flex-1 bg-transparent text-sm text-text outline-none placeholder:text-text-subtle disabled:opacity-50"
+              className="flex-1 bg-transparent text-sm text-text outline-none placeholder:text-text-subtle"
             />
           </div>
           {captureError && (

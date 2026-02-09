@@ -324,8 +324,15 @@ export type SyncResponse = {
   server_time: string;
 };
 
-export function downloadExport(format: "json" | "csv") {
-  const url = `${API_BASE_URL}/things/export?format=${format}`;
+export function downloadExport(options: {
+  includeArchived: boolean;
+  includeCompleted: boolean;
+}) {
+  const params = new URLSearchParams();
+  if (options.includeArchived) params.set("include_archived", "true");
+  if (options.includeCompleted) params.set("include_completed", "true");
+  const qs = params.toString();
+  const url = `${API_BASE_URL}/things/export${qs ? `?${qs}` : ""}`;
   const a = document.createElement("a");
   a.href = url;
   a.download = "";

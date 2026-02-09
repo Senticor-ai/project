@@ -133,6 +133,41 @@ export const WithNotesExpanded: Story = {
   },
 };
 
+/** Collapsed row with short notes visible below the title. */
+export const WithNotesPreview: Story = {
+  args: {
+    thing: createThing({
+      rawCapture: "Call the office about insurance",
+      bucket: "next",
+      description: "Ask about claim #12345 and policy renewal deadline.",
+    }),
+  },
+};
+
+/** Collapsed row with long multi-line notes, truncated at 10 lines. */
+export const WithLongNotesPreview: Story = {
+  args: {
+    thing: createThing({
+      rawCapture: "Project planning notes",
+      bucket: "next",
+      description: [
+        "1. Review current sprint backlog",
+        "2. Identify blockers for team",
+        "3. Schedule stakeholder meeting",
+        "4. Update project timeline",
+        "5. Assign new tasks to developers",
+        "6. Review pull requests",
+        "7. Update documentation",
+        "8. Prepare demo for Friday",
+        "9. Check CI/CD pipeline status",
+        "10. Review code coverage reports",
+        "11. Plan next sprint goals",
+        "12. Update risk register",
+      ].join("\n"),
+    }),
+  },
+};
+
 /** Item with an explicit name (after user rename). */
 export const NamedItem: Story = {
   args: {
@@ -211,6 +246,52 @@ export const ClickNotesIcon: Story = {
   play: async ({ canvas, args, userEvent }) => {
     await userEvent.click(canvas.getByLabelText("Show notes for Has notes"));
     await expect(args.onToggleExpand).toHaveBeenCalled();
+  },
+};
+
+/** Expanded row where clicking the title collapses it (title stays a button). */
+export const ExpandedCollapsible: Story = {
+  args: {
+    thing: createThing({
+      rawCapture: "Collapsible item",
+      bucket: "next",
+    }),
+    isExpanded: true,
+    onToggleExpand: fn(),
+    onEdit: fn(),
+    onUpdateTitle: fn(),
+  },
+  play: async ({ canvas, args, userEvent }) => {
+    // Title is a button, not a textarea
+    const titleBtn = canvas.getByRole("button", { name: "Collapsible item" });
+    await expect(titleBtn).toBeInTheDocument();
+    // Click title to collapse
+    await userEvent.click(titleBtn);
+    await expect(args.onToggleExpand).toHaveBeenCalled();
+  },
+};
+
+/** Click pencil icon when expanded to enter title editing mode. */
+export const ExpandedTitleEditing: Story = {
+  args: {
+    thing: createThing({
+      rawCapture: "Rename me",
+      bucket: "next",
+    }),
+    isExpanded: true,
+    onToggleExpand: fn(),
+    onEdit: fn(),
+    onUpdateTitle: fn(),
+  },
+  play: async ({ canvas, userEvent }) => {
+    // Title starts as a button
+    await expect(
+      canvas.getByRole("button", { name: "Rename me" }),
+    ).toBeInTheDocument();
+    // Click pencil icon to enter editing
+    await userEvent.click(canvas.getByLabelText("Rename Rename me"));
+    // Now title is a textarea
+    await expect(canvas.getByDisplayValue("Rename me")).toBeInTheDocument();
   },
 };
 

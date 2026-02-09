@@ -5,7 +5,10 @@ import { DeveloperPanel } from "./DeveloperPanel";
 import { ImportExportPanel } from "./ImportExportPanel";
 import { LabelsPanel } from "./LabelsPanel";
 import { PreferencesPanel } from "./PreferencesPanel";
-import { DEFAULT_PREFERENCES, type ExportFormat } from "@/model/settings-types";
+import {
+  DEFAULT_PREFERENCES,
+  type ExportOptions,
+} from "@/model/settings-types";
 import type { ImportJobData } from "./ImportJobRow";
 
 export type SettingsTab =
@@ -29,7 +32,7 @@ export interface SettingsScreenProps {
   /** @deprecated Use activeTab instead. Only used in uncontrolled mode. */
   initialTab?: SettingsTab;
   onImportNirvana?: () => void;
-  onExport?: (format: ExportFormat) => void;
+  onExport?: (options: ExportOptions) => void;
   onFlush?: () => Promise<import("@/lib/api-client").FlushResponse>;
   importJobs?: ImportJobData[];
   className?: string;

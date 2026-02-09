@@ -270,6 +270,49 @@ export const ToggleCompletedInteractive: Story = {
   },
 };
 
+/** Type multiple entries rapidly — input clears instantly after each Enter. */
+export const RapidMultiEntry: Story = {
+  render: function RapidEntryDemo() {
+    const [things, setThings] = useState<Thing[]>([]);
+
+    return (
+      <ThingList
+        bucket="next"
+        things={things}
+        onAdd={(title) => {
+          // Simulate 500ms API delay
+          return new Promise<void>((resolve) => {
+            setTimeout(() => {
+              setThings((prev) => [
+                ...prev,
+                createThing({ rawCapture: title, bucket: "next" }),
+              ]);
+              resolve();
+            }, 500);
+          });
+        }}
+        onComplete={fn()}
+        onToggleFocus={fn()}
+        onMove={fn()}
+        onArchive={fn()}
+      />
+    );
+  },
+  play: async ({ canvas, userEvent, step }) => {
+    const input = canvas.getByLabelText("Rapid entry");
+
+    await step("Type three entries rapidly", async () => {
+      await userEvent.type(input, "Buy office supplies{Enter}");
+      await userEvent.type(input, "Schedule meeting{Enter}");
+      await userEvent.type(input, "Review PR{Enter}");
+    });
+
+    // Input is clear and ready for more
+    await expect(input).toHaveValue("");
+    await expect(input).not.toBeDisabled();
+  },
+};
+
 /** Click the star to focus an action — it sorts to the top. */
 export const FocusFromList: Story = {
   render: function FocusDemo() {

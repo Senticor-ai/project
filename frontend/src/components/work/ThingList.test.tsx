@@ -325,14 +325,14 @@ describe("ThingList", () => {
     expect(onAdd).not.toHaveBeenCalled();
   });
 
-  it("preserves input text when onAdd rejects", async () => {
+  it("clears input optimistically even when onAdd rejects", async () => {
     const user = userEvent.setup();
     const onAdd = vi.fn().mockRejectedValue(new Error("Network error"));
     renderThingList({ bucket: "inbox", onAdd });
     const input = screen.getByLabelText("Capture a thought");
     await user.type(input, "Buy groceries{Enter}");
-    // Input text should be preserved when the mutation fails
-    expect(input).toHaveValue("Buy groceries");
+    // Input is cleared optimistically — not restored on error
+    expect(input).toHaveValue("");
   });
 
   it("clears input text when onAdd resolves", async () => {
@@ -353,23 +353,31 @@ describe("ThingList", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(/failed/i);
   });
 
-  it("disables input while onAdd is pending", async () => {
+  it("does not disable input while onAdd is pending", async () => {
     const user = userEvent.setup();
-    let resolve: () => void;
     const onAdd = vi.fn(
-      () =>
-        new Promise<void>((r) => {
-          resolve = r;
-        }),
+      () => new Promise<void>(() => {}), // never resolves
     );
     renderThingList({ bucket: "inbox", onAdd });
     const input = screen.getByLabelText("Capture a thought");
     await user.type(input, "Buy groceries{Enter}");
-    // Input should be disabled while the promise is pending
-    expect(input).toBeDisabled();
-    // Resolve the promise and verify input is re-enabled
-    resolve!();
-    await vi.waitFor(() => expect(input).not.toBeDisabled());
+    // Input should NOT be disabled — optimistic clearing
+    expect(input).not.toBeDisabled();
+    expect(input).toHaveValue("");
+  });
+
+  it("allows immediate second entry while first is pending", async () => {
+    const user = userEvent.setup();
+    const onAdd = vi.fn(
+      () => new Promise<void>(() => {}), // never resolves
+    );
+    renderThingList({ bucket: "inbox", onAdd });
+    const input = screen.getByLabelText("Capture a thought");
+    await user.type(input, "First{Enter}");
+    await user.type(input, "Second{Enter}");
+    expect(onAdd).toHaveBeenCalledTimes(2);
+    expect(onAdd).toHaveBeenCalledWith("First");
+    expect(onAdd).toHaveBeenCalledWith("Second");
   });
 
   // -------------------------------------------------------------------------
@@ -467,7 +475,10 @@ describe("ThingList", () => {
     const user = userEvent.setup();
     const things = [createThing({ name: "Expandable item", bucket: "next" })];
     renderThingList({ bucket: "next", things, onUpdateTitle: vi.fn() });
+    // Click title expands the row (title stays a button)
     await user.click(screen.getByText("Expandable item"));
+    // Row is expanded — rename button appears, click it to enter title editing
+    await user.click(screen.getByLabelText("Rename Expandable item"));
     expect(screen.getByDisplayValue("Expandable item")).toBeInTheDocument();
   });
 
@@ -476,7 +487,9 @@ describe("ThingList", () => {
     const things = [createThing({ name: "Edit me", bucket: "next" })];
     const onUpdateTitle = vi.fn();
     renderThingList({ bucket: "next", things, onUpdateTitle });
+    // Expand row, then enter title editing
     await user.click(screen.getByText("Edit me"));
+    await user.click(screen.getByLabelText("Rename Edit me"));
     const input = screen.getByDisplayValue("Edit me");
     await user.clear(input);
     await user.type(input, "Edited title");
@@ -490,7 +503,9 @@ describe("ThingList", () => {
     const things = [createThing({ name: "Keep me", bucket: "next" })];
     const onUpdateTitle = vi.fn();
     renderThingList({ bucket: "next", things, onUpdateTitle });
+    // Expand row, then enter title editing
     await user.click(screen.getByText("Keep me"));
+    await user.click(screen.getByLabelText("Rename Keep me"));
     const input = screen.getByDisplayValue("Keep me");
     await user.clear(input);
     await user.type(input, "Changed");

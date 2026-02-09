@@ -1,11 +1,8 @@
 import base64
-import csv
 import hashlib
-import io
 import json
 from collections.abc import Iterator
 from datetime import UTC, datetime
-from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -32,20 +29,6 @@ router = APIRouter(
     tags=["things"],
     dependencies=[Depends(get_current_user)],
 )
-
-_EXPORT_CSV_HEADERS = [
-    "thing_id",
-    "canonical_id",
-    "source",
-    "type",
-    "name",
-    "raw_capture",
-    "description",
-    "bucket",
-    "created_at",
-    "updated_at",
-]
-
 
 def _hash_payload(payload: dict) -> str:
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -235,30 +218,6 @@ def _get_additional_property(thing: dict, property_id: str):
     return None
 
 
-def _coerce_csv_value(value: Any) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, (dict, list)):
-        return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
-    return str(value)
-
-
-def _build_export_csv_row(row) -> dict[str, str]:
-    thing = row["schema_jsonld"] if isinstance(row["schema_jsonld"], dict) else {}
-    return {
-        "thing_id": str(row["thing_id"]),
-        "canonical_id": str(row["canonical_id"]),
-        "source": str(row["source"] or ""),
-        "type": _coerce_csv_value(thing.get("@type")),
-        "name": _coerce_csv_value(thing.get("name")),
-        "raw_capture": _coerce_csv_value(thing.get("rawCapture")),
-        "description": _coerce_csv_value(thing.get("description")),
-        "bucket": _coerce_csv_value(_get_additional_property(thing, "app:bucket")),
-        "created_at": row["created_at"].isoformat(),
-        "updated_at": row["updated_at"].isoformat(),
-    }
-
-
 def _stream_export_json(rows) -> Iterator[bytes]:
     yield b"["
     for index, row in enumerate(rows):
@@ -267,22 +226,6 @@ def _stream_export_json(rows) -> Iterator[bytes]:
         payload = _dump_response_model(_build_thing_response(row))
         yield json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     yield b"]"
-
-
-def _stream_export_csv(rows) -> Iterator[bytes]:
-    buffer = io.StringIO()
-    writer = csv.DictWriter(buffer, fieldnames=_EXPORT_CSV_HEADERS, lineterminator="\n")
-
-    writer.writeheader()
-    yield buffer.getvalue().encode("utf-8")
-    buffer.seek(0)
-    buffer.truncate(0)
-
-    for row in rows:
-        writer.writerow(_build_export_csv_row(row))
-        yield buffer.getvalue().encode("utf-8")
-        buffer.seek(0)
-        buffer.truncate(0)
 
 
 def _validate_action_bucket(thing: dict) -> None:
@@ -299,21 +242,27 @@ def _validate_action_bucket(thing: dict) -> None:
 
 @router.get("/export", summary="Export all things")
 def export_things(
-    format: str = "json",
+    include_archived: bool = False,
+    include_completed: bool = False,
     current_org=Depends(get_current_org),
 ):
-    export_format = format.lower()
-    if export_format not in {"json", "csv"}:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid format; expected 'json' or 'csv'",
-        )
-
     org_id = current_org["org_id"]
+
+    conditions = ["org_id = %s"]
+    params: list = [org_id]
+
+    if not include_archived:
+        conditions.append("archived_at IS NULL")
+
+    if not include_completed:
+        conditions.append("(schema_jsonld->>'endTime') IS NULL")
+
+    where_clause = " AND ".join(conditions)
+
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                """
+                f"""
                 SELECT
                     thing_id,
                     canonical_id,
@@ -323,27 +272,20 @@ def export_things(
                     created_at,
                     updated_at
                 FROM things
-                WHERE archived_at IS NULL AND org_id = %s
+                WHERE {where_clause}
                 ORDER BY created_at ASC, thing_id ASC
                 """,
-                (org_id,),
+                tuple(params),
             )
             rows = cur.fetchall()
 
     timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-    filename = f"things-export-{timestamp}.{export_format}"
+    filename = f"things-export-{timestamp}.json"
     headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
 
-    if export_format == "json":
-        return StreamingResponse(
-            _stream_export_json(rows),
-            media_type="application/json",
-            headers=headers,
-        )
-
     return StreamingResponse(
-        _stream_export_csv(rows),
-        media_type="text/csv",
+        _stream_export_json(rows),
+        media_type="application/json",
         headers=headers,
     )
 

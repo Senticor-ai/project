@@ -11,7 +11,7 @@ describe("SettingsScreen", () => {
       screen.getByRole("button", { name: "Import from Nirvana" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Export as JSON" }),
+      screen.getByRole("button", { name: "Export JSON" }),
     ).toBeInTheDocument();
     // Verify tab is selected
     const tab = screen.getByText("Import / Export").closest("button")!;

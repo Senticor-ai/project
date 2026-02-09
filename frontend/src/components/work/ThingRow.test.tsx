@@ -155,6 +155,46 @@ describe("ThingRow rendering", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Notes preview
+// ---------------------------------------------------------------------------
+
+describe("ThingRow notes preview", () => {
+  it("shows notes preview when collapsed and description exists", () => {
+    renderRow({
+      thing: createThing({ name: "Task", description: "Some notes here" }),
+    });
+    expect(screen.getByText("Some notes here")).toBeInTheDocument();
+  });
+
+  it("hides notes preview when expanded", () => {
+    renderRow({
+      thing: createThing({ name: "Task", description: "Some notes here" }),
+      isExpanded: true,
+      onToggleExpand: vi.fn(),
+      onEdit: vi.fn(),
+    });
+    // The description text should not appear as a preview paragraph
+    // (ItemEditor has its own notes textarea, but that shows "Add notes..." placeholder)
+    const previewEl = screen.queryByLabelText("Notes for Task");
+    expect(previewEl).not.toBeInTheDocument();
+  });
+
+  it("hides notes preview when no description", () => {
+    renderRow({ thing: createThing({ name: "Task" }) });
+    expect(screen.queryByLabelText(/Notes for/)).not.toBeInTheDocument();
+  });
+
+  it("applies line-clamp to long notes", () => {
+    const longNotes = Array.from({ length: 15 }, (_, i) => `Line ${i + 1}`).join("\n");
+    renderRow({
+      thing: createThing({ name: "Task", description: longNotes }),
+    });
+    const preview = screen.getByLabelText("Notes for Task");
+    expect(preview).toHaveClass("line-clamp-[10]");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Interactions
 // ---------------------------------------------------------------------------
 
@@ -188,7 +228,7 @@ describe("ThingRow interactions", () => {
     expect(onToggleExpand).toHaveBeenCalled();
   });
 
-  it("calls onToggleExpand when edit button clicked", async () => {
+  it("calls onToggleExpand when edit button clicked (collapsed)", async () => {
     const user = userEvent.setup();
     const onToggleExpand = vi.fn();
     renderRow({
@@ -354,6 +394,93 @@ describe("ThingRow expanded", () => {
 // Title editing
 // ---------------------------------------------------------------------------
 
+describe("ThingRow title collapse", () => {
+  it("title is a button when expanded but not editing", () => {
+    renderRow({
+      thing: createThing({ name: "Task" }),
+      isExpanded: true,
+      onToggleExpand: vi.fn(),
+      onEdit: vi.fn(),
+    });
+    // Title should be a button, not a textarea
+    expect(screen.getByRole("button", { name: "Task" })).toBeInTheDocument();
+    expect(screen.queryByDisplayValue("Task")).not.toBeInTheDocument();
+  });
+
+  it("clicking title when expanded calls onToggleExpand", async () => {
+    const user = userEvent.setup();
+    const onToggleExpand = vi.fn();
+    renderRow({
+      thing: createThing({ name: "Task" }),
+      isExpanded: true,
+      onToggleExpand,
+      onEdit: vi.fn(),
+    });
+    await user.click(screen.getByRole("button", { name: "Task" }));
+    expect(onToggleExpand).toHaveBeenCalled();
+  });
+
+  it("clicking edit button when expanded enters title editing", async () => {
+    const user = userEvent.setup();
+    renderRow({
+      thing: createThing({ name: "Task" }),
+      isExpanded: true,
+      onToggleExpand: vi.fn(),
+      onEdit: vi.fn(),
+      onUpdateTitle: vi.fn(),
+    });
+    await user.click(screen.getByLabelText("Rename Task"));
+    expect(screen.getByDisplayValue("Task")).toBeInTheDocument();
+  });
+
+  it("title editing resets when row collapses", () => {
+    const thing = createThing({ name: "Task" });
+    const { rerender } = render(
+      <ThingRow
+        thing={thing}
+        onComplete={vi.fn()}
+        onToggleFocus={vi.fn()}
+        onMove={vi.fn()}
+        onArchive={vi.fn()}
+        isExpanded={true}
+        onToggleExpand={vi.fn()}
+        onEdit={vi.fn()}
+        onUpdateTitle={vi.fn()}
+      />,
+    );
+    // Re-render collapsed then expanded again
+    rerender(
+      <ThingRow
+        thing={thing}
+        onComplete={vi.fn()}
+        onToggleFocus={vi.fn()}
+        onMove={vi.fn()}
+        onArchive={vi.fn()}
+        isExpanded={false}
+        onToggleExpand={vi.fn()}
+        onEdit={vi.fn()}
+        onUpdateTitle={vi.fn()}
+      />,
+    );
+    rerender(
+      <ThingRow
+        thing={thing}
+        onComplete={vi.fn()}
+        onToggleFocus={vi.fn()}
+        onMove={vi.fn()}
+        onArchive={vi.fn()}
+        isExpanded={true}
+        onToggleExpand={vi.fn()}
+        onEdit={vi.fn()}
+        onUpdateTitle={vi.fn()}
+      />,
+    );
+    // Title should be a button (not editing), not a textarea
+    expect(screen.getByRole("button", { name: "Task" })).toBeInTheDocument();
+    expect(screen.queryByDisplayValue("Task")).not.toBeInTheDocument();
+  });
+});
+
 describe("ThingRow title editing", () => {
   it("saves title on Enter", async () => {
     const user = userEvent.setup();
@@ -366,6 +493,8 @@ describe("ThingRow title editing", () => {
       onUpdateTitle,
     });
 
+    // Click rename button to enter title editing mode
+    await user.click(screen.getByLabelText("Rename Old title"));
     const textarea = screen.getByDisplayValue("Old title");
     await user.clear(textarea);
     await user.type(textarea, "New title{Enter}");
@@ -383,10 +512,11 @@ describe("ThingRow title editing", () => {
       onUpdateTitle,
     });
 
+    // Click rename button to enter title editing mode
+    await user.click(screen.getByLabelText("Rename Original"));
     const textarea = screen.getByDisplayValue("Original");
     await user.clear(textarea);
     await user.type(textarea, "Changed{Escape}");
     expect(onUpdateTitle).not.toHaveBeenCalled();
-    expect(onToggleExpand).toHaveBeenCalled();
   });
 });

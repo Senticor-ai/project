@@ -112,16 +112,30 @@ export const ExportActions: Story = {
     onExport: fn(),
   },
   play: async ({ canvas, userEvent, args }) => {
-    // Click JSON export
-    await userEvent.click(
-      canvas.getByRole("button", { name: "Export as JSON" }),
-    );
-    expect(args.onExport).toHaveBeenCalledWith("json");
+    // Click JSON export with default filter state (both off)
+    await userEvent.click(canvas.getByRole("button", { name: "Export JSON" }));
+    expect(args.onExport).toHaveBeenCalledWith({
+      includeArchived: false,
+      includeCompleted: false,
+    });
+  },
+};
 
-    // Click CSV export
-    await userEvent.click(
-      canvas.getByRole("button", { name: "Export as CSV" }),
-    );
-    expect(args.onExport).toHaveBeenCalledWith("csv");
+export const ExportWithFilters: Story = {
+  args: {
+    onImportNirvana: fn(),
+    onExport: fn(),
+  },
+  play: async ({ canvas, userEvent, args }) => {
+    // Toggle both checkboxes on
+    await userEvent.click(canvas.getByLabelText("Include archived"));
+    await userEvent.click(canvas.getByLabelText("Include completed"));
+
+    // Export with both filters enabled
+    await userEvent.click(canvas.getByRole("button", { name: "Export JSON" }));
+    expect(args.onExport).toHaveBeenCalledWith({
+      includeArchived: true,
+      includeCompleted: true,
+    });
   },
 };

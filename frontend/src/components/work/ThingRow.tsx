@@ -112,6 +112,15 @@ export function ThingRow({
 }: ThingRowProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showMore, setShowMore] = useState(false);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [prevExpanded, setPrevExpanded] = useState(isExpanded);
+
+  // Reset title editing when row collapses (derived state pattern)
+  if (prevExpanded !== isExpanded) {
+    setPrevExpanded(isExpanded);
+    if (!isExpanded) setIsEditingTitle(false);
+  }
+
   const displayName = getDisplayName(thing);
   const isCompleted = !!thing.completedAt;
   const dueDateInfo = thing.dueDate ? formatDueDate(thing.dueDate) : null;
@@ -128,8 +137,12 @@ export function ThingRow({
   });
 
   const handleTitleClick = () => {
-    if (onToggleExpand) {
-      onToggleExpand();
+    if (isEditingTitle) {
+      // EditableTitle calls this on Enter/Escape — exit editing
+      setIsEditingTitle(false);
+    } else {
+      // Title button clicked — toggle expand/collapse
+      onToggleExpand?.();
     }
   };
 
@@ -197,18 +210,28 @@ export function ThingRow({
           />
         </button>
 
-        {/* Title — editable when expanded */}
-        <EditableTitle
-          title={displayName}
-          isEditing={isExpanded}
-          onSave={
-            onUpdateTitle
-              ? (newTitle) => onUpdateTitle(thing.id, newTitle)
-              : undefined
-          }
-          onToggleEdit={handleTitleClick}
-          completed={isCompleted}
-        />
+        {/* Title + notes preview column */}
+        <div className="flex min-w-0 flex-1 flex-col">
+          <EditableTitle
+            title={displayName}
+            isEditing={isEditingTitle}
+            onSave={
+              onUpdateTitle
+                ? (newTitle) => onUpdateTitle(thing.id, newTitle)
+                : undefined
+            }
+            onToggleEdit={handleTitleClick}
+            completed={isCompleted}
+          />
+          {!isExpanded && thing.description && (
+            <p
+              aria-label={`Notes for ${displayName}`}
+              className="mt-0.5 whitespace-pre-wrap text-xs text-text-muted line-clamp-[10]"
+            >
+              {thing.description}
+            </p>
+          )}
+        </div>
 
         {/* Subtitle for non-thought sources */}
         {subtitle && (
@@ -241,8 +264,16 @@ export function ThingRow({
         {/* Edit button (hover) */}
         {onToggleExpand && (
           <button
-            onClick={onToggleExpand}
-            aria-label={`Edit ${displayName}`}
+            onClick={() => {
+              if (isExpanded) {
+                setIsEditingTitle(true);
+              } else {
+                onToggleExpand();
+              }
+            }}
+            aria-label={
+              isExpanded ? `Rename ${displayName}` : `Edit ${displayName}`
+            }
             className="shrink-0 text-text-subtle opacity-0 hover:text-text group-hover:opacity-100"
           >
             <Icon name="edit" size={16} />

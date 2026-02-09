@@ -24,14 +24,19 @@ export class SettingsPage {
     return this.page.getByRole("button", { name: "Import from Nirvana" });
   }
 
-  /** Export as JSON button. */
+  /** Export JSON button. */
   exportJsonButton(): Locator {
-    return this.page.getByRole("button", { name: "Export as JSON" });
+    return this.page.getByRole("button", { name: "Export JSON" });
   }
 
-  /** Export as CSV button. */
-  exportCsvButton(): Locator {
-    return this.page.getByRole("button", { name: "Export as CSV" });
+  /** Include archived checkbox. */
+  includeArchivedCheckbox(): Locator {
+    return this.page.getByLabel("Include archived");
+  }
+
+  /** Include completed checkbox. */
+  includeCompletedCheckbox(): Locator {
+    return this.page.getByLabel("Include completed");
   }
 
   /** Recent imports section heading. */

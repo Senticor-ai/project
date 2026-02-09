@@ -1,11 +1,12 @@
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
-import { IMPORT_SOURCES, type ExportFormat } from "@/model/settings-types";
+import { IMPORT_SOURCES, type ExportOptions } from "@/model/settings-types";
 import { ImportJobRow, type ImportJobData } from "./ImportJobRow";
 
 export interface ImportExportPanelProps {
   onImportNirvana: () => void;
-  onExport: (format: ExportFormat) => void;
+  onExport: (options: ExportOptions) => void;
   importJobs?: ImportJobData[];
   className?: string;
 }
@@ -16,6 +17,8 @@ export function ImportExportPanel({
   importJobs,
   className,
 }: ImportExportPanelProps) {
+  const [includeArchived, setIncludeArchived] = useState(false);
+  const [includeCompleted, setIncludeCompleted] = useState(false);
   return (
     <div className={cn("space-y-6", className)}>
       {/* Import Section */}
@@ -95,26 +98,35 @@ export function ImportExportPanel({
         <p className="text-xs text-text-subtle">
           Export all your GTD items to a file for backup or migration.
         </p>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => onExport("json")}
-            aria-label="Export as JSON"
-            className="flex items-center gap-2 rounded-[var(--radius-md)] border border-border px-4 py-2 text-sm transition-colors hover:bg-paper-100"
-          >
-            <Icon name="data_object" size={16} />
-            JSON
-          </button>
-          <button
-            type="button"
-            onClick={() => onExport("csv")}
-            aria-label="Export as CSV"
-            className="flex items-center gap-2 rounded-[var(--radius-md)] border border-border px-4 py-2 text-sm transition-colors hover:bg-paper-100"
-          >
-            <Icon name="table_chart" size={16} />
-            CSV
-          </button>
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 text-sm text-text-muted">
+            <input
+              type="checkbox"
+              checked={includeArchived}
+              onChange={(e) => setIncludeArchived(e.target.checked)}
+              aria-label="Include archived"
+            />
+            Include archived
+          </label>
+          <label className="flex items-center gap-2 text-sm text-text-muted">
+            <input
+              type="checkbox"
+              checked={includeCompleted}
+              onChange={(e) => setIncludeCompleted(e.target.checked)}
+              aria-label="Include completed"
+            />
+            Include completed
+          </label>
         </div>
+        <button
+          type="button"
+          onClick={() => onExport({ includeArchived, includeCompleted })}
+          aria-label="Export JSON"
+          className="flex items-center gap-2 rounded-[var(--radius-md)] border border-border px-4 py-2 text-sm transition-colors hover:bg-paper-100"
+        >
+          <Icon name="data_object" size={16} />
+          Export JSON
+        </button>
       </section>
     </div>
   );

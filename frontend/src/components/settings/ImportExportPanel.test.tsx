@@ -10,8 +10,8 @@ describe("ImportExportPanel", () => {
     expect(screen.getByText("Nirvana")).toBeInTheDocument();
     expect(screen.getByText("Things 3")).toBeInTheDocument();
     expect(screen.getByText("Todoist")).toBeInTheDocument();
-    // CSV appears in both import card and export button, check both exist
-    expect(screen.getAllByText("CSV")).toHaveLength(2);
+    // CSV only appears in import card now (no CSV export button)
+    expect(screen.getAllByText("CSV")).toHaveLength(1);
   });
 
   it("shows Nirvana as available with import button", () => {
@@ -42,25 +42,52 @@ describe("ImportExportPanel", () => {
     expect(onImportNirvana).toHaveBeenCalled();
   });
 
-  it("renders export buttons for JSON and CSV", () => {
+  it("renders single Export JSON button and filter checkboxes", () => {
     render(<ImportExportPanel onImportNirvana={vi.fn()} onExport={vi.fn()} />);
     expect(
-      screen.getByRole("button", { name: "Export as JSON" }),
+      screen.getByRole("button", { name: "Export JSON" }),
     ).toBeInTheDocument();
+    expect(screen.getByLabelText("Include archived")).not.toBeChecked();
+    expect(screen.getByLabelText("Include completed")).not.toBeChecked();
     expect(
-      screen.getByRole("button", { name: "Export as CSV" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("button", { name: /CSV/ }),
+    ).not.toBeInTheDocument();
   });
 
-  it("calls onExport with format when export button is clicked", async () => {
+  it("calls onExport with default options when export button is clicked", async () => {
     const user = userEvent.setup();
     const onExport = vi.fn();
     render(<ImportExportPanel onImportNirvana={vi.fn()} onExport={onExport} />);
-    await user.click(screen.getByRole("button", { name: "Export as JSON" }));
-    expect(onExport).toHaveBeenCalledWith("json");
+    await user.click(screen.getByRole("button", { name: "Export JSON" }));
+    expect(onExport).toHaveBeenCalledWith({
+      includeArchived: false,
+      includeCompleted: false,
+    });
+  });
 
-    await user.click(screen.getByRole("button", { name: "Export as CSV" }));
-    expect(onExport).toHaveBeenCalledWith("csv");
+  it("passes toggled filter options to onExport", async () => {
+    const user = userEvent.setup();
+    const onExport = vi.fn();
+    render(<ImportExportPanel onImportNirvana={vi.fn()} onExport={onExport} />);
+    await user.click(screen.getByLabelText("Include archived"));
+    await user.click(screen.getByLabelText("Include completed"));
+    await user.click(screen.getByRole("button", { name: "Export JSON" }));
+    expect(onExport).toHaveBeenCalledWith({
+      includeArchived: true,
+      includeCompleted: true,
+    });
+  });
+
+  it("can toggle include archived independently", async () => {
+    const user = userEvent.setup();
+    const onExport = vi.fn();
+    render(<ImportExportPanel onImportNirvana={vi.fn()} onExport={onExport} />);
+    await user.click(screen.getByLabelText("Include archived"));
+    await user.click(screen.getByRole("button", { name: "Export JSON" }));
+    expect(onExport).toHaveBeenCalledWith({
+      includeArchived: true,
+      includeCompleted: false,
+    });
   });
 
   it("does not show import history when no jobs", () => {

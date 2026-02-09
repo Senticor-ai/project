@@ -46,7 +46,10 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
 // ---------------------------------------------------------------------------
 
 export type ImportSourceId = "nirvana" | "things3" | "todoist" | "csv";
-export type ExportFormat = "json" | "csv";
+export interface ExportOptions {
+  includeArchived: boolean;
+  includeCompleted: boolean;
+}
 
 export interface ImportSource {
   id: ImportSourceId;

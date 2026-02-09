@@ -162,26 +162,4 @@ test.describe("Export from Settings", () => {
     expect(content).toBeTruthy();
   });
 
-  test("exports CSV with seeded data", async ({
-    authenticatedPage: page,
-    apiSeed,
-  }) => {
-    // Seed some items
-    await apiSeed.createInboxItem("Prepare presentation");
-    await apiSeed.createAction("Review PR", "next");
-
-    const settings = new SettingsPage(page);
-    await settings.openSettings();
-
-    await expect(settings.exportCsvButton()).toBeVisible();
-
-    // Click CSV export and capture download
-    const downloadPromise = page.waitForEvent("download");
-    await settings.exportCsvButton().click();
-    const download = await downloadPromise;
-
-    expect(download.suggestedFilename()).toMatch(
-      /things-export-\d{8}T\d{6}Z\.csv/,
-    );
-  });
 });

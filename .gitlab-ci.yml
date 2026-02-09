@@ -1,6 +1,10 @@
 include:
   - template: Jobs/SAST.gitlab-ci.yml
 
+default:
+  tags:
+    - large
+
 stages:
   - quality
   - test
