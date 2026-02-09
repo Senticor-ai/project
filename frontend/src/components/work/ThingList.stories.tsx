@@ -358,29 +358,19 @@ export const InboxTriageFlow: Story = {
     );
   },
   play: async ({ canvas, userEvent, step }) => {
-    // No triage buttons initially (auto-expand removed)
-    await expect(
-      canvas.queryByLabelText("Move to Next"),
-    ).not.toBeInTheDocument();
-
-    await step("Click first item to expand", async () => {
-      await userEvent.click(canvas.getByText("First inbox item"));
-      await expect(
-        canvas.getByLabelText("Move to Next"),
-      ).toBeInTheDocument();
-    });
-
     await step(
-      "Triage to Next — auto-advances to second item",
+      "First inbox item is auto-expanded with triage buttons",
       async () => {
-        await userEvent.click(canvas.getByLabelText("Move to Next"));
-        // Second item auto-expands after triage
-        await expect(
-          canvas.getByLabelText("Move to Next"),
-        ).toBeInTheDocument();
-        await expect(canvas.getByText("1 item to process")).toBeInTheDocument();
+        await expect(canvas.getByLabelText("Move to Next")).toBeInTheDocument();
       },
     );
+
+    await step("Triage to Next — auto-advances to second item", async () => {
+      await userEvent.click(canvas.getByLabelText("Move to Next"));
+      // Second item auto-expands after triage
+      await expect(canvas.getByLabelText("Move to Next")).toBeInTheDocument();
+      await expect(canvas.getByText("1 item to process")).toBeInTheDocument();
+    });
   },
 };
 

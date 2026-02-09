@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag
 
 
 class AuthCredentials(BaseModel):
@@ -300,24 +300,12 @@ class ActionThingJsonLd(ThingJsonLdBase):
         default=None,
         description="Completion timestamp (schema.org endTime).",
     )
-    isPartOf: dict[str, str] | None = Field(
-        default=None,
-        description='Owning project reference, e.g. {"@id": "urn:app:project:…"}.',
-    )
 
 
 class ProjectThingJsonLd(ThingJsonLdBase):
     """schema:Project — multi-step outcome."""
 
     type: Literal["Project"] = Field(..., alias="@type", description="schema.org Project.")
-    endTime: str | None = Field(
-        default=None,
-        description="Completion timestamp (schema.org endTime).",
-    )
-    hasPart: list[dict[str, str]] = Field(
-        default_factory=list,
-        description='Child action references, e.g. [{"@id": "urn:app:action:…"}].',
-    )
 
 
 class ReferenceThingJsonLd(ThingJsonLdBase):
@@ -335,9 +323,55 @@ class ReferenceThingJsonLd(ThingJsonLdBase):
     )
 
 
+class EventThingJsonLd(ThingJsonLdBase):
+    """schema:Event — calendar event with date/time/duration."""
+
+    type: Literal["Event"] = Field(
+        ...,
+        alias="@type",
+        description="schema.org Event.",
+    )
+    startDate: str | None = Field(
+        default=None,
+        description="Event start date (ISO-8601).",
+    )
+    endDate: str | None = Field(
+        default=None,
+        description="Event end date (ISO-8601).",
+    )
+    duration: str | None = Field(
+        default=None,
+        description="Event duration (ISO 8601 duration, e.g. PT1H).",
+    )
+    location: str | None = Field(
+        default=None,
+        description="Event location.",
+    )
+
+
+def _resolve_thing_type(v: Any) -> str:
+    """Custom discriminator for ThingJsonLd union — maps @type to tag."""
+    raw_type = str(
+        v.get("@type", v.get("type", ""))
+        if isinstance(v, dict)
+        else getattr(v, "type", "")
+    )
+    return {
+        "Thing": "thing",
+        "Action": "action",
+        "Project": "project",
+        "CreativeWork": "creative_work",
+        "Event": "event",
+    }.get(raw_type, "thing")
+
+
 ThingJsonLd = Annotated[
-    InboxThingJsonLd | ActionThingJsonLd | ProjectThingJsonLd | ReferenceThingJsonLd,
-    Field(discriminator="type"),
+    Annotated[InboxThingJsonLd, Tag("thing")]
+    | Annotated[ActionThingJsonLd, Tag("action")]
+    | Annotated[ProjectThingJsonLd, Tag("project")]
+    | Annotated[ReferenceThingJsonLd, Tag("creative_work")]
+    | Annotated[EventThingJsonLd, Tag("event")],
+    Discriminator(_resolve_thing_type),
 ]
 
 
@@ -345,7 +379,7 @@ class ThingPatchModel(BaseModel):
     """Partial JSON-LD for PATCH deep-merge (v2 schema.org format)."""
 
     id: str | None = Field(default=None, alias="@id", description="Canonical id (immutable).")
-    type: Literal["Thing", "Action", "Project", "CreativeWork"] | None = Field(
+    type: Literal["Thing", "Action", "Project", "CreativeWork", "Event"] | None = Field(
         default=None,
         alias="@type",
         description="Schema.org type override.",
@@ -358,10 +392,13 @@ class ThingPatchModel(BaseModel):
     dateModified: str | None = None
     startTime: str | None = None
     endTime: str | None = None
-    isPartOf: dict[str, str] | None = None
-    hasPart: list[dict[str, str]] | None = None
     url: str | None = None
     encodingFormat: str | None = None
+    # Event-specific schema.org properties
+    startDate: str | None = None
+    endDate: str | None = None
+    duration: str | None = None
+    location: str | None = None
     additionalProperty: list[PropertyValueModel] | None = None
     sourceMetadata: ThingSourceMetadata | None = None
 

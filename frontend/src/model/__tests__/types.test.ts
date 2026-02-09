@@ -129,7 +129,7 @@ describe("Action", () => {
       projectId: createCanonicalId("project", "proj-1"),
     });
     expect(action.sequenceOrder).toBe(2);
-    expect(action.projectId).toBe("urn:app:project:proj-1");
+    expect(action.projectIds).toEqual(["urn:app:project:proj-1"]);
   });
 });
 
@@ -144,15 +144,13 @@ describe("Project", () => {
     expect(project.desiredOutcome).toContain("Stakeholdern");
   });
 
-  it("supports action ordering", () => {
-    const a1 = createAction({ name: "Design", sequenceOrder: 1 });
-    const a2 = createAction({ name: "Develop", sequenceOrder: 2 });
+  it("creates project without actionIds (actions reference projects, not vice versa)", () => {
     const project = createProject({
       name: "Build feature",
       desiredOutcome: "Feature shipped",
-      actionIds: [a1.id, a2.id],
     });
-    expect(project.actionIds).toHaveLength(2);
+    expect(project).not.toHaveProperty("actionIds");
+    expect(project.status).toBe("active");
   });
 });
 

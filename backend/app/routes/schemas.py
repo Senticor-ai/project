@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 
 from ..models import (
     ActionThingJsonLd,
+    EventThingJsonLd,
     InboxThingJsonLd,
     ProjectThingJsonLd,
     PropertyValueModel,
@@ -24,6 +25,7 @@ _REGISTRY: dict[str, type] = {
     "action-thing": ActionThingJsonLd,
     "project-thing": ProjectThingJsonLd,
     "reference-thing": ReferenceThingJsonLd,
+    "event-thing": EventThingJsonLd,
     "thing-patch": ThingPatchModel,
     "property-value": PropertyValueModel,
 }

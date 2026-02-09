@@ -4,6 +4,7 @@ import type {
   ThingBucket,
   Project,
   ReferenceMaterial,
+  CalendarEntry,
   AppItem,
   CaptureSource,
   Provenance,
@@ -27,6 +28,7 @@ const TYPE_MAP = {
   action: "Action",
   project: "Project",
   reference: "CreativeWork",
+  event: "Event",
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -304,6 +306,20 @@ export function fromJsonLd(record: ThingRecord): AppItem {
     };
   }
 
+  if (type === TYPE_MAP.event || type === "Event") {
+    const startDate = (t.startDate as string) || undefined;
+    return {
+      ...base,
+      bucket: "calendar" as const,
+      date: startDate ?? "",
+      time:
+        (getAdditionalProperty(props, "app:scheduledTime") as string) ||
+        undefined,
+      duration: (t.duration as number) || undefined,
+      isAllDay: !startDate?.includes("T"),
+    } satisfies CalendarEntry;
+  }
+
   // Fallback: treat unknown types as inbox items
   return {
     ...base,
@@ -315,9 +331,7 @@ export function fromJsonLd(record: ThingRecord): AppItem {
 }
 
 /** Backward compat: extract projectIds from legacy isPartOf reference. */
-function extractLegacyProjectIds(
-  t: Record<string, unknown>,
-): CanonicalId[] {
+function extractLegacyProjectIds(t: Record<string, unknown>): CanonicalId[] {
   const isPartOf = t.isPartOf as { "@id": string } | undefined;
   if (isPartOf?.["@id"]) {
     return [isPartOf["@id"] as CanonicalId];

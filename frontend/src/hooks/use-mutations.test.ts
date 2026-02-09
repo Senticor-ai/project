@@ -15,6 +15,7 @@ import {
   useAddReference,
   useAddProjectAction,
   useArchiveReference,
+  useCreateProject,
 } from "./use-mutations";
 import { THINGS_QUERY_KEY } from "./use-things";
 import type { Thing } from "@/model/types";
@@ -386,7 +387,10 @@ describe("useAddProjectAction", () => {
     expect(props.find((p) => p.propertyID === "app:rawCapture")?.value).toBe(
       "Design mockups",
     );
-    expect(jsonLd).toHaveProperty("isPartOf", { "@id": "urn:app:project:1" });
+    expect(jsonLd).not.toHaveProperty("isPartOf");
+    expect(
+      props.find((p) => p.propertyID === "app:projectRefs")?.value,
+    ).toEqual(["urn:app:project:1"]);
   });
 });
 
@@ -560,5 +564,300 @@ describe("useArchiveReference", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(mocked.archive).toHaveBeenCalledWith("tid-ref-1");
+  });
+
+  it("throws when canonical_id not in cache", async () => {
+    const { result } = renderHook(() => useArchiveReference(), {
+      wrapper: createWrapper([]),
+    });
+
+    act(() => result.current.mutate("urn:app:missing:1" as CanonicalId));
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error?.message).toMatch(/not found/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// useCreateProject
+// ---------------------------------------------------------------------------
+
+describe("useCreateProject", () => {
+  it("creates project JSON-LD", async () => {
+    mocked.create.mockResolvedValue(makeRecord({ thing: {} }));
+
+    const { result } = renderHook(() => useCreateProject(), {
+      wrapper: createWrapper(),
+    });
+
+    act(() =>
+      result.current.mutate({ name: "Q2 Sprint", desiredOutcome: "Ship MVP" }),
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const [jsonLd] = mocked.create.mock.calls[0];
+    expect(jsonLd).toHaveProperty("name", "Q2 Sprint");
+  });
+
+  it("restores cache on API failure", async () => {
+    mocked.create.mockRejectedValue(new Error("Server error"));
+
+    const wrapper = createWrapper([ACTION_RECORD]);
+    const { result } = renderHook(() => useCreateProject(), { wrapper });
+
+    act(() => result.current.mutate({ name: "Fail", desiredOutcome: "N/A" }));
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(mocked.create).toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Not-found errors (mutationFn throws when canonical_id not in cache)
+// ---------------------------------------------------------------------------
+
+describe("not-found errors", () => {
+  const missing = "urn:app:missing:1" as CanonicalId;
+
+  it("useTriageItem throws when canonical_id not in cache", async () => {
+    const item: Thing = {
+      id: missing,
+      name: "Ghost",
+      type: "inbox",
+      bucket: "inbox",
+      rawCapture: "Ghost",
+      keywords: [],
+      contexts: [],
+      needsEnrichment: false,
+      confidence: "high",
+      captureSource: { kind: "thought" },
+      dateCreated: "2026-01-01",
+      dateModified: "2026-01-01",
+      isFocused: false,
+      ports: [],
+      typedReferences: [],
+      provenanceHistory: [],
+    };
+    const { result } = renderHook(() => useTriageItem(), {
+      wrapper: createWrapper([]),
+    });
+
+    act(() =>
+      result.current.mutate({ item, result: { targetBucket: "next" } }),
+    );
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error?.message).toMatch(/not found/i);
+  });
+
+  it("useMoveAction throws when canonical_id not in cache", async () => {
+    const { result } = renderHook(() => useMoveAction(), {
+      wrapper: createWrapper([]),
+    });
+
+    act(() =>
+      result.current.mutate({ canonicalId: missing, bucket: "someday" }),
+    );
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error?.message).toMatch(/not found/i);
+  });
+
+  it("useUpdateItem throws when canonical_id not in cache", async () => {
+    const { result } = renderHook(() => useUpdateItem(), {
+      wrapper: createWrapper([]),
+    });
+
+    act(() =>
+      result.current.mutate({
+        canonicalId: missing,
+        patch: { name: "oops" },
+      }),
+    );
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error?.message).toMatch(/not found/i);
+  });
+
+  it("useToggleFocus throws when canonical_id not in cache", async () => {
+    const { result } = renderHook(() => useToggleFocus(), {
+      wrapper: createWrapper([]),
+    });
+
+    act(() => result.current.mutate(missing));
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error?.message).toMatch(/not found/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Additional onError rollback tests
+// ---------------------------------------------------------------------------
+
+describe("onError rollback (remaining hooks)", () => {
+  it("useCaptureInbox restores cache on API failure", async () => {
+    mocked.create.mockRejectedValue(new Error("Server error"));
+
+    const wrapper = createWrapper([ACTION_RECORD]);
+    const { result } = renderHook(() => useCaptureInbox(), { wrapper });
+
+    act(() => result.current.mutate("Fail capture"));
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(mocked.create).toHaveBeenCalled();
+  });
+
+  it("useTriageItem restores cache on API failure", async () => {
+    mocked.update.mockRejectedValue(new Error("Server error"));
+
+    const wrapper = createWrapper([ACTION_RECORD]);
+    const { result } = renderHook(() => useTriageItem(), { wrapper });
+
+    const item: Thing = {
+      id: "urn:app:action:1" as CanonicalId,
+      name: "Buy milk",
+      type: "inbox",
+      bucket: "inbox",
+      rawCapture: "Buy milk",
+      keywords: [],
+      contexts: [],
+      needsEnrichment: false,
+      confidence: "high",
+      captureSource: { kind: "thought" },
+      dateCreated: "2026-01-01",
+      dateModified: "2026-01-01",
+      isFocused: false,
+      ports: [],
+      typedReferences: [],
+      provenanceHistory: [],
+    };
+
+    act(() =>
+      result.current.mutate({ item, result: { targetBucket: "next" } }),
+    );
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(mocked.update).toHaveBeenCalled();
+  });
+
+  it("useToggleFocus restores cache on API failure", async () => {
+    mocked.update.mockRejectedValue(new Error("Server error"));
+
+    const wrapper = createWrapper([ACTION_RECORD]);
+    const { result } = renderHook(() => useToggleFocus(), { wrapper });
+
+    act(() => result.current.mutate("urn:app:action:1" as CanonicalId));
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(mocked.update).toHaveBeenCalled();
+  });
+
+  it("useUpdateItem restores cache on API failure", async () => {
+    mocked.update.mockRejectedValue(new Error("Server error"));
+
+    const wrapper = createWrapper([ACTION_RECORD]);
+    const { result } = renderHook(() => useUpdateItem(), { wrapper });
+
+    act(() =>
+      result.current.mutate({
+        canonicalId: "urn:app:action:1" as CanonicalId,
+        patch: { name: "oops" },
+      }),
+    );
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(mocked.update).toHaveBeenCalled();
+  });
+
+  it("useAddAction restores cache on API failure", async () => {
+    mocked.create.mockRejectedValue(new Error("Server error"));
+
+    const wrapper = createWrapper([ACTION_RECORD]);
+    const { result } = renderHook(() => useAddAction(), { wrapper });
+
+    act(() => result.current.mutate({ title: "Fail action", bucket: "next" }));
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(mocked.create).toHaveBeenCalled();
+  });
+
+  it("useAddReference restores cache on API failure", async () => {
+    mocked.create.mockRejectedValue(new Error("Server error"));
+
+    const wrapper = createWrapper([ACTION_RECORD]);
+    const { result } = renderHook(() => useAddReference(), { wrapper });
+
+    act(() => result.current.mutate("Fail ref"));
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(mocked.create).toHaveBeenCalled();
+  });
+
+  it("useAddProjectAction restores cache on API failure", async () => {
+    mocked.create.mockRejectedValue(new Error("Server error"));
+
+    const wrapper = createWrapper([ACTION_RECORD]);
+    const { result } = renderHook(() => useAddProjectAction(), { wrapper });
+
+    act(() =>
+      result.current.mutate({
+        projectId: "urn:app:project:1" as CanonicalId,
+        title: "Fail",
+      }),
+    );
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(mocked.create).toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// useTriageItem — non-archive path
+// ---------------------------------------------------------------------------
+
+describe("useTriageItem non-archive", () => {
+  it("updates bucket via triage patch for non-archive target", async () => {
+    mocked.update.mockResolvedValue(ACTION_RECORD);
+
+    const { result } = renderHook(() => useTriageItem(), {
+      wrapper: createWrapper([ACTION_RECORD]),
+    });
+
+    const item: Thing = {
+      id: "urn:app:action:1" as CanonicalId,
+      name: "Buy milk",
+      type: "inbox",
+      bucket: "inbox",
+      rawCapture: "Buy milk",
+      keywords: [],
+      contexts: [],
+      needsEnrichment: false,
+      confidence: "high",
+      captureSource: { kind: "thought" },
+      dateCreated: "2026-01-01",
+      dateModified: "2026-01-01",
+      isFocused: false,
+      ports: [],
+      typedReferences: [],
+      provenanceHistory: [],
+    };
+
+    act(() =>
+      result.current.mutate({ item, result: { targetBucket: "next" } }),
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(mocked.update).toHaveBeenCalledWith(
+      "tid-action-1",
+      expect.objectContaining({
+        additionalProperty: expect.arrayContaining([
+          expect.objectContaining({
+            propertyID: "app:bucket",
+            value: "next",
+          }),
+        ]),
+      }),
+    );
   });
 });

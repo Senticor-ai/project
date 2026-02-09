@@ -179,6 +179,11 @@ export function ThingList({
     });
   }, [contextFiltered, isInbox]);
 
+  // Auto-expand the first inbox item when nothing is expanded yet
+  if (bucket === "inbox" && sorted.length > 0 && expandedId === null) {
+    setExpandedId(sorted[0].id);
+  }
+
   // Auto-advance to next inbox item when current is triaged away
   if (bucket === "inbox" && sorted.length > 0 && expandedId !== null) {
     if (!sorted.some((t) => t.id === expandedId)) {

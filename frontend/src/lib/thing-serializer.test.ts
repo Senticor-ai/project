@@ -17,7 +17,12 @@ import {
   resetFactoryCounter,
 } from "@/model/factories";
 import type { ThingRecord } from "./api-client";
-import type { Thing, Project, ReferenceMaterial } from "@/model/types";
+import type {
+  Thing,
+  Project,
+  ReferenceMaterial,
+  CalendarEntry,
+} from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
 import {
   isBackendAvailable,
@@ -45,10 +50,7 @@ function wrapAsThingRecord(
 }
 
 /** Extract a PropertyValue's value from an additionalProperty array. */
-function getProp(
-  ld: Record<string, unknown>,
-  propertyID: string,
-): unknown {
+function getProp(ld: Record<string, unknown>, propertyID: string): unknown {
   const props = ld.additionalProperty as Array<{
     "@type": string;
     propertyID: string;
@@ -232,14 +234,15 @@ describe("toJsonLd", () => {
       expect(ld.endTime).toBe("2026-02-01T10:00:00Z");
     });
 
-    it("maps projectId to schema.org isPartOf", () => {
+    it("maps projectIds to app:projectRefs additionalProperty", () => {
       const action = createAction({
         name: "Sub-task",
         projectId: "urn:app:project:p-1" as CanonicalId,
       });
       const ld = toJsonLd(action);
 
-      expect(ld.isPartOf).toEqual({ "@id": "urn:app:project:p-1" });
+      expect(ld).not.toHaveProperty("isPartOf");
+      expectPropertyValue(ld, "app:projectRefs", ["urn:app:project:p-1"]);
     });
 
     it("stores isFocused as additionalProperty", () => {
@@ -309,21 +312,14 @@ describe("toJsonLd", () => {
       expect(ld["@type"]).toBe("Project");
     });
 
-    it("maps actionIds to schema.org hasPart", () => {
+    it("does not include hasPart (projects no longer track actions)", () => {
       const project = createProject({
         name: "Build feature",
         desiredOutcome: "Feature shipped",
-        actionIds: [
-          "urn:app:action:a-1" as CanonicalId,
-          "urn:app:action:a-2" as CanonicalId,
-        ],
       });
       const ld = toJsonLd(project);
 
-      expect(ld.hasPart).toEqual([
-        { "@id": "urn:app:action:a-1" },
-        { "@id": "urn:app:action:a-2" },
-      ]);
+      expect(ld).not.toHaveProperty("hasPart");
     });
 
     it("stores desiredOutcome as additionalProperty", () => {
@@ -434,15 +430,43 @@ describe("fromJsonLd", () => {
         dateModified: "2025-01-01T00:00:00Z",
         keywords: [],
         additionalProperty: [
-          { "@type": "PropertyValue", propertyID: "app:bucket", value: "inbox" },
-          { "@type": "PropertyValue", propertyID: "app:rawCapture", value: "Buy milk" },
-          { "@type": "PropertyValue", propertyID: "app:needsEnrichment", value: true },
-          { "@type": "PropertyValue", propertyID: "app:confidence", value: "low" },
-          { "@type": "PropertyValue", propertyID: "app:captureSource", value: { kind: "thought" } },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:bucket",
+            value: "inbox",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:rawCapture",
+            value: "Buy milk",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:needsEnrichment",
+            value: true,
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:confidence",
+            value: "low",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:captureSource",
+            value: { kind: "thought" },
+          },
           { "@type": "PropertyValue", propertyID: "app:contexts", value: [] },
           { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
-          { "@type": "PropertyValue", propertyID: "app:typedReferences", value: [] },
-          { "@type": "PropertyValue", propertyID: "app:provenanceHistory", value: [{ timestamp: "2025-01-01T00:00:00Z", action: "created" }] },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:typedReferences",
+            value: [],
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:provenanceHistory",
+            value: [{ timestamp: "2025-01-01T00:00:00Z", action: "created" }],
+          },
         ],
       });
 
@@ -460,7 +484,7 @@ describe("fromJsonLd", () => {
   });
 
   describe("schema:Action → Action", () => {
-    it("deserializes an Action with schema.org + additionalProperty", () => {
+    it("deserializes an Action with app:projectRefs", () => {
       const record = wrapAsThingRecord({
         "@id": "urn:app:action:def-456",
         "@type": "Action",
@@ -468,21 +492,53 @@ describe("fromJsonLd", () => {
         name: "Call dentist",
         startTime: "2026-03-01",
         endTime: null,
-        isPartOf: { "@id": "urn:app:project:p-1" },
         keywords: ["health"],
         dateCreated: "2025-01-01T00:00:00Z",
         dateModified: "2025-01-02T00:00:00Z",
         additionalProperty: [
           { "@type": "PropertyValue", propertyID: "app:bucket", value: "next" },
-          { "@type": "PropertyValue", propertyID: "app:isFocused", value: true },
-          { "@type": "PropertyValue", propertyID: "app:dueDate", value: "2026-06-01" },
-          { "@type": "PropertyValue", propertyID: "app:needsEnrichment", value: false },
-          { "@type": "PropertyValue", propertyID: "app:confidence", value: "high" },
-          { "@type": "PropertyValue", propertyID: "app:captureSource", value: { kind: "thought" } },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:isFocused",
+            value: true,
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:dueDate",
+            value: "2026-06-01",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:needsEnrichment",
+            value: false,
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:confidence",
+            value: "high",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:captureSource",
+            value: { kind: "thought" },
+          },
           { "@type": "PropertyValue", propertyID: "app:contexts", value: [] },
           { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
-          { "@type": "PropertyValue", propertyID: "app:typedReferences", value: [] },
-          { "@type": "PropertyValue", propertyID: "app:provenanceHistory", value: [] },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:typedReferences",
+            value: [],
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:provenanceHistory",
+            value: [],
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:projectRefs",
+            value: ["urn:app:project:p-1"],
+          },
         ],
       });
 
@@ -492,34 +548,117 @@ describe("fromJsonLd", () => {
       expect(action.isFocused).toBe(true);
       expect(action.dueDate).toBe("2026-06-01");
       expect(action.scheduledDate).toBe("2026-03-01");
-      expect(action.projectId).toBe("urn:app:project:p-1");
+      expect(action.projectIds).toEqual(["urn:app:project:p-1"]);
       expect(action.tags).toEqual(["health"]);
+    });
+
+    it("backward compat: reads legacy isPartOf into projectIds[]", () => {
+      const record = wrapAsThingRecord({
+        "@id": "urn:app:action:legacy-1",
+        "@type": "Action",
+        _schemaVersion: 2,
+        name: "Legacy task",
+        startTime: null,
+        endTime: null,
+        isPartOf: { "@id": "urn:app:project:p-legacy" },
+        keywords: [],
+        dateCreated: "2025-01-01T00:00:00Z",
+        dateModified: "2025-01-01T00:00:00Z",
+        additionalProperty: [
+          { "@type": "PropertyValue", propertyID: "app:bucket", value: "next" },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:needsEnrichment",
+            value: false,
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:confidence",
+            value: "high",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:captureSource",
+            value: { kind: "import", source: "nirvana" },
+          },
+          { "@type": "PropertyValue", propertyID: "app:contexts", value: [] },
+          { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:typedReferences",
+            value: [],
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:provenanceHistory",
+            value: [],
+          },
+        ],
+      });
+
+      const action = fromJsonLd(record) as Thing;
+      expect(action.projectIds).toEqual(["urn:app:project:p-legacy"]);
     });
   });
 
   describe("schema:Project → Project", () => {
-    it("deserializes a Project with hasPart → actionIds", () => {
+    it("deserializes a Project (no actionIds — projects no longer track actions)", () => {
       const record = wrapAsThingRecord({
         "@id": "urn:app:project:ghi-789",
         "@type": "Project",
         _schemaVersion: 2,
         name: "Renovate kitchen",
         description: "Make it modern",
-        hasPart: [{ "@id": "urn:app:action:a-1" }, { "@id": "urn:app:action:a-2" }],
         keywords: [],
         dateCreated: "2025-01-01T00:00:00Z",
         dateModified: "2025-01-01T00:00:00Z",
         additionalProperty: [
-          { "@type": "PropertyValue", propertyID: "app:bucket", value: "project" },
-          { "@type": "PropertyValue", propertyID: "app:desiredOutcome", value: "Modern kitchen" },
-          { "@type": "PropertyValue", propertyID: "app:projectStatus", value: "active" },
-          { "@type": "PropertyValue", propertyID: "app:isFocused", value: false },
-          { "@type": "PropertyValue", propertyID: "app:needsEnrichment", value: false },
-          { "@type": "PropertyValue", propertyID: "app:confidence", value: "high" },
-          { "@type": "PropertyValue", propertyID: "app:captureSource", value: { kind: "thought" } },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:bucket",
+            value: "project",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:desiredOutcome",
+            value: "Modern kitchen",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:projectStatus",
+            value: "active",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:isFocused",
+            value: false,
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:needsEnrichment",
+            value: false,
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:confidence",
+            value: "high",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:captureSource",
+            value: { kind: "thought" },
+          },
           { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
-          { "@type": "PropertyValue", propertyID: "app:typedReferences", value: [] },
-          { "@type": "PropertyValue", propertyID: "app:provenanceHistory", value: [] },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:typedReferences",
+            value: [],
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:provenanceHistory",
+            value: [],
+          },
         ],
       });
 
@@ -529,10 +668,7 @@ describe("fromJsonLd", () => {
       expect(project.description).toBe("Make it modern");
       expect(project.desiredOutcome).toBe("Modern kitchen");
       expect(project.status).toBe("active");
-      expect(project.actionIds).toEqual([
-        "urn:app:action:a-1",
-        "urn:app:action:a-2",
-      ]);
+      expect(project).not.toHaveProperty("actionIds");
       expect(project.isFocused).toBe(false);
     });
   });
@@ -550,14 +686,42 @@ describe("fromJsonLd", () => {
         dateCreated: "2025-01-01T00:00:00Z",
         dateModified: "2025-01-01T00:00:00Z",
         additionalProperty: [
-          { "@type": "PropertyValue", propertyID: "app:bucket", value: "reference" },
-          { "@type": "PropertyValue", propertyID: "app:origin", value: "captured" },
-          { "@type": "PropertyValue", propertyID: "app:needsEnrichment", value: false },
-          { "@type": "PropertyValue", propertyID: "app:confidence", value: "medium" },
-          { "@type": "PropertyValue", propertyID: "app:captureSource", value: { kind: "thought" } },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:bucket",
+            value: "reference",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:origin",
+            value: "captured",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:needsEnrichment",
+            value: false,
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:confidence",
+            value: "medium",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:captureSource",
+            value: { kind: "thought" },
+          },
           { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
-          { "@type": "PropertyValue", propertyID: "app:typedReferences", value: [] },
-          { "@type": "PropertyValue", propertyID: "app:provenanceHistory", value: [] },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:typedReferences",
+            value: [],
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:provenanceHistory",
+            value: [],
+          },
         ],
       });
 
@@ -567,6 +731,117 @@ describe("fromJsonLd", () => {
       expect(ref.url).toBe("https://example.com");
       expect(ref.encodingFormat).toBe("text/html");
       expect(ref.origin).toBe("captured");
+    });
+  });
+
+  describe("schema:Event → CalendarEntry", () => {
+    it("deserializes an Event with startDate and duration", () => {
+      const record = wrapAsThingRecord({
+        "@id": "urn:app:event:evt-001",
+        "@type": "Event",
+        _schemaVersion: 2,
+        name: "Team standup",
+        startDate: "2026-03-01T09:00:00Z",
+        endDate: "2026-03-01T09:30:00Z",
+        duration: 30,
+        location: "Room 42",
+        keywords: ["meeting"],
+        dateCreated: "2025-01-01T00:00:00Z",
+        dateModified: "2025-01-01T00:00:00Z",
+        additionalProperty: [
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:bucket",
+            value: "calendar",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:needsEnrichment",
+            value: false,
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:confidence",
+            value: "high",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:captureSource",
+            value: { kind: "thought" },
+          },
+          { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:typedReferences",
+            value: [],
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:provenanceHistory",
+            value: [],
+          },
+        ],
+      });
+
+      const entry = fromJsonLd(record) as CalendarEntry;
+      expect(entry.bucket).toBe("calendar");
+      expect(entry.name).toBe("Team standup");
+      expect(entry.date).toBe("2026-03-01T09:00:00Z");
+      expect(entry.duration).toBe(30);
+      expect(entry.isAllDay).toBe(false);
+      expect(entry.tags).toEqual(["meeting"]);
+    });
+
+    it("treats Event without time component as all-day", () => {
+      const record = wrapAsThingRecord({
+        "@id": "urn:app:event:evt-002",
+        "@type": "Event",
+        _schemaVersion: 2,
+        name: "Conference",
+        startDate: "2026-06-15",
+        keywords: [],
+        dateCreated: "2025-01-01T00:00:00Z",
+        dateModified: "2025-01-01T00:00:00Z",
+        additionalProperty: [
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:bucket",
+            value: "calendar",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:needsEnrichment",
+            value: false,
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:confidence",
+            value: "high",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:captureSource",
+            value: { kind: "thought" },
+          },
+          { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:typedReferences",
+            value: [],
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:provenanceHistory",
+            value: [],
+          },
+        ],
+      });
+
+      const entry = fromJsonLd(record) as CalendarEntry;
+      expect(entry.bucket).toBe("calendar");
+      expect(entry.date).toBe("2026-06-15");
+      expect(entry.isAllDay).toBe(true);
+      expect(entry.duration).toBeUndefined();
     });
   });
 
@@ -581,14 +856,38 @@ describe("fromJsonLd", () => {
         dateCreated: "2025-01-01T00:00:00Z",
         dateModified: "2025-01-01T00:00:00Z",
         additionalProperty: [
-          { "@type": "PropertyValue", propertyID: "app:bucket", value: "inbox" },
-          { "@type": "PropertyValue", propertyID: "app:needsEnrichment", value: true },
-          { "@type": "PropertyValue", propertyID: "app:confidence", value: "low" },
-          { "@type": "PropertyValue", propertyID: "app:captureSource", value: { kind: "thought" } },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:bucket",
+            value: "inbox",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:needsEnrichment",
+            value: true,
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:confidence",
+            value: "low",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:captureSource",
+            value: { kind: "thought" },
+          },
           { "@type": "PropertyValue", propertyID: "app:contexts", value: [] },
           { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
-          { "@type": "PropertyValue", propertyID: "app:typedReferences", value: [] },
-          { "@type": "PropertyValue", propertyID: "app:provenanceHistory", value: [] },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:typedReferences",
+            value: [],
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:provenanceHistory",
+            value: [],
+          },
         ],
       });
 
@@ -637,7 +936,7 @@ describe("fromJsonLd", () => {
       expect(restored.isFocused).toBe(true);
       expect(restored.dueDate).toBe("2025-12-31");
       expect(restored.scheduledDate).toBe("2025-12-01");
-      expect(restored.projectId).toBe("urn:app:project:p-1");
+      expect(restored.projectIds).toEqual(["urn:app:project:p-1"]);
       expect(restored.delegatedTo).toBe("Bob");
       expect(restored.sequenceOrder).toBe(3);
     });
@@ -646,7 +945,6 @@ describe("fromJsonLd", () => {
       const original = createProject({
         name: "Big project",
         desiredOutcome: "Ship it",
-        actionIds: ["urn:app:action:a-1" as CanonicalId],
       });
 
       const ld = toJsonLd(original);
@@ -656,7 +954,7 @@ describe("fromJsonLd", () => {
       expect(restored.id).toBe(original.id);
       expect(restored.name).toBe(original.name);
       expect(restored.desiredOutcome).toBe("Ship it");
-      expect(restored.actionIds).toEqual(["urn:app:action:a-1"]);
+      expect(restored).not.toHaveProperty("actionIds");
       expect(restored.status).toBe("active");
     });
 
@@ -695,14 +993,15 @@ describe("buildTriagePatch", () => {
     expectPropertyValue(patch, "app:bucket", "next");
   });
 
-  it("includes isPartOf when projectId provided", () => {
+  it("includes app:projectRefs when projectId provided", () => {
     const item = createInboxItem({ name: "Task" });
     const patch = buildTriagePatch(item, {
       targetBucket: "next",
       projectId: "urn:app:project:p-1" as CanonicalId,
     });
 
-    expect(patch.isPartOf).toEqual({ "@id": "urn:app:project:p-1" });
+    expect(patch).not.toHaveProperty("isPartOf");
+    expectPropertyValue(patch, "app:projectRefs", ["urn:app:project:p-1"]);
   });
 
   it("maps date to schema.org startTime", () => {
@@ -769,11 +1068,12 @@ describe("buildItemEditPatch", () => {
     expectPropertyValue(patch, "app:contexts", ["@phone", "@office"]);
   });
 
-  it("maps projectId to schema.org isPartOf", () => {
+  it("maps projectId to app:projectRefs additionalProperty", () => {
     const patch = buildItemEditPatch({
       projectId: "urn:app:project:p-1" as CanonicalId,
     });
-    expect(patch.isPartOf).toEqual({ "@id": "urn:app:project:p-1" });
+    expect(patch).not.toHaveProperty("isPartOf");
+    expectPropertyValue(patch, "app:projectRefs", ["urn:app:project:p-1"]);
   });
 
   it("maps description to schema.org description", () => {
@@ -912,12 +1212,13 @@ describe("buildNewActionJsonLd", () => {
     expectPropertyValue(ld, "app:bucket", "waiting");
   });
 
-  it("includes isPartOf when projectId provided", () => {
+  it("includes app:projectRefs when projectId provided", () => {
     const ld = buildNewActionJsonLd("Sub-task", "next", {
       projectId: "urn:app:project:p-1" as CanonicalId,
     });
 
-    expect(ld.isPartOf).toEqual({ "@id": "urn:app:project:p-1" });
+    expect(ld).not.toHaveProperty("isPartOf");
+    expectPropertyValue(ld, "app:projectRefs", ["urn:app:project:p-1"]);
   });
 
   it("generates unique @id with urn:app:action: prefix", () => {
@@ -959,10 +1260,10 @@ describe("buildNewProjectJsonLd", () => {
     expectPropertyValue(ld, "app:projectStatus", "active");
   });
 
-  it("initializes with empty hasPart array", () => {
+  it("does not include hasPart (projects no longer track actions)", () => {
     const ld = buildNewProjectJsonLd("P", "D");
 
-    expect(ld.hasPart).toEqual([]);
+    expect(ld).not.toHaveProperty("hasPart");
   });
 
   it("sets isFocused to false", () => {
@@ -998,9 +1299,7 @@ describe("buildNewProjectJsonLd", () => {
 
     const history = getProp(ld, "app:provenanceHistory") as unknown[];
     expect(history).toHaveLength(1);
-    expect(history[0]).toEqual(
-      expect.objectContaining({ action: "created" }),
-    );
+    expect(history[0]).toEqual(expect.objectContaining({ action: "created" }));
   });
 });
 
@@ -1020,14 +1319,38 @@ describe("fromJsonLd name normalization", () => {
       dateModified: "2025-01-01T00:00:00Z",
       additionalProperty: [
         { "@type": "PropertyValue", propertyID: "app:bucket", value: "inbox" },
-        { "@type": "PropertyValue", propertyID: "app:rawCapture", value: "buy bananas" },
-        { "@type": "PropertyValue", propertyID: "app:needsEnrichment", value: true },
-        { "@type": "PropertyValue", propertyID: "app:confidence", value: "low" },
-        { "@type": "PropertyValue", propertyID: "app:captureSource", value: { kind: "thought" } },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:rawCapture",
+          value: "buy bananas",
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:needsEnrichment",
+          value: true,
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:confidence",
+          value: "low",
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:captureSource",
+          value: { kind: "thought" },
+        },
         { "@type": "PropertyValue", propertyID: "app:contexts", value: [] },
         { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
-        { "@type": "PropertyValue", propertyID: "app:typedReferences", value: [] },
-        { "@type": "PropertyValue", propertyID: "app:provenanceHistory", value: [] },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:typedReferences",
+          value: [],
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:provenanceHistory",
+          value: [],
+        },
       ],
     });
     const item = fromJsonLd(record) as Thing;
@@ -1045,14 +1368,38 @@ describe("fromJsonLd name normalization", () => {
       dateModified: "2025-01-01T00:00:00Z",
       additionalProperty: [
         { "@type": "PropertyValue", propertyID: "app:bucket", value: "inbox" },
-        { "@type": "PropertyValue", propertyID: "app:rawCapture", value: "buy bananas" },
-        { "@type": "PropertyValue", propertyID: "app:needsEnrichment", value: true },
-        { "@type": "PropertyValue", propertyID: "app:confidence", value: "low" },
-        { "@type": "PropertyValue", propertyID: "app:captureSource", value: { kind: "thought" } },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:rawCapture",
+          value: "buy bananas",
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:needsEnrichment",
+          value: true,
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:confidence",
+          value: "low",
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:captureSource",
+          value: { kind: "thought" },
+        },
         { "@type": "PropertyValue", propertyID: "app:contexts", value: [] },
         { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
-        { "@type": "PropertyValue", propertyID: "app:typedReferences", value: [] },
-        { "@type": "PropertyValue", propertyID: "app:provenanceHistory", value: [] },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:typedReferences",
+          value: [],
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:provenanceHistory",
+          value: [],
+        },
       ],
     });
     const item = fromJsonLd(record) as Thing;
@@ -1070,14 +1417,38 @@ describe("fromJsonLd name normalization", () => {
       dateModified: "2025-01-01T00:00:00Z",
       additionalProperty: [
         { "@type": "PropertyValue", propertyID: "app:bucket", value: "inbox" },
-        { "@type": "PropertyValue", propertyID: "app:rawCapture", value: "buy bananas" },
-        { "@type": "PropertyValue", propertyID: "app:needsEnrichment", value: true },
-        { "@type": "PropertyValue", propertyID: "app:confidence", value: "low" },
-        { "@type": "PropertyValue", propertyID: "app:captureSource", value: { kind: "thought" } },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:rawCapture",
+          value: "buy bananas",
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:needsEnrichment",
+          value: true,
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:confidence",
+          value: "low",
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:captureSource",
+          value: { kind: "thought" },
+        },
         { "@type": "PropertyValue", propertyID: "app:contexts", value: [] },
         { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
-        { "@type": "PropertyValue", propertyID: "app:typedReferences", value: [] },
-        { "@type": "PropertyValue", propertyID: "app:provenanceHistory", value: [] },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:typedReferences",
+          value: [],
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:provenanceHistory",
+          value: [],
+        },
       ],
     });
     const item = fromJsonLd(record) as Thing;
@@ -1095,14 +1466,38 @@ describe("fromJsonLd name normalization", () => {
       dateModified: "2025-01-01T00:00:00Z",
       additionalProperty: [
         { "@type": "PropertyValue", propertyID: "app:bucket", value: "inbox" },
-        { "@type": "PropertyValue", propertyID: "app:rawCapture", value: "buy bananas" },
-        { "@type": "PropertyValue", propertyID: "app:needsEnrichment", value: true },
-        { "@type": "PropertyValue", propertyID: "app:confidence", value: "low" },
-        { "@type": "PropertyValue", propertyID: "app:captureSource", value: { kind: "thought" } },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:rawCapture",
+          value: "buy bananas",
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:needsEnrichment",
+          value: true,
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:confidence",
+          value: "low",
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:captureSource",
+          value: { kind: "thought" },
+        },
         { "@type": "PropertyValue", propertyID: "app:contexts", value: [] },
         { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
-        { "@type": "PropertyValue", propertyID: "app:typedReferences", value: [] },
-        { "@type": "PropertyValue", propertyID: "app:provenanceHistory", value: [] },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:typedReferences",
+          value: [],
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:provenanceHistory",
+          value: [],
+        },
       ],
     });
     const item = fromJsonLd(record) as Thing;
@@ -1120,14 +1515,38 @@ describe("fromJsonLd name normalization", () => {
       dateModified: "2025-01-01T00:00:00Z",
       additionalProperty: [
         { "@type": "PropertyValue", propertyID: "app:bucket", value: "inbox" },
-        { "@type": "PropertyValue", propertyID: "app:rawCapture", value: "buy bananas" },
-        { "@type": "PropertyValue", propertyID: "app:needsEnrichment", value: true },
-        { "@type": "PropertyValue", propertyID: "app:confidence", value: "low" },
-        { "@type": "PropertyValue", propertyID: "app:captureSource", value: { kind: "thought" } },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:rawCapture",
+          value: "buy bananas",
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:needsEnrichment",
+          value: true,
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:confidence",
+          value: "low",
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:captureSource",
+          value: { kind: "thought" },
+        },
         { "@type": "PropertyValue", propertyID: "app:contexts", value: [] },
         { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
-        { "@type": "PropertyValue", propertyID: "app:typedReferences", value: [] },
-        { "@type": "PropertyValue", propertyID: "app:provenanceHistory", value: [] },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:typedReferences",
+          value: [],
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:provenanceHistory",
+          value: [],
+        },
       ],
     });
     const item = fromJsonLd(record) as Thing;
@@ -1144,7 +1563,10 @@ describe("roundtrip rawCapture-only", () => {
   beforeEach(() => resetFactoryCounter());
 
   it("preserves rawCapture-only action through serialization", () => {
-    const original = createAction({ rawCapture: "Wireframes erstellen", bucket: "next" });
+    const original = createAction({
+      rawCapture: "Wireframes erstellen",
+      bucket: "next",
+    });
     const ld = toJsonLd(original);
 
     // Name should be omitted from JSON-LD
@@ -1213,7 +1635,9 @@ describe("JSON Schema contract validation", () => {
       expect(valid, formatErrors(validators.validateActionThing)).toBe(true);
     });
 
-    it("buildNewActionJsonLd with projectId → action-thing schema", ({ skip }) => {
+    it("buildNewActionJsonLd with projectId → action-thing schema", ({
+      skip,
+    }) => {
       if (!backendUp) skip();
       const ld = buildNewActionJsonLd("Sub-task", "next", {
         projectId: "urn:app:project:p-1" as CanonicalId,
@@ -1257,7 +1681,6 @@ describe("JSON Schema contract validation", () => {
       const project = createProject({
         name: "Renovate kitchen",
         desiredOutcome: "Modern kitchen",
-        actionIds: ["urn:app:action:a-1" as CanonicalId],
       });
       const ld = toJsonLd(project);
       const valid = validators.validateProjectThing(ld);

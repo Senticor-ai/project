@@ -102,7 +102,7 @@ export const Default: Story = {
 export const SingleProject: Story = {
   args: {
     projects: [project1],
-    actions: sampleActions.filter((a) => a.projectId === project1.id),
+    actions: sampleActions.filter((a) => a.projectIds.includes(project1.id)),
   },
 };
 
@@ -187,30 +187,44 @@ export const ExpandCollapse: Story = {
   },
   play: async ({ canvas, userEvent }) => {
     // Expand first project
-    const projectBtn = canvas.getByText("Website Redesign");
-    await userEvent.click(projectBtn);
+    await userEvent.click(canvas.getByLabelText("Expand Website Redesign"));
 
     // Verify action is visible
-    expect(canvas.getByText("Design homepage wireframes")).toBeTruthy();
+    await waitFor(
+      () => {
+        expect(canvas.getByText("Design homepage wireframes")).toBeTruthy();
+      },
+      { timeout: 5000 },
+    );
 
     // Expand second project (first should collapse)
-    await userEvent.click(canvas.getByText("Mobile App Launch"));
-    expect(canvas.getByText("Set up CI/CD pipeline")).toBeTruthy();
+    await userEvent.click(canvas.getByLabelText("Expand Mobile App Launch"));
+    await waitFor(
+      () => {
+        expect(canvas.getByText("Set up CI/CD pipeline")).toBeTruthy();
+      },
+      { timeout: 5000 },
+    );
   },
 };
 
 export const SequentialActions: Story = {
   args: {
     projects: [project1],
-    actions: sampleActions.filter((a) => a.projectId === project1.id),
+    actions: sampleActions.filter((a) => a.projectIds.includes(project1.id)),
   },
   play: async ({ canvas, userEvent }) => {
-    await userEvent.click(canvas.getByText("Website Redesign"));
+    await userEvent.click(canvas.getByLabelText("Expand Website Redesign"));
 
     // Verify completed, next, and future actions are all visible
-    expect(canvas.getByText("Finalize brand guidelines")).toBeTruthy();
-    expect(canvas.getByText("Design homepage wireframes")).toBeTruthy();
-    expect(canvas.getByText("Implement responsive layout")).toBeTruthy();
+    await waitFor(
+      () => {
+        expect(canvas.getByText("Finalize brand guidelines")).toBeTruthy();
+        expect(canvas.getByText("Design homepage wireframes")).toBeTruthy();
+        expect(canvas.getByText("Implement responsive layout")).toBeTruthy();
+      },
+      { timeout: 5000 },
+    );
   },
 };
 
@@ -218,7 +232,7 @@ export const SequentialActions: Story = {
 export const CreateProject: Story = {
   args: {
     projects: [project1],
-    actions: sampleActions.filter((a) => a.projectId === project1.id),
+    actions: sampleActions.filter((a) => a.projectIds.includes(project1.id)),
   },
   play: async ({ canvas, userEvent, args, step }) => {
     await step("Open creation form", async () => {
@@ -263,7 +277,7 @@ export const CreateProject: Story = {
 export const CreateProjectCancel: Story = {
   args: {
     projects: [project1],
-    actions: sampleActions.filter((a) => a.projectId === project1.id),
+    actions: sampleActions.filter((a) => a.projectIds.includes(project1.id)),
   },
   play: async ({ canvas, userEvent, args, step }) => {
     await step("Open then cancel", async () => {

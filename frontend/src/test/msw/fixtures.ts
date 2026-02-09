@@ -41,9 +41,12 @@ export function createThingRecord(
     projectId?: CanonicalId;
     desiredOutcome?: string;
     projectStatus?: string;
-    actionIds?: CanonicalId[];
     origin?: string;
     url?: string;
+    startDate?: string;
+    endDate?: string;
+    duration?: string;
+    location?: string;
   } = {},
 ): ThingRecord {
   counter++;
@@ -59,6 +62,7 @@ export function createThingRecord(
         : bucket === "reference"
           ? "CreativeWork"
           : "Action");
+  const isEvent = type === "Event";
   const canonicalId =
     overrides.canonical_id ??
     (`urn:app:${bucket === "project" ? "project" : bucket === "reference" ? "reference" : bucket === "inbox" ? "inbox" : "action"}:${id}` as CanonicalId);
@@ -92,9 +96,6 @@ export function createThingRecord(
   } else if (type === "Action") {
     base.startTime = null;
     base.endTime = overrides.completedAt ?? null;
-    if (overrides.projectId) {
-      base.isPartOf = { "@id": overrides.projectId };
-    }
     base.additionalProperty = [
       pv("app:bucket", bucket),
       pv("app:rawCapture", overrides.rawCapture ?? displayName),
@@ -106,10 +107,9 @@ export function createThingRecord(
       pv("app:ports", []),
       pv("app:typedReferences", []),
       pv("app:provenanceHistory", [{ timestamp: now, action: "created" }]),
+      pv("app:projectRefs", overrides.projectId ? [overrides.projectId] : []),
     ];
   } else if (type === "Project") {
-    base.endTime = overrides.completedAt ?? null;
-    base.hasPart = (overrides.actionIds ?? []).map((aid) => ({ "@id": aid }));
     base.additionalProperty = [
       pv("app:bucket", "project"),
       pv("app:desiredOutcome", overrides.desiredOutcome ?? ""),
@@ -131,6 +131,20 @@ export function createThingRecord(
       pv("app:confidence", "medium"),
       pv("app:captureSource", { kind: "thought" }),
       pv("app:origin", overrides.origin ?? "captured"),
+      pv("app:ports", []),
+      pv("app:typedReferences", []),
+      pv("app:provenanceHistory", [{ timestamp: now, action: "created" }]),
+    ];
+  } else if (isEvent) {
+    base.startDate = overrides.startDate ?? null;
+    base.endDate = overrides.endDate ?? null;
+    base.duration = overrides.duration ?? null;
+    base.location = overrides.location ?? null;
+    base.additionalProperty = [
+      pv("app:bucket", "calendar"),
+      pv("app:needsEnrichment", false),
+      pv("app:confidence", "high"),
+      pv("app:captureSource", { kind: "thought" }),
       pv("app:ports", []),
       pv("app:typedReferences", []),
       pv("app:provenanceHistory", [{ timestamp: now, action: "created" }]),
@@ -202,7 +216,6 @@ export function seedMixedBuckets(): ThingRecord[] {
       bucket: "project",
       name: "Website Redesign",
       desiredOutcome: "Launch new site",
-      actionIds: ["urn:app:action:next-1" as CanonicalId],
     }),
     createThingRecord({
       thing_id: "ref-1",

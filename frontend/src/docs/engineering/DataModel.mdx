@@ -10,13 +10,13 @@ App-specific concepts that have no schema.org equivalent use `additionalProperty
 
 **Deep dives:**
 
-| Page | Scope |
-| --- | --- |
-| [Schema.org Vocabulary](?path=/docs/engineering-ontology-schema-org-vocabulary--docs) | Full catalog of schema.org types available to the app |
-| [FRBR Knowledge Graph](?path=/docs/engineering-ontology-frbr-knowledge-graph--docs) | Document hierarchy for the knowledge graph projection |
-| [LexCEL Architecture](?path=/docs/engineering-ontology-lexcel-architecture--docs) | Typed references, ports, and rule layer |
-| [Legal Reference Normalization](?path=/docs/engineering-ontology-legal-reference-normalization--docs) | Citation parsing and normalization |
-| [Schema Contract Validation](?path=/docs/engineering-ontology-schema-contract-validation--docs) | Backend API schemas, AJV contract tests, CI validation |
+| Page                                                                                                  | Scope                                                  |
+| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| [Schema.org Vocabulary](?path=/docs/engineering-ontology-schema-org-vocabulary--docs)                 | Full catalog of schema.org types available to the app  |
+| [FRBR Knowledge Graph](?path=/docs/engineering-ontology-frbr-knowledge-graph--docs)                   | Document hierarchy for the knowledge graph projection  |
+| [LexCEL Architecture](?path=/docs/engineering-ontology-lexcel-architecture--docs)                     | Typed references, ports, and rule layer                |
+| [Legal Reference Normalization](?path=/docs/engineering-ontology-legal-reference-normalization--docs) | Citation parsing and normalization                     |
+| [Schema Contract Validation](?path=/docs/engineering-ontology-schema-contract-validation--docs)       | Backend API schemas, AJV contract tests, CI validation |
 
 ---
 
@@ -66,13 +66,13 @@ bucket until the user decides where it belongs.
 
 ### Type specialization summary
 
-| `@type` | When it applies | Bucket(s) |
-| --- | --- | --- |
-| `Thing` | Default — not yet enriched, or genuinely generic | `inbox` (typically) |
-| `Action` | Has actionable attributes (context, schedule, delegation) | `next` / `waiting` / `calendar` / `someday` |
-| `Project` | Has a desired outcome and contains child actions | `project` |
-| `CreativeWork` | Has a URL, file, or content type | `reference` (or `inbox` before triage) |
-| `Event` | Has a specific date/time and duration | `calendar` |
+| `@type`        | When it applies                                           | Bucket(s)                                   |
+| -------------- | --------------------------------------------------------- | ------------------------------------------- |
+| `Thing`        | Default — not yet enriched, or genuinely generic          | `inbox` (typically)                         |
+| `Action`       | Has actionable attributes (context, schedule, delegation) | `next` / `waiting` / `calendar` / `someday` |
+| `Project`      | Has a desired outcome and contains child actions          | `project`                                   |
+| `CreativeWork` | Has a URL, file, or content type                          | `reference` (or `inbox` before triage)      |
+| `Event`        | Has a specific date/time and duration                     | `calendar`                                  |
 
 ---
 
@@ -86,14 +86,14 @@ Every entity gets a stable URN-style identifier:
 urn:app:{entity-type}:{uuid}
 ```
 
-| Entity Type | Example |
-| --- | --- |
-| `inbox` | `urn:app:inbox:a1b2c3d4-...` |
-| `action` | `urn:app:action:e5f6a7b8-...` |
-| `project` | `urn:app:project:c3d4e5f6-...` |
+| Entity Type | Example                          |
+| ----------- | -------------------------------- |
+| `inbox`     | `urn:app:inbox:a1b2c3d4-...`     |
+| `action`    | `urn:app:action:e5f6a7b8-...`    |
+| `project`   | `urn:app:project:c3d4e5f6-...`   |
 | `reference` | `urn:app:reference:b8c9d0e1-...` |
-| `context` | `urn:app:context:c9d0e1f2-...` |
-| `tag` | `urn:app:tag:d0e1f2a3-...` |
+| `context`   | `urn:app:context:c9d0e1f2-...`   |
+| `tag`       | `urn:app:tag:d0e1f2a3-...`       |
 
 ### API
 
@@ -110,48 +110,52 @@ parseCanonicalId("urn:app:project:xyz"); // → { entityType: "project", uuid: "
 
 These map 1:1 to schema.org and appear as flat fields on the JSON-LD object:
 
-| Frontend field | JSON-LD property | schema.org type | Notes |
-| --- | --- | --- | --- |
-| `name` | `name` | [name](https://schema.org/name) | Optional for Thing/Action; required for Project, ReferenceMaterial, Context |
-| `description` | `description` | [description](https://schema.org/description) | All entities |
-| `tags` | `keywords` | [keywords](https://schema.org/keywords) | Array of strings |
-| `provenance.createdAt` | `dateCreated` | [dateCreated](https://schema.org/dateCreated) | ISO 8601 |
-| `provenance.updatedAt` | `dateModified` | [dateModified](https://schema.org/dateModified) | ISO 8601 |
-| `scheduledDate` | `startTime` | [startTime](https://schema.org/startTime) | Actions (schema.org Action property) |
-| `completedAt` | `endTime` | [endTime](https://schema.org/endTime) | Completed Actions and Projects |
-| `url` | `url` | [url](https://schema.org/url) | CreativeWork |
-| `encodingFormat` | `encodingFormat` | [encodingFormat](https://schema.org/encodingFormat) | MIME type |
-| `projectId` | `isPartOf` | [isPartOf](https://schema.org/isPartOf) | Action → Project |
-| `actionIds` | `hasPart` | [hasPart](https://schema.org/hasPart) | Project → Actions |
+| Frontend field         | JSON-LD property  | schema.org type                                     | Notes                                                                       |
+| ---------------------- | ----------------- | --------------------------------------------------- | --------------------------------------------------------------------------- |
+| `name`                 | `name`            | [name](https://schema.org/name)                     | Optional for Thing/Action; required for Project, ReferenceMaterial, Context |
+| `description`          | `description`     | [description](https://schema.org/description)       | All entities                                                                |
+| `tags`                 | `keywords`        | [keywords](https://schema.org/keywords)             | Array of strings                                                            |
+| `provenance.createdAt` | `dateCreated`     | [dateCreated](https://schema.org/dateCreated)       | ISO 8601                                                                    |
+| `provenance.updatedAt` | `dateModified`    | [dateModified](https://schema.org/dateModified)     | ISO 8601                                                                    |
+| `scheduledDate`        | `startTime`       | [startTime](https://schema.org/startTime)           | Actions (schema.org Action property)                                        |
+| `completedAt`          | `endTime`         | [endTime](https://schema.org/endTime)               | Completed Actions and Projects                                              |
+| `url`                  | `url`             | [url](https://schema.org/url)                       | CreativeWork                                                                |
+| `encodingFormat`       | `encodingFormat`  | [encodingFormat](https://schema.org/encodingFormat) | MIME type                                                                   |
+| `date`                 | `startDate`       | [startDate](https://schema.org/startDate)           | Event start (ISO 8601)                                                      |
+| (end)                  | `endDate`         | [endDate](https://schema.org/endDate)               | Event end (ISO 8601)                                                        |
+| `duration`             | `duration`        | [duration](https://schema.org/duration)             | Event duration (minutes or ISO 8601 duration)                               |
+| (location)             | `location`        | [location](https://schema.org/location)             | Event location (text)                                                       |
+| `projectIds`           | `app:projectRefs` | `additionalProperty`                                | Thing → Project(s), many-to-many                                            |
 
 ### Custom via `additionalProperty`
 
 These have no schema.org equivalent and are stored as `PropertyValue` objects:
 
-| Frontend field | `propertyID` | Value type |
-| --- | --- | --- |
-| `bucket` | `app:bucket` | `"inbox"` \| `"next"` \| `"waiting"` \| `"calendar"` \| `"someday"` |
-| `rawCapture` | `app:rawCapture` | string |
-| `isFocused` | `app:isFocused` | boolean |
-| `confidence` | `app:confidence` | `"low"` \| `"medium"` \| `"high"` |
-| `needsEnrichment` | `app:needsEnrichment` | boolean |
-| `energyLevel` | `app:energyLevel` | `"low"` \| `"medium"` \| `"high"` |
-| `sequenceOrder` | `app:sequenceOrder` | number |
-| `delegatedTo` | `app:delegatedTo` | string |
-| `contexts` | `app:contexts` | CanonicalId[] |
-| `captureSource` | `app:captureSource` | structured object |
-| `origin` | `app:origin` | `"triaged"` \| `"captured"` \| `"file"` |
-| `dueDate` | `app:dueDate` | ISO date string |
-| `startDate` | `app:startDate` | ISO date string |
-| `scheduledTime` | `app:scheduledTime` | HH:MM string |
-| `desiredOutcome` | `app:desiredOutcome` | string |
-| `status` (project) | `app:projectStatus` | `"active"` \| `"completed"` \| `"on-hold"` \| `"archived"` |
-| `reviewDate` | `app:reviewDate` | ISO date string |
-| `ports` | `app:ports` | Port[] |
-| `typedReferences` | `app:typedReferences` | TypedReference[] |
-| `archivedAt` | `app:archivedAt` | ISO timestamp |
-| `provenanceHistory` | `app:provenanceHistory` | ProvenanceEntry[] |
-| (server-managed) | `app:nameProvenance` | `{ setBy: "user" \| "ai" \| "system", setAt: string, source: string }` |
+| Frontend field      | `propertyID`            | Value type                                                             |
+| ------------------- | ----------------------- | ---------------------------------------------------------------------- |
+| `bucket`            | `app:bucket`            | `"inbox"` \| `"next"` \| `"waiting"` \| `"calendar"` \| `"someday"`    |
+| `rawCapture`        | `app:rawCapture`        | string                                                                 |
+| `isFocused`         | `app:isFocused`         | boolean                                                                |
+| `confidence`        | `app:confidence`        | `"low"` \| `"medium"` \| `"high"`                                      |
+| `needsEnrichment`   | `app:needsEnrichment`   | boolean                                                                |
+| `energyLevel`       | `app:energyLevel`       | `"low"` \| `"medium"` \| `"high"`                                      |
+| `sequenceOrder`     | `app:sequenceOrder`     | number                                                                 |
+| `delegatedTo`       | `app:delegatedTo`       | string                                                                 |
+| `contexts`          | `app:contexts`          | CanonicalId[]                                                          |
+| `captureSource`     | `app:captureSource`     | structured object                                                      |
+| `origin`            | `app:origin`            | `"triaged"` \| `"captured"` \| `"file"`                                |
+| `dueDate`           | `app:dueDate`           | ISO date string                                                        |
+| `startDate`         | `app:startDate`         | ISO date string                                                        |
+| `scheduledTime`     | `app:scheduledTime`     | HH:MM string                                                           |
+| `desiredOutcome`    | `app:desiredOutcome`    | string                                                                 |
+| `status` (project)  | `app:projectStatus`     | `"active"` \| `"completed"` \| `"on-hold"` \| `"archived"`             |
+| `projectIds`        | `app:projectRefs`       | CanonicalId[] (many-to-many)                                           |
+| `reviewDate`        | `app:reviewDate`        | ISO date string                                                        |
+| `ports`             | `app:ports`             | Port[]                                                                 |
+| `typedReferences`   | `app:typedReferences`   | TypedReference[]                                                       |
+| `archivedAt`        | `app:archivedAt`        | ISO timestamp                                                          |
+| `provenanceHistory` | `app:provenanceHistory` | ProvenanceEntry[]                                                      |
+| (server-managed)    | `app:nameProvenance`    | `{ setBy: "user" \| "ai" \| "system", setAt: string, source: string }` |
 
 ---
 
@@ -161,28 +165,28 @@ These have no schema.org equivalent and are stored as `PropertyValue` objects:
 
 All entities share these fields:
 
-| Field | Type | Origin |
-| --- | --- | --- |
-| `id` | `CanonicalId` | FRBR/ELI canonical IDs |
-| `name` | `string?` | schema.org `name` — optional for capture-first entities |
-| `description` | `string?` | schema.org `description` |
-| `tags` | `string[]` | schema.org `keywords` |
-| `references` | `TypedReference[]` | LexCEL typed renvoi |
-| `captureSource` | `CaptureSource` | LexCEL evidence anchors |
-| `provenance` | `Provenance` | LexCEL append-only provenance |
-| `ports` | `Port[]` | LexCEL ports |
-| `needsEnrichment` | `boolean` | FRBR evidence-first |
-| `confidence` | `ConfidenceLevel` | FRBR evidence-first |
+| Field             | Type               | Origin                                                  |
+| ----------------- | ------------------ | ------------------------------------------------------- |
+| `id`              | `CanonicalId`      | FRBR/ELI canonical IDs                                  |
+| `name`            | `string?`          | schema.org `name` — optional for capture-first entities |
+| `description`     | `string?`          | schema.org `description`                                |
+| `tags`            | `string[]`         | schema.org `keywords`                                   |
+| `references`      | `TypedReference[]` | LexCEL typed renvoi                                     |
+| `captureSource`   | `CaptureSource`    | LexCEL evidence anchors                                 |
+| `provenance`      | `Provenance`       | LexCEL append-only provenance                           |
+| `ports`           | `Port[]`           | LexCEL ports                                            |
+| `needsEnrichment` | `boolean`          | FRBR evidence-first                                     |
+| `confidence`      | `ConfidenceLevel`  | FRBR evidence-first                                     |
 
 ### Entity Types
 
-| `@type` | TypeScript type | Bucket(s) | Key additional fields |
-| --- | --- | --- | --- |
-| `Thing` | `Thing` | `inbox` (or any, if not yet triaged) | `rawCapture` |
-| `Action` | `Thing` | `next` / `waiting` / `calendar` / `someday` | `contexts`, `isFocused`, `delegatedTo`, `recurrence`, `sequenceOrder` |
-| `Project` | `Project` | `project` | `desiredOutcome`, `status`, `actionIds` |
-| `CreativeWork` | `ReferenceMaterial` | `reference` (or `inbox` before triage) | `url`, `encodingFormat` |
-| `Event` | `CalendarEntry` | `calendar` | `date`, `time`, `duration`, `isAllDay` |
+| `@type`        | TypeScript type     | Bucket(s)                                   | Key additional fields                                                 |
+| -------------- | ------------------- | ------------------------------------------- | --------------------------------------------------------------------- |
+| `Thing`        | `Thing`             | `inbox` (or any, if not yet triaged)        | `rawCapture`                                                          |
+| `Action`       | `Thing`             | `next` / `waiting` / `calendar` / `someday` | `contexts`, `isFocused`, `delegatedTo`, `recurrence`, `sequenceOrder` |
+| `Project`      | `Project`           | `project`                                   | `desiredOutcome`, `status`                                            |
+| `CreativeWork` | `ReferenceMaterial` | `reference` (or `inbox` before triage)      | `url`, `encodingFormat`                                               |
+| `Event`        | `CalendarEntry`     | `calendar`                                  | `date`, `time`, `duration`, `isAllDay`                                |
 
 Note: The TypeScript types are frontend ergonomic wrappers. The `@type` is what appears
 in JSON-LD and determines schema.org compatibility.
@@ -205,10 +209,26 @@ Note: `name` is **not set** — the raw input lives in `app:rawCapture`.
   "dateModified": "2026-02-07T08:00:00Z",
   "additionalProperty": [
     { "@type": "PropertyValue", "propertyID": "app:bucket", "value": "inbox" },
-    { "@type": "PropertyValue", "propertyID": "app:rawCapture", "value": "Fahrkosten Müller prüfen" },
-    { "@type": "PropertyValue", "propertyID": "app:needsEnrichment", "value": true },
-    { "@type": "PropertyValue", "propertyID": "app:confidence", "value": "low" },
-    { "@type": "PropertyValue", "propertyID": "app:captureSource", "value": { "kind": "thought" } }
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:rawCapture",
+      "value": "Fahrkosten Müller prüfen"
+    },
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:needsEnrichment",
+      "value": true
+    },
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:confidence",
+      "value": "low"
+    },
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:captureSource",
+      "value": { "kind": "thought" }
+    }
   ]
 }
 ```
@@ -229,9 +249,21 @@ immediately, but it's still in the inbox bucket until the user triages it.
   "dateModified": "2026-02-07T08:05:00Z",
   "additionalProperty": [
     { "@type": "PropertyValue", "propertyID": "app:bucket", "value": "inbox" },
-    { "@type": "PropertyValue", "propertyID": "app:needsEnrichment", "value": true },
-    { "@type": "PropertyValue", "propertyID": "app:confidence", "value": "medium" },
-    { "@type": "PropertyValue", "propertyID": "app:captureSource", "value": { "kind": "thought" } }
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:needsEnrichment",
+      "value": true
+    },
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:confidence",
+      "value": "medium"
+    },
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:captureSource",
+      "value": { "kind": "thought" }
+    }
   ]
 }
 ```
@@ -250,16 +282,40 @@ renames this action, `name` would appear as a top-level property.
   "dateCreated": "2026-02-01T10:30:00Z",
   "dateModified": "2026-02-05T14:22:00Z",
   "startTime": "2026-02-10",
-  "isPartOf": { "@id": "urn:app:project:xyz-789" },
   "keywords": ["dringend"],
   "additionalProperty": [
     { "@type": "PropertyValue", "propertyID": "app:bucket", "value": "next" },
-    { "@type": "PropertyValue", "propertyID": "app:rawCapture", "value": "Frau Müller wegen Fahrkosten anrufen" },
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:rawCapture",
+      "value": "Frau Müller wegen Fahrkosten anrufen"
+    },
     { "@type": "PropertyValue", "propertyID": "app:isFocused", "value": true },
-    { "@type": "PropertyValue", "propertyID": "app:energyLevel", "value": "low" },
-    { "@type": "PropertyValue", "propertyID": "app:confidence", "value": "high" },
-    { "@type": "PropertyValue", "propertyID": "app:needsEnrichment", "value": false },
-    { "@type": "PropertyValue", "propertyID": "app:contexts", "value": ["urn:app:context:phone"] }
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:energyLevel",
+      "value": "low"
+    },
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:confidence",
+      "value": "high"
+    },
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:needsEnrichment",
+      "value": false
+    },
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:contexts",
+      "value": ["urn:app:context:phone"]
+    },
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:projectRefs",
+      "value": ["urn:app:project:xyz-789"]
+    }
   ]
 }
 ```
@@ -275,11 +331,22 @@ renames this action, `name` would appear as a top-level property.
   "description": "Alle Q1-Fahrkostenanträge geprüft und abgelegt",
   "dateCreated": "2026-01-15T09:00:00Z",
   "dateModified": "2026-02-05T14:22:00Z",
-  "hasPart": [{ "@id": "urn:app:action:abc-123" }],
   "additionalProperty": [
-    { "@type": "PropertyValue", "propertyID": "app:bucket", "value": "project" },
-    { "@type": "PropertyValue", "propertyID": "app:desiredOutcome", "value": "Alle Q1-Anträge abgerechnet" },
-    { "@type": "PropertyValue", "propertyID": "app:projectStatus", "value": "active" },
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:bucket",
+      "value": "project"
+    },
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:desiredOutcome",
+      "value": "Alle Q1-Anträge abgerechnet"
+    },
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:projectStatus",
+      "value": "active"
+    },
     { "@type": "PropertyValue", "propertyID": "app:isFocused", "value": false }
   ]
 }
@@ -298,46 +365,93 @@ renames this action, `name` would appear as a top-level property.
   "dateCreated": "2026-02-03T11:00:00Z",
   "dateModified": "2026-02-03T11:00:00Z",
   "additionalProperty": [
-    { "@type": "PropertyValue", "propertyID": "app:bucket", "value": "reference" },
-    { "@type": "PropertyValue", "propertyID": "app:origin", "value": "captured" }
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:bucket",
+      "value": "reference"
+    },
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:origin",
+      "value": "captured"
+    }
   ]
 }
 ```
+
+### Calendar event (`Event`)
+
+```json
+{
+  "@id": "urn:app:event:evt-001",
+  "@type": "Event",
+  "_schemaVersion": 2,
+  "name": "Wochenbesprechung Team A",
+  "startDate": "2026-03-01T09:00:00Z",
+  "endDate": "2026-03-01T09:30:00Z",
+  "duration": 30,
+  "location": "Raum 42",
+  "dateCreated": "2026-02-07T08:00:00Z",
+  "dateModified": "2026-02-07T08:00:00Z",
+  "additionalProperty": [
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:bucket",
+      "value": "calendar"
+    },
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:needsEnrichment",
+      "value": false
+    },
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:confidence",
+      "value": "high"
+    }
+  ]
+}
+```
+
+> **Note:** `Event` uses `startDate`/`endDate` (schema.org Event properties), not `startTime`/`endTime`
+> (which are schema.org Action properties). The frontend deserializes `Event` → `CalendarEntry`.
+> Currently, the frontend creates calendar items as `Action` type; `Event` is an inbound-only type
+> from the backend or external imports.
 
 ---
 
 ## Typed References (LexCEL Renvoi)
 
-| Type | Meaning |
-| --- | --- |
-| `blocks` | This item blocks another from starting |
-| `depends_on` | Cannot start until dependency completes |
-| `delegates_to` | Assigned to someone else |
-| `refers_to` | General cross-reference |
-| `context_of` | Context tagging |
-| `part_of` | Sub-action of a project |
-| `follows` | Sequential ordering within a project |
-| `waiting_on` | External dependency |
+| Type           | Meaning                                 |
+| -------------- | --------------------------------------- |
+| `blocks`       | This item blocks another from starting  |
+| `depends_on`   | Cannot start until dependency completes |
+| `delegates_to` | Assigned to someone else                |
+| `refers_to`    | General cross-reference                 |
+| `context_of`   | Context tagging                         |
+| `part_of`      | Sub-action of a project                 |
+| `follows`      | Sequential ordering within a project    |
+| `waiting_on`   | External dependency                     |
 
 ---
 
 ## Ports (LexCEL)
 
-| Port | Kind | Purpose |
-| --- | --- | --- |
-| `DefinitionPort` | `definition` | What does "done" mean? (`doneCriteria`) |
-| `PredicatePort` | `predicate` | Conditions to start (`conditions[]`) |
+| Port              | Kind          | Purpose                                          |
+| ----------------- | ------------- | ------------------------------------------------ |
+| `DefinitionPort`  | `definition`  | What does "done" mean? (`doneCriteria`)          |
+| `PredicatePort`   | `predicate`   | Conditions to start (`conditions[]`)             |
 | `ComputationPort` | `computation` | Effort estimates (`timeEstimate`, `energyLevel`) |
-| `ProcedurePort` | `procedure` | Checklist steps (`steps[]`) |
+| `ProcedurePort`   | `procedure`   | Checklist steps (`steps[]`)                      |
 
 ---
 
 ## Enrichable Interface (FRBR)
 
-| Field | Type | Description |
-| --- | --- | --- |
-| `needsEnrichment` | `boolean` | Flagged for review/clarification |
-| `confidence` | `high` / `medium` / `low` | How well-defined the item is |
+| Field             | Type                      | Description                      |
+| ----------------- | ------------------------- | -------------------------------- |
+| `needsEnrichment` | `boolean`                 | Flagged for review/clarification |
+| `confidence`      | `high` / `medium` / `low` | How well-defined the item is     |
 
 **Workflow**: Items enter as `confidence: "low"`, `needsEnrichment: true`.
 Clarification moves them to `confidence: "high"`, `needsEnrichment: false`.
@@ -351,13 +465,13 @@ only set when the user (or AI, with provenance) explicitly renames an item.
 
 ### Per-entity rules
 
-| Entity type | `name` | `rawCapture` |
-| --- | --- | --- |
-| Thing (inbox) | optional — unset at capture | **required** |
-| Action | optional — unset at capture | **required** |
-| Project | **required** | n/a |
-| ReferenceMaterial | **required** | n/a |
-| Context | **required** | n/a |
+| Entity type       | `name`                      | `rawCapture` |
+| ----------------- | --------------------------- | ------------ |
+| Thing (inbox)     | optional — unset at capture | **required** |
+| Action            | optional — unset at capture | **required** |
+| Project           | **required**                | n/a          |
+| ReferenceMaterial | **required**                | n/a          |
+| Context           | **required**                | n/a          |
 
 ### Display logic
 
@@ -416,14 +530,15 @@ The serializer contract tests in `thing-serializer.test.ts` fetch these schemas,
 AJV validators, and verify that every `build*` and `toJsonLd` output conforms. Tests skip
 gracefully when the backend is unreachable.
 
-| Schema name | Pydantic model | Purpose |
-| --- | --- | --- |
-| `inbox-thing` | `InboxThingJsonLd` | Inbox capture payload |
-| `action-thing` | `ActionThingJsonLd` | Action payload |
-| `project-thing` | `ProjectThingJsonLd` | Project payload |
-| `reference-thing` | `ReferenceThingJsonLd` | Reference payload |
-| `thing-patch` | `ThingPatchModel` | PATCH payload |
-| `property-value` | `PropertyValueModel` | PropertyValue shape |
+| Schema name       | Pydantic model         | Purpose               |
+| ----------------- | ---------------------- | --------------------- |
+| `inbox-thing`     | `InboxThingJsonLd`     | Inbox capture payload |
+| `action-thing`    | `ActionThingJsonLd`    | Action payload        |
+| `project-thing`   | `ProjectThingJsonLd`   | Project payload       |
+| `reference-thing` | `ReferenceThingJsonLd` | Reference payload     |
+| `event-thing`     | `EventThingJsonLd`     | Event payload         |
+| `thing-patch`     | `ThingPatchModel`      | PATCH payload         |
+| `property-value`  | `PropertyValueModel`   | PropertyValue shape   |
 
 See [Schema Contract Validation](?path=/docs/engineering-ontology-schema-contract-validation--docs)
 for the full pipeline documentation, and
@@ -439,22 +554,21 @@ here so consumers of the JSON-LD data understand what is standard and what is ap
 
 ### Correct schema.org usage
 
-| Property | schema.org type | Notes |
-| --- | --- | --- |
-| `name`, `description`, `url` | Thing | Available on all entities |
-| `startTime`, `endTime` | Action | Correct temporal properties for Action |
-| `encodingFormat` | CreativeWork | MIME type for reference material |
-| `PropertyValue` (`propertyID`, `value`) | PropertyValue | Standard extension point |
+| Property                                | schema.org type | Notes                                  |
+| --------------------------------------- | --------------- | -------------------------------------- |
+| `name`, `description`, `url`            | Thing           | Available on all entities              |
+| `startTime`, `endTime`                  | Action          | Correct temporal properties for Action |
+| `encodingFormat`                        | CreativeWork    | MIME type for reference material       |
+| `PropertyValue` (`propertyID`, `value`) | PropertyValue   | Standard extension point               |
 
 ### Intentional extensions beyond schema.org domains
 
-| Property | Standard domain(s) | Our usage | Rationale |
-| --- | --- | --- | --- |
-| `additionalProperty` | Product, Place, Offer | All entity types | Universal extension mechanism for `app:*` properties. Schema.org validators are lenient about domain. |
-| `keywords` | CreativeWork, Event, Organization | Thing, Action | Tags apply to all entities, not just creative works. Widely used outside strict domain in practice. |
-| `dateCreated`, `dateModified` | CreativeWork, DataFeedItem | All entity types | Timestamps are universal. These are the most natural schema.org properties for creation/modification tracking. |
-| `isPartOf`, `hasPart` | CreativeWork | Action → Project, Project → Actions | Models project membership. `isPartOf` links an Action to its parent Project; `hasPart` lists a Project's child Actions. |
-| `endTime` | Action | Project | Completion timestamp reused for Project. Schema.org `Project` inherits from Organization which has no completion property. |
+| Property                      | Standard domain(s)                | Our usage          | Rationale                                                                                                                                                                                                                                                                                                         |
+| ----------------------------- | --------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `additionalProperty`          | Product, Place, Offer             | All entity types   | Universal extension mechanism for `app:*` properties. Schema.org validators are lenient about domain.                                                                                                                                                                                                             |
+| `keywords`                    | CreativeWork, Event, Organization | Thing, Action      | Tags apply to all entities, not just creative works. Widely used outside strict domain in practice.                                                                                                                                                                                                               |
+| `dateCreated`, `dateModified` | CreativeWork, DataFeedItem        | All entity types   | Timestamps are universal. These are the most natural schema.org properties for creation/modification tracking.                                                                                                                                                                                                    |
+| `app:projectRefs`             | n/a (custom)                      | Thing → Project(s) | Many-to-many project membership via `additionalProperty`. Replaces the former `isPartOf`/`hasPart` bidirectional mapping which was semantically wrong (both properties have domain `CreativeWork`, not `Action`/`Organization`). Legacy `isPartOf` data is read via backward-compatible fallback in `fromJsonLd`. |
 
 ### Project type and Organization hierarchy
 
@@ -491,7 +605,11 @@ isReferenceMaterial(item); // item.bucket === "reference"
 // Capture-first entities — rawCapture is primary, name is optional
 createThing({ rawCapture: "Anruf bei Frau Müller", bucket: "inbox" });
 createThing({ rawCapture: "Deploy", bucket: "next", isFocused: true });
-createThing({ name: "Weekly Groceries", rawCapture: "buy bananas", bucket: "next" });
+createThing({
+  name: "Weekly Groceries",
+  rawCapture: "buy bananas",
+  bucket: "next",
+});
 
 // Non-capture entities — name is required
 createProject({ name: "Relaunch", desiredOutcome: "Site live" });

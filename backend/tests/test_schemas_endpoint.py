@@ -11,6 +11,7 @@ def test_list_schemas(client):
     assert "action-thing" in names
     assert "project-thing" in names
     assert "reference-thing" in names
+    assert "event-thing" in names
     assert "thing-patch" in names
     assert "property-value" in names
 
@@ -36,7 +37,6 @@ def test_get_schema_action_thing(client):
     assert props["@type"]["const"] == "Action"
     assert "startTime" in props
     assert "endTime" in props
-    assert "isPartOf" in props
 
 
 def test_get_schema_project_thing(client):
@@ -45,8 +45,18 @@ def test_get_schema_project_thing(client):
     schema = response.json()
     props = schema["properties"]
     assert props["@type"]["const"] == "Project"
-    assert "endTime" in props
-    assert "hasPart" in props
+
+
+def test_get_schema_event_thing(client):
+    response = client.get("/schemas/event-thing")
+    assert response.status_code == 200
+    schema = response.json()
+    props = schema["properties"]
+    assert props["@type"]["const"] == "Event"
+    assert "startDate" in props
+    assert "endDate" in props
+    assert "duration" in props
+    assert "location" in props
 
 
 def test_get_schema_not_found(client):

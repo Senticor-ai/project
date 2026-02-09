@@ -1,0 +1,164 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Product/Epics/Schema.org Type Enrichment" />
+
+# Epic: Schema.org Type Enrichment
+
+**Status:** Not started
+**Priority:** Future (depends on AI enrichment pipeline)
+
+## Context
+
+A single user input like _"Ich muss fuer die Geburtstagsfeier Aepfel kaufen und auf die Einkaufsliste fuer meinen Mann schreiben"_ contains multiple schema.org entities: a `BuyAction`, a `CreateAction` (shopping list), a `Project`/`Event` (birthday party), and an implicit delegation. The UX stays simple (todos), but the backend data model should support richer schema.org types and relationship properties so that items can be decomposed or reassigned as users clarify them.
+
+**Current state:** 5 hardcoded `@type` values (`Thing`, `Action`, `Project`, `CreativeWork`, `Event`) with discriminator. No support for action subtypes (`BuyAction`, `CreateAction`, etc.), no relationship properties (`object`, `instrument`, `agent`), and no decomposition pipeline.
+
+**Goal:** Backend accepts schema.org action subtypes and relationship properties. Capture stays as `Thing`. User actions (triage/PATCH) or AI enrichment can reassign `@type` to a richer subtype. Frontend stays simple but doesn't break on new types.
+
+**Prerequisite:** This epic should be implemented alongside the AI enrichment pipeline that actually classifies captures and decomposes sentences. Without a producer (AI) and consumer (UI differentiation), the schema support has no practical value.
+
+---
+
+## Phase 1: Backend Model Enrichment
+
+### 1.1 Add `ACTION_SUBTYPES` constant
+
+`backend/app/models.py` (near top of file):
+
+```python
+ACTION_SUBTYPES: frozenset[str] = frozenset({
+    "Action", "PlanAction", "BuyAction", "CommunicateAction",
+    "ReviewAction", "CreateAction", "SendAction", "CheckAction",
+})
+```
+
+### 1.2 Add `ThingRefModel` for JSON-LD references
+
+```python
+class ThingRefModel(BaseModel):
+    """JSON-LD reference: {'@id': 'urn:...'} or inline object."""
+    id: str = Field(..., alias="@id")
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+```
+
+Supports both `{"object": "Buy groceries"}` (string) and `{"object": {"@id": "urn:app:reference:xyz"}}` (ref).
+
+### 1.3 Enrich `ActionThingJsonLd`
+
+- Change `type: Literal["Action"]` to `type: str` with a `@model_validator` that checks against `ACTION_SUBTYPES`
+- Add 6 optional schema.org relationship properties:
+  - `object_` (alias `"object"`) -- what the action acts on
+  - `instrument` -- tool or device used
+  - `agent` -- direct performer
+  - `participant` -- other participants (list)
+  - `result` -- what the action produces
+  - `location` -- where it happens
+- All typed as `ThingRefModel | str | None`
+
+### 1.4 Switch `ThingJsonLd` union to custom discriminator
+
+Replace `Field(discriminator="type")` with Pydantic v2 `Discriminator(callable)`:
+
+```python
+def _resolve_thing_type(v: Any) -> str:
+    raw_type = (v.get("@type", v.get("type", ""))
+                if isinstance(v, dict) else getattr(v, "type", ""))
+    if raw_type in ACTION_SUBTYPES:
+        return "action"
+    if raw_type == "Event":
+        return "event"
+    if raw_type == "Project":
+        return "project"
+    if raw_type == "CreativeWork":
+        return "creative_work"
+    return "thing"
+```
+
+### 1.5 Update `ThingPatchModel`
+
+- Change `type` from `Literal[...]` to `str | None`
+- Add the same relationship properties as `ActionThingJsonLd`
+- Add `"decomposed"` to `ProvenanceEntryModel.action` Literal union
+
+---
+
+## Phase 2: Backend Route Updates
+
+### 2.1 Update `_is_action_type` in `things.py`
+
+```python
+from ..models import ACTION_SUBTYPES
+
+def _is_action_type(type_value: str) -> bool:
+    return type_value.split(":")[-1] in ACTION_SUBTYPES
+```
+
+### 2.2 No changes to `imports.py`
+
+Import pipeline always creates base `Action` type. Subtypes are assigned via user triage/PATCH or AI enrichment.
+
+---
+
+## Phase 3: Backend Tests
+
+- POST with `@type: "BuyAction"` succeeds and returns `BuyAction`
+- PATCH `Thing` to `BuyAction` with `object` property -- type reassignment works
+- Relationship properties (`object`, `instrument`, `agent`) survive JSONB round-trip
+- Action subtypes still require `app:bucket`
+
+---
+
+## Phase 4: Frontend Resilience
+
+### 4.1 Update `fromJsonLd` type routing
+
+`frontend/src/lib/thing-serializer.ts`:
+
+```typescript
+const ACTION_TYPES = new Set([
+  "Action", "PlanAction", "BuyAction", "CommunicateAction",
+  "ReviewAction", "CreateAction", "SendAction", "CheckAction",
+]);
+```
+
+Change `type === "Action"` checks to `ACTION_TYPES.has(type)`.
+
+### 4.2 No changes to outgoing serialization
+
+Frontend continues emitting `"Action"` for actions. Subtypes are assigned by backend (triage, AI enrichment, PATCH).
+
+### 4.3 Update `fromJsonLd` tests
+
+Add test for deserializing `BuyAction` as an action with correct bucket.
+
+---
+
+## Phase 5: Documentation
+
+- Update `SchemaReference.mdx` with new action subtypes and relationship properties
+- Update `DataModel.mdx` with subtype specialization
+- Update `SchemaContractValidation.mdx` with new schema
+
+---
+
+## Files to create/modify
+
+| File | Change |
+| --- | --- |
+| `backend/app/models.py` | `ACTION_SUBTYPES`, `ThingRefModel`, relationship props, custom discriminator |
+| `backend/app/routes/things.py` | `_is_action_type()` uses `ACTION_SUBTYPES` |
+| `backend/tests/test_openapi_things_schema.py` | Update assertions for subtypes |
+| `frontend/src/lib/thing-serializer.ts` | `fromJsonLd` recognizes subtypes |
+| `frontend/src/test/msw/fixtures.ts` | `createThingRecord` handles subtypes |
+
+---
+
+## Verification checklist
+
+- [ ] POST a `BuyAction` with `object` to `POST /things` -- stores and round-trips
+- [ ] PATCH an inbox `Thing` to `BuyAction` -- type change persists
+- [ ] Relationship properties survive JSONB storage
+- [ ] Frontend deserializes `BuyAction` as a normal action (correct bucket)
+- [ ] All backend tests pass (`pytest`)
+- [ ] All frontend tests pass (`vitest run`)
+- [ ] TypeScript clean (`tsc --noEmit`)

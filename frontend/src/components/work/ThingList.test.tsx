@@ -521,21 +521,25 @@ describe("ThingList", () => {
     expect(screen.queryByText("Complexity")).not.toBeInTheDocument();
   });
 
-  it("does not auto-expand inbox items on load", () => {
+  it("auto-expands the first inbox item on load", () => {
     const things = [
       createThing({ name: "First inbox", bucket: "inbox" }),
       createThing({ name: "Second inbox", bucket: "inbox" }),
     ];
     renderThingList({ bucket: "inbox", things, onEdit: vi.fn() });
-    // No triage buttons visible until user explicitly clicks
+    // First inbox item is auto-expanded — triage buttons visible
+    expect(screen.getByLabelText("Move to Next")).toBeInTheDocument();
+  });
+
+  it("does not auto-expand items in non-inbox buckets", () => {
+    const things = [createThing({ name: "Next task", bucket: "next" })];
+    renderThingList({ bucket: "next", things, onEdit: vi.fn() });
     expect(screen.queryByLabelText("Move to Next")).not.toBeInTheDocument();
   });
 
   it("expands inbox item on click and shows triage buttons", async () => {
     const user = userEvent.setup();
-    const things = [
-      createThing({ name: "Clickable inbox", bucket: "inbox" }),
-    ];
+    const things = [createThing({ name: "Clickable inbox", bucket: "inbox" })];
     renderThingList({ bucket: "inbox", things, onEdit: vi.fn() });
     // Click item to expand
     await user.click(screen.getByText("Clickable inbox"));

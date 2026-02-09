@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { http, HttpResponse } from "msw";
 import { expect, waitFor } from "storybook/test";
 import { ConnectedBucketView } from "./ConnectedBucketView";
 import { store, seedMixedBuckets } from "@/test/msw/fixtures";
@@ -320,6 +321,33 @@ export const SomedayBucket: Story = {
     await step("Verify someday items appear", async () => {
       await waitFor(() => {
         expect(canvas.getByText("Learn Rust")).toBeInTheDocument();
+      }, WAIT);
+    });
+  },
+};
+
+// ---------------------------------------------------------------------------
+// LoadError — API returns 500
+// ---------------------------------------------------------------------------
+
+export const LoadError: Story = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.get("*/things/sync", () => {
+          return HttpResponse.json({ detail: "Server error" }, { status: 500 });
+        }),
+      ],
+    },
+  },
+  beforeEach: () => {
+    store.clear();
+  },
+  render: () => <ConnectedBucketViewDemo />,
+  play: async ({ canvas, step }) => {
+    await step("Verify error state is shown", async () => {
+      await waitFor(() => {
+        expect(canvas.getByText("Failed to load data")).toBeInTheDocument();
       }, WAIT);
     });
   },

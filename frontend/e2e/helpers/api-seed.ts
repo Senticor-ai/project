@@ -79,18 +79,13 @@ export class ApiSeed {
         pv("app:isFocused", options?.isFocused ?? false),
         pv("app:ports", []),
         pv("app:typedReferences", []),
-        pv("app:provenanceHistory", [
-          { timestamp: now, action: "created" },
-        ]),
+        pv("app:provenanceHistory", [{ timestamp: now, action: "created" }]),
         ...(options?.sequenceOrder != null
           ? [pv("app:sequenceOrder", options.sequenceOrder)]
           : []),
+        pv("app:projectRefs", options?.projectId ? [options.projectId] : []),
       ],
     };
-
-    if (options?.projectId) {
-      thing.isPartOf = { "@id": options.projectId };
-    }
 
     const response = await this.request.post("/api/things", {
       data: { source: "manual", thing },
@@ -119,8 +114,6 @@ export class ApiSeed {
           keywords: [],
           dateCreated: now,
           dateModified: now,
-          endTime: null,
-          hasPart: [],
           additionalProperty: [
             pv("app:bucket", "project"),
             pv("app:desiredOutcome", desiredOutcome),

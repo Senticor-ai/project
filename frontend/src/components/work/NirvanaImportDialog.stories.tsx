@@ -202,3 +202,73 @@ export const InspectPreview: Story = {
     });
   },
 };
+
+// ---------------------------------------------------------------------------
+// ToggleIncludeCompleted — uncheck the completed checkbox to re-inspect
+// ---------------------------------------------------------------------------
+
+export const ToggleIncludeCompleted: Story = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.post("*/imports/nirvana/inspect", async ({ request }) => {
+          const body = (await request.json()) as {
+            include_completed?: boolean;
+          };
+          const total = body.include_completed === false ? 30 : 42;
+          return HttpResponse.json({
+            total,
+            created: total - 7,
+            updated: 3,
+            skipped: 2,
+            errors: 2,
+            bucket_counts: {
+              inbox: 10,
+              next: 10,
+              waiting: 5,
+              someday: 3,
+              reference: 2,
+            },
+            sample_errors: ["item[17] missing name"],
+          });
+        }),
+      ],
+    },
+  },
+  play: async ({ canvas, userEvent, step }) => {
+    await step("Upload a file", async () => {
+      const input = canvas.getByTestId(
+        "nirvana-file-input",
+      ) as HTMLInputElement;
+      const file = new File(['{"items":[]}'], "nirvana-export.json", {
+        type: "application/json",
+      });
+      await userEvent.upload(input, file);
+    });
+
+    await step("Wait for initial preview (42 items)", async () => {
+      await waitFor(
+        () => {
+          expect(canvas.getByText("42 items found")).toBeInTheDocument();
+        },
+        { timeout: 10000 },
+      );
+    });
+
+    await step("Uncheck Include completed items", async () => {
+      const checkbox = canvas.getByRole("checkbox", {
+        name: /Include completed items/,
+      });
+      await userEvent.click(checkbox);
+    });
+
+    await step("Preview updates to 30 items", async () => {
+      await waitFor(
+        () => {
+          expect(canvas.getByText("30 items found")).toBeInTheDocument();
+        },
+        { timeout: 10000 },
+      );
+    });
+  },
+};
