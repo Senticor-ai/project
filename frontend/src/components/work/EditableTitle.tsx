@@ -7,6 +7,8 @@ export interface EditableTitleProps {
   onSave?: (newTitle: string) => void;
   onToggleEdit: () => void;
   completed?: boolean;
+  /** When provided, sets aria-expanded on the title button (for disclosure pattern). */
+  ariaExpanded?: boolean;
   className?: string;
 }
 
@@ -16,6 +18,7 @@ export function EditableTitle({
   onSave,
   onToggleEdit,
   completed = false,
+  ariaExpanded,
   className,
 }: EditableTitleProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -96,6 +99,7 @@ export function EditableTitle({
   return (
     <button
       onClick={onToggleEdit}
+      aria-expanded={ariaExpanded}
       className={cn(
         "flex-1 whitespace-pre-wrap text-left text-sm text-text",
         completed ? "font-normal text-text-muted line-through" : "font-medium",

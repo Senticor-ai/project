@@ -95,16 +95,16 @@ export function ImportExportPanel({
             Export
           </span>
         </h2>
-        <p className="text-xs text-text-subtle">
-          Export all your GTD items to a file for backup or migration.
-        </p>
-        <div className="space-y-2">
+        <fieldset className="space-y-2">
+          <legend className="text-xs text-text-subtle">
+            Export your active GTD items to a file for backup or migration.
+          </legend>
           <label className="flex items-center gap-2 text-sm text-text-muted">
             <input
               type="checkbox"
               checked={includeArchived}
               onChange={(e) => setIncludeArchived(e.target.checked)}
-              aria-label="Include archived"
+              className="accent-blueprint-600 focus-visible:ring-2 focus-visible:ring-blueprint-500"
             />
             Include archived
           </label>
@@ -113,15 +113,14 @@ export function ImportExportPanel({
               type="checkbox"
               checked={includeCompleted}
               onChange={(e) => setIncludeCompleted(e.target.checked)}
-              aria-label="Include completed"
+              className="accent-blueprint-600 focus-visible:ring-2 focus-visible:ring-blueprint-500"
             />
             Include completed
           </label>
-        </div>
+        </fieldset>
         <button
           type="button"
           onClick={() => onExport({ includeArchived, includeCompleted })}
-          aria-label="Export JSON"
           className="flex items-center gap-2 rounded-[var(--radius-md)] border border-border px-4 py-2 text-sm transition-colors hover:bg-paper-100"
         >
           <Icon name="data_object" size={16} />

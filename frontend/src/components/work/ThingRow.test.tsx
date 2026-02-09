@@ -140,6 +140,37 @@ describe("ThingRow rendering", () => {
     );
   });
 
+  it("title button has aria-expanded when expandable", () => {
+    renderRow({
+      thing: createThing({ name: "Task" }),
+      onToggleExpand: vi.fn(),
+    });
+    expect(screen.getByRole("button", { name: "Task" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+  });
+
+  it("title button has aria-expanded=true when expanded", () => {
+    renderRow({
+      thing: createThing({ name: "Task" }),
+      isExpanded: true,
+      onToggleExpand: vi.fn(),
+      onEdit: vi.fn(),
+    });
+    expect(screen.getByRole("button", { name: "Task" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+  });
+
+  it("title button omits aria-expanded when not expandable", () => {
+    renderRow({ thing: createThing({ name: "Task" }) });
+    expect(screen.getByRole("button", { name: "Task" })).not.toHaveAttribute(
+      "aria-expanded",
+    );
+  });
+
   it("shows edit button when onToggleExpand provided", () => {
     renderRow({
       thing: createThing({ name: "Task" }),

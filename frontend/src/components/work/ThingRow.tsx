@@ -222,6 +222,7 @@ export function ThingRow({
             }
             onToggleEdit={handleTitleClick}
             completed={isCompleted}
+            ariaExpanded={onToggleExpand ? isExpanded : undefined}
           />
           {!isExpanded && thing.description && (
             <p
@@ -238,11 +239,11 @@ export function ThingRow({
           <span className="shrink-0 text-xs text-text-muted">{subtitle}</span>
         )}
 
-        {/* Note indicator */}
-        {thing.description && (
+        {/* Note indicator — only when expanded (collapsed shows text preview instead) */}
+        {isExpanded && thing.description && (
           <button
-            onClick={() => (onToggleExpand ? onToggleExpand() : undefined)}
-            aria-label={`Show notes for ${displayName}`}
+            onClick={() => onToggleExpand?.()}
+            aria-label={`Hide notes for ${displayName}`}
             className="shrink-0 text-text-subtle hover:text-text"
           >
             <Icon name="description" size={14} />
