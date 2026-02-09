@@ -4,9 +4,16 @@ import userEvent from "@testing-library/user-event";
 import { ImportExportPanel } from "./ImportExportPanel";
 import type { ImportJobData } from "./ImportJobRow";
 
+const defaultProps = {
+  onImportNative: vi.fn(),
+  onImportNirvana: vi.fn(),
+  onExport: vi.fn(),
+};
+
 describe("ImportExportPanel", () => {
   it("renders import source cards", () => {
-    render(<ImportExportPanel onImportNirvana={vi.fn()} onExport={vi.fn()} />);
+    render(<ImportExportPanel {...defaultProps} />);
+    expect(screen.getByText("TerminAndoYo")).toBeInTheDocument();
     expect(screen.getByText("Nirvana")).toBeInTheDocument();
     expect(screen.getByText("Things 3")).toBeInTheDocument();
     expect(screen.getByText("Todoist")).toBeInTheDocument();
@@ -14,27 +21,43 @@ describe("ImportExportPanel", () => {
     expect(screen.getAllByText("CSV")).toHaveLength(1);
   });
 
+  it("shows TerminAndoYo as available with import button", () => {
+    render(<ImportExportPanel {...defaultProps} />);
+    expect(
+      screen.getByRole("button", { name: "Import from TerminAndoYo" }),
+    ).toBeEnabled();
+  });
+
   it("shows Nirvana as available with import button", () => {
-    render(<ImportExportPanel onImportNirvana={vi.fn()} onExport={vi.fn()} />);
+    render(<ImportExportPanel {...defaultProps} />);
     expect(
       screen.getByRole("button", { name: "Import from Nirvana" }),
     ).toBeEnabled();
   });
 
   it("shows coming soon badge for unavailable sources", () => {
-    render(<ImportExportPanel onImportNirvana={vi.fn()} onExport={vi.fn()} />);
+    render(<ImportExportPanel {...defaultProps} />);
     const badges = screen.getAllByText("Coming soon");
     expect(badges).toHaveLength(3);
+  });
+
+  it("calls onImportNative when TerminAndoYo import button is clicked", async () => {
+    const user = userEvent.setup();
+    const onImportNative = vi.fn();
+    render(
+      <ImportExportPanel {...defaultProps} onImportNative={onImportNative} />,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Import from TerminAndoYo" }),
+    );
+    expect(onImportNative).toHaveBeenCalled();
   });
 
   it("calls onImportNirvana when Nirvana import button is clicked", async () => {
     const user = userEvent.setup();
     const onImportNirvana = vi.fn();
     render(
-      <ImportExportPanel
-        onImportNirvana={onImportNirvana}
-        onExport={vi.fn()}
-      />,
+      <ImportExportPanel {...defaultProps} onImportNirvana={onImportNirvana} />,
     );
     await user.click(
       screen.getByRole("button", { name: "Import from Nirvana" }),
@@ -43,7 +66,7 @@ describe("ImportExportPanel", () => {
   });
 
   it("renders single Export JSON button and filter checkboxes", () => {
-    render(<ImportExportPanel onImportNirvana={vi.fn()} onExport={vi.fn()} />);
+    render(<ImportExportPanel {...defaultProps} />);
     expect(
       screen.getByRole("button", { name: "Export JSON" }),
     ).toBeInTheDocument();
@@ -57,7 +80,7 @@ describe("ImportExportPanel", () => {
   it("calls onExport with default options when export button is clicked", async () => {
     const user = userEvent.setup();
     const onExport = vi.fn();
-    render(<ImportExportPanel onImportNirvana={vi.fn()} onExport={onExport} />);
+    render(<ImportExportPanel {...defaultProps} onExport={onExport} />);
     await user.click(screen.getByRole("button", { name: "Export JSON" }));
     expect(onExport).toHaveBeenCalledWith({
       includeArchived: false,
@@ -68,7 +91,7 @@ describe("ImportExportPanel", () => {
   it("passes toggled filter options to onExport", async () => {
     const user = userEvent.setup();
     const onExport = vi.fn();
-    render(<ImportExportPanel onImportNirvana={vi.fn()} onExport={onExport} />);
+    render(<ImportExportPanel {...defaultProps} onExport={onExport} />);
     await user.click(screen.getByLabelText("Include archived"));
     await user.click(screen.getByLabelText("Include completed"));
     await user.click(screen.getByRole("button", { name: "Export JSON" }));
@@ -81,7 +104,7 @@ describe("ImportExportPanel", () => {
   it("can toggle include archived independently", async () => {
     const user = userEvent.setup();
     const onExport = vi.fn();
-    render(<ImportExportPanel onImportNirvana={vi.fn()} onExport={onExport} />);
+    render(<ImportExportPanel {...defaultProps} onExport={onExport} />);
     await user.click(screen.getByLabelText("Include archived"));
     await user.click(screen.getByRole("button", { name: "Export JSON" }));
     expect(onExport).toHaveBeenCalledWith({
@@ -91,7 +114,7 @@ describe("ImportExportPanel", () => {
   });
 
   it("does not show import history when no jobs", () => {
-    render(<ImportExportPanel onImportNirvana={vi.fn()} onExport={vi.fn()} />);
+    render(<ImportExportPanel {...defaultProps} />);
     expect(screen.queryByText("Recent imports")).not.toBeInTheDocument();
   });
 
@@ -115,26 +138,14 @@ describe("ImportExportPanel", () => {
         error: null,
       },
     ];
-    render(
-      <ImportExportPanel
-        onImportNirvana={vi.fn()}
-        onExport={vi.fn()}
-        importJobs={jobs}
-      />,
-    );
+    render(<ImportExportPanel {...defaultProps} importJobs={jobs} />);
     expect(screen.getByText("Recent imports")).toBeInTheDocument();
     expect(screen.getByText("Completed")).toBeInTheDocument();
     expect(screen.getByText("42 items")).toBeInTheDocument();
   });
 
   it("does not show import history when jobs array is empty", () => {
-    render(
-      <ImportExportPanel
-        onImportNirvana={vi.fn()}
-        onExport={vi.fn()}
-        importJobs={[]}
-      />,
-    );
+    render(<ImportExportPanel {...defaultProps} importJobs={[]} />);
     expect(screen.queryByText("Recent imports")).not.toBeInTheDocument();
   });
 });

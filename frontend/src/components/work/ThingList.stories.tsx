@@ -334,6 +334,56 @@ export const RapidMultiEntry: Story = {
   },
 };
 
+/** Click inbox item to expand, triage it, auto-advance to next. */
+export const InboxTriageFlow: Story = {
+  render: function TriageDemo() {
+    const [things, setThings] = useState<Thing[]>([
+      createThing({ rawCapture: "First inbox item", bucket: "inbox" }),
+      createThing({ rawCapture: "Second inbox item", bucket: "inbox" }),
+    ]);
+
+    return (
+      <ThingList
+        bucket="inbox"
+        things={things}
+        onAdd={fn()}
+        onComplete={fn()}
+        onToggleFocus={fn()}
+        onMove={(id) => {
+          setThings((prev) => prev.filter((t) => t.id !== id));
+        }}
+        onArchive={fn()}
+        onEdit={fn()}
+      />
+    );
+  },
+  play: async ({ canvas, userEvent, step }) => {
+    // No triage buttons initially (auto-expand removed)
+    await expect(
+      canvas.queryByLabelText("Move to Next"),
+    ).not.toBeInTheDocument();
+
+    await step("Click first item to expand", async () => {
+      await userEvent.click(canvas.getByText("First inbox item"));
+      await expect(
+        canvas.getByLabelText("Move to Next"),
+      ).toBeInTheDocument();
+    });
+
+    await step(
+      "Triage to Next — auto-advances to second item",
+      async () => {
+        await userEvent.click(canvas.getByLabelText("Move to Next"));
+        // Second item auto-expands after triage
+        await expect(
+          canvas.getByLabelText("Move to Next"),
+        ).toBeInTheDocument();
+        await expect(canvas.getByText("1 item to process")).toBeInTheDocument();
+      },
+    );
+  },
+};
+
 /** Click the star to focus an action — it sorts to the top. */
 export const FocusFromList: Story = {
   render: function FocusDemo() {

@@ -45,6 +45,9 @@ storage/
 storage-e2e/
 tmp/
 
+# Coverage
+coverage/
+
 # Playwright
 test-results/
 playwright-report/

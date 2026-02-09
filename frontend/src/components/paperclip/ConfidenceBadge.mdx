@@ -1,0 +1,34 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as ConfidenceBadgeStories from "./ConfidenceBadge.stories";
+
+<Meta of={ConfidenceBadgeStories} />
+
+# ConfidenceBadge
+
+Shows how well-defined an item is, derived from the
+[FRBR evidence-first pattern](?path=/docs/engineering-ontology-frbr-knowledge-graph--docs).
+Items start as raw captures and gain confidence through enrichment and clarification.
+
+## Confidence Levels
+
+| Level            | Label          | Icon                   | Color Token                     |
+| ---------------- | -------------- | ---------------------- | ------------------------------- |
+| High             | Clarified      | `check_circle`         | `--color-confidence-high`       |
+| Medium           | Partial        | `radio_button_checked` | `--color-confidence-medium`     |
+| Low              | Raw            | `error`                | `--color-confidence-low`        |
+| Needs enrichment | Needs review   | `auto_awesome`         | `--color-confidence-enrichment` |
+
+When `needsEnrichment` is true, the enrichment state overrides the confidence level display.
+
+## All States
+
+<Canvas of={ConfidenceBadgeStories.AllStates} />
+
+## Individual States
+
+<Canvas of={ConfidenceBadgeStories.High} />
+<Canvas of={ConfidenceBadgeStories.NeedsEnrichment} />
+
+## Props
+
+<ArgTypes of={ConfidenceBadgeStories} />

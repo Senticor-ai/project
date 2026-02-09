@@ -7,6 +7,7 @@ import {
   buildNewInboxJsonLd,
   buildNewActionJsonLd,
   buildNewReferenceJsonLd,
+  buildNewProjectJsonLd,
 } from "./thing-serializer";
 import {
   createInboxItem,
@@ -925,6 +926,81 @@ describe("buildNewActionJsonLd", () => {
 
     expect(ld1["@id"]).not.toBe(ld2["@id"]);
     expect((ld1["@id"] as string).startsWith("urn:app:action:")).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildNewProjectJsonLd — v2 format
+// ---------------------------------------------------------------------------
+
+describe("buildNewProjectJsonLd", () => {
+  it("creates a schema:Project with _schemaVersion 2", () => {
+    const ld = buildNewProjectJsonLd("Website Relaunch", "Neue Website live");
+
+    expect(ld["@type"]).toBe("Project");
+    expect(ld._schemaVersion).toBe(2);
+  });
+
+  it("uses schema.org name property", () => {
+    const ld = buildNewProjectJsonLd("Website Relaunch", "Neue Website live");
+
+    expect(ld.name).toBe("Website Relaunch");
+  });
+
+  it("stores desiredOutcome as additionalProperty", () => {
+    const ld = buildNewProjectJsonLd("Website Relaunch", "Neue Website live");
+
+    expectPropertyValue(ld, "app:desiredOutcome", "Neue Website live");
+  });
+
+  it("sets projectStatus to active", () => {
+    const ld = buildNewProjectJsonLd("P", "D");
+
+    expectPropertyValue(ld, "app:projectStatus", "active");
+  });
+
+  it("initializes with empty hasPart array", () => {
+    const ld = buildNewProjectJsonLd("P", "D");
+
+    expect(ld.hasPart).toEqual([]);
+  });
+
+  it("sets isFocused to false", () => {
+    const ld = buildNewProjectJsonLd("P", "D");
+
+    expectPropertyValue(ld, "app:isFocused", false);
+  });
+
+  it("sets confidence to high and needsEnrichment to false", () => {
+    const ld = buildNewProjectJsonLd("P", "D");
+
+    expectPropertyValue(ld, "app:confidence", "high");
+    expectPropertyValue(ld, "app:needsEnrichment", false);
+  });
+
+  it("generates unique @id with urn:app:project: prefix", () => {
+    const ld1 = buildNewProjectJsonLd("First", "D1");
+    const ld2 = buildNewProjectJsonLd("Second", "D2");
+
+    expect(ld1["@id"]).not.toBe(ld2["@id"]);
+    expect((ld1["@id"] as string).startsWith("urn:app:project:")).toBe(true);
+  });
+
+  it("includes dateCreated and dateModified", () => {
+    const ld = buildNewProjectJsonLd("P", "D");
+
+    expect(typeof ld.dateCreated).toBe("string");
+    expect(typeof ld.dateModified).toBe("string");
+  });
+
+  it("includes provenance history with created entry", () => {
+    const ld = buildNewProjectJsonLd("P", "D");
+
+    const history = getProp(ld, "app:provenanceHistory") as unknown[];
+    expect(history).toHaveLength(1);
+    expect(history[0]).toEqual(
+      expect.objectContaining({ action: "created" }),
+    );
   });
 });
 

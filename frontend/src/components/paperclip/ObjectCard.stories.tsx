@@ -6,7 +6,6 @@ import { createCanonicalId } from "@/model/canonical-id";
 const meta = {
   title: "Primitives/ObjectCard",
   component: ObjectCard,
-  tags: ["autodocs"],
   parameters: {
     layout: "padded",
   },

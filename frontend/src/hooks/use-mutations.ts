@@ -9,6 +9,7 @@ import type { ThingRecord } from "@/lib/api-client";
 import {
   buildNewInboxJsonLd,
   buildNewReferenceJsonLd,
+  buildNewProjectJsonLd,
   buildTriagePatch,
   buildNewActionJsonLd,
 } from "@/lib/thing-serializer";
@@ -474,6 +475,50 @@ export function useAddProjectAction() {
         canonical_id: `urn:app:action:temp-${Date.now()}` as CanonicalId,
         source: "manual",
         thing: buildNewActionJsonLd(title, "next", { projectId }),
+        created_at: now,
+        updated_at: now,
+      };
+      qc.setQueryData<ThingRecord[]>(ACTIVE_KEY, (old) => [
+        ...(old ?? []),
+        optimistic,
+      ]);
+      return { prev };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.prev) qc.setQueryData(ACTIVE_KEY, context.prev);
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: THINGS_QUERY_KEY });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Create project
+// ---------------------------------------------------------------------------
+
+export function useCreateProject() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      name,
+      desiredOutcome,
+    }: {
+      name: string;
+      desiredOutcome: string;
+    }) => {
+      const jsonLd = buildNewProjectJsonLd(name, desiredOutcome);
+      return ThingsApi.create(jsonLd, "manual");
+    },
+    onMutate: async ({ name, desiredOutcome }) => {
+      const prev = await snapshotActive(qc);
+      const now = new Date().toISOString();
+      const optimistic: ThingRecord = {
+        thing_id: `temp-${Date.now()}`,
+        canonical_id: `urn:app:project:temp-${Date.now()}` as CanonicalId,
+        source: "manual",
+        thing: buildNewProjectJsonLd(name, desiredOutcome),
         created_at: now,
         updated_at: now,
       };

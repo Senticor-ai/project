@@ -1,0 +1,47 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Work/CalendarView" />
+
+# CalendarView
+
+> **Status**: Spec — not yet implemented
+
+Week/month/day calendar view for scheduled items with drag-to-reschedule.
+
+Embodies **Principle 7: Interface-Level Responsiveness** — drag interactions give
+immediate visual feedback, and **Principle 1: Everything Is an Object** — each event
+is a compact ObjectCard fitting the time slot.
+
+## Visual Structure (Week View)
+
+```
+┌──────────────────────────────────────────────┐
+│  ◀  February 2026  ▶    [Month][Week][Day]  │
+├──────┬──────┬──────┬──────┬──────┬──────┬───┤
+│ Mon  │ Tue  │ Wed  │ Thu  │ Fri  │ Sat  │Sun│
+│      │      │      │      │      │      │   │
+│┌────┐│      │┌────┐│      │      │      │   │
+││9:00││      ││9:30││      │      │      │   │
+││Team ││      ││1:1  ││      │      │      │   │
+││mtg  ││      ││w/PM ││      │      │      │   │
+│└────┘│      │└────┘│      │      │      │   │
+│      │┌────┐│      │      │┌────┐│      │   │
+│      ││2pm ││      │      ││all ││      │   │
+│      ││Demo││      │      ││day ││      │   │
+│      │└────┘│      │      ││off ││      │   │
+│      │      │      │      │└────┘│      │   │
+│      │      │      │      │  🔄  │      │   │  ← recurring badge
+└──────┴──────┴──────┴──────┴──────┴──────┴───┘
+```
+
+## Design Notes
+
+- Each event is a compact ObjectCard (padding 4px 8px, no subtitle, no shadow)
+- Drag to reschedule (snap to 15-min grid)
+- All-day events as colored banners at top of day column
+- Recurring events show a subtle cycle icon
+- Today column highlighted with blueprint background tint
+
+## Empty State
+
+"Clear schedule" with an "Add calendar entry" button.

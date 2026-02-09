@@ -1,0 +1,38 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as BucketBadgeStories from "./BucketBadge.stories";
+
+<Meta of={BucketBadgeStories} />
+
+# BucketBadge
+
+Color-coded type indicator showing which GTD bucket an item belongs to.
+Each bucket has a distinct color token and [Material Symbol](https://fonts.google.com/icons) icon.
+
+## Bucket Reference
+
+| Bucket        | Color Token             | Icon                   |
+| ------------- | ----------------------- | ---------------------- |
+| Inbox         | `--color-gtd-inbox`     | `inbox`                |
+| Next Actions  | `--color-gtd-next`      | `bolt`                 |
+| Projects      | `--color-gtd-project`   | `folder`               |
+| Waiting For   | `--color-gtd-waiting`   | `schedule`             |
+| Someday/Maybe | `--color-gtd-someday`   | `cloud`                |
+| Calendar      | `--color-gtd-calendar`  | `calendar_month`       |
+| Reference     | `--color-gtd-reference` | `book`                 |
+| Focus         | `--color-gtd-focus`     | `center_focus_strong`  |
+
+Colors use a 15% tint background with full-saturation text, following the
+[Paperclip color philosophy](?path=/docs/design-design-philosophy--docs).
+
+## All Buckets
+
+<Canvas of={BucketBadgeStories.AllBuckets} />
+
+## With and Without Label
+
+<Canvas of={BucketBadgeStories.Inbox} />
+<Canvas of={BucketBadgeStories.IconOnly} />
+
+## Props
+
+<ArgTypes of={BucketBadgeStories} />

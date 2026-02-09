@@ -1,0 +1,47 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Work/ReviewDashboard" />
+
+# ReviewDashboard
+
+> **Status**: Spec — not yet implemented
+
+7-step guided weekly review wizard with progress bar and stalled project warnings.
+
+Embodies **Principle 3: Gravity Creates Focus** — the wizard surfaces items that
+need attention without hiding the rest, and **Principle 8: Speed Over Ceremony** —
+each step is a quick pass, not a form to fill.
+
+## Visual Structure
+
+```
+┌──────────────────────────────────────────────┐
+│  📋 WEEKLY REVIEW                            │
+│  ████████░░░░░░░░  Step 3 of 7              │
+│                                              │
+│  ✓ 1. Clear Inbox (0 remaining)             │
+│  ✓ 2. Review Next Actions (12 reviewed)     │
+│  → 3. Review Projects                        │  ← current step
+│    4. Check Waiting For                      │
+│    5. Someday/Maybe                          │
+│    6. Calendar                               │
+│    7. Set Focus                              │
+├──────────────────────────────────────────────┤
+│                                              │
+│  📁 Q1 Planning             ⚠️ No next action│
+│  📁 Website Redesign        ✓ On track      │
+│  📁 Office Relocation       ✓ On track      │
+│  📁 Hiring: Senior Dev      ⚠️ Stalled       │
+│                                              │
+│  [Mark all reviewed]        [Next step →]    │
+└──────────────────────────────────────────────┘
+```
+
+## Design Notes
+
+- Progress bar uses blueprint accent color
+- Completed steps have green checkmark
+- Current step highlighted with blueprint background
+- Stalled/attention items flagged with amber warning
+- "Next step" button advances the wizard
+- Completion state: celebration with achievement message

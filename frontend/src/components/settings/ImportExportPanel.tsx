@@ -5,6 +5,7 @@ import { IMPORT_SOURCES, type ExportOptions } from "@/model/settings-types";
 import { ImportJobRow, type ImportJobData } from "./ImportJobRow";
 
 export interface ImportExportPanelProps {
+  onImportNative: () => void;
   onImportNirvana: () => void;
   onExport: (options: ExportOptions) => void;
   importJobs?: ImportJobData[];
@@ -12,6 +13,7 @@ export interface ImportExportPanelProps {
 }
 
 export function ImportExportPanel({
+  onImportNative,
   onImportNirvana,
   onExport,
   importJobs,
@@ -53,7 +55,11 @@ export function ImportExportPanel({
                 <button
                   type="button"
                   onClick={
-                    source.id === "nirvana" ? onImportNirvana : undefined
+                    source.id === "native"
+                      ? onImportNative
+                      : source.id === "nirvana"
+                        ? onImportNirvana
+                        : undefined
                   }
                   aria-label={`Import from ${source.name}`}
                   className="mt-auto rounded-[var(--radius-md)] bg-blueprint-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blueprint-700"

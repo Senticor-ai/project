@@ -592,3 +592,103 @@ describe("ThingRow title editing", () => {
     expect(onUpdateTitle).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Calendar triage date picker
+// ---------------------------------------------------------------------------
+
+describe("ThingRow calendar triage", () => {
+  it("shows date picker instead of moving when Calendar clicked", async () => {
+    const user = userEvent.setup();
+    const { props } = renderRow({
+      thing: createThing({ name: "Schedule me", bucket: "inbox" }),
+      isExpanded: true,
+      onToggleExpand: vi.fn(),
+      onEdit: vi.fn(),
+    });
+    await user.click(screen.getByLabelText("Move to Calendar"));
+    // Date picker appears, item not moved yet
+    expect(screen.getByLabelText("Schedule date")).toBeInTheDocument();
+    expect(props.onMove).not.toHaveBeenCalled();
+  });
+
+  it("moves to calendar after date selection", async () => {
+    const user = userEvent.setup();
+    const onEdit = vi.fn();
+    const onMove = vi.fn();
+    const thing = createThing({ name: "Schedule me", bucket: "inbox" });
+    renderRow({
+      thing,
+      isExpanded: true,
+      onToggleExpand: vi.fn(),
+      onEdit,
+      onMove,
+    });
+    await user.click(screen.getByLabelText("Move to Calendar"));
+    const dateInput = screen.getByLabelText("Schedule date");
+    // fireEvent.change is more reliable for date inputs
+    const { fireEvent } = await import("@testing-library/react");
+    fireEvent.change(dateInput, { target: { value: "2026-03-15" } });
+    expect(onEdit).toHaveBeenCalledWith(thing.id, {
+      scheduledDate: "2026-03-15",
+    });
+    expect(onMove).toHaveBeenCalledWith(thing.id, "calendar");
+  });
+
+  it("dismisses date picker on Escape", async () => {
+    const user = userEvent.setup();
+    renderRow({
+      thing: createThing({ name: "Schedule me", bucket: "inbox" }),
+      isExpanded: true,
+      onToggleExpand: vi.fn(),
+      onEdit: vi.fn(),
+    });
+    await user.click(screen.getByLabelText("Move to Calendar"));
+    expect(screen.getByLabelText("Schedule date")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByLabelText("Schedule date")).not.toBeInTheDocument();
+  });
+
+  it("dismisses date picker on Cancel click", async () => {
+    const user = userEvent.setup();
+    renderRow({
+      thing: createThing({ name: "Schedule me", bucket: "inbox" }),
+      isExpanded: true,
+      onToggleExpand: vi.fn(),
+      onEdit: vi.fn(),
+    });
+    await user.click(screen.getByLabelText("Move to Calendar"));
+    await user.click(screen.getByLabelText("Cancel date selection"));
+    expect(screen.queryByLabelText("Schedule date")).not.toBeInTheDocument();
+  });
+
+  it("resets date picker when row collapses", () => {
+    const thing = createThing({ name: "Schedule me", bucket: "inbox" });
+    const baseProps = {
+      thing,
+      onComplete: vi.fn(),
+      onToggleFocus: vi.fn(),
+      onMove: vi.fn(),
+      onArchive: vi.fn(),
+      onToggleExpand: vi.fn(),
+      onEdit: vi.fn(),
+    };
+    const { rerender } = render(<ThingRow {...baseProps} isExpanded={true} />);
+
+    // Collapse then re-expand — picker should be gone
+    rerender(<ThingRow {...baseProps} isExpanded={false} />);
+    rerender(<ThingRow {...baseProps} isExpanded={true} />);
+    expect(screen.queryByLabelText("Schedule date")).not.toBeInTheDocument();
+  });
+
+  it("other triage buttons still move immediately", async () => {
+    const user = userEvent.setup();
+    const { props } = renderRow({
+      thing: createThing({ name: "Quick triage", bucket: "inbox" }),
+      isExpanded: true,
+      onToggleExpand: vi.fn(),
+    });
+    await user.click(screen.getByLabelText("Move to Next"));
+    expect(props.onMove).toHaveBeenCalledWith(props.thing.id, "next");
+  });
+});

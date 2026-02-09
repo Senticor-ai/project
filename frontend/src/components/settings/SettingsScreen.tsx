@@ -31,6 +31,7 @@ export interface SettingsScreenProps {
   onTabChange?: (tab: SettingsTab) => void;
   /** @deprecated Use activeTab instead. Only used in uncontrolled mode. */
   initialTab?: SettingsTab;
+  onImportNative?: () => void;
   onImportNirvana?: () => void;
   onExport?: (options: ExportOptions) => void;
   onFlush?: () => Promise<import("@/lib/api-client").FlushResponse>;
@@ -42,6 +43,7 @@ export function SettingsScreen({
   activeTab: controlledTab,
   onTabChange,
   initialTab = "import-export",
+  onImportNative,
   onImportNirvana,
   onExport,
   onFlush,
@@ -80,6 +82,7 @@ export function SettingsScreen({
         <div id={`tabpanel-${activeTab}`} role="tabpanel">
           {activeTab === "import-export" && (
             <ImportExportPanel
+              onImportNative={onImportNative ?? (() => {})}
               onImportNirvana={onImportNirvana ?? (() => {})}
               onExport={onExport ?? (() => {})}
               importJobs={importJobs}

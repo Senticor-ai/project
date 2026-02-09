@@ -296,6 +296,23 @@ export const ExpandedTitleEditing: Story = {
   },
 };
 
+/** Calendar triage shows inline date picker before moving. */
+export const TriageCalendar: Story = {
+  args: {
+    thing: createThing({
+      rawCapture: "Quarterly review",
+      bucket: "inbox",
+    }),
+    isExpanded: true,
+    onToggleExpand: fn(),
+    onEdit: fn(),
+  },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(canvas.getByLabelText("Move to Calendar"));
+    await expect(canvas.getByLabelText("Schedule date")).toBeInTheDocument();
+  },
+};
+
 export const ArchiveFromMenu: Story = {
   args: {
     thing: createThing({ rawCapture: "Archive me", bucket: "next" }),

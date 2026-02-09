@@ -45,7 +45,12 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
 // Import / Export
 // ---------------------------------------------------------------------------
 
-export type ImportSourceId = "nirvana" | "things3" | "todoist" | "csv";
+export type ImportSourceId =
+  | "native"
+  | "nirvana"
+  | "things3"
+  | "todoist"
+  | "csv";
 export interface ExportOptions {
   includeArchived: boolean;
   includeCompleted: boolean;
@@ -60,6 +65,13 @@ export interface ImportSource {
 }
 
 export const IMPORT_SOURCES: ImportSource[] = [
+  {
+    id: "native",
+    name: "TerminAndoYo",
+    icon: "swap_horiz",
+    description: "Import from a TerminAndoYo JSON export",
+    available: true,
+  },
   {
     id: "nirvana",
     name: "Nirvana",

@@ -77,16 +77,14 @@ export function ThingList({
   const [showCompleted, setShowCompleted] = useState(false);
   const [captureError, setCaptureError] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const [hasAutoExpanded, setHasAutoExpanded] = useState(false);
   const [prevBucket, setPrevBucket] = useState(bucket);
   const meta = bucketMeta[bucket];
   const isInbox = bucket === "inbox";
   const isFocusView = bucket === "focus";
 
-  // Reset auto-expand flag and collapse all on bucket change (render-time state adjustment)
+  // Collapse all on bucket change (render-time state adjustment)
   if (prevBucket !== bucket) {
     setPrevBucket(bucket);
-    setHasAutoExpanded(false);
     setExpandedId(null);
   }
 
@@ -181,14 +179,9 @@ export function ThingList({
     });
   }, [contextFiltered, isInbox]);
 
-  // Auto-expand the first inbox item so triage buttons are immediately visible.
-  // Computed during render (not in useEffect) to avoid cascading renders.
-  if (bucket === "inbox" && sorted.length > 0) {
-    const currentStillInList =
-      expandedId && sorted.some((t) => t.id === expandedId);
-    const userCollapsed = expandedId === null && hasAutoExpanded;
-    if (!currentStillInList && !userCollapsed && expandedId !== sorted[0].id) {
-      setHasAutoExpanded(true);
+  // Auto-advance to next inbox item when current is triaged away
+  if (bucket === "inbox" && sorted.length > 0 && expandedId !== null) {
+    if (!sorted.some((t) => t.id === expandedId)) {
       setExpandedId(sorted[0].id);
     }
   }

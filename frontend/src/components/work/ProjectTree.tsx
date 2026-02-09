@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
 import { AutoGrowTextarea } from "@/components/ui/AutoGrowTextarea";
@@ -17,6 +17,7 @@ export interface ProjectTreeProps {
   onCompleteAction: (id: CanonicalId) => void;
   onToggleFocus: (id: CanonicalId) => void;
   onAddAction: (projectId: CanonicalId, title: string) => void;
+  onCreateProject?: (name: string, desiredOutcome: string) => void;
   onUpdateTitle?: (id: CanonicalId, newTitle: string) => void;
   className?: string;
 }
@@ -27,12 +28,13 @@ export function ProjectTree({
   onCompleteAction,
   onToggleFocus,
   onAddAction,
+  onCreateProject,
   onUpdateTitle,
   className,
 }: ProjectTreeProps) {
   const [expandedId, setExpandedId] = useState<CanonicalId | null>(null);
-
   const [showAll, setShowAll] = useState(false);
+  const [showCreateForm, setShowCreateForm] = useState(false);
 
   const activeProjects = projects.filter((p) => p.status === "active");
   const nonActiveProjects = projects.filter((p) => p.status !== "active");
@@ -48,23 +50,54 @@ export function ProjectTree({
           </h1>
           <p className="text-xs text-text-muted">Multi-step outcomes</p>
         </div>
-        {nonActiveProjects.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setShowAll((prev) => !prev)}
-            aria-label={showAll ? "Show active only" : "Show all projects"}
-            aria-pressed={showAll}
-            className={cn(
-              "rounded-[var(--radius-md)] p-1.5 transition-colors duration-[var(--duration-fast)]",
-              showAll
-                ? "bg-blueprint-50 text-blueprint-500"
-                : "text-text-subtle hover:bg-paper-100 hover:text-text",
-            )}
-          >
-            <Icon name={showAll ? "visibility" : "visibility_off"} size={16} />
-          </button>
-        )}
+        <div className="flex items-center gap-1">
+          {nonActiveProjects.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowAll((prev) => !prev)}
+              aria-label={showAll ? "Show active only" : "Show all projects"}
+              aria-pressed={showAll}
+              className={cn(
+                "rounded-[var(--radius-md)] p-1.5 transition-colors duration-[var(--duration-fast)]",
+                showAll
+                  ? "bg-blueprint-50 text-blueprint-500"
+                  : "text-text-subtle hover:bg-paper-100 hover:text-text",
+              )}
+            >
+              <Icon
+                name={showAll ? "visibility" : "visibility_off"}
+                size={16}
+              />
+            </button>
+          )}
+          {onCreateProject && (
+            <button
+              type="button"
+              onClick={() => setShowCreateForm((prev) => !prev)}
+              aria-label="Create project"
+              className={cn(
+                "rounded-[var(--radius-md)] p-1.5 transition-colors duration-[var(--duration-fast)]",
+                showCreateForm
+                  ? "bg-blueprint-50 text-blueprint-500"
+                  : "text-text-subtle hover:bg-paper-100 hover:text-text",
+              )}
+            >
+              <Icon name="add" size={16} />
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Create project form */}
+      {showCreateForm && onCreateProject && (
+        <CreateProjectForm
+          onSubmit={(name, desiredOutcome) => {
+            onCreateProject(name, desiredOutcome);
+            setShowCreateForm(false);
+          }}
+          onCancel={() => setShowCreateForm(false)}
+        />
+      )}
 
       {/* Project rows */}
       {activeProjects.length === 0 &&
@@ -325,6 +358,77 @@ function ProjectActionList({
           aria-label="Add action to project"
           className="flex-1 bg-transparent text-xs text-text outline-none placeholder:text-text-subtle"
         />
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// CreateProjectForm (internal)
+// ---------------------------------------------------------------------------
+
+interface CreateProjectFormProps {
+  onSubmit: (name: string, desiredOutcome: string) => void;
+  onCancel: () => void;
+}
+
+function CreateProjectForm({ onSubmit, onCancel }: CreateProjectFormProps) {
+  const [name, setName] = useState("");
+  const [desiredOutcome, setDesiredOutcome] = useState("");
+  const nameRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    nameRef.current?.focus();
+  }, []);
+
+  const handleSubmit = useCallback(() => {
+    const trimmedName = name.trim();
+    const trimmedOutcome = desiredOutcome.trim();
+    if (!trimmedName || !trimmedOutcome) return;
+    onSubmit(trimmedName, trimmedOutcome);
+  }, [name, desiredOutcome, onSubmit]);
+
+  return (
+    <div className="space-y-2 rounded-[var(--radius-lg)] border border-border bg-surface-raised p-3">
+      <AutoGrowTextarea
+        ref={nameRef}
+        value={name}
+        onChange={(e) => setName(e.currentTarget.value)}
+        submitOnEnter
+        onSubmit={() => {
+          // If name is filled but outcome is empty, don't submit yet
+          if (!desiredOutcome.trim()) return;
+          handleSubmit();
+        }}
+        placeholder="Project name..."
+        aria-label="Project name"
+        className="w-full bg-transparent text-sm font-medium text-text outline-none placeholder:text-text-subtle"
+      />
+      <AutoGrowTextarea
+        value={desiredOutcome}
+        onChange={(e) => setDesiredOutcome(e.currentTarget.value)}
+        submitOnEnter
+        onSubmit={handleSubmit}
+        placeholder="Desired outcome..."
+        aria-label="Desired outcome"
+        className="w-full bg-transparent text-xs text-text-muted outline-none placeholder:text-text-subtle"
+      />
+      <div className="flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-[var(--radius-md)] px-2 py-1 text-xs text-text-muted hover:bg-paper-100"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={!name.trim() || !desiredOutcome.trim()}
+          className="rounded-[var(--radius-md)] bg-blueprint-500 px-2 py-1 text-xs text-white disabled:opacity-40"
+        >
+          Create
+        </button>
       </div>
     </div>
   );

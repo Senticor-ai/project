@@ -5,7 +5,6 @@ import type { Bucket } from "@/model/types";
 const meta = {
   title: "Primitives/BucketBadge",
   component: BucketBadge,
-  tags: ["autodocs"],
   argTypes: {
     bucket: {
       control: "select",

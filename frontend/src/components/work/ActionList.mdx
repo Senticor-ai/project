@@ -1,0 +1,49 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Work/ActionList" />
+
+# ActionList
+
+> **Status**: Spec — not yet implemented
+
+Filtered list of next actions with tab bar and context/energy/time filters.
+
+Embodies **Principle 3: Gravity Creates Focus** — filters narrow by attraction,
+never hiding context, and **Principle 8: Speed Over Ceremony** — instant filtering
+with zero-friction interaction.
+
+## Visual Structure
+
+```
+┌──────────────────────────────────────────────┐
+│ [All] [Today] [This Week] [Overdue] [+ Tab]  │  ← tab bar
+├──────────────────────────────────────────────┤
+│ 🏷️ @phone  🏷️ @computer  🏷️ @errands  [✕]  │  ← context filter chips
+│ ⚡ Energy: [Low] [Med] [High]               │  ← energy toggle
+│ ⏱️ Time: [Any ▾]                             │  ← time dropdown
+├──────────────────────────────────────────────┤
+│  ┌────────────────────────────────────────┐  │
+│  │ ⚡ Call insurance company    ★  @phone │  │  ← focused item
+│  └────────────────────────────────────────┘  │
+│  ┌────────────────────────────────────────┐  │
+│  │ ⚡ Review contract draft     @computer │  │
+│  └────────────────────────────────────────┘  │
+│  ┌────────────────────────────────────────┐  │
+│  │ ⚡ Buy stamps               @errands  │  │
+│  └────────────────────────────────────────┘  │
+│                                              │
+│  12 actions · 3 focused                      │
+└──────────────────────────────────────────────┘
+```
+
+## Filter Behavior
+
+- **Context chips**: multi-select OR logic (show actions matching ANY selected context)
+- **Energy**: single-select, filters by `ComputationPort.energyLevel`
+- **Time**: "I have X minutes" — shows actions with `timeEstimate <= X`
+- **Tab + filters combine**: tab sets the base query, filters narrow it
+- **URL-synced**: filter state reflects in URL for deep linking
+
+## Empty State
+
+"No actions match your filters" with a "Clear filters" button.

@@ -11,6 +11,7 @@ import {
   useArchiveReference,
   useUpdateItem,
   useAddProjectAction,
+  useCreateProject,
 } from "@/hooks/use-mutations";
 import { Icon } from "@/components/ui/Icon";
 import type { ThingBucket, ItemEditableFields } from "@/model/types";
@@ -43,6 +44,7 @@ export function ConnectedBucketView({
   const archiveRefMutation = useArchiveReference();
   const updateItemMutation = useUpdateItem();
   const addProjectActionMutation = useAddProjectAction();
+  const createProjectMutation = useCreateProject();
 
   const isLoading =
     thingsQuery.isLoading ||
@@ -130,6 +132,12 @@ export function ConnectedBucketView({
     [addProjectActionMutation],
   );
 
+  const handleCreateProject = useCallback(
+    (name: string, desiredOutcome: string) =>
+      createProjectMutation.mutate({ name, desiredOutcome }),
+    [createProjectMutation],
+  );
+
   if (isLoading) {
     return (
       <div className={cn("flex items-center justify-center py-20", className)}>
@@ -185,6 +193,7 @@ export function ConnectedBucketView({
         onAddReference={handleAddReference}
         onArchiveReference={handleArchiveReference}
         onAddProjectAction={handleAddProjectAction}
+        onCreateProject={handleCreateProject}
         onEditReference={handleEditItem}
       />
     </div>

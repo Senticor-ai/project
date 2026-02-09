@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn } from "storybook/test";
+import { expect, fn, waitFor } from "storybook/test";
 import { ProjectTree } from "./ProjectTree";
 import type { Thing, Project } from "@/model/types";
 import {
@@ -74,11 +74,11 @@ const sampleProjects: Project[] = [project1, project2, project3];
 const meta = {
   title: "Work/ProjectTree",
   component: ProjectTree,
-  tags: ["autodocs"],
   args: {
     onCompleteAction: fn(),
     onToggleFocus: fn(),
     onAddAction: fn(),
+    onCreateProject: fn(),
   },
   decorators: [
     (Story) => (
@@ -211,5 +211,73 @@ export const SequentialActions: Story = {
     expect(canvas.getByText("Finalize brand guidelines")).toBeTruthy();
     expect(canvas.getByText("Design homepage wireframes")).toBeTruthy();
     expect(canvas.getByText("Implement responsive layout")).toBeTruthy();
+  },
+};
+
+/** Inline project creation form: open, fill, submit. */
+export const CreateProject: Story = {
+  args: {
+    projects: [project1],
+    actions: sampleActions.filter((a) => a.projectId === project1.id),
+  },
+  play: async ({ canvas, userEvent, args, step }) => {
+    await step("Open creation form", async () => {
+      await userEvent.click(canvas.getByLabelText("Create project"));
+    });
+
+    // Form should be visible
+    await expect(canvas.getByLabelText("Project name")).toBeInTheDocument();
+    await expect(canvas.getByLabelText("Desired outcome")).toBeInTheDocument();
+
+    await step("Fill in project details", async () => {
+      await userEvent.type(
+        canvas.getByLabelText("Project name"),
+        "New Feature Sprint",
+      );
+      await userEvent.type(
+        canvas.getByLabelText("Desired outcome"),
+        "Feature shipped to production",
+      );
+    });
+
+    await step("Submit form", async () => {
+      await userEvent.click(canvas.getByText("Create"));
+    });
+
+    // onCreateProject should have been called
+    await waitFor(() => {
+      expect(args.onCreateProject).toHaveBeenCalledWith(
+        "New Feature Sprint",
+        "Feature shipped to production",
+      );
+    });
+
+    // Form should be hidden after submit
+    await waitFor(() => {
+      expect(canvas.queryByLabelText("Project name")).not.toBeInTheDocument();
+    });
+  },
+};
+
+/** Cancel closes the creation form without calling onCreateProject. */
+export const CreateProjectCancel: Story = {
+  args: {
+    projects: [project1],
+    actions: sampleActions.filter((a) => a.projectId === project1.id),
+  },
+  play: async ({ canvas, userEvent, args, step }) => {
+    await step("Open then cancel", async () => {
+      await userEvent.click(canvas.getByLabelText("Create project"));
+      await expect(canvas.getByLabelText("Project name")).toBeInTheDocument();
+      await userEvent.click(canvas.getByText("Cancel"));
+    });
+
+    // Form should be gone
+    await waitFor(() => {
+      expect(canvas.queryByLabelText("Project name")).not.toBeInTheDocument();
+    });
+
+    // onCreateProject should not have been called
+    expect(args.onCreateProject).not.toHaveBeenCalled();
   },
 };

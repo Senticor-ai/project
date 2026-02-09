@@ -5,6 +5,23 @@ import type { ImportJobData } from "./ImportJobRow";
 
 const sampleJobs: ImportJobData[] = [
   {
+    job_id: "job-4",
+    status: "completed",
+    source: "native",
+    total: 310,
+    created_at: "2025-06-17T09:00:00Z",
+    started_at: "2025-06-17T09:00:01Z",
+    finished_at: "2025-06-17T09:01:12Z",
+    summary: {
+      total: 310,
+      created: 305,
+      updated: 0,
+      skipped: 5,
+      errors: 0,
+    },
+    error: null,
+  },
+  {
     job_id: "job-3",
     status: "running",
     source: "nirvana",
@@ -68,17 +85,19 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
   args: {
+    onImportNative: fn(),
     onImportNirvana: fn(),
     onExport: fn(),
   },
 };
 
 // ---------------------------------------------------------------------------
-// WithImportJobs — shows recent import history
+// WithImportJobs — shows recent import history (including native source)
 // ---------------------------------------------------------------------------
 
 export const WithImportJobs: Story = {
   args: {
+    onImportNative: fn(),
     onImportNirvana: fn(),
     onExport: fn(),
     importJobs: sampleJobs,
@@ -89,8 +108,27 @@ export const WithImportJobs: Story = {
 // Interactions
 // ---------------------------------------------------------------------------
 
+export const ImportNative: Story = {
+  args: {
+    onImportNative: fn(),
+    onImportNirvana: fn(),
+    onExport: fn(),
+  },
+  play: async ({ canvas, userEvent, args }) => {
+    // TerminAndoYo source card visible
+    expect(canvas.getByText("TerminAndoYo")).toBeInTheDocument();
+
+    // Click TerminAndoYo import button
+    await userEvent.click(
+      canvas.getByRole("button", { name: /Import from TerminAndoYo/ }),
+    );
+    expect(args.onImportNative).toHaveBeenCalled();
+  },
+};
+
 export const ImportNirvana: Story = {
   args: {
+    onImportNative: fn(),
     onImportNirvana: fn(),
     onExport: fn(),
   },
@@ -108,6 +146,7 @@ export const ImportNirvana: Story = {
 
 export const ExportActions: Story = {
   args: {
+    onImportNative: fn(),
     onImportNirvana: fn(),
     onExport: fn(),
   },
@@ -123,6 +162,7 @@ export const ExportActions: Story = {
 
 export const ExportWithFilters: Story = {
   args: {
+    onImportNative: fn(),
     onImportNirvana: fn(),
     onExport: fn(),
   },

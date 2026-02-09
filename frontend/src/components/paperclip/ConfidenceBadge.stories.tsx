@@ -4,7 +4,6 @@ import { ConfidenceBadge } from "./ConfidenceBadge";
 const meta = {
   title: "Primitives/ConfidenceBadge",
   component: ConfidenceBadge,
-  tags: ["autodocs"],
   argTypes: {
     confidence: {
       control: "select",

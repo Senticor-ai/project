@@ -1,0 +1,48 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as ProjectTreeStories from "./ProjectTree.stories";
+
+<Meta of={ProjectTreeStories} />
+
+# ProjectTree
+
+Hierarchical view of multi-step projects with sequential actions. Each project
+expands to reveal its ordered action list, with the next action highlighted.
+
+Embodies **Principle 1: Everything Is an Object** — projects are first-class objects
+with visible boundaries, and **Principle 3: Gravity Creates Focus** — the next action
+is visually promoted while future actions are dimmed.
+
+## Features
+
+- **Expand/collapse**: click a project to reveal its actions (accordion — one at a time)
+- **Sequential actions**: next action highlighted with blueprint ring, completed actions show strikethrough
+- **Stalled detection**: projects with no next action show a warning icon
+- **Active/inactive toggle**: non-active projects (completed, on-hold) hidden by default, toggle to reveal
+- **Rapid entry**: inline text input at the bottom to add actions to a project
+- **Create project**: inline form (name + desired outcome) via header "+" button — no modals, no ceremony
+
+## Examples
+
+### Default (multiple projects)
+
+<Canvas of={ProjectTreeStories.Default} />
+
+### Empty project (stalled state)
+
+<Canvas of={ProjectTreeStories.EmptyProject} />
+
+### Expand/collapse interaction
+
+<Canvas of={ProjectTreeStories.ExpandCollapse} />
+
+### Toggle inactive projects
+
+<Canvas of={ProjectTreeStories.ToggleInactiveProjects} />
+
+### Create project
+
+<Canvas of={ProjectTreeStories.CreateProject} />
+
+## Props
+
+<ArgTypes of={ProjectTreeStories} />

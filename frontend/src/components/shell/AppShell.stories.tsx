@@ -1,48 +1,20 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, within } from "storybook/test";
+import { expect, fn, waitFor, within } from "storybook/test";
 import { AppHeader, type AppView } from "./AppHeader";
 import { SettingsScreen } from "@/components/settings/SettingsScreen";
-import { Icon } from "@/components/ui/Icon";
+import { ConnectedBucketView } from "@/components/work/ConnectedBucketView";
+import { seedMixedBuckets } from "@/test/msw/fixtures";
+import type { Bucket } from "@/model/types";
 
 // ---------------------------------------------------------------------------
-// Mock workspace placeholder (stands in for ConnectedBucketView)
+// Connected workspace: seeds MSW store and renders ConnectedBucketView
 // ---------------------------------------------------------------------------
 
-function MockWorkspace() {
+function ConnectedWorkspace() {
+  const [bucket, setBucket] = useState<Bucket>("inbox");
   return (
-    <div className="flex gap-6">
-      <nav className="w-56 shrink-0 space-y-0.5" aria-label="Buckets">
-        {[
-          { label: "Inbox", icon: "inbox", count: 12 },
-          { label: "Focus", icon: "center_focus_strong", count: 3 },
-          { label: "Next Actions", icon: "bolt", count: 8 },
-          { label: "Projects", icon: "folder", count: 5 },
-          { label: "Waiting For", icon: "schedule", count: 2 },
-        ].map(({ label, icon, count }) => (
-          <div
-            key={label}
-            className="flex w-full items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm text-text-muted"
-          >
-            <Icon name={icon} size={16} className="shrink-0" />
-            <span className="flex-1 text-left">{label}</span>
-            <span className="rounded-full bg-paper-200 px-2 py-0.5 text-xs font-medium text-text-subtle">
-              {count}
-            </span>
-          </div>
-        ))}
-      </nav>
-      <main className="min-w-0 flex-1" data-testid="mock-workspace">
-        <div className="rounded-[var(--radius-lg)] border border-border bg-paper-50 p-8 text-center text-text-muted">
-          <Icon
-            name="inbox"
-            size={48}
-            className="mx-auto mb-2 text-text-subtle"
-          />
-          <p className="text-sm">Workspace content area</p>
-        </div>
-      </main>
-    </div>
+    <ConnectedBucketView activeBucket={bucket} onBucketChange={setBucket} />
   );
 }
 
@@ -55,6 +27,9 @@ const meta = {
   tags: ["autodocs"],
   parameters: {
     layout: "fullscreen",
+  },
+  beforeEach: () => {
+    seedMixedBuckets();
   },
 } satisfies Meta;
 
@@ -78,10 +53,17 @@ export const Default: Story = {
           onSignOut={fn()}
           className="mb-6"
         />
-        {view === "workspace" && <MockWorkspace />}
+        {view === "workspace" && <ConnectedWorkspace />}
         {view === "settings" && <SettingsScreen />}
       </div>
     );
+  },
+  play: async ({ canvas, step }) => {
+    await step("Verify workspace loads with real data", async () => {
+      await waitFor(() => {
+        expect(canvas.getByText("Unprocessed thought")).toBeInTheDocument();
+      }, { timeout: 10000 });
+    });
   },
 };
 
@@ -102,12 +84,18 @@ export const SwitchToSettings: Story = {
           onSignOut={fn()}
           className="mb-6"
         />
-        {view === "workspace" && <MockWorkspace />}
+        {view === "workspace" && <ConnectedWorkspace />}
         {view === "settings" && <SettingsScreen />}
       </div>
     );
   },
   play: async ({ canvas, userEvent, step }) => {
+    await step("Wait for workspace to load", async () => {
+      await waitFor(() => {
+        expect(canvas.getByText("Unprocessed thought")).toBeInTheDocument();
+      }, { timeout: 10000 });
+    });
+
     await step("Open menu and navigate to Settings", async () => {
       await userEvent.click(canvas.getByRole("button", { name: "Main menu" }));
       await userEvent.click(canvas.getByText("Settings"));
@@ -125,8 +113,12 @@ export const SwitchToSettings: Story = {
       await userEvent.click(canvas.getByText("Workspace"));
     });
 
-    await step("Verify Workspace is visible", async () => {
-      await expect(canvas.getByTestId("mock-workspace")).toBeInTheDocument();
+    await step("Verify Workspace is visible with real data", async () => {
+      await waitFor(() => {
+        expect(
+          canvas.getByRole("main", { name: "Bucket content" }),
+        ).toBeInTheDocument();
+      }, { timeout: 10000 });
     });
   },
 };
@@ -148,7 +140,7 @@ export const StartInSettings: Story = {
           onSignOut={fn()}
           className="mb-6"
         />
-        {view === "workspace" && <MockWorkspace />}
+        {view === "workspace" && <ConnectedWorkspace />}
         {view === "settings" && <SettingsScreen />}
       </div>
     );

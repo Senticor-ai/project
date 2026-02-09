@@ -44,6 +44,7 @@ export interface BucketViewProps {
     fields: Partial<ItemEditableFields>,
   ) => void;
   onAddProjectAction?: (projectId: CanonicalId, title: string) => void;
+  onCreateProject?: (name: string, desiredOutcome: string) => void;
   onSelectReference?: (id: CanonicalId) => void;
   className?: string;
 }
@@ -65,6 +66,7 @@ export function BucketView({
   onArchiveReference,
   onEditReference,
   onAddProjectAction,
+  onCreateProject,
   onSelectReference,
   className,
 }: BucketViewProps) {
@@ -139,6 +141,7 @@ export function BucketView({
               onCompleteAction={onCompleteThing}
               onToggleFocus={onToggleFocus}
               onAddAction={onAddProjectAction ?? (() => {})}
+              onCreateProject={onCreateProject}
               onUpdateTitle={onUpdateTitle}
             />
           ) : null}

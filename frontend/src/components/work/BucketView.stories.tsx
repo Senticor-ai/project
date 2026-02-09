@@ -318,7 +318,11 @@ export const InboxToNext: Story = {
 
     await expect(canvas.getByText(/1 item to process/)).toBeInTheDocument();
 
-    await step("Move to Next (item is auto-expanded in inbox)", async () => {
+    await step("Click item to expand triage buttons", async () => {
+      await userEvent.click(canvas.getByText("Write quarterly report"));
+    });
+
+    await step("Move to Next", async () => {
       await userEvent.click(canvas.getByLabelText("Move to Next"));
     });
 
@@ -438,7 +442,8 @@ export const FullWorkflow: Story = {
       await expect(canvas.getByText(/1 item to process/)).toBeInTheDocument();
     });
 
-    await step("Move to Next (item is auto-expanded in inbox)", async () => {
+    await step("Click item and move to Next", async () => {
+      await userEvent.click(canvas.getByText("Prepare team presentation"));
       await userEvent.click(canvas.getByLabelText("Move to Next"));
       await expect(canvas.getByText("Inbox is empty")).toBeInTheDocument();
     });

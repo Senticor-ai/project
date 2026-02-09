@@ -1,0 +1,49 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Work/FocusList" />
+
+# FocusList
+
+> **Status**: Spec — not yet implemented
+
+Hero-size cards showing starred (focused) items with goal alignment and
+soft limit warning.
+
+Embodies **Principle 3: Gravity Creates Focus** — focus is attraction, not exclusion.
+Starred items are elevated visually, not hidden from other views.
+
+## Visual Structure
+
+```
+┌──────────────────────────────────────────────┐
+│  ★ FOCUS                          5 items    │
+│  "What matters most right now"               │
+├──────────────────────────────────────────────┤
+│  ┌────────────────────────────────────────┐  │
+│  │ ★ ⚡ Finalize budget proposal         │  │  ← hero-size card
+│  │    📎 Part of: Q1 Planning            │  │
+│  │    🎯 Goal: Career Growth             │  │
+│  └────────────────────────────────────────┘  │
+│  ┌────────────────────────────────────────┐  │
+│  │ ★ ⚡ Call Dr. appointment             │  │
+│  │    🎯 Goal: Health                    │  │
+│  └────────────────────────────────────────┘  │
+│  ┌────────────────────────────────────────┐  │
+│  │ ★ 📁 Website Redesign project        │  │
+│  │    Progress: ████░░░░ 4/10 actions    │  │
+│  └────────────────────────────────────────┘  │
+│                                              │
+│  ⚠️ 8 items in focus. Focus means saying no. │  ← soft limit warning
+└──────────────────────────────────────────────┘
+```
+
+## Design Notes
+
+- Cards are 20% larger than in ActionList (hero treatment, padding 16px 20px)
+- Goal alignment shown as a muted reference chip
+- Projects show mini progress bar
+- Daily limit warning at 7+ items (amber banner, not blocking)
+
+## Empty State
+
+"Nothing in focus. Star items to see them here."

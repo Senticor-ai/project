@@ -97,6 +97,9 @@ function AuthenticatedApp({
         <SettingsScreen
           activeTab={location.sub as SettingsTab}
           onTabChange={handleSettingsTabChange}
+          onImportNative={() => {
+            /* TODO: native import dialog */
+          }}
           onImportNirvana={() => setShowImport(true)}
           onExport={downloadExport}
           onFlush={DevApi.flush}

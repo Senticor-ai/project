@@ -186,32 +186,63 @@ export function fromJsonLd(record: ThingRecord): AppItem {
     name: ((t.name as string) ?? "").trim() || undefined,
     description: (t.description as string) || undefined,
     tags: (t.keywords as string[]) ?? [],
-    references: (getAdditionalProperty(props, "app:typedReferences") as TypedReference[]) ?? [],
-    captureSource: (getAdditionalProperty(props, "app:captureSource") as CaptureSource) ?? {
+    references:
+      (getAdditionalProperty(
+        props,
+        "app:typedReferences",
+      ) as TypedReference[]) ?? [],
+    captureSource: (getAdditionalProperty(
+      props,
+      "app:captureSource",
+    ) as CaptureSource) ?? {
       kind: "thought" as const,
     },
     provenance: {
       createdAt: (t.dateCreated as string) ?? record.created_at,
       updatedAt: (t.dateModified as string) ?? record.updated_at,
-      history: (getAdditionalProperty(props, "app:provenanceHistory") as Provenance["history"]) ?? [],
+      history:
+        (getAdditionalProperty(
+          props,
+          "app:provenanceHistory",
+        ) as Provenance["history"]) ?? [],
     },
     ports: (getAdditionalProperty(props, "app:ports") as Port[]) ?? [],
-    needsEnrichment: (getAdditionalProperty(props, "app:needsEnrichment") as boolean) ?? true,
-    confidence: (getAdditionalProperty(props, "app:confidence") as "high" | "medium" | "low") ?? "low",
+    needsEnrichment:
+      (getAdditionalProperty(props, "app:needsEnrichment") as boolean) ?? true,
+    confidence:
+      (getAdditionalProperty(props, "app:confidence") as
+        | "high"
+        | "medium"
+        | "low") ?? "low",
   };
 
   const thingFields = {
-    contexts: (getAdditionalProperty(props, "app:contexts") as CanonicalId[]) ?? [],
+    contexts:
+      (getAdditionalProperty(props, "app:contexts") as CanonicalId[]) ?? [],
     projectId: extractProjectId(t),
-    delegatedTo: (getAdditionalProperty(props, "app:delegatedTo") as string) || undefined,
-    scheduledDate: (t.startTime as string) || (getAdditionalProperty(props, "app:scheduledDate") as string) || undefined,
-    scheduledTime: (getAdditionalProperty(props, "app:scheduledTime") as string) || undefined,
-    dueDate: (getAdditionalProperty(props, "app:dueDate") as string) || undefined,
-    startDate: (getAdditionalProperty(props, "app:startDate") as string) || undefined,
-    isFocused: (getAdditionalProperty(props, "app:isFocused") as boolean) ?? false,
-    recurrence: getAdditionalProperty(props, "app:recurrence") as Thing["recurrence"],
+    delegatedTo:
+      (getAdditionalProperty(props, "app:delegatedTo") as string) || undefined,
+    scheduledDate:
+      (t.startTime as string) ||
+      (getAdditionalProperty(props, "app:scheduledDate") as string) ||
+      undefined,
+    scheduledTime:
+      (getAdditionalProperty(props, "app:scheduledTime") as string) ||
+      undefined,
+    dueDate:
+      (getAdditionalProperty(props, "app:dueDate") as string) || undefined,
+    startDate:
+      (getAdditionalProperty(props, "app:startDate") as string) || undefined,
+    isFocused:
+      (getAdditionalProperty(props, "app:isFocused") as boolean) ?? false,
+    recurrence: getAdditionalProperty(
+      props,
+      "app:recurrence",
+    ) as Thing["recurrence"],
     completedAt: (t.endTime as string) || undefined,
-    sequenceOrder: (getAdditionalProperty(props, "app:sequenceOrder") as number) || undefined,
+    sequenceOrder:
+      (getAdditionalProperty(props, "app:sequenceOrder") as number) ||
+      undefined,
   };
 
   if (type === TYPE_MAP.inbox || type === "Thing") {
@@ -219,17 +250,23 @@ export function fromJsonLd(record: ThingRecord): AppItem {
       ...base,
       ...thingFields,
       bucket: "inbox" as const,
-      rawCapture: (getAdditionalProperty(props, "app:rawCapture") as string) ?? base.name,
+      rawCapture:
+        (getAdditionalProperty(props, "app:rawCapture") as string) ?? base.name,
     };
   }
 
   if (type === TYPE_MAP.action || type === "Action") {
-    const bucket = (getAdditionalProperty(props, "app:bucket") as Exclude<ThingBucket, "inbox">) ?? "next";
+    const bucket =
+      (getAdditionalProperty(props, "app:bucket") as Exclude<
+        ThingBucket,
+        "inbox"
+      >) ?? "next";
     return {
       ...base,
       ...thingFields,
       bucket,
-      rawCapture: (getAdditionalProperty(props, "app:rawCapture") as string) || undefined,
+      rawCapture:
+        (getAdditionalProperty(props, "app:rawCapture") as string) || undefined,
     };
   }
 
@@ -237,12 +274,19 @@ export function fromJsonLd(record: ThingRecord): AppItem {
     return {
       ...base,
       bucket: "project" as const,
-      desiredOutcome: (getAdditionalProperty(props, "app:desiredOutcome") as string) ?? "",
-      status: (getAdditionalProperty(props, "app:projectStatus") as Project["status"]) ?? "active",
+      desiredOutcome:
+        (getAdditionalProperty(props, "app:desiredOutcome") as string) ?? "",
+      status:
+        (getAdditionalProperty(
+          props,
+          "app:projectStatus",
+        ) as Project["status"]) ?? "active",
       actionIds: extractActionIds(t),
-      reviewDate: (getAdditionalProperty(props, "app:reviewDate") as string) || undefined,
+      reviewDate:
+        (getAdditionalProperty(props, "app:reviewDate") as string) || undefined,
       completedAt: (t.endTime as string) || undefined,
-      isFocused: (getAdditionalProperty(props, "app:isFocused") as boolean) ?? false,
+      isFocused:
+        (getAdditionalProperty(props, "app:isFocused") as boolean) ?? false,
     };
   }
 
@@ -252,7 +296,11 @@ export function fromJsonLd(record: ThingRecord): AppItem {
       bucket: "reference" as const,
       encodingFormat: (t.encodingFormat as string) || undefined,
       url: (t.url as string) || undefined,
-      origin: (getAdditionalProperty(props, "app:origin") as "triaged" | "captured" | "file") || undefined,
+      origin:
+        (getAdditionalProperty(props, "app:origin") as
+          | "triaged"
+          | "captured"
+          | "file") || undefined,
     };
   }
 
@@ -261,14 +309,13 @@ export function fromJsonLd(record: ThingRecord): AppItem {
     ...base,
     ...thingFields,
     bucket: "inbox" as const,
-    rawCapture: (getAdditionalProperty(props, "app:rawCapture") as string) ?? base.name,
+    rawCapture:
+      (getAdditionalProperty(props, "app:rawCapture") as string) ?? base.name,
   };
 }
 
 /** Extract projectId from isPartOf reference. */
-function extractProjectId(
-  t: Record<string, unknown>,
-): CanonicalId | undefined {
+function extractProjectId(t: Record<string, unknown>): CanonicalId | undefined {
   const isPartOf = t.isPartOf as { "@id": string } | undefined;
   if (isPartOf?.["@id"]) {
     return isPartOf["@id"] as CanonicalId;
@@ -293,9 +340,7 @@ export function buildTriagePatch(
   if (result.targetBucket === "reference") {
     return {
       "@type": TYPE_MAP.reference,
-      additionalProperty: [
-        pv("app:bucket", "reference"),
-      ],
+      additionalProperty: [pv("app:bucket", "reference")],
     };
   }
 
@@ -364,7 +409,9 @@ export function buildItemEditPatch(
   }
   if ("energyLevel" in fields && fields.energyLevel) {
     additionalProps.push(
-      pv("app:ports", [{ kind: "computation", energyLevel: fields.energyLevel }]),
+      pv("app:ports", [
+        { kind: "computation", energyLevel: fields.energyLevel },
+      ]),
     );
   }
 
@@ -450,12 +497,47 @@ export function buildNewActionJsonLd(
 }
 
 // ---------------------------------------------------------------------------
+// buildNewProjectJsonLd — name + desiredOutcome → full JSON-LD for POST /things
+// ---------------------------------------------------------------------------
+
+export function buildNewProjectJsonLd(
+  name: string,
+  desiredOutcome: string,
+): Record<string, unknown> {
+  const id = createCanonicalId("project", crypto.randomUUID());
+  const now = new Date().toISOString();
+
+  return {
+    "@id": id,
+    "@type": TYPE_MAP.project,
+    _schemaVersion: SCHEMA_VERSION,
+    name,
+    description: null,
+    keywords: [],
+    dateCreated: now,
+    dateModified: now,
+    endTime: null,
+    hasPart: [],
+    additionalProperty: [
+      pv("app:bucket", "project"),
+      pv("app:desiredOutcome", desiredOutcome),
+      pv("app:projectStatus", "active"),
+      pv("app:isFocused", false),
+      pv("app:needsEnrichment", false),
+      pv("app:confidence", "high"),
+      pv("app:captureSource", { kind: "thought" }),
+      pv("app:ports", []),
+      pv("app:typedReferences", []),
+      pv("app:provenanceHistory", [{ timestamp: now, action: "created" }]),
+    ],
+  };
+}
+
+// ---------------------------------------------------------------------------
 // buildNewReferenceJsonLd — name → full JSON-LD for POST /things
 // ---------------------------------------------------------------------------
 
-export function buildNewReferenceJsonLd(
-  name: string,
-): Record<string, unknown> {
+export function buildNewReferenceJsonLd(name: string): Record<string, unknown> {
   const id = createCanonicalId("reference", crypto.randomUUID());
   const now = new Date().toISOString();
 

@@ -113,12 +113,16 @@ export function ThingRow({
   const [menuOpen, setMenuOpen] = useState(false);
   const [showMore, setShowMore] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [showCalendarPicker, setShowCalendarPicker] = useState(false);
   const [prevExpanded, setPrevExpanded] = useState(isExpanded);
 
-  // Reset title editing when row collapses (derived state pattern)
+  // Reset editing / picker state when row collapses (derived state pattern)
   if (prevExpanded !== isExpanded) {
     setPrevExpanded(isExpanded);
-    if (!isExpanded) setIsEditingTitle(false);
+    if (!isExpanded) {
+      setIsEditingTitle(false);
+      setShowCalendarPicker(false);
+    }
   }
 
   const displayName = getDisplayName(thing);
@@ -343,7 +347,11 @@ export function ThingRow({
                   <button
                     key={bucket}
                     onClick={() => {
-                      onMove(thing.id, bucket);
+                      if (bucket === "calendar") {
+                        setShowCalendarPicker(true);
+                      } else {
+                        onMove(thing.id, bucket);
+                      }
                     }}
                     className={cn(
                       "inline-flex items-center gap-1 rounded-[var(--radius-md)]",
@@ -371,6 +379,36 @@ export function ThingRow({
                   Archive
                 </button>
               </div>
+
+              {/* Inline date picker for Calendar triage */}
+              {showCalendarPicker && (
+                <div className="mb-3 flex items-center gap-2">
+                  <input
+                    type="date"
+                    autoFocus
+                    aria-label="Schedule date"
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        onEdit?.(thing.id, { scheduledDate: e.target.value });
+                        onMove(thing.id, "calendar");
+                        setShowCalendarPicker(false);
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") setShowCalendarPicker(false);
+                    }}
+                    className="rounded-[var(--radius-sm)] border border-border bg-surface px-2 py-1 text-xs"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCalendarPicker(false)}
+                    aria-label="Cancel date selection"
+                    className="text-xs text-text-subtle hover:text-text"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
 
               {/* More options toggle for inline triage */}
               {onEdit && (

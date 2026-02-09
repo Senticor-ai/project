@@ -521,31 +521,30 @@ describe("ThingList", () => {
     expect(screen.queryByText("Complexity")).not.toBeInTheDocument();
   });
 
-  it("auto-expands first inbox item", () => {
+  it("does not auto-expand inbox items on load", () => {
     const things = [
       createThing({ name: "First inbox", bucket: "inbox" }),
       createThing({ name: "Second inbox", bucket: "inbox" }),
     ];
     renderThingList({ bucket: "inbox", things, onEdit: vi.fn() });
-    // First inbox item should be auto-expanded (triage buttons visible)
-    expect(screen.getByLabelText("Move to Next")).toBeInTheDocument();
-  });
-
-  it("does not re-expand inbox item after user collapses", async () => {
-    const user = userEvent.setup();
-    const things = [
-      createThing({ name: "Collapsible inbox", bucket: "inbox" }),
-    ];
-    renderThingList({ bucket: "inbox", things, onEdit: vi.fn() });
-    // Should be auto-expanded
-    expect(screen.getByLabelText("Move to Next")).toBeInTheDocument();
-    // Click collapse button to collapse
-    await user.click(screen.getByLabelText("Collapse Collapsible inbox"));
-    // Should stay collapsed — triage buttons gone
+    // No triage buttons visible until user explicitly clicks
     expect(screen.queryByLabelText("Move to Next")).not.toBeInTheDocument();
   });
 
-  it("re-expands next inbox item after current is removed", () => {
+  it("expands inbox item on click and shows triage buttons", async () => {
+    const user = userEvent.setup();
+    const things = [
+      createThing({ name: "Clickable inbox", bucket: "inbox" }),
+    ];
+    renderThingList({ bucket: "inbox", things, onEdit: vi.fn() });
+    // Click item to expand
+    await user.click(screen.getByText("Clickable inbox"));
+    // Triage buttons now visible
+    expect(screen.getByLabelText("Move to Next")).toBeInTheDocument();
+  });
+
+  it("auto-advances to next inbox item after current is triaged away", async () => {
+    const user = userEvent.setup();
     const things = [
       createThing({ name: "First inbox", bucket: "inbox" }),
       createThing({ name: "Second inbox", bucket: "inbox" }),
@@ -557,7 +556,8 @@ describe("ThingList", () => {
       />,
       { wrapper },
     );
-    // First is auto-expanded
+    // Click first item to expand it
+    await user.click(screen.getByText("First inbox"));
     expect(screen.getByLabelText("Move to Next")).toBeInTheDocument();
 
     // Simulate triage: first item removed
@@ -570,7 +570,7 @@ describe("ThingList", () => {
         })}
       />,
     );
-    // Second item should now be auto-expanded
+    // Second item should auto-advance (expand) after triage
     expect(screen.getByLabelText("Move to Next")).toBeInTheDocument();
   });
 

@@ -5,7 +5,6 @@ import type { ReferenceType } from "@/model/types";
 const meta = {
   title: "Primitives/AttachmentChip",
   component: AttachmentChip,
-  tags: ["autodocs"],
   argTypes: {
     referenceType: {
       control: "select",

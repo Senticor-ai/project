@@ -1,0 +1,42 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as AttachmentChipStories from "./AttachmentChip.stories";
+
+<Meta of={AttachmentChipStories} />
+
+# AttachmentChip
+
+Visualizes [LexCEL typed references](?path=/docs/engineering-ontology-lexcel-architecture--docs)
+between items. Each chip represents a directional relationship — the physical metaphor
+is a paper clip attaching one document to another.
+
+This embodies **Principle 2: Relationships Over Navigation** — instead of burying
+connections in menus, they're visible as chips on the card surface.
+
+## Reference Types
+
+| Type           | Label        | Icon               | Color   | Use Case                 |
+| -------------- | ------------ | ------------------ | ------- | ------------------------ |
+| `blocks`       | Blocks       | `block`            | Red     | "This blocks that"       |
+| `depends_on`   | Depends on   | `account_tree`     | Amber   | "Can't start until..."   |
+| `delegates_to` | Delegated to | `person_check`     | Purple  | "Sarah is handling this" |
+| `refers_to`    | Refers to    | `link`             | Neutral | General cross-reference  |
+| `context_of`   | Context      | `label`            | Blue    | "@phone", "@computer"    |
+| `part_of`      | Part of      | `extension`        | Blue    | "Action in Project X"    |
+| `follows`      | Follows      | `arrow_forward`    | Neutral | Sequential ordering      |
+| `waiting_on`   | Waiting on   | `hourglass_bottom` | Amber   | External dependency      |
+
+Each chip has a colored border and tinted background. An optional detach button (x)
+appears on hover when `onDetach` is provided.
+
+## All Types
+
+<Canvas of={AttachmentChipStories.AllTypes} />
+
+## Individual Examples
+
+<Canvas of={AttachmentChipStories.Blocks} />
+<Canvas of={AttachmentChipStories.DelegatesTo} />
+
+## Props
+
+<ArgTypes of={AttachmentChipStories} />

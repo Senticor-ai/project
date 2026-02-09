@@ -1,0 +1,30 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Work/RecurrenceEditor" />
+
+# RecurrenceEditor
+
+> **Status**: Spec — not yet implemented
+
+Inline editor for setting repeat patterns on actions with a visual preview
+of the human-readable recurrence rule.
+
+Embodies **Principle 7: Interface-Level Responsiveness** — the preview updates
+instantly as the user adjusts the pattern, and **Principle 8: Speed Over Ceremony** —
+no modal, no multi-step wizard, just an inline pattern picker.
+
+## Visual Structure
+
+```
+┌──────────────────────────────────────────────┐
+│  🔄 Repeat: [Weekly ▾]                      │
+│                                              │
+│  Every [1] week(s) on:                       │
+│  [Mon] [Tue] [Wed] [Thu] [Fri] [Sat] [Sun]  │
+│   ✓          ✓                ✓              │
+│                                              │
+│  Preview: "Every Monday, Wednesday, Friday"  │
+│                                              │
+│  [Remove recurrence]          [Save]         │
+└──────────────────────────────────────────────┘
+```

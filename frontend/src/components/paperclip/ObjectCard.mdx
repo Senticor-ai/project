@@ -1,0 +1,61 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as ObjectCardStories from "./ObjectCard.stories";
+
+<Meta of={ObjectCardStories} />
+
+# ObjectCard
+
+The **universal atom** of the Paperclip design language. Every item in TerminAndoYo —
+whether an inbox capture, a next action, a project, or a calendar entry — renders as
+an ObjectCard.
+
+This embodies **Principle 1: Everything Is an Object** — users think in terms of
+physical things they can pick up, move, and attach to other things.
+
+## Visual States
+
+| State            | Visual                                                                     |
+| ---------------- | -------------------------------------------------------------------------- |
+| Resting          | Paper surface, subtle shadow (`--shadow-card`)                             |
+| Hover            | Lifts 2px (`translateY: -2px`), shadow deepens, 150ms snap easing         |
+| Focused          | `ring-2 ring-gtd-focus/40` — orange focus ring                            |
+| Needs enrichment | ConfidenceBadge shows `auto_awesome` icon pulsing at 50% opacity           |
+
+## Composition Slots
+
+| Position         | Content                                         |
+| ---------------- | ----------------------------------------------- |
+| **Header left**  | BucketBadge — color-coded type indicator         |
+| **Header right** | ConfidenceBadge — enrichment/confidence state    |
+| **Title**        | `text-sm font-semibold` — the item's main label |
+| **Subtitle**     | `text-xs text-text-muted` — secondary info       |
+| **Bottom**       | AttachmentChip row — typed references            |
+| **Children**     | Arbitrary slot for additional content            |
+
+Both badge slots can be hidden via `showBucketBadge` and `showConfidenceBadge` props.
+
+## Examples
+
+### Inbox Item (low confidence, needs enrichment)
+
+<Canvas of={ObjectCardStories.InboxItem} />
+
+### Next Action (focused, high confidence)
+
+<Canvas of={ObjectCardStories.NextAction} />
+
+### With Typed References
+
+<Canvas of={ObjectCardStories.WithAttachments} />
+
+### Interactive vs Non-Interactive
+
+When `interactive` is true (default), the card gets `role="button"`, `tabIndex={0}`,
+and responds to Enter/Space key presses.
+
+<Canvas of={ObjectCardStories.InteractiveCard} />
+<Canvas of={ObjectCardStories.NonInteractive} />
+
+## Props
+
+<ArgTypes of={ObjectCardStories} />

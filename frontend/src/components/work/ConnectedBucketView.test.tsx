@@ -57,6 +57,7 @@ const mockAddRef = { mutate: vi.fn() };
 const mockArchiveRef = { mutate: vi.fn() };
 const mockUpdate = { mutate: vi.fn() };
 const mockAddProjectAction = { mutate: vi.fn() };
+const mockCreateProject = { mutate: vi.fn() };
 
 vi.mock("@/hooks/use-mutations", () => ({
   useCaptureInbox: () => mockCapture,
@@ -68,6 +69,7 @@ vi.mock("@/hooks/use-mutations", () => ({
   useArchiveReference: () => mockArchiveRef,
   useUpdateItem: () => mockUpdate,
   useAddProjectAction: () => mockAddProjectAction,
+  useCreateProject: () => mockCreateProject,
 }));
 
 // Capture BucketView props so we can invoke callbacks in tests
@@ -79,9 +81,7 @@ vi.mock("./BucketView", () => ({
       <div
         data-testid="bucket-view"
         data-bucket={props.activeBucket}
-        data-thing-count={
-          Array.isArray(props.things) ? props.things.length : 0
-        }
+        data-thing-count={Array.isArray(props.things) ? props.things.length : 0}
       />
     );
   },
@@ -146,7 +146,9 @@ describe("ConnectedBucketView", () => {
   });
 
   it("renders loading spinner when queries are loading", () => {
-    mockAllThings.mockReturnValue(loadingQuery() as ReturnType<typeof mockAllThings>);
+    mockAllThings.mockReturnValue(
+      loadingQuery() as ReturnType<typeof mockAllThings>,
+    );
     renderComponent();
 
     const spinner = screen.getByText("progress_activity");
@@ -281,9 +283,7 @@ describe("ConnectedBucketView", () => {
     });
 
     it("onAddReference calls addReference mutation", () => {
-      const onAddRef = capturedProps.onAddReference as (
-        title: string,
-      ) => void;
+      const onAddRef = capturedProps.onAddReference as (title: string) => void;
       onAddRef("New ref");
       expect(mockAddRef.mutate).toHaveBeenCalledWith("New ref");
     });
@@ -329,6 +329,18 @@ describe("ConnectedBucketView", () => {
       expect(mockAddProjectAction.mutate).toHaveBeenCalledWith({
         projectId: "project:test-1",
         title: "Sub task",
+      });
+    });
+
+    it("onCreateProject calls createProject mutation", () => {
+      const onCreateProject = capturedProps.onCreateProject as (
+        name: string,
+        desiredOutcome: string,
+      ) => void;
+      onCreateProject("New Project", "Ship it");
+      expect(mockCreateProject.mutate).toHaveBeenCalledWith({
+        name: "New Project",
+        desiredOutcome: "Ship it",
       });
     });
   });
