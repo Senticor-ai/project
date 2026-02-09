@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: terminandoyo
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: terminandoyo.100-114-108-51.nip.io
+      http:
+        paths:
+          - path: /storybook
+            pathType: Prefix
+            backend:
+              service:
+                name: storybook
+                port:
+                  number: 80
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80
