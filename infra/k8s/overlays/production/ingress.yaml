@@ -4,6 +4,10 @@ metadata:
   name: terminandoyo
 spec:
   ingressClassName: traefik
+  tls:
+    - hosts:
+        - terminandoyo.100-114-108-51.nip.io
+      secretName: terminandoyo-tls
   rules:
     - host: terminandoyo.100-114-108-51.nip.io
       http:

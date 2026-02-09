@@ -52,6 +52,12 @@ function findRecord(
   return completed?.find((r) => r.canonical_id === canonicalId);
 }
 
+/** Check if a record's @type is "Thing" (inbox item that needs promotion on move). */
+function isThingType(qc: QueryClient, canonicalId: CanonicalId): boolean {
+  const record = findRecord(qc, canonicalId);
+  return record?.thing["@type"] === "Thing";
+}
+
 // ---------------------------------------------------------------------------
 // Optimistic update helpers
 // ---------------------------------------------------------------------------
@@ -68,6 +74,26 @@ async function snapshotActive(qc: QueryClient) {
 function removeFromCache(qc: QueryClient, canonicalId: CanonicalId) {
   qc.setQueryData<ThingRecord[]>(ACTIVE_KEY, (old) =>
     old?.filter((r) => r.canonical_id !== canonicalId),
+  );
+}
+
+/** Determine the correct @type for a target bucket. */
+function targetTypeForBucket(bucket: string): string {
+  return bucket === "reference" ? "CreativeWork" : "Action";
+}
+
+/** Promote @type from "Thing" to the appropriate type in the active cache. */
+function promoteTypeInCache(
+  qc: QueryClient,
+  canonicalId: CanonicalId,
+  targetType: string,
+) {
+  qc.setQueryData<ThingRecord[]>(ACTIVE_KEY, (old) =>
+    old?.map((r) =>
+      r.canonical_id === canonicalId
+        ? { ...r, thing: { ...r.thing, "@type": targetType } }
+        : r,
+    ),
   );
 }
 
@@ -170,6 +196,13 @@ export function useTriageItem() {
         removeFromCache(qc, item.id);
       } else {
         updateBucketInCache(qc, item.id, result.targetBucket);
+        if (isThingType(qc, item.id)) {
+          promoteTypeInCache(
+            qc,
+            item.id,
+            targetTypeForBucket(result.targetBucket),
+          );
+        }
       }
       return { prev };
     },
@@ -291,6 +324,9 @@ export function useToggleFocus() {
 
 export function useMoveAction() {
   const qc = useQueryClient();
+  const savedMeta = useRef(
+    new Map<string, { thingId: string; needsPromotion: boolean }>(),
+  );
 
   return useMutation({
     mutationFn: async ({
@@ -300,10 +336,14 @@ export function useMoveAction() {
       canonicalId: CanonicalId;
       bucket: string;
     }) => {
-      const thingId = findThingId(qc, canonicalId);
+      const meta = savedMeta.current.get(canonicalId);
+      const thingId = meta?.thingId ?? findThingId(qc, canonicalId);
       if (!thingId) throw new Error(`Thing not found: ${canonicalId}`);
 
-      return ThingsApi.update(thingId, {
+      const needsPromotion =
+        meta?.needsPromotion ?? isThingType(qc, canonicalId);
+
+      const patch: Record<string, unknown> = {
         additionalProperty: [
           {
             "@type": "PropertyValue",
@@ -311,17 +351,30 @@ export function useMoveAction() {
             value: bucket,
           },
         ],
-      });
+      };
+      if (needsPromotion) {
+        patch["@type"] = targetTypeForBucket(bucket);
+      }
+      return ThingsApi.update(thingId, patch);
     },
     onMutate: async ({ canonicalId, bucket }) => {
+      const thingId = findThingId(qc, canonicalId);
+      const needsPromotion = isThingType(qc, canonicalId);
+      if (thingId)
+        savedMeta.current.set(canonicalId, { thingId, needsPromotion });
+
       const prev = await snapshotActive(qc);
       updateBucketInCache(qc, canonicalId, bucket);
+      if (needsPromotion) {
+        promoteTypeInCache(qc, canonicalId, targetTypeForBucket(bucket));
+      }
       return { prev };
     },
     onError: (_err, _vars, context) => {
       if (context?.prev) qc.setQueryData(ACTIVE_KEY, context.prev);
     },
-    onSettled: () => {
+    onSettled: (_data, _err, { canonicalId }) => {
+      savedMeta.current.delete(canonicalId);
       qc.invalidateQueries({ queryKey: THINGS_QUERY_KEY });
     },
   });

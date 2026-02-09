@@ -84,6 +84,20 @@ const REFERENCE_RECORD = makeRecord({
   },
 });
 
+const INBOX_RECORD = makeRecord({
+  thing_id: "tid-inbox-1",
+  canonical_id: "urn:app:inbox:1",
+  thing: {
+    "@type": "Thing",
+    "@id": "urn:app:inbox:1",
+    additionalProperty: [
+      pv("app:bucket", "inbox"),
+      pv("app:rawCapture", "Inbox thought"),
+      pv("app:isFocused", false),
+    ],
+  },
+});
+
 // The production code now partitions active/completed into separate cache keys
 const ACTIVE_KEY = [...THINGS_QUERY_KEY, { completed: "false" }];
 const COMPLETED_KEY = [...THINGS_QUERY_KEY, { completed: "true" }];
@@ -281,6 +295,48 @@ describe("useMoveAction", () => {
     expect(patch.additionalProperty).toEqual([
       { "@type": "PropertyValue", propertyID: "app:bucket", value: "someday" },
     ]);
+    expect(patch["@type"]).toBeUndefined();
+  });
+
+  it("promotes @type from Thing to Action when moving inbox item", async () => {
+    mocked.update.mockResolvedValue(ACTION_RECORD);
+
+    const { result } = renderHook(() => useMoveAction(), {
+      wrapper: createWrapper([INBOX_RECORD]),
+    });
+
+    act(() =>
+      result.current.mutate({
+        canonicalId: "urn:app:inbox:1" as CanonicalId,
+        bucket: "next",
+      }),
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const [, patch] = mocked.update.mock.calls[0];
+    expect(patch["@type"]).toBe("Action");
+    expect(patch.additionalProperty).toEqual([
+      { "@type": "PropertyValue", propertyID: "app:bucket", value: "next" },
+    ]);
+  });
+
+  it("promotes @type to CreativeWork when moving inbox item to reference", async () => {
+    mocked.update.mockResolvedValue(REFERENCE_RECORD);
+
+    const { result } = renderHook(() => useMoveAction(), {
+      wrapper: createWrapper([INBOX_RECORD]),
+    });
+
+    act(() =>
+      result.current.mutate({
+        canonicalId: "urn:app:inbox:1" as CanonicalId,
+        bucket: "reference",
+      }),
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const [, patch] = mocked.update.mock.calls[0];
+    expect(patch["@type"]).toBe("CreativeWork");
   });
 });
 
