@@ -60,9 +60,12 @@ export const Default: Story = {
   },
   play: async ({ canvas, step }) => {
     await step("Verify workspace loads with real data", async () => {
-      await waitFor(() => {
-        expect(canvas.getByText("Unprocessed thought")).toBeInTheDocument();
-      }, { timeout: 10000 });
+      await waitFor(
+        () => {
+          expect(canvas.getByText("Unprocessed thought")).toBeInTheDocument();
+        },
+        { timeout: 10000 },
+      );
     });
   },
 };
@@ -91,9 +94,12 @@ export const SwitchToSettings: Story = {
   },
   play: async ({ canvas, userEvent, step }) => {
     await step("Wait for workspace to load", async () => {
-      await waitFor(() => {
-        expect(canvas.getByText("Unprocessed thought")).toBeInTheDocument();
-      }, { timeout: 10000 });
+      await waitFor(
+        () => {
+          expect(canvas.getByText("Unprocessed thought")).toBeInTheDocument();
+        },
+        { timeout: 10000 },
+      );
     });
 
     await step("Open menu and navigate to Settings", async () => {
@@ -114,11 +120,14 @@ export const SwitchToSettings: Story = {
     });
 
     await step("Verify Workspace is visible with real data", async () => {
-      await waitFor(() => {
-        expect(
-          canvas.getByRole("main", { name: "Bucket content" }),
-        ).toBeInTheDocument();
-      }, { timeout: 10000 });
+      await waitFor(
+        () => {
+          expect(
+            canvas.getByRole("main", { name: "Bucket content" }),
+          ).toBeInTheDocument();
+        },
+        { timeout: 10000 },
+      );
     });
   },
 };

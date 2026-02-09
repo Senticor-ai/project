@@ -121,10 +121,10 @@ export const ImportError: Story = {
   parameters: {
     msw: {
       handlers: [
-        http.post("*/api/imports/nirvana/from-file", () => {
+        http.post("*/imports/nirvana/from-file", () => {
           return HttpResponse.json(failedJob);
         }),
-        http.get("*/api/imports/jobs/:jobId", () => {
+        http.get("*/imports/jobs/:jobId", () => {
           return HttpResponse.json(failedJob);
         }),
       ],

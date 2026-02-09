@@ -151,7 +151,7 @@ export const CompleteAction: Story = {
     });
 
     await step("Verify complete button exists", async () => {
-      const completeBtn = canvas.getByLabelText("Complete: Draft wireframes");
+      const completeBtn = canvas.getByLabelText("Complete Draft wireframes");
       expect(completeBtn).toBeInTheDocument();
     });
   },

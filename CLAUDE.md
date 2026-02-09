@@ -132,10 +132,17 @@ npx tsc --noEmit
 
 ```bash
 # Frontend unit tests (vitest, never use watch mode)
-cd frontend && CI=1 npx vitest run
+cd frontend && CI=1 npx vitest run --project=unit
+
+# Frontend storybook tests (vitest browser mode + Playwright)
+cd frontend && STORYBOOK_TESTS=1 CI=1 npx vitest run --project=storybook
 
 # Frontend type check
 cd frontend && npx tsc --noEmit
+
+# Frontend coverage (per-project reports)
+cd frontend && npm run test:coverage:unit        # → coverage/unit/
+cd frontend && npm run test:coverage:storybook   # → coverage/storybook/
 
 # Frontend integration tests (mocked services, Playwright)
 cd frontend && npm run test:integration
@@ -148,6 +155,20 @@ cd backend && uv run python -m pytest
 ```
 
 Always use `CI=1 npx vitest run` (not `npx vitest` which starts watch mode).
+
+## MSW (Mock Service Worker)
+
+Storybook stories use MSW to intercept API requests in-browser, enabling "connected" stories that exercise real hooks and serialization.
+
+- **Handlers**: `frontend/src/test/msw/handlers.ts` — in-memory store with handlers for Things, Files, Imports, Auth APIs
+- **Fixtures**: `frontend/src/test/msw/fixtures.ts` — `store`, `seedMixedBuckets()`, `createThingRecord()`, `buildSyncResponse()`
+- **Worker setup**: `frontend/.storybook/msw-setup.ts` — `setupWorker(...handlers)` from `msw/browser`
+- **Vitest lifecycle**: `frontend/.storybook/vitest.setup.ts` — `beforeAll(worker.start)`, `afterEach(worker.resetHandlers)`, `afterAll(worker.stop)`
+- **Preview**: `frontend/.storybook/preview.tsx` — conditional start (skips in vitest mode), per-story handler overrides via `parameters.msw.handlers`
+
+**Handler URL patterns**: Use wildcard prefix `*/path` (e.g. `*/things/sync`) because `VITE_API_BASE_URL=http://localhost:8000` makes fetch URLs absolute. MSW needs wildcards to match any origin.
+
+**Per-story overrides**: Use `parameters.msw.handlers` array — the preview loader applies them via `worker.use()`. Cleaned up by `afterEach(worker.resetHandlers)` in tests.
 
 ## i18n
 

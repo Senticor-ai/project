@@ -10,7 +10,9 @@ import type {
 // Helpers
 // ---------------------------------------------------------------------------
 
-const API = "*/api";
+// Wildcard prefix matches any origin (e.g. http://localhost:8000/things/sync).
+// API paths in api-client.ts are /things/sync, /auth/me, etc. (no /api prefix).
+const API = "*";
 
 function deepMerge(
   target: Record<string, unknown>,

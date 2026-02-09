@@ -15,8 +15,10 @@ stages:
 variables:
   # Pre-built CI image with Node 24 + Python 3.12 + Playwright + uv.
   # Auto-built by build-ci-image job when ci/Dockerfile.ci changes.
-  # Uses GitLab container registry — runners authenticate automatically via CI_JOB_TOKEN.
-  CI_NODE_PYTHON_IMAGE: ${CI_REGISTRY_IMAGE}/ci:latest
+  # Pushed to Harbor; runner authenticates via HARBOR_REGISTRY env var.
+  CI_NODE_PYTHON_IMAGE: ${HARBOR_REGISTRY}/terminandoyo/ci:latest
+  # Docker pull auth for Harbor (allows runner to pull CI_NODE_PYTHON_IMAGE)
+  DOCKER_AUTH_CONFIG: '{"auths":{"${HARBOR_REGISTRY}":{"username":"${HARBOR_USER}","password":"${HARBOR_PASSWORD}"}}}'
   # Cache directories (must be inside $CI_PROJECT_DIR for GitLab cache)
   npm_config_cache: '$CI_PROJECT_DIR/.npm-cache'
 
@@ -74,9 +76,10 @@ build-ci-image:
     entrypoint: [""]
   before_script:
     - mkdir -p /kaniko/.docker
-    - echo "{\"auths\":{\"${CI_REGISTRY}\":{\"auth\":\"$(printf '%s:%s' "${CI_REGISTRY_USER}" "${CI_REGISTRY_PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
+    - AUTH_B64="$(printf '%s:%s' "$HARBOR_USER" "$HARBOR_PASSWORD" | base64 | tr -d '\n')"
+    - printf '{"auths":{"%s":{"auth":"%s"}}}\n' "$HARBOR_REGISTRY" "$AUTH_B64" > /kaniko/.docker/config.json
   script:
-    - /kaniko/executor --context "$CI_PROJECT_DIR/ci" --dockerfile "$CI_PROJECT_DIR/ci/Dockerfile.ci" --destination "${CI_REGISTRY_IMAGE}/ci:latest" --insecure --skip-tls-verify
+    - /kaniko/executor --context "$CI_PROJECT_DIR/ci" --dockerfile "$CI_PROJECT_DIR/ci/Dockerfile.ci" --destination "${HARBOR_REGISTRY}/terminandoyo/ci:latest" --insecure --skip-tls-verify
   rules:
     - changes: [ci/Dockerfile.ci]
 
@@ -345,7 +348,8 @@ build-backend:
     entrypoint: [""]
   before_script:
     - mkdir -p /kaniko/.docker
-    - echo "{\"auths\":{\"${CI_REGISTRY}\":{\"auth\":\"$(printf '%s:%s' "${CI_REGISTRY_USER}" "${CI_REGISTRY_PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
+    - AUTH_B64="$(printf '%s:%s' "$HARBOR_USER" "$HARBOR_PASSWORD" | base64 | tr -d '\n')"
+    - printf '{"auths":{"%s":{"auth":"%s"}}}\n' "$HARBOR_REGISTRY" "$AUTH_B64" > /kaniko/.docker/config.json
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
 
@@ -355,7 +359,7 @@ push-frontend:
   script:
     - |
       IMAGE_TAG="${CI_COMMIT_SHORT_SHA}"
-      /kaniko/executor --context "$CI_PROJECT_DIR" --dockerfile "$CI_PROJECT_DIR/frontend/Dockerfile" --destination "${CI_REGISTRY_IMAGE}/frontend:${IMAGE_TAG}" --insecure --skip-tls-verify
+      /kaniko/executor --context "$CI_PROJECT_DIR" --dockerfile "$CI_PROJECT_DIR/frontend/Dockerfile" --destination "${HARBOR_REGISTRY}/terminandoyo/frontend:${IMAGE_TAG}" --insecure --skip-tls-verify
 
 push-backend:
   extends: .push-base
@@ -363,7 +367,7 @@ push-backend:
   script:
     - |
       IMAGE_TAG="${CI_COMMIT_SHORT_SHA}"
-      /kaniko/executor --context "$CI_PROJECT_DIR" --dockerfile "$CI_PROJECT_DIR/backend/Dockerfile" --destination "${CI_REGISTRY_IMAGE}/backend:${IMAGE_TAG}" --insecure --skip-tls-verify
+      /kaniko/executor --context "$CI_PROJECT_DIR" --dockerfile "$CI_PROJECT_DIR/backend/Dockerfile" --destination "${HARBOR_REGISTRY}/terminandoyo/backend:${IMAGE_TAG}" --insecure --skip-tls-verify
 
 # ==================== DEPLOY ====================
 
@@ -377,9 +381,9 @@ update-manifests:
     - |
       IMAGE_TAG="${CI_COMMIT_SHORT_SHA}"
       KUST="infra/k8s/overlays/production/kustomization.yaml"
-      echo "Updating kustomization to registry: ${CI_REGISTRY_IMAGE}, tag: ${IMAGE_TAG}"
-      sed -i "s|newName: .*/backend|newName: ${CI_REGISTRY_IMAGE}/backend|" "$KUST"
-      sed -i "s|newName: .*/frontend|newName: ${CI_REGISTRY_IMAGE}/frontend|" "$KUST"
+      echo "Updating kustomization to registry: ${HARBOR_REGISTRY}, tag: ${IMAGE_TAG}"
+      sed -i "s|newName: .*/backend|newName: ${HARBOR_REGISTRY}/terminandoyo/backend|" "$KUST"
+      sed -i "s|newName: .*/frontend|newName: ${HARBOR_REGISTRY}/terminandoyo/frontend|" "$KUST"
       sed -i "s/newTag: .*/newTag: \"${IMAGE_TAG}\"/" "$KUST"
       cat "$KUST"
       git config user.email "ci@terminandoyo.dev"
