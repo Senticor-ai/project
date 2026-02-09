@@ -7,13 +7,13 @@ resources:
 images:
   - name: terminandoyo-backend
     newName: harbor.100-114-108-51.nip.io:30443/terminandoyo/backend
-    newTag: "262b8c6e"
+    newTag: "f532b40d"
   - name: terminandoyo-frontend
     newName: harbor.100-114-108-51.nip.io:30443/terminandoyo/frontend
-    newTag: "262b8c6e"
+    newTag: "f532b40d"
   - name: terminandoyo-storybook
     newName: harbor.100-114-108-51.nip.io:30443/terminandoyo/storybook
-    newTag: "262b8c6e"
+    newTag: "f532b40d"
 
 patches:
   - path: patches/backend.yaml
