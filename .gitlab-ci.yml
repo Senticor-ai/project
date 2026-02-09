@@ -82,6 +82,8 @@ build-ci-image:
     - /kaniko/executor --context "$CI_PROJECT_DIR/ci" --dockerfile "$CI_PROJECT_DIR/ci/Dockerfile.ci" --destination "${HARBOR_REGISTRY}/terminandoyo/ci:latest" --insecure --skip-tls-verify
   rules:
     - changes: [ci/Dockerfile.ci]
+    - when: manual
+      allow_failure: true
 
 # ==================== QUALITY ====================
 
