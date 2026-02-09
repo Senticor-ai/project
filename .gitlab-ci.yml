@@ -15,7 +15,8 @@ stages:
 variables:
   # Pre-built CI image with Node 24 + Python 3.12 + Playwright + uv.
   # Auto-built by build-ci-image job when ci/Dockerfile.ci changes.
-  # Pushed to Harbor; runner authenticates via HARBOR_REGISTRY env var.
+  # Pushed to Harbor; runner authenticates via DOCKER_AUTH_CONFIG below.
+  HARBOR_REGISTRY: harbor.100-114-108-51.nip.io:30443
   CI_NODE_PYTHON_IMAGE: ${HARBOR_REGISTRY}/terminandoyo/ci:latest
   # Docker pull auth for Harbor (allows runner to pull CI_NODE_PYTHON_IMAGE)
   DOCKER_AUTH_CONFIG: '{"auths":{"${HARBOR_REGISTRY}":{"username":"${HARBOR_USER}","password":"${HARBOR_PASSWORD}"}}}'

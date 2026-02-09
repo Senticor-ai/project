@@ -1,4 +1,5 @@
 import { createCanonicalId } from "./canonical-id";
+import type { CanonicalId } from "./canonical-id";
 import type {
   Thing,
   ThingBucket,
@@ -39,9 +40,14 @@ function defaultSource(): CaptureSource {
 // Thing Factory (unified)
 // ---------------------------------------------------------------------------
 
-export function createThing(
-  overrides: Partial<Thing> & ({ name: string } | { rawCapture: string }),
-): Thing {
+/** Overrides for createThing — accepts `projectId` (convenience, wraps in array) or `projectIds`. */
+type ThingOverrides = Partial<Thing> &
+  ({ name: string } | { rawCapture: string }) & {
+    /** Convenience: single project ID (wrapped into projectIds). */
+    projectId?: CanonicalId;
+  };
+
+export function createThing(overrides: ThingOverrides): Thing {
   if (!overrides.name && !overrides.rawCapture) {
     throw new Error("createThing requires at least one of {name, rawCapture}");
   }
@@ -63,7 +69,9 @@ export function createThing(
     needsEnrichment: overrides.needsEnrichment ?? bucket === "inbox",
     confidence: overrides.confidence ?? (bucket === "inbox" ? "low" : "high"),
     isFocused: overrides.isFocused ?? false,
-    projectId: overrides.projectId,
+    projectIds:
+      overrides.projectIds ??
+      (overrides.projectId ? [overrides.projectId] : []),
     delegatedTo: overrides.delegatedTo,
     scheduledDate: overrides.scheduledDate,
     scheduledTime: overrides.scheduledTime,
@@ -79,9 +87,7 @@ export function createThing(
 // Inbox Item Factory (convenience — delegates to createThing)
 // ---------------------------------------------------------------------------
 
-export function createInboxItem(
-  overrides: Partial<Thing> & ({ name: string } | { rawCapture: string }),
-): Thing {
+export function createInboxItem(overrides: ThingOverrides): Thing {
   return createThing({
     ...overrides,
     bucket: "inbox",
@@ -95,9 +101,7 @@ export function createInboxItem(
 // Action Factory (convenience — delegates to createThing)
 // ---------------------------------------------------------------------------
 
-export function createAction(
-  overrides: Partial<Thing> & ({ name: string } | { rawCapture: string }),
-): Thing {
+export function createAction(overrides: ThingOverrides): Thing {
   return createThing({
     ...overrides,
     bucket: overrides.bucket ?? "next",
@@ -120,7 +124,6 @@ export function createProject(
     name: overrides.name,
     desiredOutcome: overrides.desiredOutcome,
     status: overrides.status ?? "active",
-    actionIds: overrides.actionIds ?? [],
     description: overrides.description,
     tags: overrides.tags ?? [],
     references: overrides.references ?? [],

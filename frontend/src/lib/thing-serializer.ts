@@ -67,6 +67,10 @@ function serializeThingAdditionalProps(thing: Thing): PropertyValue[] {
     pv("app:provenanceHistory", thing.provenance.history),
   ];
 
+  if (thing.projectIds.length > 0) {
+    props.push(pv("app:projectRefs", thing.projectIds));
+  }
+
   if (thing.rawCapture !== undefined) {
     props.push(pv("app:rawCapture", thing.rawCapture));
   }
@@ -123,15 +127,10 @@ export function toJsonLd(
     // schema.org direct mappings
     base.startTime = thing.scheduledDate ?? null;
     base.endTime = thing.completedAt ?? null;
-    if (thing.projectId) {
-      base.isPartOf = { "@id": thing.projectId };
-    }
     base.additionalProperty = serializeThingAdditionalProps(thing);
   } else if (item.bucket === "project") {
     const project = item as Project;
     base["@type"] = TYPE_MAP.project;
-    base.endTime = project.completedAt ?? null;
-    base.hasPart = project.actionIds.map((id) => ({ "@id": id }));
 
     const props: PropertyValue[] = [
       pv("app:bucket", "project"),
@@ -219,7 +218,9 @@ export function fromJsonLd(record: ThingRecord): AppItem {
   const thingFields = {
     contexts:
       (getAdditionalProperty(props, "app:contexts") as CanonicalId[]) ?? [],
-    projectId: extractProjectId(t),
+    projectIds:
+      (getAdditionalProperty(props, "app:projectRefs") as CanonicalId[]) ??
+      extractLegacyProjectIds(t),
     delegatedTo:
       (getAdditionalProperty(props, "app:delegatedTo") as string) || undefined,
     scheduledDate:
@@ -281,7 +282,6 @@ export function fromJsonLd(record: ThingRecord): AppItem {
           props,
           "app:projectStatus",
         ) as Project["status"]) ?? "active",
-      actionIds: extractActionIds(t),
       reviewDate:
         (getAdditionalProperty(props, "app:reviewDate") as string) || undefined,
       completedAt: (t.endTime as string) || undefined,
@@ -314,19 +314,15 @@ export function fromJsonLd(record: ThingRecord): AppItem {
   };
 }
 
-/** Extract projectId from isPartOf reference. */
-function extractProjectId(t: Record<string, unknown>): CanonicalId | undefined {
+/** Backward compat: extract projectIds from legacy isPartOf reference. */
+function extractLegacyProjectIds(
+  t: Record<string, unknown>,
+): CanonicalId[] {
   const isPartOf = t.isPartOf as { "@id": string } | undefined;
   if (isPartOf?.["@id"]) {
-    return isPartOf["@id"] as CanonicalId;
+    return [isPartOf["@id"] as CanonicalId];
   }
-  return undefined;
-}
-
-/** Extract actionIds from hasPart array. */
-function extractActionIds(t: Record<string, unknown>): CanonicalId[] {
-  const hasPart = t.hasPart as Array<{ "@id": string }> | undefined;
-  return hasPart?.map((ref) => ref["@id"] as CanonicalId) ?? [];
+  return [];
 }
 
 // ---------------------------------------------------------------------------
@@ -362,20 +358,15 @@ export function buildTriagePatch(
     pv("app:sequenceOrder", null),
     pv("app:recurrence", null),
     pv("app:ports", ports),
+    pv("app:projectRefs", result.projectId ? [result.projectId] : []),
   ];
 
-  const patch: Record<string, unknown> = {
+  return {
     "@type": TYPE_MAP.action,
     startTime: result.date ?? null,
     endTime: null,
     additionalProperty: additionalProps,
   };
-
-  if (result.projectId) {
-    patch.isPartOf = { "@id": result.projectId };
-  }
-
-  return patch;
 }
 
 // ---------------------------------------------------------------------------
@@ -398,11 +389,9 @@ export function buildItemEditPatch(
     additionalProps.push(pv("app:contexts", fields.contexts));
   }
   if ("projectId" in fields) {
-    if (fields.projectId) {
-      patch.isPartOf = { "@id": fields.projectId };
-    } else {
-      patch.isPartOf = null;
-    }
+    additionalProps.push(
+      pv("app:projectRefs", fields.projectId ? [fields.projectId] : []),
+    );
   }
   if ("description" in fields) {
     patch.description = fields.description || null;
@@ -465,7 +454,7 @@ export function buildNewActionJsonLd(
   const id = createCanonicalId("action", crypto.randomUUID());
   const now = new Date().toISOString();
 
-  const result: Record<string, unknown> = {
+  return {
     "@id": id,
     "@type": TYPE_MAP.action,
     _schemaVersion: SCHEMA_VERSION,
@@ -486,14 +475,9 @@ export function buildNewActionJsonLd(
       pv("app:ports", []),
       pv("app:typedReferences", []),
       pv("app:provenanceHistory", [{ timestamp: now, action: "created" }]),
+      pv("app:projectRefs", opts?.projectId ? [opts.projectId] : []),
     ],
   };
-
-  if (opts?.projectId) {
-    result.isPartOf = { "@id": opts.projectId };
-  }
-
-  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -516,8 +500,6 @@ export function buildNewProjectJsonLd(
     keywords: [],
     dateCreated: now,
     dateModified: now,
-    endTime: null,
-    hasPart: [],
     additionalProperty: [
       pv("app:bucket", "project"),
       pv("app:desiredOutcome", desiredOutcome),

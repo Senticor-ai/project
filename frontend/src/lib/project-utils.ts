@@ -7,7 +7,7 @@ export function getProjectActions(
   allThings: Thing[],
 ): Thing[] {
   return allThings
-    .filter((t) => t.projectId === project.id)
+    .filter((t) => t.projectIds.includes(project.id))
     .sort(
       (a, b) => (a.sequenceOrder ?? Infinity) - (b.sequenceOrder ?? Infinity),
     );
@@ -25,7 +25,7 @@ export function isProjectStalled(
   allThings: Thing[],
 ): boolean {
   if (project.status !== "active") return false;
-  const projectThings = allThings.filter((t) => t.projectId === project.id);
+  const projectThings = allThings.filter((t) => t.projectIds.includes(project.id));
   if (projectThings.length === 0) return true;
   return projectThings.every((t) => !!t.completedAt);
 }

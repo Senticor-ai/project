@@ -55,7 +55,7 @@ function thingToEditorValues(thing: Thing): ItemEditableFields {
     contexts: (thing.contexts as string[]) ?? [],
     dueDate: thing.dueDate,
     scheduledDate: thing.scheduledDate,
-    projectId: thing.projectId,
+    projectId: thing.projectIds[0],
     description: thing.description,
     energyLevel: energyPort
       ? (energyPort as { energyLevel: "low" | "medium" | "high" }).energyLevel

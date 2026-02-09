@@ -189,7 +189,7 @@ export interface Thing extends BaseEntity {
   bucket: ThingBucket;
   rawCapture?: string;
   contexts: CanonicalId[];
-  projectId?: CanonicalId;
+  projectIds: CanonicalId[];
   delegatedTo?: string;
   scheduledDate?: string;
   scheduledTime?: string;
@@ -238,7 +238,6 @@ export interface Project extends BaseEntity {
   bucket: "project";
   desiredOutcome: string;
   status: "active" | "completed" | "on-hold" | "archived";
-  actionIds: CanonicalId[];
   reviewDate?: string;
   completedAt?: string;
   isFocused: boolean;
