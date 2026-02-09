@@ -102,7 +102,7 @@ describe("EditableTitle", () => {
     expect(input).toHaveValue("Original");
   });
 
-  it("saves on blur without collapsing", async () => {
+  it("saves and exits editing on blur", async () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
     const onToggleEdit = vi.fn();
@@ -122,7 +122,7 @@ describe("EditableTitle", () => {
     await user.type(input, "Updated");
     await user.click(screen.getByText("other"));
     expect(onSave).toHaveBeenCalledWith("Updated");
-    expect(onToggleEdit).not.toHaveBeenCalled();
+    expect(onToggleEdit).toHaveBeenCalled();
   });
 
   it("shows optimistic title after Enter even before prop updates", async () => {

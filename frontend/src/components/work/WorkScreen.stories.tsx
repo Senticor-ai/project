@@ -158,13 +158,15 @@ export const CaptureTriageNavigate: Story = {
       await expect(canvas.getByText("4 items to process")).toBeInTheDocument();
     });
 
-    await step("Expand and move the first item to Next", async () => {
-      await userEvent.click(
-        canvas.getByLabelText("Edit Antrag von Frau Schmidt bearbeiten"),
-      );
-      await userEvent.click(canvas.getByLabelText("Move to Next"));
-      await expect(canvas.getByText("3 items to process")).toBeInTheDocument();
-    });
+    await step(
+      "Move the first item to Next (auto-expanded in inbox)",
+      async () => {
+        await userEvent.click(canvas.getByLabelText("Move to Next"));
+        await expect(
+          canvas.getByText("3 items to process"),
+        ).toBeInTheDocument();
+      },
+    );
 
     await step("Click Next Actions in BucketNav", async () => {
       await userEvent.click(sidebar.getByText("Next Actions"));

@@ -88,16 +88,27 @@ describe("ThingRow rendering", () => {
     expect(screen.queryByText(/via /)).not.toBeInTheDocument();
   });
 
-  it("shows note indicator when notes exist", () => {
+  it("shows note indicator when expanded and notes exist", () => {
+    const thing = createThing({ name: "Task", description: "Some notes" });
+    renderRow({ thing, isExpanded: true, onToggleExpand: vi.fn(), onEdit: vi.fn() });
+    expect(screen.getByLabelText("Hide notes for Task")).toBeInTheDocument();
+  });
+
+  it("hides note indicator when collapsed (notes preview shown instead)", () => {
     const thing = createThing({ name: "Task", description: "Some notes" });
     renderRow({ thing });
-    expect(screen.getByLabelText("Show notes for Task")).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText(/notes for Task/i),
+    ).toBeInTheDocument(); // notes preview button is visible
+    expect(
+      screen.queryByLabelText("Hide notes for Task"),
+    ).not.toBeInTheDocument(); // but not the icon
   });
 
   it("hides note indicator when no notes", () => {
     renderRow({ thing: createThing({ name: "Task" }) });
     expect(
-      screen.queryByLabelText("Show notes for Task"),
+      screen.queryByLabelText(/notes for Task/i),
     ).not.toBeInTheDocument();
   });
 
@@ -215,6 +226,17 @@ describe("ThingRow notes preview", () => {
     expect(screen.queryByLabelText(/Notes for/)).not.toBeInTheDocument();
   });
 
+  it("clicking notes preview calls onToggleExpand", async () => {
+    const user = userEvent.setup();
+    const onToggleExpand = vi.fn();
+    renderRow({
+      thing: createThing({ name: "Task", description: "Some notes here" }),
+      onToggleExpand,
+    });
+    await user.click(screen.getByLabelText("Notes for Task"));
+    expect(onToggleExpand).toHaveBeenCalled();
+  });
+
   it("applies line-clamp to long notes", () => {
     const longNotes = Array.from({ length: 15 }, (_, i) => `Line ${i + 1}`).join("\n");
     renderRow({
@@ -270,14 +292,14 @@ describe("ThingRow interactions", () => {
     expect(onToggleExpand).toHaveBeenCalled();
   });
 
-  it("calls onToggleExpand when notes icon clicked", async () => {
+  it("calls onToggleExpand when notes preview clicked", async () => {
     const user = userEvent.setup();
     const onToggleExpand = vi.fn();
     renderRow({
       thing: createThing({ name: "Task", description: "Details" }),
       onToggleExpand,
     });
-    await user.click(screen.getByLabelText("Show notes for Task"));
+    await user.click(screen.getByLabelText("Notes for Task"));
     expect(onToggleExpand).toHaveBeenCalled();
   });
 });
@@ -530,6 +552,25 @@ describe("ThingRow title editing", () => {
     await user.clear(textarea);
     await user.type(textarea, "New title{Enter}");
     expect(onUpdateTitle).toHaveBeenCalledWith(thing.id, "New title");
+  });
+
+  it("exits title editing on blur", async () => {
+    const user = userEvent.setup();
+    const thing = createThing({ name: "Blur test" });
+    renderRow({
+      thing,
+      isExpanded: true,
+      onToggleExpand: vi.fn(),
+      onUpdateTitle: vi.fn(),
+    });
+    // Enter editing mode
+    await user.click(screen.getByLabelText("Rename Blur test"));
+    expect(screen.getByDisplayValue("Blur test")).toBeInTheDocument();
+    // Blur by tabbing away
+    await user.tab();
+    // Title should revert to a button
+    expect(screen.queryByDisplayValue("Blur test")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Blur test" })).toBeInTheDocument();
   });
 
   it("reverts title on Escape", async () => {

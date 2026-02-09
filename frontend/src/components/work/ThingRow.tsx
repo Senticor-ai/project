@@ -157,6 +157,7 @@ export function ThingRow({
           "group flex items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5",
           "transition-colors duration-[var(--duration-fast)]",
           "hover:bg-paper-100",
+          isExpanded && "bg-paper-50",
           isDragging && "opacity-50",
         )}
       >
@@ -166,7 +167,7 @@ export function ThingRow({
           {...listeners}
           {...attributes}
           aria-label={`Drag ${displayName}`}
-          className="cursor-grab text-text-subtle opacity-0 group-hover:opacity-100"
+          className="cursor-grab text-text-subtle opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
         >
           <Icon name="drag_indicator" size={14} />
         </span>
@@ -225,12 +226,14 @@ export function ThingRow({
             ariaExpanded={onToggleExpand ? isExpanded : undefined}
           />
           {!isExpanded && thing.description && (
-            <p
+            <button
+              type="button"
+              onClick={() => onToggleExpand?.()}
               aria-label={`Notes for ${displayName}`}
-              className="mt-0.5 whitespace-pre-wrap text-xs text-text-muted line-clamp-[10]"
+              className="mt-0.5 whitespace-pre-wrap text-left text-xs text-text-muted line-clamp-[10]"
             >
               {thing.description}
-            </p>
+            </button>
           )}
         </div>
 
@@ -275,7 +278,7 @@ export function ThingRow({
             aria-label={
               isExpanded ? `Rename ${displayName}` : `Edit ${displayName}`
             }
-            className="shrink-0 text-text-subtle opacity-0 hover:text-text group-hover:opacity-100"
+            className="shrink-0 text-text-subtle opacity-0 hover:text-text group-hover:opacity-100 focus-visible:opacity-100"
           >
             <Icon name="edit" size={16} />
           </button>
@@ -287,7 +290,7 @@ export function ThingRow({
             onClick={() => setMenuOpen(!menuOpen)}
             aria-label={`Move ${displayName}`}
             aria-expanded={menuOpen}
-            className="shrink-0 text-text-subtle opacity-0 hover:text-text group-hover:opacity-100"
+            className="shrink-0 text-text-subtle opacity-0 hover:text-text group-hover:opacity-100 focus-visible:opacity-100"
           >
             <Icon name="more_vert" size={16} />
           </button>

@@ -234,7 +234,7 @@ export const TriageToNext: Story = {
   },
 };
 
-export const ClickNotesIcon: Story = {
+export const ClickNotesPreview: Story = {
   args: {
     thing: createThing({
       rawCapture: "Has notes",
@@ -244,7 +244,8 @@ export const ClickNotesIcon: Story = {
     onToggleExpand: fn(),
   },
   play: async ({ canvas, args, userEvent }) => {
-    await userEvent.click(canvas.getByLabelText("Show notes for Has notes"));
+    // Notes preview is clickable — expands the row
+    await userEvent.click(canvas.getByLabelText("Notes for Has notes"));
     await expect(args.onToggleExpand).toHaveBeenCalled();
   },
 };

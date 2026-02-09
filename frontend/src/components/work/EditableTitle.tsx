@@ -22,6 +22,7 @@ export function EditableTitle({
   className,
 }: EditableTitleProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const exitedViaKeyRef = useRef(false);
   const [optimistic, setOptimistic] = useState<string | null>(null);
   const [prevTitle, setPrevTitle] = useState(title);
 
@@ -50,7 +51,13 @@ export function EditableTitle({
   };
 
   const handleBlur = () => {
+    // Skip if already exited via Enter/Escape (prevents double-toggle)
+    if (exitedViaKeyRef.current) {
+      exitedViaKeyRef.current = false;
+      return;
+    }
     saveIfChanged();
+    onToggleEdit();
   };
 
   const grow = useCallback((el: HTMLTextAreaElement) => {
@@ -61,6 +68,7 @@ export function EditableTitle({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey && !e.altKey) {
       e.preventDefault();
+      exitedViaKeyRef.current = true;
       saveIfChanged();
       onToggleEdit();
     } else if (e.key === "Enter") {
@@ -70,6 +78,7 @@ export function EditableTitle({
       });
     } else if (e.key === "Escape") {
       e.preventDefault();
+      exitedViaKeyRef.current = true;
       if (inputRef.current) {
         inputRef.current.value = displayTitle;
       }

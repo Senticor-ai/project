@@ -153,13 +153,7 @@ export const TriageToNext: Story = {
     />
   ),
   play: async ({ canvas, userEvent, step }) => {
-    await step("Expand item", async () => {
-      await userEvent.click(
-        canvas.getByLabelText("Edit Review annual budget report"),
-      );
-    });
-
-    await step("Click triage button for Next", async () => {
+    await step("Move to Next (item is auto-expanded in inbox)", async () => {
       await userEvent.click(canvas.getByLabelText("Move to Next"));
     });
 
@@ -185,10 +179,7 @@ export const TriageToWaiting: Story = {
     />
   ),
   play: async ({ canvas, userEvent, step }) => {
-    await step("Expand and triage to Waiting", async () => {
-      await userEvent.click(
-        canvas.getByLabelText("Edit Call client about Q1 proposal"),
-      );
+    await step("Move to Waiting (item is auto-expanded in inbox)", async () => {
       await userEvent.click(canvas.getByLabelText("Move to Waiting"));
     });
 
@@ -260,10 +251,7 @@ export const FullWorkflow: Story = {
       ).toBeInTheDocument();
     });
 
-    await step("Expand and triage to Next", async () => {
-      await userEvent.click(
-        canvas.getByLabelText("Edit Prepare quarterly presentation"),
-      );
+    await step("Move to Next (item is auto-expanded in inbox)", async () => {
       await userEvent.click(canvas.getByLabelText("Move to Next"));
     });
 
