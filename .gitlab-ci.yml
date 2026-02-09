@@ -11,6 +11,7 @@ stages:
   - build
   - push
   - deploy
+  - pages
 
 variables:
   # Pre-built CI image with Node 24 + Python 3.12 + Playwright + uv.
@@ -314,6 +315,25 @@ frontend-e2e:
     paths:
       - frontend/playwright-report/
       - frontend/test-results/
+
+# ==================== PAGES (Storybook → GitLab Pages) ====================
+
+pages:
+  stage: pages
+  needs:
+    - job: build-ci-image
+      optional: true
+  image: $CI_NODE_PYTHON_IMAGE
+  extends: [.frontend-cache]
+  before_script:
+    - cd frontend && npm ci --silent
+  script:
+    - npx storybook build -o ../public
+  artifacts:
+    paths:
+      - public
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
 
 # ==================== BUILD (parallel frontend + backend, starts immediately) ====================
 
