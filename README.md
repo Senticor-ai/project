@@ -1,7 +1,6 @@
 # TerminAndoYo (TAY)
 
-A **GTD-native task management system** bringing David Allen's Getting Things Done methodology
-into a modern, evidence-first workspace. Inspired by ThinkingRock's discipline and NirvanaHQ's elegance.
+A **ontology-native task management system** bringing schema.org into a modern, evidence-first workspace raising productivity at work in any context and scale.
 
 ## Quick Start
 
