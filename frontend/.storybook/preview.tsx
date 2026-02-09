@@ -8,7 +8,12 @@ import "../src/index.css";
 // In Storybook dev mode, start it here.
 const mswReady = import.meta.env.VITEST
   ? Promise.resolve()
-  : worker.start({ onUnhandledRequest: "bypass" });
+  : worker.start({
+      onUnhandledRequest: "bypass",
+      serviceWorker: {
+        url: `${import.meta.env.BASE_URL}mockServiceWorker.js`,
+      },
+    });
 
 const preview: Preview = {
   loaders: [
