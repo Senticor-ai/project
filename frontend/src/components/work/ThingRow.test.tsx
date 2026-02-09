@@ -460,20 +460,7 @@ describe("ThingRow title collapse", () => {
     expect(screen.queryByDisplayValue("Task")).not.toBeInTheDocument();
   });
 
-  it("clicking title when expanded calls onToggleExpand", async () => {
-    const user = userEvent.setup();
-    const onToggleExpand = vi.fn();
-    renderRow({
-      thing: createThing({ name: "Task" }),
-      isExpanded: true,
-      onToggleExpand,
-      onEdit: vi.fn(),
-    });
-    await user.click(screen.getByRole("button", { name: "Task" }));
-    expect(onToggleExpand).toHaveBeenCalled();
-  });
-
-  it("clicking edit button when expanded enters title editing", async () => {
+  it("clicking title when expanded enters title editing", async () => {
     const user = userEvent.setup();
     renderRow({
       thing: createThing({ name: "Task" }),
@@ -482,8 +469,21 @@ describe("ThingRow title collapse", () => {
       onEdit: vi.fn(),
       onUpdateTitle: vi.fn(),
     });
-    await user.click(screen.getByLabelText("Rename Task"));
+    await user.click(screen.getByRole("button", { name: "Task" }));
     expect(screen.getByDisplayValue("Task")).toBeInTheDocument();
+  });
+
+  it("clicking collapse button when expanded calls onToggleExpand", async () => {
+    const user = userEvent.setup();
+    const onToggleExpand = vi.fn();
+    renderRow({
+      thing: createThing({ name: "Task" }),
+      isExpanded: true,
+      onToggleExpand,
+      onEdit: vi.fn(),
+    });
+    await user.click(screen.getByLabelText("Collapse Task"));
+    expect(onToggleExpand).toHaveBeenCalled();
   });
 
   it("title editing resets when row collapses", () => {
@@ -546,8 +546,8 @@ describe("ThingRow title editing", () => {
       onUpdateTitle,
     });
 
-    // Click rename button to enter title editing mode
-    await user.click(screen.getByLabelText("Rename Old title"));
+    // Click title to enter editing mode
+    await user.click(screen.getByRole("button", { name: "Old title" }));
     const textarea = screen.getByDisplayValue("Old title");
     await user.clear(textarea);
     await user.type(textarea, "New title{Enter}");
@@ -563,8 +563,8 @@ describe("ThingRow title editing", () => {
       onToggleExpand: vi.fn(),
       onUpdateTitle: vi.fn(),
     });
-    // Enter editing mode
-    await user.click(screen.getByLabelText("Rename Blur test"));
+    // Click title to enter editing mode
+    await user.click(screen.getByRole("button", { name: "Blur test" }));
     expect(screen.getByDisplayValue("Blur test")).toBeInTheDocument();
     // Blur by tabbing away
     await user.tab();
@@ -584,8 +584,8 @@ describe("ThingRow title editing", () => {
       onUpdateTitle,
     });
 
-    // Click rename button to enter title editing mode
-    await user.click(screen.getByLabelText("Rename Original"));
+    // Click title to enter editing mode
+    await user.click(screen.getByRole("button", { name: "Original" }));
     const textarea = screen.getByDisplayValue("Original");
     await user.clear(textarea);
     await user.type(textarea, "Changed{Escape}");

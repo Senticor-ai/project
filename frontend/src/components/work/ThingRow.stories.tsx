@@ -250,7 +250,7 @@ export const ClickNotesPreview: Story = {
   },
 };
 
-/** Expanded row where clicking the title collapses it (title stays a button). */
+/** Expanded row — click chevron to collapse. */
 export const ExpandedCollapsible: Story = {
   args: {
     thing: createThing({
@@ -266,13 +266,13 @@ export const ExpandedCollapsible: Story = {
     // Title is a button, not a textarea
     const titleBtn = canvas.getByRole("button", { name: "Collapsible item" });
     await expect(titleBtn).toBeInTheDocument();
-    // Click title to collapse
-    await userEvent.click(titleBtn);
+    // Click collapse chevron to collapse
+    await userEvent.click(canvas.getByLabelText("Collapse Collapsible item"));
     await expect(args.onToggleExpand).toHaveBeenCalled();
   },
 };
 
-/** Click pencil icon when expanded to enter title editing mode. */
+/** Click title when expanded to enter title editing mode. */
 export const ExpandedTitleEditing: Story = {
   args: {
     thing: createThing({
@@ -289,8 +289,8 @@ export const ExpandedTitleEditing: Story = {
     await expect(
       canvas.getByRole("button", { name: "Rename me" }),
     ).toBeInTheDocument();
-    // Click pencil icon to enter editing
-    await userEvent.click(canvas.getByLabelText("Rename Rename me"));
+    // Click title to enter editing
+    await userEvent.click(canvas.getByRole("button", { name: "Rename me" }));
     // Now title is a textarea
     await expect(canvas.getByDisplayValue("Rename me")).toBeInTheDocument();
   },

@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { BucketView } from "./BucketView";
 import { useAllThings, useProjects, useReferences } from "@/hooks/use-things";
 import {
@@ -52,6 +52,18 @@ export function ConnectedBucketView({
     thingsQuery.isFetching ||
     projectsQuery.isFetching ||
     referencesQuery.isFetching;
+
+  // Debounce isFetching — only show after 400ms to avoid flash on fast refetches
+  const [showRefetch, setShowRefetch] = useState(false);
+  useEffect(() => {
+    if (!isFetching || isLoading) return;
+    const timer = setTimeout(() => setShowRefetch(true), 400);
+    return () => {
+      clearTimeout(timer);
+      setShowRefetch(false);
+    };
+  }, [isFetching, isLoading]);
+
   const error =
     thingsQuery.error ?? projectsQuery.error ?? referencesQuery.error;
 
@@ -149,8 +161,8 @@ export function ConnectedBucketView({
 
   return (
     <div className={cn("relative", className)}>
-      {/* Background refetch indicator (e.g. after import) */}
-      {isFetching && !isLoading && (
+      {/* Background refetch indicator (e.g. after import) — debounced 400ms */}
+      {showRefetch && (
         <div
           role="progressbar"
           aria-label="Refreshing data"

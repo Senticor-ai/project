@@ -138,10 +138,13 @@ export function ThingRow({
 
   const handleTitleClick = () => {
     if (isEditingTitle) {
-      // EditableTitle calls this on Enter/Escape — exit editing
+      // EditableTitle calls this on Enter/Escape/blur — exit editing
       setIsEditingTitle(false);
+    } else if (isExpanded) {
+      // Expanded but not editing — enter title editing
+      setIsEditingTitle(true);
     } else {
-      // Title button clicked — toggle expand/collapse
+      // Collapsed — expand
       onToggleExpand?.();
     }
   };
@@ -265,22 +268,18 @@ export function ThingRow({
           <BucketBadge bucket={thing.bucket} className="shrink-0" />
         )}
 
-        {/* Edit button (hover) */}
+        {/* Edit/Collapse button (hover) */}
         {onToggleExpand && (
           <button
-            onClick={() => {
-              if (isExpanded) {
-                setIsEditingTitle(true);
-              } else {
-                onToggleExpand();
-              }
-            }}
+            onClick={() => onToggleExpand()}
             aria-label={
-              isExpanded ? `Rename ${displayName}` : `Edit ${displayName}`
+              isExpanded
+                ? `Collapse ${displayName}`
+                : `Edit ${displayName}`
             }
             className="shrink-0 text-text-subtle opacity-0 hover:text-text group-hover:opacity-100 focus-visible:opacity-100"
           >
-            <Icon name="edit" size={16} />
+            <Icon name={isExpanded ? "expand_less" : "edit"} size={16} />
           </button>
         )}
 

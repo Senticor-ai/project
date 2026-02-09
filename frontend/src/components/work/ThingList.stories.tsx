@@ -214,6 +214,27 @@ export const InboxCapture: Story = {
   },
 };
 
+/** Shift+Enter inserts newlines; Enter submits the multiline text. */
+export const MultilineEntry: Story = {
+  args: {
+    bucket: "inbox",
+    things: [],
+  },
+  play: async ({ canvas, userEvent, args }) => {
+    const input = canvas.getByLabelText("Capture a thought");
+    await userEvent.type(
+      input,
+      "First line{Shift>}{Enter}{/Shift}Second line{Enter}",
+    );
+    const captured = (args.onAdd as ReturnType<typeof fn>).mock
+      .calls[0][0] as string;
+    await expect(captured).toContain("First line");
+    await expect(captured).toContain("Second line");
+    // Input clears and shrinks back to single row after submit
+    await expect(input).toHaveValue("");
+  },
+};
+
 /** Click the checkbox to complete an action — it disappears from the active list. */
 export const CompleteFromList: Story = {
   render: function CompleteDemo() {

@@ -49,7 +49,7 @@ before I forget, without disrupting the meeting."
    - `confidence: "low"`
    - `needsEnrichment: true`
    - `provenance.history: [{ action: "created", timestamp: now }]`
-4. Input clears, item appears at bottom of inbox list (FIFO)
+4. Input clears, item appears at top of inbox list (newest first)
 5. Count badge on BucketNav inbox icon increments
 
 **Paperclip interactions**:
@@ -66,7 +66,7 @@ before I forget, without disrupting the meeting."
 
 **Components**: `InboxList` → `InboxTriage` (inline on each card)
 
-**User story**: "Time to process my inbox. The oldest item is first — I'll
+**User story**: "Time to process my inbox. The newest item is at the top — I'll
 quickly sort each one into the right bucket."
 
 **Design principle**: No multi-step dialog. Triage is a one-tap operation with
@@ -75,7 +75,7 @@ add dates, or apply labels — all inline on the card.
 
 **Flow**:
 
-1. Only the **first** (oldest) item in InboxList shows the triage action bar
+1. The **first** (newest) item in InboxList auto-expands with the triage action bar
 2. User sees inline bucket buttons directly on the card:
 
 ```

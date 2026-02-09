@@ -85,13 +85,20 @@ const REFERENCE_RECORD = makeRecord({
 
 // The production code now partitions active/completed into separate cache keys
 const ACTIVE_KEY = [...THINGS_QUERY_KEY, { completed: "false" }];
+const COMPLETED_KEY = [...THINGS_QUERY_KEY, { completed: "true" }];
 
-function createWrapper(initialData?: ThingRecord[]) {
+function createWrapper(
+  initialData?: ThingRecord[],
+  completedData?: ThingRecord[],
+) {
   const qc = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   if (initialData) {
     qc.setQueryData(ACTIVE_KEY, initialData);
+  }
+  if (completedData) {
+    qc.setQueryData(COMPLETED_KEY, completedData);
   }
   return ({ children }: { children: React.ReactNode }) =>
     createElement(QueryClientProvider, { client: qc }, children);
@@ -380,6 +387,156 @@ describe("useAddProjectAction", () => {
       "Design mockups",
     );
     expect(jsonLd).toHaveProperty("isPartOf", { "@id": "urn:app:project:1" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// useArchiveReference
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Completed cache fallback
+// ---------------------------------------------------------------------------
+
+describe("completed cache fallback", () => {
+  it("useCompleteAction finds record in completed cache", async () => {
+    mocked.update.mockResolvedValue(COMPLETED_RECORD);
+
+    const { result } = renderHook(() => useCompleteAction(), {
+      wrapper: createWrapper([], [COMPLETED_RECORD]),
+    });
+
+    act(() => result.current.mutate("urn:app:completed:1" as CanonicalId));
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const [, patch] = mocked.update.mock.calls[0];
+    // Uncompleting: endTime should be null
+    expect(patch.endTime).toBeNull();
+  });
+
+  it("useToggleFocus finds record in completed cache", async () => {
+    mocked.update.mockResolvedValue(COMPLETED_RECORD);
+
+    const { result } = renderHook(() => useToggleFocus(), {
+      wrapper: createWrapper([], [COMPLETED_RECORD]),
+    });
+
+    act(() => result.current.mutate("urn:app:completed:1" as CanonicalId));
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(mocked.update).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Focus toggle edge cases
+// ---------------------------------------------------------------------------
+
+describe("useToggleFocus edge cases", () => {
+  it("toggles focused from true to false", async () => {
+    const focusedRecord = makeRecord({
+      thing_id: "tid-focused-1",
+      canonical_id: "urn:app:focused:1",
+      thing: {
+        "@type": "Action",
+        "@id": "urn:app:focused:1",
+        name: "Focused task",
+        endTime: null,
+        additionalProperty: [
+          pv("app:bucket", "next"),
+          pv("app:isFocused", true),
+        ],
+      },
+    });
+    mocked.update.mockResolvedValue(focusedRecord);
+
+    const { result } = renderHook(() => useToggleFocus(), {
+      wrapper: createWrapper([focusedRecord]),
+    });
+
+    act(() => result.current.mutate("urn:app:focused:1" as CanonicalId));
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const [, patch] = mocked.update.mock.calls[0];
+    expect(patch.additionalProperty).toEqual([
+      { "@type": "PropertyValue", propertyID: "app:isFocused", value: false },
+    ]);
+  });
+
+  it("adds isFocused when property is missing", async () => {
+    const noFocusPropRecord = makeRecord({
+      thing_id: "tid-nofocus-1",
+      canonical_id: "urn:app:nofocus:1",
+      thing: {
+        "@type": "Action",
+        "@id": "urn:app:nofocus:1",
+        name: "No focus prop",
+        endTime: null,
+        additionalProperty: [pv("app:bucket", "next")],
+      },
+    });
+    mocked.update.mockResolvedValue(noFocusPropRecord);
+
+    const { result } = renderHook(() => useToggleFocus(), {
+      wrapper: createWrapper([noFocusPropRecord]),
+    });
+
+    act(() => result.current.mutate("urn:app:nofocus:1" as CanonicalId));
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const [, patch] = mocked.update.mock.calls[0];
+    // Missing prop defaults to false, so toggle sets to true
+    expect(patch.additionalProperty).toEqual([
+      { "@type": "PropertyValue", propertyID: "app:isFocused", value: true },
+    ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// onError rollback
+// ---------------------------------------------------------------------------
+
+describe("onError rollback", () => {
+  it("useCompleteAction restores cache on API failure", async () => {
+    mocked.update.mockRejectedValue(new Error("Server error"));
+
+    const wrapper = createWrapper([ACTION_RECORD]);
+    const { result } = renderHook(() => useCompleteAction(), { wrapper });
+
+    act(() => result.current.mutate("urn:app:action:1" as CanonicalId));
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    // Cache should be restored (rollback)
+    expect(mocked.update).toHaveBeenCalled();
+  });
+
+  it("useMoveAction restores cache on API failure", async () => {
+    mocked.update.mockRejectedValue(new Error("Server error"));
+
+    const wrapper = createWrapper([ACTION_RECORD]);
+    const { result } = renderHook(() => useMoveAction(), { wrapper });
+
+    act(() =>
+      result.current.mutate({
+        canonicalId: "urn:app:action:1" as CanonicalId,
+        bucket: "someday",
+      }),
+    );
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(mocked.update).toHaveBeenCalled();
+  });
+
+  it("useArchiveReference restores cache on API failure", async () => {
+    mocked.archive.mockRejectedValue(new Error("Server error"));
+
+    const wrapper = createWrapper([REFERENCE_RECORD]);
+    const { result } = renderHook(() => useArchiveReference(), { wrapper });
+
+    act(() => result.current.mutate("urn:app:reference:1" as CanonicalId));
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(mocked.archive).toHaveBeenCalled();
   });
 });
 

@@ -23,16 +23,16 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">82.4% </span>
+                <span class="strong">78.07% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>89/108</span>
+                <span class='fraction'>89/114</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">81.35% </span>
+                <span class="strong">73.84% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>48/59</span>
+                <span class='fraction'>48/65</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">84.15% </span>
+                <span class="strong">80.95% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>85/101</span>
+                <span class='fraction'>85/105</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line high'></div>
+    <div class='status-line medium'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -445,7 +445,15 @@
 <a name='L380'></a><a href='#L380'>380</a>
 <a name='L381'></a><a href='#L381'>381</a>
 <a name='L382'></a><a href='#L382'>382</a>
-<a name='L383'></a><a href='#L383'>383</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L383'></a><a href='#L383'>383</a>
+<a name='L384'></a><a href='#L384'>384</a>
+<a name='L385'></a><a href='#L385'>385</a>
+<a name='L386'></a><a href='#L386'>386</a>
+<a name='L387'></a><a href='#L387'>387</a>
+<a name='L388'></a><a href='#L388'>388</a>
+<a name='L389'></a><a href='#L389'>389</a>
+<a name='L390'></a><a href='#L390'>390</a>
+<a name='L391'></a><a href='#L391'>391</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -719,6 +727,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
@@ -771,6 +780,13 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -1084,6 +1100,7 @@ export type NirvanaImportSummary = {
   skipped: number;
   errors: number;
   bucket_counts: Record&lt;string, number&gt;;
+  completed_counts?: Record&lt;string, number&gt;;
   sample_errors: string[];
 };
 &nbsp;
@@ -1152,8 +1169,15 @@ export type SyncResponse = {
   server_time: string;
 };
 &nbsp;
-export function <span class="fstat-no" title="function not covered" >downloadExport(f</span>ormat: "json" | "csv") {
-  const url = <span class="cstat-no" title="statement not covered" >`${API_BASE_URL}/things/export?format=${format}`;</span>
+export function <span class="fstat-no" title="function not covered" >downloadExport(o</span>ptions: {
+  includeArchived: boolean;
+  includeCompleted: boolean;
+}) {
+  const params = <span class="cstat-no" title="statement not covered" >new URLSearchParams();</span>
+<span class="cstat-no" title="statement not covered" >  if (options.includeArchived) <span class="cstat-no" title="statement not covered" >params.set("include_archived", "true");</span></span>
+<span class="cstat-no" title="statement not covered" >  if (options.includeCompleted) <span class="cstat-no" title="statement not covered" >params.set("include_completed", "true");</span></span>
+  const qs = <span class="cstat-no" title="statement not covered" >params.toString();</span>
+  const url = <span class="cstat-no" title="statement not covered" >`${API_BASE_URL}/things/export${qs ? `?${qs}` : ""}`;</span>
   const a = <span class="cstat-no" title="statement not covered" >document.createElement("a");</span>
 <span class="cstat-no" title="statement not covered" >  a.href = url;</span>
 <span class="cstat-no" title="statement not covered" >  a.download = "";</span>
@@ -1216,7 +1240,7 @@ export const ThingsApi = {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-02-08T09:42:50.056Z
+                at 2026-02-09T11:23:58.058Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

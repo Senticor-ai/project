@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useMemo, useEffect } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
 import { AutoGrowTextarea } from "@/components/ui/AutoGrowTextarea";
@@ -77,9 +77,18 @@ export function ThingList({
   const [showCompleted, setShowCompleted] = useState(false);
   const [captureError, setCaptureError] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [hasAutoExpanded, setHasAutoExpanded] = useState(false);
+  const [prevBucket, setPrevBucket] = useState(bucket);
   const meta = bucketMeta[bucket];
   const isInbox = bucket === "inbox";
   const isFocusView = bucket === "focus";
+
+  // Reset auto-expand flag and collapse all on bucket change (render-time state adjustment)
+  if (prevBucket !== bucket) {
+    setPrevBucket(bucket);
+    setHasAutoExpanded(false);
+    setExpandedId(null);
+  }
 
   // Lazy-load completed items from the API when the toggle is active
   const completedQuery = useAllCompletedThings(showCompleted);
@@ -93,6 +102,10 @@ export function ThingList({
     if (!trimmed) return;
     setCaptureError(null);
     setEntryText("");
+    // Reset textarea height after clearing multiline content
+    if (inputRef.current) {
+      inputRef.current.style.height = "auto";
+    }
     inputRef.current?.focus();
     // Fire and forget — show error on failure but don't restore text
     Promise.resolve(onAdd(trimmed)).catch(() => {
@@ -149,32 +162,36 @@ export function ThingList({
   // Sort
   const sorted = useMemo(() => {
     if (isInbox) {
-      // FIFO: oldest first
+      // Newest first — just-captured items appear on top
       return [...contextFiltered].sort(
         (a, b) =>
-          new Date(a.provenance.createdAt).getTime() -
-          new Date(b.provenance.createdAt).getTime(),
+          new Date(b.provenance.createdAt).getTime() -
+          new Date(a.provenance.createdAt).getTime(),
       );
     }
-    // Actions: focused first, then sequenceOrder, then createdAt
+    // Actions: focused first, then sequenceOrder, then newest first
     return [...contextFiltered].sort((a, b) => {
       if (a.isFocused !== b.isFocused) return a.isFocused ? -1 : 1;
       if (a.sequenceOrder != null && b.sequenceOrder != null)
         return a.sequenceOrder - b.sequenceOrder;
       return (
-        new Date(a.provenance.createdAt).getTime() -
-        new Date(b.provenance.createdAt).getTime()
+        new Date(b.provenance.createdAt).getTime() -
+        new Date(a.provenance.createdAt).getTime()
       );
     });
   }, [contextFiltered, isInbox]);
 
-  // Auto-expand the first inbox item so triage buttons are immediately visible
-  useEffect(() => {
-    if (bucket !== "inbox" || sorted.length === 0) return;
-    // Only auto-expand if no item is expanded or current expanded item left the list
-    if (expandedId && sorted.some((t) => t.id === expandedId)) return;
-    setExpandedId(sorted[0].id);
-  }, [bucket, sorted, expandedId]);
+  // Auto-expand the first inbox item so triage buttons are immediately visible.
+  // Computed during render (not in useEffect) to avoid cascading renders.
+  if (bucket === "inbox" && sorted.length > 0) {
+    const currentStillInList =
+      expandedId && sorted.some((t) => t.id === expandedId);
+    const userCollapsed = expandedId === null && hasAutoExpanded;
+    if (!currentStillInList && !userCollapsed && expandedId !== sorted[0].id) {
+      setHasAutoExpanded(true);
+      setExpandedId(sorted[0].id);
+    }
+  }
 
   return (
     <div className={cn("space-y-4", className)}>

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
@@ -240,5 +240,134 @@ describe("useNirvanaImport", () => {
     });
 
     expect(result.current.job.data?.error).toBe("Database connection lost");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Running status invalidation
+// ---------------------------------------------------------------------------
+
+describe("useNirvanaImport running invalidation", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function createWrapperWithClient() {
+    const qc = new QueryClient({
+      defaultOptions: {
+        mutations: { retry: false },
+        queries: { retry: false, refetchOnWindowFocus: false },
+      },
+    });
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      createElement(QueryClientProvider, { client: qc }, children);
+    return { wrapper, qc };
+  }
+
+  it("invalidates things queries when job status is running", async () => {
+    const JOB_RUNNING: ImportJobResponse = {
+      ...JOB_QUEUED,
+      status: "running",
+      started_at: "2026-02-06T12:00:01Z",
+    };
+    mockedImports.getJob.mockResolvedValue(JOB_RUNNING);
+
+    const { wrapper, qc } = createWrapperWithClient();
+    const spy = vi.spyOn(qc, "invalidateQueries");
+
+    const { result } = renderHook(() => useNirvanaImport(), { wrapper });
+
+    await act(async () => {
+      result.current.setJobId("job-1");
+    });
+
+    // Wait for the job query to resolve
+    await waitFor(() => {
+      expect(result.current.job.data?.status).toBe("running");
+    });
+
+    // The effect fires immediately when status becomes "running"
+    expect(spy).toHaveBeenCalled();
+
+    // Advance timer to trigger interval
+    await act(async () => {
+      vi.advanceTimersByTime(3500);
+    });
+
+    // Should have additional calls from the interval
+    const thingsInvalidations = spy.mock.calls.filter(
+      (call) =>
+        JSON.stringify(call[0]?.queryKey) === JSON.stringify(["things"]),
+    );
+    expect(thingsInvalidations.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("invalidates things once on completed status (guard)", async () => {
+    mockedImports.getJob.mockResolvedValue(JOB_COMPLETED);
+
+    const { wrapper, qc } = createWrapperWithClient();
+    const spy = vi.spyOn(qc, "invalidateQueries");
+
+    const { result } = renderHook(() => useNirvanaImport(), { wrapper });
+
+    await act(async () => {
+      result.current.setJobId("job-1");
+    });
+
+    await waitFor(() => {
+      expect(result.current.job.data?.status).toBe("completed");
+    });
+
+    // Record the number of things invalidations after completion
+    const afterFirst = spy.mock.calls.filter(
+      (call) =>
+        JSON.stringify(call[0]?.queryKey) === JSON.stringify(["things"]),
+    ).length;
+    expect(afterFirst).toBeGreaterThanOrEqual(1);
+
+    // Force a re-render — the guard should prevent additional invalidation
+    await act(async () => {
+      vi.advanceTimersByTime(1000);
+    });
+
+    const afterSecond = spy.mock.calls.filter(
+      (call) =>
+        JSON.stringify(call[0]?.queryKey) === JSON.stringify(["things"]),
+    ).length;
+
+    // No additional things invalidation beyond the first
+    expect(afterSecond).toBe(afterFirst);
+  });
+
+  it("does not set running interval for failed status", async () => {
+    mockedImports.getJob.mockResolvedValue(JOB_FAILED);
+
+    const { wrapper, qc } = createWrapperWithClient();
+    const spy = vi.spyOn(qc, "invalidateQueries");
+
+    const { result } = renderHook(() => useNirvanaImport(), { wrapper });
+
+    await act(async () => {
+      result.current.setJobId("job-1");
+    });
+
+    await waitFor(() => {
+      expect(result.current.job.data?.status).toBe("failed");
+    });
+
+    const callsBefore = spy.mock.calls.length;
+
+    // Advance timer — no interval should fire
+    await act(async () => {
+      vi.advanceTimersByTime(5000);
+    });
+
+    // No additional calls from interval
+    expect(spy.mock.calls.length).toBe(callsBefore);
   });
 });

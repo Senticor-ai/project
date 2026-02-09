@@ -69,7 +69,10 @@ const JOB_COMPLETED: ImportJobResponse = {
   error: null,
 };
 
-function renderDialog(onClose = vi.fn()) {
+function renderDialog(
+  props: Partial<React.ComponentProps<typeof NirvanaImportDialog>> = {},
+) {
+  const onClose = props.onClose ?? vi.fn();
   const qc = new QueryClient({
     defaultOptions: {
       mutations: { retry: false },
@@ -80,7 +83,7 @@ function renderDialog(onClose = vi.fn()) {
     onClose,
     ...render(
       <QueryClientProvider client={qc}>
-        <NirvanaImportDialog open onClose={onClose} />
+        <NirvanaImportDialog open onClose={onClose} {...props} />
       </QueryClientProvider>,
     ),
   };
@@ -242,5 +245,140 @@ describe("NirvanaImportDialog", () => {
     await waitFor(() => {
       expect(screen.getByText(/item\[42\] missing name/)).toBeInTheDocument();
     });
+  });
+
+  it("returns to select step and shows error when upload fails", async () => {
+    mockedFiles.initiate.mockRejectedValueOnce(new Error("Network error"));
+    const user = userEvent.setup();
+    renderDialog();
+
+    const fileInput = screen.getByTestId("nirvana-file-input");
+    const file = new File(["[]"], "export.json", { type: "application/json" });
+    await user.upload(fileInput, file);
+
+    // Should return to select step (file drop zone visible)
+    await waitFor(() => {
+      expect(screen.getByText("Drop Nirvana export here")).toBeInTheDocument();
+    });
+  });
+
+  it("returns to preview step when import fails", async () => {
+    mockedImports.importNirvanaFromFile.mockRejectedValueOnce(
+      new Error("Server error"),
+    );
+    const user = userEvent.setup();
+    renderDialog();
+
+    // Upload file to reach preview
+    const fileInput = screen.getByTestId("nirvana-file-input");
+    const file = new File(["[]"], "export.json", { type: "application/json" });
+    await user.upload(fileInput, file);
+
+    await waitFor(() => {
+      expect(screen.getByText(/100 items/i)).toBeInTheDocument();
+    });
+
+    // Click import — should fail and return to preview
+    await user.click(screen.getByRole("button", { name: /import/i }));
+
+    await waitFor(() => {
+      // Preview is still shown (import button should reappear)
+      expect(screen.getByText(/100 items/i)).toBeInTheDocument();
+    });
+  });
+
+  it("shows error state when job fails", async () => {
+    const JOB_FAILED: ImportJobResponse = {
+      ...JOB_COMPLETED,
+      status: "failed",
+      error: "Worker timeout exceeded",
+      summary: SUMMARY,
+    };
+    mockedImports.getJob.mockResolvedValue(JOB_FAILED);
+
+    const user = userEvent.setup();
+    renderDialog();
+
+    const fileInput = screen.getByTestId("nirvana-file-input");
+    const file = new File(["[]"], "export.json", { type: "application/json" });
+    await user.upload(fileInput, file);
+
+    await waitFor(() => {
+      expect(screen.getByText(/100 items/i)).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: /import/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Import failed")).toBeInTheDocument();
+      expect(screen.getByText("Worker timeout exceeded")).toBeInTheDocument();
+    });
+  });
+
+  it("shows duplicate warning when checkDuplicate returns a match", async () => {
+    const checkDuplicate = vi.fn().mockReturnValue({
+      job_id: "prev-1",
+      status: "completed",
+      total: 50,
+      created_at: "2026-01-15T10:00:00Z",
+    });
+    const user = userEvent.setup();
+    renderDialog({ checkDuplicate });
+
+    const fileInput = screen.getByTestId("nirvana-file-input");
+    const file = new File(["[]"], "export.json", { type: "application/json" });
+    await user.upload(fileInput, file);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("This file was already imported"),
+      ).toBeInTheDocument();
+    });
+
+    // Click "Import anyway" to dismiss the warning
+    await user.click(screen.getByRole("button", { name: /import anyway/i }));
+    expect(
+      screen.queryByText("This file was already imported"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("calls onNavigateToBucket when View inbox is clicked in results", async () => {
+    const onNavigateToBucket = vi.fn();
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+    renderDialog({ onNavigateToBucket, onClose });
+
+    // Upload to preview
+    const fileInput = screen.getByTestId("nirvana-file-input");
+    const file = new File(["[]"], "export.json", { type: "application/json" });
+    await user.upload(fileInput, file);
+
+    await waitFor(() => {
+      expect(screen.getByText(/100 items/i)).toBeInTheDocument();
+    });
+
+    // Import
+    await user.click(screen.getByRole("button", { name: /import/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Import complete/)).toBeInTheDocument();
+    });
+
+    // Click "View inbox"
+    await user.click(screen.getByRole("button", { name: /view inbox/i }));
+    expect(onNavigateToBucket).toHaveBeenCalledWith("inbox");
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("does not trigger upload when file input has no file", async () => {
+    renderDialog();
+    const fileInput = screen.getByTestId(
+      "nirvana-file-input",
+    ) as HTMLInputElement;
+    // Fire change with empty files list
+    fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+    // Should still be on the select step
+    expect(screen.getByText("Drop Nirvana export here")).toBeInTheDocument();
+    expect(mockedFiles.initiate).not.toHaveBeenCalled();
   });
 });

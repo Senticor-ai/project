@@ -7,8 +7,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **Walking skeleton first** - Get the thinnest end-to-end slice working before layering features. Prove the architecture early.
 - **TDD (red-green-refactor)** - Write failing tests first, implement the minimum to pass, then clean up. No untested production code.
-- **Green suite first** - Before starting any implementation, verify the test suite is green (`tsc --noEmit`, `vitest run`, `eslint`, `pytest`). If there are pre-existing failures, flag them before writing new code.
-- **No broken windows** - Fix warnings, type errors, and lint issues as you encounter them. Don't leave them for later.
+- **Green suite first** - Before starting any implementation, run the full check suite (`tsc --noEmit`, `vitest run`, `eslint`, `pytest`) and confirm it's green. If there are pre-existing failures, fix them first before writing new code — don't just flag them and move on.
+- **No broken windows** - Fix warnings, type errors, and lint issues as you encounter them, even if they predate your changes. Don't leave them for later and don't skip them because "they were already there".
 - **No hardcoded secrets** - Never put passwords, API keys, or secrets directly in `docker-compose.yml`, code, or config files. Use environment variables with `${VAR:-default}` syntax for local dev defaults.
 - **Robust over quick fixes** - Prefer proper solutions over lint-disable comments or workarounds. For example, use `useEffect` + `ref` for focus management instead of `autoFocus` with eslint-disable.
 
@@ -59,10 +59,38 @@ Fallback markers (only when placeholder patterns aren't possible):
 ## Architecture
 
 - **Backend**: FastAPI + Haystack + Qdrant + PostgreSQL
-- **Frontend**: React + Vite + Blueprint.js
+- **Frontend**: React 19 + Vite + Tailwind v4 + shadcn/ui + Framer Motion
 - **LLM**: OpenRouter (model configurable via env)
 - **Observability**: OpenTelemetry -> Grafana (docker-otel-lgtm)
 - **Auth**: Local JWT with HTTP-only cookies
+
+## Storybook (Single Source of Truth)
+
+Storybook is the **living documentation hub** — product specs, design system, engineering architecture, and interactive component demos all live here as MDX pages alongside component stories.
+
+```bash
+cd frontend && npm run storybook       # Dev server at http://localhost:6006
+cd frontend && npm run build-storybook  # Static build
+```
+
+### Documentation structure (`frontend/src/docs/`)
+
+| Directory | Content |
+|-----------|---------|
+| `product/` | Vision, GTD methodology, epics, feature specs |
+| `design/` | Design philosophy, Paperclip principles, design tokens, component catalog |
+| `engineering/` | Architecture, data model, schema reference, FRBR/LexCEL ontology, deployment, routing |
+| `flows/` | End-to-end user journeys (Collect-to-Engage) |
+
+### Component stories (`frontend/src/**/*.stories.tsx`)
+
+Every UI component has a `.stories.tsx` file with interactive variants. Stories are the visual test harness — check Storybook before and after UI changes.
+
+### When working on this project
+
+- **Read the relevant MDX docs first** when working on a feature area — they contain design decisions, data model constraints, and architectural rationale
+- **Update MDX docs** when changing architecture, adding features, or modifying the data model
+- **Cross-link** between docs using Storybook's `?path=/docs/...` syntax
 
 ## Pre-commit Checks (MANDATORY)
 

@@ -380,11 +380,35 @@ describe("ThingList", () => {
     expect(onAdd).toHaveBeenCalledWith("Second");
   });
 
+  it("preserves newlines in captured text via Shift+Enter", async () => {
+    const user = userEvent.setup();
+    const onAdd = vi.fn();
+    renderThingList({ bucket: "inbox", onAdd });
+    const input = screen.getByLabelText("Capture a thought");
+    await user.type(input, "line1{Shift>}{Enter}{/Shift}line2{Enter}");
+    expect(onAdd).toHaveBeenCalledTimes(1);
+    const captured = onAdd.mock.calls[0][0] as string;
+    expect(captured).toContain("line1");
+    expect(captured).toContain("line2");
+    expect(captured).toContain("\n");
+  });
+
+  it("resets textarea height after multiline submit", async () => {
+    const user = userEvent.setup();
+    const onAdd = vi.fn();
+    renderThingList({ bucket: "inbox", onAdd });
+    const input = screen.getByLabelText(
+      "Capture a thought",
+    ) as HTMLTextAreaElement;
+    await user.type(input, "line1{Shift>}{Enter}{/Shift}line2{Enter}");
+    expect(input.style.height).toBe("auto");
+  });
+
   // -------------------------------------------------------------------------
   // Sorting
   // -------------------------------------------------------------------------
 
-  it("sorts inbox items FIFO (oldest first)", () => {
+  it("sorts inbox items newest first", () => {
     const things = [
       createThing({
         name: "Newer",
@@ -410,7 +434,37 @@ describe("ThingList", () => {
     const older = screen.getByText("Older");
     const newer = screen.getByText("Newer");
     expect(
-      older.compareDocumentPosition(newer) & Node.DOCUMENT_POSITION_FOLLOWING,
+      newer.compareDocumentPosition(older) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("sorts actions newest first (no sequenceOrder)", () => {
+    const things = [
+      createThing({
+        name: "Older action",
+        bucket: "next",
+        provenance: {
+          createdAt: "2026-01-10T10:00:00Z",
+          updatedAt: "2026-01-10T10:00:00Z",
+          history: [],
+        },
+      }),
+      createThing({
+        name: "Newer action",
+        bucket: "next",
+        provenance: {
+          createdAt: "2026-02-05T10:00:00Z",
+          updatedAt: "2026-02-05T10:00:00Z",
+          history: [],
+        },
+      }),
+    ];
+    renderThingList({ bucket: "next", things });
+
+    const newer = screen.getByText("Newer action");
+    const older = screen.getByText("Older action");
+    expect(
+      newer.compareDocumentPosition(older) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
 
@@ -467,6 +521,95 @@ describe("ThingList", () => {
     expect(screen.queryByText("Complexity")).not.toBeInTheDocument();
   });
 
+  it("auto-expands first inbox item", () => {
+    const things = [
+      createThing({ name: "First inbox", bucket: "inbox" }),
+      createThing({ name: "Second inbox", bucket: "inbox" }),
+    ];
+    renderThingList({ bucket: "inbox", things, onEdit: vi.fn() });
+    // First inbox item should be auto-expanded (triage buttons visible)
+    expect(screen.getByLabelText("Move to Next")).toBeInTheDocument();
+  });
+
+  it("does not re-expand inbox item after user collapses", async () => {
+    const user = userEvent.setup();
+    const things = [
+      createThing({ name: "Collapsible inbox", bucket: "inbox" }),
+    ];
+    renderThingList({ bucket: "inbox", things, onEdit: vi.fn() });
+    // Should be auto-expanded
+    expect(screen.getByLabelText("Move to Next")).toBeInTheDocument();
+    // Click collapse button to collapse
+    await user.click(screen.getByLabelText("Collapse Collapsible inbox"));
+    // Should stay collapsed — triage buttons gone
+    expect(screen.queryByLabelText("Move to Next")).not.toBeInTheDocument();
+  });
+
+  it("re-expands next inbox item after current is removed", () => {
+    const things = [
+      createThing({ name: "First inbox", bucket: "inbox" }),
+      createThing({ name: "Second inbox", bucket: "inbox" }),
+    ];
+    const wrapper = createWrapper();
+    const { rerender } = render(
+      <ThingList
+        {...defaultProps({ bucket: "inbox", things, onEdit: vi.fn() })}
+      />,
+      { wrapper },
+    );
+    // First is auto-expanded
+    expect(screen.getByLabelText("Move to Next")).toBeInTheDocument();
+
+    // Simulate triage: first item removed
+    rerender(
+      <ThingList
+        {...defaultProps({
+          bucket: "inbox",
+          things: [things[1]],
+          onEdit: vi.fn(),
+        })}
+      />,
+    );
+    // Second item should now be auto-expanded
+    expect(screen.getByLabelText("Move to Next")).toBeInTheDocument();
+  });
+
+  it("resets expanded state when bucket changes", async () => {
+    const user = userEvent.setup();
+    const things = [
+      createThing({ name: "Next item", bucket: "next" }),
+      createThing({ name: "Waiting item", bucket: "waiting" }),
+    ];
+    const wrapper = createWrapper();
+    const { rerender } = render(
+      <ThingList
+        {...defaultProps({ bucket: "next", things, onEdit: vi.fn() })}
+      />,
+      { wrapper },
+    );
+    // Expand the item
+    await user.click(screen.getByText("Next item"));
+    expect(screen.getByText("Complexity")).toBeInTheDocument();
+
+    // Switch to waiting bucket
+    rerender(
+      <ThingList
+        {...defaultProps({ bucket: "waiting", things, onEdit: vi.fn() })}
+      />,
+    );
+    // Waiting item should NOT be expanded
+    expect(screen.queryByText("Complexity")).not.toBeInTheDocument();
+
+    // Switch back to next bucket
+    rerender(
+      <ThingList
+        {...defaultProps({ bucket: "next", things, onEdit: vi.fn() })}
+      />,
+    );
+    // Previously expanded item should be collapsed
+    expect(screen.queryByText("Complexity")).not.toBeInTheDocument();
+  });
+
   // -------------------------------------------------------------------------
   // Title editing lifecycle
   // -------------------------------------------------------------------------
@@ -475,10 +618,10 @@ describe("ThingList", () => {
     const user = userEvent.setup();
     const things = [createThing({ name: "Expandable item", bucket: "next" })];
     renderThingList({ bucket: "next", things, onUpdateTitle: vi.fn() });
-    // Click title expands the row (title stays a button)
+    // Click title expands the row
     await user.click(screen.getByText("Expandable item"));
-    // Row is expanded — rename button appears, click it to enter title editing
-    await user.click(screen.getByLabelText("Rename Expandable item"));
+    // Click title again to enter title editing
+    await user.click(screen.getByText("Expandable item"));
     expect(screen.getByDisplayValue("Expandable item")).toBeInTheDocument();
   });
 
@@ -487,9 +630,9 @@ describe("ThingList", () => {
     const things = [createThing({ name: "Edit me", bucket: "next" })];
     const onUpdateTitle = vi.fn();
     renderThingList({ bucket: "next", things, onUpdateTitle });
-    // Expand row, then enter title editing
+    // Click title to expand, then click title again to enter editing
     await user.click(screen.getByText("Edit me"));
-    await user.click(screen.getByLabelText("Rename Edit me"));
+    await user.click(screen.getByText("Edit me"));
     const input = screen.getByDisplayValue("Edit me");
     await user.clear(input);
     await user.type(input, "Edited title");
@@ -503,9 +646,9 @@ describe("ThingList", () => {
     const things = [createThing({ name: "Keep me", bucket: "next" })];
     const onUpdateTitle = vi.fn();
     renderThingList({ bucket: "next", things, onUpdateTitle });
-    // Expand row, then enter title editing
+    // Click title to expand, then click title again to enter editing
     await user.click(screen.getByText("Keep me"));
-    await user.click(screen.getByLabelText("Rename Keep me"));
+    await user.click(screen.getByText("Keep me"));
     const input = screen.getByDisplayValue("Keep me");
     await user.clear(input);
     await user.type(input, "Changed");

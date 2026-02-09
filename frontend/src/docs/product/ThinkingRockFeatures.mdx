@@ -15,7 +15,7 @@ pattern, and data model backing.
 | Feature                  | Status   | Component          | Sprint |
 | ------------------------ | -------- | ------------------ | ------ |
 | Quick capture            | Built    | `InboxCapture`     | 4      |
-| FIFO inbox               | Built    | `InboxList`        | 4      |
+| Newest-first inbox       | Built    | `InboxList`        | 4      |
 | Inline triage            | Built    | `InboxTriage`      | 4      |
 | Bucket navigation        | Built    | `BucketNav`        | 4      |
 | Object card              | Built    | `ObjectCard`       | 3      |
@@ -45,7 +45,7 @@ pattern, and data model backing.
 
 **InboxList** (`src/components/work/InboxList.tsx`)
 
-- FIFO order: oldest item at top, only first item shows triage actions
+- Newest-first order: most recently captured item at top, first item auto-expands with triage actions
 - Item count footer, empty state
 - Composes `InboxCapture` at the top for inline capture
 

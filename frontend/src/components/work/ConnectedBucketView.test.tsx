@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ConnectedBucketView } from "./ConnectedBucketView";
 import type { Thing, Project, ReferenceMaterial } from "@/model/types";
@@ -186,16 +186,25 @@ describe("ConnectedBucketView", () => {
     expect(view).toHaveAttribute("data-thing-count", "1");
   });
 
-  it("shows progress bar during background refetch", () => {
+  it("shows progress bar during background refetch (after 400ms debounce)", () => {
+    vi.useFakeTimers();
     mockAllThings.mockReturnValue({
       ...loadedQuery([]),
       isFetching: true,
     });
     renderComponent();
 
+    // Not visible immediately (debounced)
+    expect(
+      screen.queryByRole("progressbar", { name: "Refreshing data" }),
+    ).not.toBeInTheDocument();
+
+    // Visible after 400ms
+    act(() => vi.advanceTimersByTime(400));
     expect(
       screen.getByRole("progressbar", { name: "Refreshing data" }),
     ).toBeInTheDocument();
+    vi.useRealTimers();
   });
 
   it("does not show progress bar when not fetching", () => {

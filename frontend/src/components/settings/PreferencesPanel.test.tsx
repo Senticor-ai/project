@@ -114,4 +114,72 @@ describe("PreferencesPanel", () => {
     );
     expect(screen.getByLabelText("Review day")).toBeInTheDocument();
   });
+
+  it("calls onChange when date format changes", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <PreferencesPanel
+        preferences={DEFAULT_PREFERENCES}
+        onChange={onChange}
+      />,
+    );
+    await user.selectOptions(
+      screen.getByLabelText("Date format"),
+      "YYYY-MM-DD",
+    );
+    expect(onChange).toHaveBeenCalledWith({ dateFormat: "YYYY-MM-DD" });
+  });
+
+  it("calls onChange when week start changes", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <PreferencesPanel
+        preferences={DEFAULT_PREFERENCES}
+        onChange={onChange}
+      />,
+    );
+    await user.selectOptions(screen.getByLabelText("Week start"), "sunday");
+    expect(onChange).toHaveBeenCalledWith({ weekStart: "sunday" });
+  });
+
+  it("calls onChange when default bucket changes", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <PreferencesPanel
+        preferences={DEFAULT_PREFERENCES}
+        onChange={onChange}
+      />,
+    );
+    await user.selectOptions(screen.getByLabelText("Default view"), "next");
+    expect(onChange).toHaveBeenCalledWith({ defaultBucket: "next" });
+  });
+
+  it("calls onChange when theme button is clicked", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <PreferencesPanel
+        preferences={DEFAULT_PREFERENCES}
+        onChange={onChange}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Dark" }));
+    expect(onChange).toHaveBeenCalledWith({ theme: "dark" });
+  });
+
+  it("calls onChange when review day changes", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <PreferencesPanel
+        preferences={{ ...DEFAULT_PREFERENCES, weeklyReviewEnabled: true }}
+        onChange={onChange}
+      />,
+    );
+    await user.selectOptions(screen.getByLabelText("Review day"), "friday");
+    expect(onChange).toHaveBeenCalledWith({ weeklyReviewDay: "friday" });
+  });
 });

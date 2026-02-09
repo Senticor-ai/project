@@ -25,7 +25,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>5/5</span>
+                <span class='fraction'>8/8</span>
             </div>
         
             
@@ -39,14 +39,14 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>5/5</span>
+                <span class='fraction'>6/6</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>5/5</span>
+                <span class='fraction'>8/8</span>
             </div>
         
             
@@ -184,7 +184,18 @@
 <a name='L119'></a><a href='#L119'>119</a>
 <a name='L120'></a><a href='#L120'>120</a>
 <a name='L121'></a><a href='#L121'>121</a>
-<a name='L122'></a><a href='#L122'>122</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L122'></a><a href='#L122'>122</a>
+<a name='L123'></a><a href='#L123'>123</a>
+<a name='L124'></a><a href='#L124'>124</a>
+<a name='L125'></a><a href='#L125'>125</a>
+<a name='L126'></a><a href='#L126'>126</a>
+<a name='L127'></a><a href='#L127'>127</a>
+<a name='L128'></a><a href='#L128'>128</a>
+<a name='L129'></a><a href='#L129'>129</a>
+<a name='L130'></a><a href='#L130'>130</a>
+<a name='L131'></a><a href='#L131'>131</a>
+<a name='L132'></a><a href='#L132'>132</a>
+<a name='L133'></a><a href='#L133'>133</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -202,7 +213,10 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">15x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">20x</span>
+<span class="cline-any cline-yes">20x</span>
+<span class="cline-any cline-yes">20x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -214,7 +228,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">60x</span>
+<span class="cline-any cline-yes">80x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -284,7 +298,9 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -301,18 +317,25 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">3x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import { cn } from "@/lib/utils";
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import { useState } from "react";
+import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
-import { IMPORT_SOURCES, type ExportFormat } from "@/model/settings-types";
+import { IMPORT_SOURCES, type ExportOptions } from "@/model/settings-types";
 import { ImportJobRow, type ImportJobData } from "./ImportJobRow";
 &nbsp;
 export interface ImportExportPanelProps {
   onImportNirvana: () =&gt; void;
-  onExport: (format: ExportFormat) =&gt; void;
+  onExport: (options: ExportOptions) =&gt; void;
   importJobs?: ImportJobData[];
   className?: string;
 }
@@ -323,6 +346,8 @@ export function ImportExportPanel({
   importJobs,
   className,
 }: ImportExportPanelProps) {
+  const [includeArchived, setIncludeArchived] = useState(false);
+  const [includeCompleted, setIncludeCompleted] = useState(false);
   return (
     &lt;div className={cn("space-y-6", className)}&gt;
       {/* Import Section */}
@@ -399,29 +424,37 @@ export function ImportExportPanel({
             Export
           &lt;/span&gt;
         &lt;/h2&gt;
-        &lt;p className="text-xs text-text-subtle"&gt;
-          Export all your GTD items to a file for backup or migration.
-        &lt;/p&gt;
-        &lt;div className="flex gap-2"&gt;
-          &lt;button
-            type="button"
-            onClick={() =&gt; onExport("json")}
-            aria-label="Export as JSON"
-            className="flex items-center gap-2 rounded-[var(--radius-md)] border border-border px-4 py-2 text-sm transition-colors hover:bg-paper-100"
-          &gt;
-            &lt;Icon name="data_object" size={16} /&gt;
-            JSON
-          &lt;/button&gt;
-          &lt;button
-            type="button"
-            onClick={() =&gt; onExport("csv")}
-            aria-label="Export as CSV"
-            className="flex items-center gap-2 rounded-[var(--radius-md)] border border-border px-4 py-2 text-sm transition-colors hover:bg-paper-100"
-          &gt;
-            &lt;Icon name="table_chart" size={16} /&gt;
-            CSV
-          &lt;/button&gt;
-        &lt;/div&gt;
+        &lt;fieldset className="space-y-2"&gt;
+          &lt;legend className="text-xs text-text-subtle"&gt;
+            Export your active GTD items to a file for backup or migration.
+          &lt;/legend&gt;
+          &lt;label className="flex items-center gap-2 text-sm text-text-muted"&gt;
+            &lt;input
+              type="checkbox"
+              checked={includeArchived}
+              onChange={(e) =&gt; setIncludeArchived(e.target.checked)}
+              className="accent-blueprint-600 focus-visible:ring-2 focus-visible:ring-blueprint-500"
+            /&gt;
+            Include archived
+          &lt;/label&gt;
+          &lt;label className="flex items-center gap-2 text-sm text-text-muted"&gt;
+            &lt;input
+              type="checkbox"
+              checked={includeCompleted}
+              onChange={(e) =&gt; setIncludeCompleted(e.target.checked)}
+              className="accent-blueprint-600 focus-visible:ring-2 focus-visible:ring-blueprint-500"
+            /&gt;
+            Include completed
+          &lt;/label&gt;
+        &lt;/fieldset&gt;
+        &lt;button
+          type="button"
+          onClick={() =&gt; onExport({ includeArchived, includeCompleted })}
+          className="flex items-center gap-2 rounded-[var(--radius-md)] border border-border px-4 py-2 text-sm transition-colors hover:bg-paper-100"
+        &gt;
+          &lt;Icon name="data_object" size={16} /&gt;
+          Export JSON
+        &lt;/button&gt;
       &lt;/section&gt;
     &lt;/div&gt;
   );
@@ -433,7 +466,7 @@ export function ImportExportPanel({
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-02-08T09:42:50.056Z
+                at 2026-02-09T11:23:58.058Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>
