@@ -299,7 +299,14 @@ export type ImportJobResponse = {
   started_at: string | null;
   finished_at: string | null;
   summary: NirvanaImportSummary | null;
-  progress: { processed: number; total: number } | null;
+  progress: {
+    processed: number;
+    total: number;
+    created?: number;
+    updated?: number;
+    skipped?: number;
+    errors?: number;
+  } | null;
   error: string | null;
 };
 

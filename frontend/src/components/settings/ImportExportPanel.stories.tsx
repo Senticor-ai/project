@@ -31,7 +31,14 @@ const sampleJobs: ImportJobData[] = [
     started_at: "2025-06-16T11:00:02Z",
     finished_at: null,
     summary: null,
-    progress: { processed: 42, total: 95 },
+    progress: {
+      processed: 42,
+      total: 95,
+      created: 35,
+      updated: 4,
+      skipped: 2,
+      errors: 1,
+    },
     error: null,
   },
   {

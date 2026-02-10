@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { ImportJobRow, type ImportJobData } from "./ImportJobRow";
 
 const baseJob: ImportJobData = {
@@ -138,6 +138,33 @@ describe("ImportJobRow", () => {
     expect(screen.queryByText("importing...")).not.toBeInTheDocument();
   });
 
+  it("shows running stats when progress includes counts", () => {
+    const running: ImportJobData = {
+      ...baseJob,
+      status: "running",
+      finished_at: null,
+      summary: null,
+      progress: {
+        processed: 42,
+        total: 150,
+        created: 30,
+        updated: 8,
+        skipped: 3,
+        errors: 1,
+      },
+    };
+    render(<ImportJobRow job={running} />);
+    expect(screen.getByText("30")).toBeInTheDocument();
+    expect(screen.getByText("created")).toBeInTheDocument();
+    expect(screen.getByText("8")).toBeInTheDocument();
+    expect(screen.getByText("updated")).toBeInTheDocument();
+    expect(screen.getByText("3")).toBeInTheDocument();
+    expect(screen.getByText("skipped")).toBeInTheDocument();
+    expect(screen.getByText("1")).toBeInTheDocument();
+    const errorSpan = screen.getByText("1").closest("span");
+    expect(errorSpan?.parentElement?.className).toContain("text-red-600");
+  });
+
   it("shows 'importing...' instead of '0 items' while queued", () => {
     const queued: ImportJobData = {
       ...baseJob,
@@ -151,7 +178,7 @@ describe("ImportJobRow", () => {
     expect(screen.queryByText(/items/)).not.toBeInTheDocument();
   });
 
-  it("shows live elapsed time while running", async () => {
+  it("shows elapsed time immediately on first render (no flash)", () => {
     const running: ImportJobData = {
       ...baseJob,
       status: "running",
@@ -160,12 +187,11 @@ describe("ImportJobRow", () => {
       summary: null,
     };
     render(<ImportJobRow job={running} />);
-    await waitFor(() =>
-      expect(screen.getByText(/Running for 1m/)).toBeInTheDocument(),
-    );
+    // Elapsed time is computed synchronously — no waitFor needed
+    expect(screen.getByText(/Running for 1m/)).toBeInTheDocument();
   });
 
-  it("shows live elapsed time while queued", async () => {
+  it("shows elapsed time immediately while queued (no flash)", () => {
     const queued: ImportJobData = {
       ...baseJob,
       status: "queued",
@@ -175,8 +201,7 @@ describe("ImportJobRow", () => {
       created_at: new Date(Date.now() - 30_000).toISOString(),
     };
     render(<ImportJobRow job={queued} />);
-    await waitFor(() =>
-      expect(screen.getByText(/Queued for/)).toBeInTheDocument(),
-    );
+    // Elapsed time is computed synchronously — no waitFor needed
+    expect(screen.getByText(/Queued for/)).toBeInTheDocument();
   });
 });

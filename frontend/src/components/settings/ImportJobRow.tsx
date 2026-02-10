@@ -21,7 +21,14 @@ export interface ImportJobData {
   started_at: string | null;
   finished_at: string | null;
   summary: ImportJobSummary | null;
-  progress: { processed: number; total: number } | null;
+  progress: {
+    processed: number;
+    total: number;
+    created?: number;
+    updated?: number;
+    skipped?: number;
+    errors?: number;
+  } | null;
   error: string | null;
 }
 
@@ -91,26 +98,25 @@ function useElapsedTime(
   });
 
   useEffect(() => {
-    if (!active || !sinceIso) {
-      setElapsed(null);
-      return;
-    }
+    if (!active || !sinceIso) return;
 
     const compute = () => {
       const ms = Date.now() - new Date(sinceIso).getTime();
       setElapsed(formatElapsed(Math.max(0, ms)));
     };
 
-    // Compute immediately on mount (covers props change after initial render),
-    // then periodic updates every second.
-    compute();
+    // Deferred first fire (covers props change after initial render),
+    // then periodic updates every second.  The lazy useState initializer
+    // already provides the correct value on mount, so there is no flash.
+    const immediateId = setTimeout(compute, 0);
     const intervalId = setInterval(compute, 1000);
     return () => {
+      clearTimeout(immediateId);
       clearInterval(intervalId);
     };
   }, [sinceIso, active]);
 
-  if (!active) return null;
+  if (!active || !sinceIso) return null;
   return elapsed;
 }
 
@@ -167,6 +173,37 @@ export function ImportJobRow({ job, className }: ImportJobRowProps) {
           {config.label}
         </div>
       </div>
+
+      {/* Running stats (while importing with progress) */}
+      {isActive &&
+        job.progress &&
+        (job.progress.created || job.progress.updated) && (
+          <div className="mt-2 flex gap-4 text-xs text-text-muted">
+            {!!job.progress.created && (
+              <span>
+                <span className="font-mono">{job.progress.created}</span>{" "}
+                created
+              </span>
+            )}
+            {!!job.progress.updated && (
+              <span>
+                <span className="font-mono">{job.progress.updated}</span>{" "}
+                updated
+              </span>
+            )}
+            {!!job.progress.skipped && (
+              <span>
+                <span className="font-mono">{job.progress.skipped}</span>{" "}
+                skipped
+              </span>
+            )}
+            {!!job.progress.errors && (
+              <span className="text-red-600">
+                <span className="font-mono">{job.progress.errors}</span> errors
+              </span>
+            )}
+          </div>
+        )}
 
       {/* Summary counts (when completed) */}
       {job.summary && (

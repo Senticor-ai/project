@@ -647,6 +647,8 @@ def run_native_import(
 
                     if completed and not include_completed:
                         totals["skipped"] += 1
+                        if on_progress:
+                            on_progress(index + 1, dict(totals))
                         continue
 
                     content_hash = _hash_payload(jsonld)
@@ -658,6 +660,8 @@ def run_native_import(
                     totals["errors"] += 1
                     if len(sample_errors) < 5:
                         sample_errors.append(f"item[{index}] {exc}")
+                    if on_progress:
+                        on_progress(index + 1, dict(totals))
                     continue
 
                 if dry_run:
@@ -672,6 +676,8 @@ def run_native_import(
                     exists = cur.fetchone() is not None
                     if exists and not update_existing:
                         totals["skipped"] += 1
+                        if on_progress:
+                            on_progress(index + 1, dict(totals))
                         continue
                     if exists:
                         totals["updated"] += 1
@@ -680,6 +686,8 @@ def run_native_import(
                     bucket_counts[bucket] += 1
                     if completed:
                         completed_counts[bucket] += 1
+                    if on_progress:
+                        on_progress(index + 1, dict(totals))
                     continue
 
                 if update_existing:
@@ -718,6 +726,8 @@ def run_native_import(
                     row = cur.fetchone()
                     if row is None:
                         totals["unchanged"] += 1
+                        if on_progress:
+                            on_progress(index + 1, dict(totals))
                         continue
                     inserted = bool(row.get("inserted"))
                     if inserted:
@@ -758,6 +768,8 @@ def run_native_import(
                     row = cur.fetchone()
                     if row is None:
                         totals["skipped"] += 1
+                        if on_progress:
+                            on_progress(index + 1, dict(totals))
                         continue
                     totals["created"] += 1
                     bucket_counts[bucket] += 1
@@ -771,7 +783,7 @@ def run_native_import(
                     )
 
                 if on_progress:
-                    on_progress(index + 1)
+                    on_progress(index + 1, dict(totals))
 
     return NirvanaImportSummary(
         total=len(items),
@@ -798,7 +810,7 @@ def run_nirvana_import(
     emit_events: bool,
     state_bucket_map: dict[int, str] | None,
     default_bucket: str,
-    on_progress: Callable[[int], None] | None = None,
+    on_progress: Callable[[int, dict[str, int]], None] | None = None,
 ) -> NirvanaImportSummary:
     if not isinstance(items, list):
         raise HTTPException(
@@ -846,6 +858,8 @@ def run_nirvana_import(
                     raw_state = 0
                 if raw_state in _SKIP_STATES:
                     totals["skipped"] += 1
+                    if on_progress:
+                        on_progress(index + 1, dict(totals))
                     continue
 
                 try:
@@ -862,10 +876,14 @@ def run_nirvana_import(
                     totals["errors"] += 1
                     if len(sample_errors) < 5:
                         sample_errors.append(f"item[{index}] {exc}")
+                    if on_progress:
+                        on_progress(index + 1, dict(totals))
                     continue
 
                 if completed_dt and not include_completed:
                     totals["skipped"] += 1
+                    if on_progress:
+                        on_progress(index + 1, dict(totals))
                     continue
 
                 content_hash = _hash_payload(item_data)
@@ -882,6 +900,8 @@ def run_nirvana_import(
                     exists = cur.fetchone() is not None
                     if exists and not update_existing:
                         totals["skipped"] += 1
+                        if on_progress:
+                            on_progress(index + 1, dict(totals))
                         continue
                     if exists:
                         totals["updated"] += 1
@@ -890,6 +910,8 @@ def run_nirvana_import(
                     bucket_counts[bucket] += 1
                     if completed_dt:
                         completed_counts[bucket] += 1
+                    if on_progress:
+                        on_progress(index + 1, dict(totals))
                     continue
 
                 if update_existing:
@@ -928,6 +950,8 @@ def run_nirvana_import(
                     row = cur.fetchone()
                     if row is None:
                         totals["unchanged"] += 1
+                        if on_progress:
+                            on_progress(index + 1, dict(totals))
                         continue
                     inserted = bool(row.get("inserted"))
                     if inserted:
@@ -968,6 +992,8 @@ def run_nirvana_import(
                     row = cur.fetchone()
                     if row is None:
                         totals["skipped"] += 1
+                        if on_progress:
+                            on_progress(index + 1, dict(totals))
                         continue
                     totals["created"] += 1
                     bucket_counts[bucket] += 1
@@ -981,7 +1007,7 @@ def run_nirvana_import(
                     )
 
                 if on_progress:
-                    on_progress(index + 1)
+                    on_progress(index + 1, dict(totals))
 
     return NirvanaImportSummary(
         total=len(items),

@@ -72,7 +72,14 @@ export const RunningWithProgress: Story = {
       status: "running",
       finished_at: null,
       summary: null,
-      progress: { processed: 67, total: 142 },
+      progress: {
+        processed: 67,
+        total: 142,
+        created: 55,
+        updated: 8,
+        skipped: 3,
+        errors: 1,
+      },
     },
   },
 };

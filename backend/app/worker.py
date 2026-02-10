@@ -99,19 +99,24 @@ def _emit_index_event(
 
 
 def _make_progress_cb(job_id: str, total: int):
-    """Return a throttled callback that writes progress to the import_jobs table."""
+    """Return a throttled callback that writes progress to the import_jobs table.
+
+    The callback receives ``(processed, stats)`` where *stats* is a dict of
+    running counters (created, updated, skipped, errors, …).
+    """
     last_update = [0.0]
 
-    def cb(processed: int) -> None:
+    def cb(processed: int, stats: dict[str, int]) -> None:
         now = time.monotonic()
         if now - last_update[0] < 2.0 and processed < total:
             return
         last_update[0] = now
+        progress = {"processed": processed, "total": total, **stats}
         with db_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "UPDATE import_jobs SET progress = %s, updated_at = %s WHERE job_id = %s",
-                    (jsonb({"processed": processed, "total": total}), datetime.now(UTC), job_id),
+                    (jsonb(progress), datetime.now(UTC), job_id),
                 )
             conn.commit()
 
