@@ -84,22 +84,28 @@ function useElapsedTime(
   sinceIso: string | null,
   active: boolean,
 ): string | null {
-  const [elapsed, setElapsed] = useState<string | null>(null);
+  const [elapsed, setElapsed] = useState<string | null>(() => {
+    if (!active || !sinceIso) return null;
+    const ms = Date.now() - new Date(sinceIso).getTime();
+    return formatElapsed(Math.max(0, ms));
+  });
 
   useEffect(() => {
-    if (!active || !sinceIso) return;
+    if (!active || !sinceIso) {
+      setElapsed(null);
+      return;
+    }
 
     const compute = () => {
       const ms = Date.now() - new Date(sinceIso).getTime();
       setElapsed(formatElapsed(Math.max(0, ms)));
     };
 
-    // Async first fire (avoids synchronous setState in effect body),
+    // Compute immediately on mount (covers props change after initial render),
     // then periodic updates every second.
-    const immediateId = setTimeout(compute, 0);
+    compute();
     const intervalId = setInterval(compute, 1000);
     return () => {
-      clearTimeout(immediateId);
       clearInterval(intervalId);
     };
   }, [sinceIso, active]);

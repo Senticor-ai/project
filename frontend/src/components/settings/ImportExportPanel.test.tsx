@@ -15,10 +15,6 @@ describe("ImportExportPanel", () => {
     render(<ImportExportPanel {...defaultProps} />);
     expect(screen.getByText("TerminAndoYo")).toBeInTheDocument();
     expect(screen.getByText("Nirvana")).toBeInTheDocument();
-    expect(screen.getByText("Things 3")).toBeInTheDocument();
-    expect(screen.getByText("Todoist")).toBeInTheDocument();
-    // CSV only appears in import card now (no CSV export button)
-    expect(screen.getAllByText("CSV")).toHaveLength(1);
   });
 
   it("shows TerminAndoYo as available with import button", () => {
@@ -35,10 +31,9 @@ describe("ImportExportPanel", () => {
     ).toBeEnabled();
   });
 
-  it("shows coming soon badge for unavailable sources", () => {
+  it("does not show coming soon badges", () => {
     render(<ImportExportPanel {...defaultProps} />);
-    const badges = screen.getAllByText("Coming soon");
-    expect(badges).toHaveLength(3);
+    expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
   });
 
   it("calls onImportNative when TerminAndoYo import button is clicked", async () => {
@@ -72,9 +67,7 @@ describe("ImportExportPanel", () => {
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Include archived")).not.toBeChecked();
     expect(screen.getByLabelText("Include completed")).not.toBeChecked();
-    expect(
-      screen.queryByRole("button", { name: /CSV/ }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText("CSV")).not.toBeInTheDocument();
   });
 
   it("calls onExport with default options when export button is clicked", async () => {

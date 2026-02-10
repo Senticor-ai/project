@@ -45,12 +45,8 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
 // Import / Export
 // ---------------------------------------------------------------------------
 
-export type ImportSourceId =
-  | "native"
-  | "nirvana"
-  | "things3"
-  | "todoist"
-  | "csv";
+export type ImportSourceId = "native" | "nirvana";
+
 export interface ExportOptions {
   includeArchived: boolean;
   includeCompleted: boolean;
@@ -61,7 +57,6 @@ export interface ImportSource {
   name: string;
   icon: string;
   description: string;
-  available: boolean;
 }
 
 export const IMPORT_SOURCES: ImportSource[] = [
@@ -70,34 +65,11 @@ export const IMPORT_SOURCES: ImportSource[] = [
     name: "TerminAndoYo",
     icon: "swap_horiz",
     description: "Import from a TerminAndoYo JSON export",
-    available: true,
   },
   {
     id: "nirvana",
     name: "Nirvana",
     icon: "cloud_download",
     description: "Import from NirvanaHQ JSON export",
-    available: true,
-  },
-  {
-    id: "things3",
-    name: "Things 3",
-    icon: "check_circle",
-    description: "Import from Things 3 JSON export",
-    available: false,
-  },
-  {
-    id: "todoist",
-    name: "Todoist",
-    icon: "task_alt",
-    description: "Import from Todoist CSV export",
-    available: false,
-  },
-  {
-    id: "csv",
-    name: "CSV",
-    icon: "table_chart",
-    description: "Import from generic CSV file",
-    available: false,
   },
 ];

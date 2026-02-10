@@ -49,4 +49,20 @@ describe("Icon", () => {
     const el = screen.getByText("inbox");
     expect(el).toHaveClass("text-red-500");
   });
+
+  it("clips overflow to prevent FOUT of ligature text", () => {
+    render(<Icon name="swap_horiz" size={24} />);
+    const el = screen.getByText("swap_horiz");
+    expect(el).toHaveClass("overflow-hidden");
+    expect(el).toHaveClass("inline-block");
+    expect(el.style.width).toBe("24px");
+    expect(el.style.height).toBe("24px");
+  });
+
+  it("uses default size for width and height", () => {
+    render(<Icon name="inbox" />);
+    const el = screen.getByText("inbox");
+    expect(el.style.width).toBe("20px");
+    expect(el.style.height).toBe("20px");
+  });
 });

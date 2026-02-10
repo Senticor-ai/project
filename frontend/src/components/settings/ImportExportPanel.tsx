@@ -35,42 +35,27 @@ export function ImportExportPanel({
           {IMPORT_SOURCES.map((source) => (
             <div
               key={source.id}
-              className={cn(
-                "flex flex-col items-center gap-2 rounded-[var(--radius-lg)] border-2 border-dashed p-4 text-center",
-                source.available ? "border-border" : "border-paper-200",
-              )}
+              className="flex flex-col items-center gap-2 rounded-[var(--radius-lg)] border-2 border-dashed border-border p-4 text-center"
             >
               <Icon
                 name={source.icon}
                 size={24}
-                className={cn(
-                  source.available ? "text-blueprint-500" : "text-text-subtle",
-                )}
+                className="text-blueprint-500"
               />
               <span className="text-sm font-medium text-text-primary">
                 {source.name}
               </span>
               <p className="text-xs text-text-subtle">{source.description}</p>
-              {source.available ? (
-                <button
-                  type="button"
-                  onClick={
-                    source.id === "native"
-                      ? onImportNative
-                      : source.id === "nirvana"
-                        ? onImportNirvana
-                        : undefined
-                  }
-                  aria-label={`Import from ${source.name}`}
-                  className="mt-auto rounded-[var(--radius-md)] bg-blueprint-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blueprint-700"
-                >
-                  Import
-                </button>
-              ) : (
-                <span className="mt-auto rounded-full bg-paper-200 px-2 py-0.5 text-xs text-text-muted">
-                  Coming soon
-                </span>
-              )}
+              <button
+                type="button"
+                onClick={
+                  source.id === "native" ? onImportNative : onImportNirvana
+                }
+                aria-label={`Import from ${source.name}`}
+                className="mt-auto rounded-[var(--radius-md)] bg-blueprint-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blueprint-700"
+              >
+                Import
+              </button>
             </div>
           ))}
         </div>

@@ -14,11 +14,13 @@ export function Icon({ name, size = 20, fill = false, className }: IconProps) {
   return (
     <span
       className={cn(
-        "material-symbols-outlined select-none leading-none",
+        "material-symbols-outlined inline-block select-none overflow-hidden leading-none",
         className,
       )}
       style={{
         fontSize: size,
+        width: size,
+        height: size,
         fontVariationSettings: `'FILL' ${fill ? 1 : 0}`,
       }}
       aria-hidden="true"
