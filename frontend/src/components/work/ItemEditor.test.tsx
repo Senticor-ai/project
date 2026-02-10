@@ -127,8 +127,8 @@ describe("ItemEditor", () => {
         values={defaults}
         onChange={onChange}
         projects={[
-          { id: "p-1" as CanonicalId, title: "Project A" },
-          { id: "p-2" as CanonicalId, title: "Project B" },
+          { id: "p-1" as CanonicalId, name: "Project A" },
+          { id: "p-2" as CanonicalId, name: "Project B" },
         ]}
       />,
     );
@@ -152,7 +152,7 @@ describe("ItemEditor", () => {
       <ItemEditor
         values={defaults}
         onChange={onChange}
-        projects={[{ id: "p-1" as CanonicalId, title: "Project A" }]}
+        projects={[{ id: "p-1" as CanonicalId, name: "Project A" }]}
       />,
     );
 

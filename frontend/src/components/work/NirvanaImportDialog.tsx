@@ -316,7 +316,7 @@ function NirvanaImportDialogContent({
                     to jump there, or start with your inbox to triage.
                   </p>
                   <div className="flex gap-2">
-                    {finalSummary.bucket_counts.inbox > 0 && (
+                    {(finalSummary.bucket_counts.inbox ?? 0) > 0 && (
                       <button
                         type="button"
                         onClick={() => {

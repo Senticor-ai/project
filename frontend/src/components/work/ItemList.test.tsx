@@ -132,7 +132,7 @@ describe("ItemList item rendering", () => {
 
   it("passes isExpanded to renderItem", () => {
     const items = [createTestItem("Expanded item")];
-    render(<ItemList {...defaultProps({ items, expandedId: items[0].id })} />);
+    render(<ItemList {...defaultProps({ items, expandedId: items[0]!.id })} />);
     expect(screen.getByText("expanded")).toBeInTheDocument();
   });
 
@@ -154,7 +154,7 @@ describe("ItemList item rendering", () => {
       />,
     );
     await user.click(screen.getByText("Click me"));
-    expect(onExpandedIdChange).toHaveBeenCalledWith(items[0].id);
+    expect(onExpandedIdChange).toHaveBeenCalledWith(items[0]!.id);
   });
 
   it("collapses when toggling already-expanded item", async () => {
@@ -165,7 +165,7 @@ describe("ItemList item rendering", () => {
       <ItemList
         {...defaultProps({
           items,
-          expandedId: items[0].id,
+          expandedId: items[0]!.id,
           onExpandedIdChange,
           renderItem: (item, { onToggleExpand }) => (
             <button key={item.id} onClick={onToggleExpand}>

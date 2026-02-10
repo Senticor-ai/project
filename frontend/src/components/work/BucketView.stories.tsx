@@ -57,26 +57,26 @@ const sampleItems: ActionItem[] = [
   createActionItem({
     rawCapture: "Finalize brand guidelines",
     bucket: "next",
-    projectId: sampleProjects[0].id,
+    projectId: sampleProjects[0]!.id,
     sequenceOrder: 1,
     completedAt: "2026-01-20T10:00:00Z",
   }),
   createActionItem({
     rawCapture: "Design homepage wireframes",
     bucket: "next",
-    projectId: sampleProjects[0].id,
+    projectId: sampleProjects[0]!.id,
     sequenceOrder: 2,
   }),
   createActionItem({
     rawCapture: "Implement responsive layout",
     bucket: "next",
-    projectId: sampleProjects[0].id,
+    projectId: sampleProjects[0]!.id,
     sequenceOrder: 3,
   }),
   createActionItem({
     rawCapture: "Define Q1 OKRs",
     bucket: "next",
-    projectId: sampleProjects[1].id,
+    projectId: sampleProjects[1]!.id,
     sequenceOrder: 1,
   }),
 ];
@@ -144,7 +144,7 @@ function StatefulBucketView({
       }}
       onMoveActionItem={(id, bucket) => {
         setItems((prev) =>
-          prev.map((t) => (t.id === id ? { ...t, bucket } : t)),
+          prev.map((t) => (t.id === id ? ({ ...t, bucket } as ActionItem) : t)),
         );
       }}
       onArchiveActionItem={(id) => {
@@ -184,7 +184,9 @@ function StatefulBucketView({
       }}
       onEditActionItem={(id, fields) => {
         setItems((prev) =>
-          prev.map((t) => (t.id === id ? { ...t, ...fields } : t)),
+          prev.map((t) =>
+            t.id === id ? ({ ...t, ...fields } as ActionItem) : t,
+          ),
         );
       }}
     />

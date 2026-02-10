@@ -47,6 +47,7 @@ export const IconOnly: Story = {
 };
 
 export const AllBuckets: Story = {
+  args: { bucket: "inbox" },
   render: () => (
     <div className="flex flex-wrap gap-2">
       {(

@@ -1,10 +1,10 @@
-import type { Meta, StoryObj } from "storybook/internal/types";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, expect, within } from "storybook/test";
 import { ActionRow } from "./ActionRow";
 import { createActionItem } from "@/model/factories";
 
 const meta = {
-  name: "Work/ActionRow",
+  title: "Work/ActionRow",
   component: ActionRow,
   args: {
     onComplete: fn(),

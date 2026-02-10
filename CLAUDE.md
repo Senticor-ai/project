@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **Walking skeleton first** - Get the thinnest end-to-end slice working before layering features. Prove the architecture early.
 - **TDD (red-green-refactor)** - Write failing tests first, implement the minimum to pass, then clean up. No untested production code.
-- **Green suite first** - Before starting any implementation, run the full check suite (`tsc --noEmit`, `vitest run`, `eslint`, `pytest`) and confirm it's green. If there are pre-existing failures, fix them first before writing new code — don't just flag them and move on.
+- **Green suite first** - Before starting any implementation, run the full check suite (`tsc -b --noEmit`, `vitest run`, `eslint`, `pytest`) and confirm it's green. If there are pre-existing failures, fix them first before writing new code — don't just flag them and move on.
 - **No broken windows** - Fix warnings, type errors, and lint issues as you encounter them, even if they predate your changes. Don't leave them for later and don't skip them because "they were already there".
 - **No hardcoded secrets** - Never put passwords, API keys, or secrets directly in `docker-compose.yml`, code, or config files. Use environment variables with `${VAR:-default}` syntax for local dev defaults.
 - **Robust over quick fixes** - Prefer proper solutions over lint-disable comments or workarounds. For example, use `useEffect` + `ref` for focus management instead of `autoFocus` with eslint-disable.
@@ -107,7 +107,7 @@ uv run mypy app/                       # Type checking
 cd frontend
 npx eslint src/                        # Linting
 npx prettier --check src/              # Format check
-npx tsc --noEmit                       # Type checking
+npx tsc -b --noEmit                    # Type checking (uses project references)
 ```
 
 **Rules:**
@@ -125,7 +125,7 @@ uv run mypy app/path/to/file.py
 
 # Frontend: check specific files
 npx eslint src/path/to/file.tsx
-npx tsc --noEmit
+npx tsc -b --noEmit
 ```
 
 ## Test Commands
@@ -137,8 +137,8 @@ cd frontend && CI=1 npx vitest run --project=unit
 # Frontend storybook tests (vitest browser mode + Playwright)
 cd frontend && STORYBOOK_TESTS=1 CI=1 npx vitest run --project=storybook
 
-# Frontend type check
-cd frontend && npx tsc --noEmit
+# Frontend type check (must use -b to follow project references)
+cd frontend && npx tsc -b --noEmit
 
 # Frontend coverage (per-project reports)
 cd frontend && npm run test:coverage:unit        # → coverage/unit/

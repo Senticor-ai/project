@@ -54,6 +54,7 @@ export const WaitingOn: Story = {
 };
 
 export const AllTypes: Story = {
+  args: { referenceType: "refers_to", targetTitle: "" },
   render: () => (
     <div className="flex flex-wrap gap-2">
       {(

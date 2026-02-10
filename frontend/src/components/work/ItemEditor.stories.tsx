@@ -12,7 +12,8 @@ const defaults: ItemEditableFields = {
 
 const withNotes: ItemEditableFields = {
   contexts: ["@phone", "@office"],
-  notes: "Discussed in last team meeting.\nFollow up with HR before Friday.",
+  description:
+    "Discussed in last team meeting.\nFollow up with HR before Friday.",
   energyLevel: "medium",
   scheduledDate: "2026-03-01",
 };

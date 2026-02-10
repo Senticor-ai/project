@@ -47,7 +47,6 @@ const sampleItems: ActionItem[] = [
 const meta = {
   title: "Work/ActionList",
   component: ActionList,
-  tags: ["autodocs"],
   args: {
     onAdd: fn(),
     onComplete: fn(),

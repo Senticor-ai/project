@@ -67,6 +67,10 @@ function InteractivePreferences() {
 }
 
 export const ChangePreferences: Story = {
+  args: {
+    preferences: DEFAULT_PREFERENCES,
+    onChange: () => {},
+  },
   render: () => <InteractivePreferences />,
   play: async ({ canvas, userEvent, step }) => {
     await step("Switch to 12h time format", async () => {

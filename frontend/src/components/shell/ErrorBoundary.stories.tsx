@@ -1,7 +1,8 @@
+import type React from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ErrorBoundary } from "./ErrorBoundary";
 
-function ProblemChild(): JSX.Element {
+function ProblemChild(): React.ReactElement {
   throw new Error("Something broke in the application!");
 }
 

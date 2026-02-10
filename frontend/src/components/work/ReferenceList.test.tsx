@@ -83,7 +83,7 @@ describe("ReferenceList", () => {
     const refs = [
       createReferenceMaterial({ name: "Active ref" }),
       createReferenceMaterial({
-        title: "Archived ref",
+        name: "Archived ref",
         provenance: {
           createdAt: "2025-01-01T10:00:00Z",
           updatedAt: "2025-01-02T10:00:00Z",
@@ -184,7 +184,7 @@ describe("ReferenceList", () => {
     const refs = [
       createReferenceMaterial({ name: "Active ref" }),
       createReferenceMaterial({
-        title: "Archived ref",
+        name: "Archived ref",
         provenance: {
           createdAt: "2025-01-01T10:00:00Z",
           updatedAt: "2025-01-02T10:00:00Z",

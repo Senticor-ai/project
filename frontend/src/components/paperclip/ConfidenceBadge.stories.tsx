@@ -34,6 +34,7 @@ export const NeedsEnrichment: Story = {
 };
 
 export const AllStates: Story = {
+  args: { confidence: "high", needsEnrichment: false },
   render: () => (
     <div className="flex items-center gap-4">
       <ConfidenceBadge confidence="high" needsEnrichment={false} showLabel />

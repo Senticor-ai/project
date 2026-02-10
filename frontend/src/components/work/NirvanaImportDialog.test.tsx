@@ -61,6 +61,7 @@ const JOB_COMPLETED: ImportJobResponse = {
   job_id: "job-1",
   status: "completed",
   file_id: "file-abc",
+  file_sha256: null,
   source: "nirvana",
   created_at: "2026-02-06T12:00:00Z",
   updated_at: "2026-02-06T12:01:00Z",

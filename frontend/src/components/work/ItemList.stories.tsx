@@ -69,7 +69,9 @@ const meta = {
   title: "Work/ItemList",
   component: ItemList,
   parameters: { layout: "padded" },
-  render: (args) => <ItemListWrapper {...(args as ItemListProps<DemoItem>)} />,
+  render: (args) => (
+    <ItemListWrapper {...(args as unknown as ItemListProps<DemoItem>)} />
+  ),
 } satisfies Meta<typeof ItemList>;
 
 export default meta;
@@ -87,7 +89,7 @@ export const Default: Story = {
       label: "Next Actions",
       subtitle: "To-do's for anytime",
     },
-    renderItem: (item, { isExpanded }) => (
+    renderItem: (item: DemoItem, { isExpanded }: { isExpanded: boolean }) => (
       <div
         key={item.id}
         className="rounded-[var(--radius-md)] border border-border bg-surface px-3 py-2 text-sm"
@@ -100,7 +102,7 @@ export const Default: Story = {
     ),
     emptyMessage: "No actions here yet",
     footer: {
-      formatCount: (n) => `${n} action${n !== 1 ? "s" : ""}`,
+      formatCount: (n: number) => `${n} action${n !== 1 ? "s" : ""}`,
     },
     rapidEntry: {
       placeholder: "Rapid Entry — type here and hit enter",

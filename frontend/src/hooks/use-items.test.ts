@@ -260,8 +260,8 @@ describe("derived hooks filter by @type", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     expect(result.current.data).toHaveLength(1);
-    expect(result.current.data[0].name).toBe("Buy milk");
-    expect(result.current.data[0].bucket).toBe("next");
+    expect(result.current.data[0]?.name).toBe("Buy milk");
+    expect(result.current.data[0]?.bucket).toBe("next");
   });
 
   it("useInboxItems returns only ActionItem items", async () => {
@@ -272,7 +272,7 @@ describe("derived hooks filter by @type", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     expect(result.current.data).toHaveLength(1);
-    expect(result.current.data[0].name).toBe("Random thought");
+    expect(result.current.data[0]?.name).toBe("Random thought");
   });
 
   it("useProjects returns only Project items", async () => {
@@ -283,7 +283,7 @@ describe("derived hooks filter by @type", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     expect(result.current.data).toHaveLength(1);
-    expect(result.current.data[0].name).toBe("Relaunch website");
+    expect(result.current.data[0]?.name).toBe("Relaunch website");
   });
 
   it("useReferences returns only CreativeWork items", async () => {
@@ -294,6 +294,6 @@ describe("derived hooks filter by @type", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     expect(result.current.data).toHaveLength(1);
-    expect(result.current.data[0].name).toBe("Style guide");
+    expect(result.current.data[0]?.name).toBe("Style guide");
   });
 });

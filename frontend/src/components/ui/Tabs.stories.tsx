@@ -88,6 +88,11 @@ function InteractiveTabs() {
 }
 
 export const Interactive: Story = {
+  args: {
+    tabs: sampleTabs,
+    activeTab: "import-export",
+    onSelect: () => {},
+  },
   render: () => <InteractiveTabs />,
   play: async ({ canvas, userEvent, step }) => {
     await step("Click Labels tab", async () => {

@@ -8,6 +8,7 @@ import {
   resetFactoryCounter,
 } from "@/model/factories";
 import type { ActionItem, Project } from "@/model/types";
+import type { CanonicalId } from "@/model/canonical-id";
 
 beforeEach(() => resetFactoryCounter());
 
@@ -21,7 +22,11 @@ function makeProject(overrides?: Partial<Project> & { name?: string }) {
   });
 }
 
-function makeAction(overrides: Partial<ActionItem> & { name: string }) {
+function makeAction(
+  overrides: Partial<ActionItem> & { name: string } & {
+    projectId?: CanonicalId;
+  },
+) {
   return createActionItem({ bucket: "next", ...overrides });
 }
 
@@ -246,7 +251,7 @@ describe("ProjectTree", () => {
     // Stalled indicator should be visible on the project row
     const row = screen
       .getByText("Stalled Project")
-      .closest("[data-project-id]")!;
+      .closest("[data-project-id]")! as HTMLElement;
     expect(within(row).getByLabelText("Needs next action")).toBeInTheDocument();
   });
 
@@ -278,7 +283,9 @@ describe("ProjectTree", () => {
     });
 
     renderTree([project], [a1, a2]);
-    const row = screen.getByText("Counted").closest("[data-project-id]")!;
+    const row = screen
+      .getByText("Counted")
+      .closest("[data-project-id]")! as HTMLElement;
     expect(within(row).getByText("2")).toBeInTheDocument();
   });
 
@@ -337,7 +344,9 @@ describe("ProjectTree", () => {
 
     await user.click(screen.getByLabelText("Show all projects"));
 
-    const row = screen.getByText("Done Proj").closest("[data-project-id]")!;
+    const row = screen
+      .getByText("Done Proj")
+      .closest("[data-project-id]")! as HTMLElement;
     expect(within(row).getByText("completed")).toBeInTheDocument();
   });
 

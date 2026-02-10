@@ -74,7 +74,7 @@ export const ClickItem: Story = {
 
     await step("Click Settings", async () => {
       await userEvent.click(canvas.getByText("Settings"));
-      await expect(args.sections[0].items[1].onClick).toHaveBeenCalled();
+      await expect(args.sections[0]!.items[1]!.onClick).toHaveBeenCalled();
     });
 
     await step("Menu is closed", async () => {

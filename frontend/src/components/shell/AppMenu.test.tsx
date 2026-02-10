@@ -69,7 +69,7 @@ describe("AppMenu", () => {
     await user.click(screen.getByRole("button", { name: "Main menu" }));
     await user.click(screen.getByText("Settings"));
 
-    expect(sections[0].items[1].onClick).toHaveBeenCalledOnce();
+    expect(sections[0]!.items[1]!.onClick).toHaveBeenCalledOnce();
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 

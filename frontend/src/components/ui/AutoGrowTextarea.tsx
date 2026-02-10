@@ -27,7 +27,7 @@ export const AutoGrowTextarea = forwardRef<
   }, []);
 
   const handleInput = useCallback(
-    (e: React.FormEvent<HTMLTextAreaElement>) => {
+    (e: React.InputEvent<HTMLTextAreaElement>) => {
       grow(e.currentTarget);
       onInput?.(e);
     },

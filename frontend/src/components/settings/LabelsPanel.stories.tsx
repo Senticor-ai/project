@@ -77,6 +77,14 @@ function InteractiveLabels() {
 }
 
 export const AddRemoveContext: Story = {
+  args: {
+    contexts: [],
+    tags: [],
+    onAddContext: () => {},
+    onRemoveContext: () => {},
+    onAddTag: () => {},
+    onRemoveTag: () => {},
+  },
   render: () => <InteractiveLabels />,
   play: async ({ canvas, userEvent, step }) => {
     await step("Add a new context", async () => {

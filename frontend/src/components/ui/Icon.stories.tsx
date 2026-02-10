@@ -24,6 +24,7 @@ export const Filled: Story = {
 };
 
 export const GTDBuckets: Story = {
+  args: { name: "inbox" },
   render: () => (
     <div className="flex items-center gap-4">
       <Icon name="inbox" className="text-gtd-inbox" />
@@ -39,6 +40,7 @@ export const GTDBuckets: Story = {
 };
 
 export const Sizes: Story = {
+  args: { name: "inbox" },
   render: () => (
     <div className="flex items-end gap-4">
       <Icon name="inbox" size={12} />

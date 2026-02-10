@@ -18,8 +18,8 @@ import {
   useCreateProject,
 } from "./use-mutations";
 import { ITEMS_QUERY_KEY } from "./use-items";
-import type { ActionItem } from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
+import { createInboxItem } from "@/model/factories";
 
 vi.mock("@/lib/api-client", () => ({
   ItemsApi: {
@@ -141,7 +141,7 @@ describe("useCaptureInbox", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(mocked.create).toHaveBeenCalledTimes(1);
-    const [jsonLd, source] = mocked.create.mock.calls[0];
+    const [jsonLd, source] = mocked.create.mock.calls[0]!;
     expect(jsonLd).toHaveProperty("@type", "Action");
     expect(jsonLd).not.toHaveProperty("name");
     const props = jsonLd.additionalProperty as Array<{
@@ -170,7 +170,7 @@ describe("useAddAction", () => {
     act(() => result.current.mutate({ title: "Call Bob", bucket: "next" }));
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    const [jsonLd] = mocked.create.mock.calls[0];
+    const [jsonLd] = mocked.create.mock.calls[0]!;
     expect(jsonLd).toHaveProperty("@type", "Action");
     expect(jsonLd).not.toHaveProperty("name");
     const props = jsonLd.additionalProperty as Array<{
@@ -198,7 +198,7 @@ describe("useAddReference", () => {
     act(() => result.current.mutate("Style guide"));
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    const [jsonLd] = mocked.create.mock.calls[0];
+    const [jsonLd] = mocked.create.mock.calls[0]!;
     expect(jsonLd).toHaveProperty("@type", "CreativeWork");
     expect(jsonLd).toHaveProperty("name", "Style guide");
   });
@@ -220,7 +220,7 @@ describe("useCompleteAction", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(mocked.update).toHaveBeenCalledTimes(1);
-    const [itemId, patch] = mocked.update.mock.calls[0];
+    const [itemId, patch] = mocked.update.mock.calls[0]!;
     expect(itemId).toBe("tid-action-1");
     expect(patch.endTime).toBeTruthy(); // ISO date string
   });
@@ -235,7 +235,7 @@ describe("useCompleteAction", () => {
     act(() => result.current.mutate("urn:app:completed:1" as CanonicalId));
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    const [, patch] = mocked.update.mock.calls[0];
+    const [, patch] = mocked.update.mock.calls[0]!;
     expect(patch.endTime).toBeNull();
   });
 
@@ -266,7 +266,7 @@ describe("useToggleFocus", () => {
     act(() => result.current.mutate("urn:app:action:1" as CanonicalId));
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    const [, patch] = mocked.update.mock.calls[0];
+    const [, patch] = mocked.update.mock.calls[0]!;
     expect(patch.additionalProperty).toEqual([
       { "@type": "PropertyValue", propertyID: "app:isFocused", value: true },
     ]);
@@ -293,7 +293,7 @@ describe("useMoveAction", () => {
     );
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    const [, patch] = mocked.update.mock.calls[0];
+    const [, patch] = mocked.update.mock.calls[0]!;
     expect(patch.additionalProperty).toEqual([
       { "@type": "PropertyValue", propertyID: "app:bucket", value: "someday" },
     ]);
@@ -315,7 +315,7 @@ describe("useMoveAction", () => {
     );
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    const [, patch] = mocked.update.mock.calls[0];
+    const [, patch] = mocked.update.mock.calls[0]!;
     expect(patch["@type"]).toBeUndefined();
     expect(patch.additionalProperty).toEqual([
       { "@type": "PropertyValue", propertyID: "app:bucket", value: "next" },
@@ -337,7 +337,7 @@ describe("useMoveAction", () => {
     );
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    const [, patch] = mocked.update.mock.calls[0];
+    const [, patch] = mocked.update.mock.calls[0]!;
     expect(patch["@type"]).toBe("CreativeWork");
   });
 });
@@ -362,7 +362,7 @@ describe("useUpdateItem", () => {
     );
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    const [itemId, patch] = mocked.update.mock.calls[0];
+    const [itemId, patch] = mocked.update.mock.calls[0]!;
     expect(itemId).toBe("tid-action-1");
     expect(patch).toEqual({ name: "Updated title" });
   });
@@ -384,24 +384,12 @@ describe("useTriageItem", () => {
       wrapper: createWrapper([ACTION_RECORD]),
     });
 
-    const item: ActionItem = {
-      id: "urn:app:action:1" as CanonicalId,
+    const item = createInboxItem({
       name: "Buy milk",
-      type: "inbox",
-      bucket: "inbox",
-      rawCapture: "Buy milk",
-      keywords: [],
-      contexts: [],
+      id: "urn:app:action:1" as CanonicalId,
       needsEnrichment: false,
       confidence: "high",
-      captureSource: { kind: "thought" },
-      dateCreated: "2026-01-01",
-      dateModified: "2026-01-01",
-      isFocused: false,
-      ports: [],
-      typedReferences: [],
-      provenanceHistory: [],
-    };
+    });
 
     act(() =>
       result.current.mutate({
@@ -435,7 +423,7 @@ describe("useAddProjectAction", () => {
     );
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    const [jsonLd] = mocked.create.mock.calls[0];
+    const [jsonLd] = mocked.create.mock.calls[0]!;
     expect(jsonLd).toHaveProperty("@type", "Action");
     expect(jsonLd).not.toHaveProperty("name");
     const props = jsonLd.additionalProperty as Array<{
@@ -471,7 +459,7 @@ describe("completed cache fallback", () => {
     act(() => result.current.mutate("urn:app:completed:1" as CanonicalId));
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    const [, patch] = mocked.update.mock.calls[0];
+    const [, patch] = mocked.update.mock.calls[0]!;
     // Uncompleting: endTime should be null
     expect(patch.endTime).toBeNull();
   });
@@ -519,7 +507,7 @@ describe("useToggleFocus edge cases", () => {
     act(() => result.current.mutate("urn:app:focused:1" as CanonicalId));
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    const [, patch] = mocked.update.mock.calls[0];
+    const [, patch] = mocked.update.mock.calls[0]!;
     expect(patch.additionalProperty).toEqual([
       { "@type": "PropertyValue", propertyID: "app:isFocused", value: false },
     ]);
@@ -546,7 +534,7 @@ describe("useToggleFocus edge cases", () => {
     act(() => result.current.mutate("urn:app:nofocus:1" as CanonicalId));
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    const [, patch] = mocked.update.mock.calls[0];
+    const [, patch] = mocked.update.mock.calls[0]!;
     // Missing prop defaults to false, so toggle sets to true
     expect(patch.additionalProperty).toEqual([
       { "@type": "PropertyValue", propertyID: "app:isFocused", value: true },
@@ -653,7 +641,7 @@ describe("useCreateProject", () => {
     );
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    const [jsonLd] = mocked.create.mock.calls[0];
+    const [jsonLd] = mocked.create.mock.calls[0]!;
     expect(jsonLd).toHaveProperty("name", "Q2 Sprint");
   });
 
@@ -678,24 +666,12 @@ describe("not-found errors", () => {
   const missing = "urn:app:missing:1" as CanonicalId;
 
   it("useTriageItem throws when canonical_id not in cache", async () => {
-    const item: ActionItem = {
+    const item = createInboxItem({
       id: missing,
       name: "Ghost",
-      type: "inbox",
-      bucket: "inbox",
-      rawCapture: "Ghost",
-      keywords: [],
-      contexts: [],
       needsEnrichment: false,
       confidence: "high",
-      captureSource: { kind: "thought" },
-      dateCreated: "2026-01-01",
-      dateModified: "2026-01-01",
-      isFocused: false,
-      ports: [],
-      typedReferences: [],
-      provenanceHistory: [],
-    };
+    });
     const { result } = renderHook(() => useTriageItem(), {
       wrapper: createWrapper([]),
     });
@@ -772,24 +748,12 @@ describe("onError rollback (remaining hooks)", () => {
     const wrapper = createWrapper([ACTION_RECORD]);
     const { result } = renderHook(() => useTriageItem(), { wrapper });
 
-    const item: ActionItem = {
-      id: "urn:app:action:1" as CanonicalId,
+    const item = createInboxItem({
       name: "Buy milk",
-      type: "inbox",
-      bucket: "inbox",
-      rawCapture: "Buy milk",
-      keywords: [],
-      contexts: [],
+      id: "urn:app:action:1" as CanonicalId,
       needsEnrichment: false,
       confidence: "high",
-      captureSource: { kind: "thought" },
-      dateCreated: "2026-01-01",
-      dateModified: "2026-01-01",
-      isFocused: false,
-      ports: [],
-      typedReferences: [],
-      provenanceHistory: [],
-    };
+    });
 
     act(() =>
       result.current.mutate({ item, result: { targetBucket: "next" } }),
@@ -882,24 +846,12 @@ describe("useTriageItem non-archive", () => {
       wrapper: createWrapper([ACTION_RECORD]),
     });
 
-    const item: ActionItem = {
-      id: "urn:app:action:1" as CanonicalId,
+    const item = createInboxItem({
       name: "Buy milk",
-      type: "inbox",
-      bucket: "inbox",
-      rawCapture: "Buy milk",
-      keywords: [],
-      contexts: [],
+      id: "urn:app:action:1" as CanonicalId,
       needsEnrichment: false,
       confidence: "high",
-      captureSource: { kind: "thought" },
-      dateCreated: "2026-01-01",
-      dateModified: "2026-01-01",
-      isFocused: false,
-      ports: [],
-      typedReferences: [],
-      provenanceHistory: [],
-    };
+    });
 
     act(() =>
       result.current.mutate({ item, result: { targetBucket: "next" } }),

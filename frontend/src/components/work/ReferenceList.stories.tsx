@@ -117,6 +117,7 @@ export const RapidEntry: Story = {
 
 /** Toggle archived references visible/hidden. */
 export const ToggleArchivedInteractive: Story = {
+  args: { references: [] },
   render: function ToggleArchived() {
     const [refs] = useState<ReferenceMaterial[]>([
       createReferenceMaterial({ name: "Active ref one" }),
@@ -187,6 +188,7 @@ export const ToggleArchivedInteractive: Story = {
 
 /** Archive a reference item — it disappears from the list. */
 export const ArchiveFromList: Story = {
+  args: { references: [] },
   render: function ArchiveDemo() {
     const [refs, setRefs] = useState<ReferenceMaterial[]>([
       createReferenceMaterial({ name: "Ref to archive" }),

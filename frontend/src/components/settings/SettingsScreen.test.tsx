@@ -96,7 +96,7 @@ describe("SettingsScreen", () => {
     const contextInput = screen.getByPlaceholderText("@phone, @office...");
     await user.type(contextInput, "@Draussen");
     const addButtons = screen.getAllByRole("button", { name: "Add" });
-    await user.click(addButtons[0]);
+    await user.click(addButtons[0]!);
     expect(screen.getByText("@Draussen")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Remove @Buero" }));
@@ -110,7 +110,7 @@ describe("SettingsScreen", () => {
     const tagInput = screen.getByPlaceholderText("New tag...");
     await user.type(tagInput, "urgent");
     const addButtons = screen.getAllByRole("button", { name: "Add" });
-    await user.click(addButtons[1]);
+    await user.click(addButtons[1]!);
     expect(screen.getByText("urgent")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Remove urgent" }));

@@ -2,7 +2,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ConnectedBucketView } from "./ConnectedBucketView";
-import type { ActionItem, Project, ReferenceMaterial } from "@/model/types";
+import type {
+  ActionItem,
+  Bucket,
+  Project,
+  ReferenceMaterial,
+} from "@/model/types";
 import {
   createAction,
   createProject,
@@ -125,7 +130,7 @@ function errorQuery(message: string) {
 
 const mockBucketChange = vi.fn();
 
-function renderComponent(bucket = "inbox" as const) {
+function renderComponent(bucket: Bucket = "inbox") {
   return render(
     <ConnectedBucketView
       activeBucket={bucket}

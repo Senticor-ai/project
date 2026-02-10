@@ -71,7 +71,7 @@ describe("LabelsPanel", () => {
     );
     const input = screen.getByPlaceholderText("@phone, @office...");
     await user.type(input, "@Buero");
-    await user.click(screen.getAllByText("Add")[0]);
+    await user.click(screen.getAllByText("Add")[0]!);
     expect(onAddContext).toHaveBeenCalledWith("@Buero");
   });
 

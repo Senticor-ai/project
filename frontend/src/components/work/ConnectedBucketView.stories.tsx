@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { http, HttpResponse } from "msw";
-import { expect, waitFor } from "storybook/test";
+import { expect, fn, waitFor } from "storybook/test";
 import { ConnectedBucketView } from "./ConnectedBucketView";
 import { store, seedMixedBuckets } from "@/test/msw/fixtures";
 import type { Bucket } from "@/model/types";
@@ -47,6 +47,7 @@ const WAIT = { timeout: 10000 };
 // ---------------------------------------------------------------------------
 
 export const Default: Story = {
+  args: { activeBucket: "inbox", onBucketChange: fn() },
   render: () => <ConnectedBucketViewDemo />,
   play: async ({ canvas, step }) => {
     await step("Verify inbox items appear", async () => {
@@ -67,6 +68,7 @@ export const Default: Story = {
 // ---------------------------------------------------------------------------
 
 export const CaptureInbox: Story = {
+  args: { activeBucket: "inbox", onBucketChange: fn() },
   render: () => <ConnectedBucketViewDemo />,
   play: async ({ canvas, userEvent, step }) => {
     await step("Wait for inbox to load", async () => {
@@ -95,6 +97,7 @@ export const CaptureInbox: Story = {
 // ---------------------------------------------------------------------------
 
 export const NextActions: Story = {
+  args: { activeBucket: "next", onBucketChange: fn() },
   render: () => <ConnectedBucketViewDemo initialBucket="next" />,
   play: async ({ canvas, step }) => {
     await step("Verify next action items appear", async () => {
@@ -115,6 +118,7 @@ export const NextActions: Story = {
 // ---------------------------------------------------------------------------
 
 export const AddAction: Story = {
+  args: { activeBucket: "next", onBucketChange: fn() },
   render: () => <ConnectedBucketViewDemo initialBucket="next" />,
   play: async ({ canvas, userEvent, step }) => {
     await step("Wait for next actions to load", async () => {
@@ -143,6 +147,7 @@ export const AddAction: Story = {
 // ---------------------------------------------------------------------------
 
 export const CompleteAction: Story = {
+  args: { activeBucket: "next", onBucketChange: fn() },
   render: () => <ConnectedBucketViewDemo initialBucket="next" />,
   play: async ({ canvas, step }) => {
     await step("Wait for actions to load", async () => {
@@ -163,6 +168,7 @@ export const CompleteAction: Story = {
 // ---------------------------------------------------------------------------
 
 export const FocusView: Story = {
+  args: { activeBucket: "focus", onBucketChange: fn() },
   render: () => <ConnectedBucketViewDemo initialBucket="focus" />,
   play: async ({ canvas, step }) => {
     await step("Verify focus view shows focused items", async () => {
@@ -178,6 +184,7 @@ export const FocusView: Story = {
 // ---------------------------------------------------------------------------
 
 export const ReferenceView: Story = {
+  args: { activeBucket: "reference", onBucketChange: fn() },
   render: () => <ConnectedBucketViewDemo initialBucket="reference" />,
   play: async ({ canvas, step }) => {
     await step("Verify reference items appear", async () => {
@@ -197,6 +204,7 @@ export const ReferenceView: Story = {
 // ---------------------------------------------------------------------------
 
 export const AddReference: Story = {
+  args: { activeBucket: "reference", onBucketChange: fn() },
   render: () => <ConnectedBucketViewDemo initialBucket="reference" />,
   play: async ({ canvas, userEvent, step }) => {
     await step("Wait for references to load", async () => {
@@ -225,6 +233,7 @@ export const AddReference: Story = {
 // ---------------------------------------------------------------------------
 
 export const ProjectView: Story = {
+  args: { activeBucket: "project", onBucketChange: fn() },
   render: () => <ConnectedBucketViewDemo initialBucket="project" />,
   play: async ({ canvas, step }) => {
     await step("Verify projects appear", async () => {
@@ -240,6 +249,7 @@ export const ProjectView: Story = {
 // ---------------------------------------------------------------------------
 
 export const EmptyInbox: Story = {
+  args: { activeBucket: "inbox", onBucketChange: fn() },
   beforeEach: () => {
     store.clear();
   },
@@ -263,6 +273,7 @@ export const EmptyInbox: Story = {
 // ---------------------------------------------------------------------------
 
 export const NavigateBuckets: Story = {
+  args: { activeBucket: "inbox", onBucketChange: fn() },
   render: () => <ConnectedBucketViewDemo />,
   play: async ({ canvas, userEvent, step }) => {
     await step("Start at inbox", async () => {
@@ -301,6 +312,7 @@ export const NavigateBuckets: Story = {
 // ---------------------------------------------------------------------------
 
 export const WaitingBucket: Story = {
+  args: { activeBucket: "waiting", onBucketChange: fn() },
   render: () => <ConnectedBucketViewDemo initialBucket="waiting" />,
   play: async ({ canvas, step }) => {
     await step("Verify waiting items appear", async () => {
@@ -316,6 +328,7 @@ export const WaitingBucket: Story = {
 // ---------------------------------------------------------------------------
 
 export const SomedayBucket: Story = {
+  args: { activeBucket: "someday", onBucketChange: fn() },
   render: () => <ConnectedBucketViewDemo initialBucket="someday" />,
   play: async ({ canvas, step }) => {
     await step("Verify someday items appear", async () => {
@@ -331,6 +344,7 @@ export const SomedayBucket: Story = {
 // ---------------------------------------------------------------------------
 
 export const LoadError: Story = {
+  args: { activeBucket: "inbox", onBucketChange: fn() },
   parameters: {
     msw: {
       handlers: [

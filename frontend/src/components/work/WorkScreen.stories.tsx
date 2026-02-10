@@ -91,7 +91,7 @@ function WorkScreenApp({ initialItems = [] }: { initialItems?: ActionItem[] }) {
       }}
       onMoveActionItem={(id, bucket) => {
         setItems((prev) =>
-          prev.map((t) => (t.id === id ? { ...t, bucket } : t)),
+          prev.map((t) => (t.id === id ? ({ ...t, bucket } as ActionItem) : t)),
         );
       }}
       onArchiveActionItem={(id) => {
@@ -104,7 +104,9 @@ function WorkScreenApp({ initialItems = [] }: { initialItems?: ActionItem[] }) {
       }}
       onEditActionItem={(id, fields) => {
         setItems((prev) =>
-          prev.map((t) => (t.id === id ? { ...t, ...fields } : t)),
+          prev.map((t) =>
+            t.id === id ? ({ ...t, ...fields } as ActionItem) : t,
+          ),
         );
       }}
     />
