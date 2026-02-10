@@ -228,7 +228,7 @@ export const MultilineEntry: Story = {
       "First line{Shift>}{Enter}{/Shift}Second line{Enter}",
     );
     const captured = (args.onAdd as ReturnType<typeof fn>).mock
-      .calls[0][0] as string;
+      .calls[0]?.[0] as string;
     await expect(captured).toContain("First line");
     await expect(captured).toContain("Second line");
     // Input clears and shrinks back to single row after submit
@@ -238,6 +238,7 @@ export const MultilineEntry: Story = {
 
 /** Click the checkbox to complete an action — it disappears from the active list. */
 export const CompleteFromList: Story = {
+  args: { bucket: "next", items: [] },
   render: function CompleteDemo() {
     const [items, setItems] = useState<ActionItem[]>([
       createActionItem({ rawCapture: "Task to complete", bucket: "next" }),
@@ -306,6 +307,7 @@ export const ToggleCompletedInteractive: Story = {
 
 /** Type multiple entries rapidly — input clears instantly after each Enter. */
 export const RapidMultiEntry: Story = {
+  args: { bucket: "next", items: [] },
   render: function RapidEntryDemo() {
     const [items, setItems] = useState<ActionItem[]>([]);
 
@@ -349,6 +351,7 @@ export const RapidMultiEntry: Story = {
 
 /** Click inbox item to expand, triage it, auto-advance to next. */
 export const InboxTriageFlow: Story = {
+  args: { bucket: "inbox", items: [] },
   render: function TriageDemo() {
     const [items, setItems] = useState<ActionItem[]>([
       createActionItem({ rawCapture: "First inbox item", bucket: "inbox" }),
@@ -389,6 +392,7 @@ export const InboxTriageFlow: Story = {
 
 /** Click the star to focus an action — it sorts to the top. */
 export const FocusFromList: Story = {
+  args: { bucket: "next", items: [] },
   render: function FocusDemo() {
     const [items, setItems] = useState<ActionItem[]>([
       createActionItem({ rawCapture: "Unfocused task", bucket: "next" }),

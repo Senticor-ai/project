@@ -403,7 +403,7 @@ describe("ActionList", () => {
     const input = screen.getByLabelText("Capture a thought");
     await user.type(input, "line1{Shift>}{Enter}{/Shift}line2{Enter}");
     expect(onAdd).toHaveBeenCalledTimes(1);
-    const captured = onAdd.mock.calls[0][0] as string;
+    const captured = onAdd.mock.calls[0]?.[0] as string;
     expect(captured).toContain("line1");
     expect(captured).toContain("line2");
     expect(captured).toContain("\n");
@@ -587,7 +587,7 @@ describe("ActionList", () => {
       <ActionList
         {...defaultProps({
           bucket: "inbox",
-          items: [items[1]],
+          items: [items[1]!],
           onEdit: vi.fn(),
         })}
       />,
@@ -662,7 +662,7 @@ describe("ActionList", () => {
     await user.type(input, "Edited title");
     await user.keyboard("{Enter}");
 
-    expect(onUpdateTitle).toHaveBeenCalledWith(items[0].id, "Edited title");
+    expect(onUpdateTitle).toHaveBeenCalledWith(items[0]?.id, "Edited title");
   });
 
   it("does not call onUpdateTitle on Escape", async () => {
@@ -806,7 +806,7 @@ describe("ActionList", () => {
     renderActionList({ bucket: "next", items, onEdit });
     await user.click(screen.getByText("Edit me"));
     await user.click(screen.getByRole("button", { name: "high" }));
-    expect(onEdit).toHaveBeenCalledWith(items[0].id, {
+    expect(onEdit).toHaveBeenCalledWith(items[0]?.id, {
       energyLevel: "high",
     });
   });

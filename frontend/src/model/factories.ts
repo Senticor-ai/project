@@ -90,10 +90,11 @@ export function createActionItem(overrides: ActionItemOverrides): ActionItem {
 // ---------------------------------------------------------------------------
 
 export function createInboxItem(overrides: ActionItemOverrides): ActionItem {
+  const rawCapture = overrides.rawCapture ?? overrides.name;
   return createActionItem({
     ...overrides,
     bucket: "inbox",
-    rawCapture: overrides.rawCapture ?? overrides.name,
+    ...(rawCapture !== undefined && { rawCapture }),
     needsEnrichment: overrides.needsEnrichment ?? true,
     confidence: overrides.confidence ?? "medium",
   });

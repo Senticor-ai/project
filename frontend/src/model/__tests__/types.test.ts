@@ -324,12 +324,12 @@ describe("Ports", () => {
 
   it("creates a computation port with time and energy", () => {
     const port = computationPort({
-      timeEstimate: "2h",
+      timeEstimate: "2hr",
       energyLevel: "high",
     });
     expect(port.kind).toBe("computation");
     if (port.kind === "computation") {
-      expect(port.timeEstimate).toBe("2h");
+      expect(port.timeEstimate).toBe("2hr");
       expect(port.energyLevel).toBe("high");
     }
   });

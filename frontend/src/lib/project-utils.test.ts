@@ -17,7 +17,6 @@ describe("getProjectActions", () => {
     const project = createProject({
       name: "Website Redesign",
       desiredOutcome: "New website live",
-      actionIds: [],
     });
     const a1 = createAction({
       name: "Design wireframes",
@@ -33,8 +32,8 @@ describe("getProjectActions", () => {
 
     const result = getProjectActions(project, [a1, a2, a3]);
     expect(result).toHaveLength(2);
-    expect(result[0].name).toBe("Write copy");
-    expect(result[1].name).toBe("Design wireframes");
+    expect(result[0]?.name).toBe("Write copy");
+    expect(result[1]?.name).toBe("Design wireframes");
   });
 
   it("returns empty array when no actions belong to the project", () => {
@@ -63,8 +62,8 @@ describe("getProjectActions", () => {
     });
 
     const result = getProjectActions(project, [a2, a1]);
-    expect(result[0].name).toBe("Ordered");
-    expect(result[1].name).toBe("Unordered");
+    expect(result[0]?.name).toBe("Ordered");
+    expect(result[1]?.name).toBe("Unordered");
   });
 });
 
