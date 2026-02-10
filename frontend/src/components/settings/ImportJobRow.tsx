@@ -21,6 +21,7 @@ export interface ImportJobData {
   started_at: string | null;
   finished_at: string | null;
   summary: ImportJobSummary | null;
+  progress: { processed: number; total: number } | null;
   error: string | null;
 }
 
@@ -137,6 +138,10 @@ export function ImportJobRow({ job, className }: ImportJobRowProps) {
           {job.summary ? (
             <span className="text-xs text-text-subtle">
               {job.summary.total} items
+            </span>
+          ) : isActive && job.progress ? (
+            <span className="text-xs text-text-subtle">
+              {job.progress.processed} / {job.progress.total} items
             </span>
           ) : isActive ? (
             <span className="text-xs text-text-subtle">importing...</span>

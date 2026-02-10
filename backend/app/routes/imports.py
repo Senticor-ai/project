@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections import Counter
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
@@ -607,6 +608,7 @@ def run_native_import(
     update_existing: bool,
     include_completed: bool,
     emit_events: bool,
+    on_progress: Callable[[int], None] | None = None,
 ) -> NirvanaImportSummary:
     """Import items from a TerminAndoYo JSON export (``/items/export``).
 
@@ -768,6 +770,9 @@ def run_native_import(
                         {"item_id": str(row["item_id"]), "org_id": org_id},
                     )
 
+                if on_progress:
+                    on_progress(index + 1)
+
     return NirvanaImportSummary(
         total=len(items),
         created=totals["created"],
@@ -793,6 +798,7 @@ def run_nirvana_import(
     emit_events: bool,
     state_bucket_map: dict[int, str] | None,
     default_bucket: str,
+    on_progress: Callable[[int], None] | None = None,
 ) -> NirvanaImportSummary:
     if not isinstance(items, list):
         raise HTTPException(
@@ -974,6 +980,9 @@ def run_nirvana_import(
                         {"item_id": str(row["item_id"]), "org_id": org_id},
                     )
 
+                if on_progress:
+                    on_progress(index + 1)
+
     return NirvanaImportSummary(
         total=len(items),
         created=totals["created"],
@@ -1025,6 +1034,7 @@ def _build_job_response(row: dict) -> ImportJobResponse:
         started_at=row.get("started_at"),
         finished_at=row.get("finished_at"),
         summary=row.get("summary"),
+        progress=row.get("progress"),
         error=row.get("error"),
     )
 
@@ -1723,6 +1733,7 @@ def list_import_jobs(
                     j.started_at,
                     j.finished_at,
                     j.summary,
+                    j.progress,
                     j.error
                 FROM import_jobs j
                 LEFT JOIN files f ON f.file_id = j.file_id
@@ -1800,6 +1811,7 @@ def get_import_job(
                     j.started_at,
                     j.finished_at,
                     j.summary,
+                    j.progress,
                     j.error
                 FROM import_jobs j
                 LEFT JOIN files f ON f.file_id = j.file_id

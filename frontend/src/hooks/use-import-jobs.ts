@@ -25,6 +25,7 @@ function toImportJobData(job: ImportJobResponse): ImportJobData {
           errors: job.summary.errors,
         }
       : null,
+    progress: job.progress ?? null,
     error: job.error,
   };
 }

@@ -19,6 +19,7 @@ const sampleJobs: ImportJobData[] = [
       skipped: 5,
       errors: 0,
     },
+    progress: null,
     error: null,
   },
   {
@@ -30,6 +31,7 @@ const sampleJobs: ImportJobData[] = [
     started_at: "2025-06-16T11:00:02Z",
     finished_at: null,
     summary: null,
+    progress: { processed: 42, total: 95 },
     error: null,
   },
   {
@@ -47,6 +49,7 @@ const sampleJobs: ImportJobData[] = [
       skipped: 5,
       errors: 2,
     },
+    progress: null,
     error: null,
   },
   {
@@ -58,6 +61,7 @@ const sampleJobs: ImportJobData[] = [
     started_at: "2025-06-14T08:30:01Z",
     finished_at: "2025-06-14T08:30:12Z",
     summary: null,
+    progress: null,
     error: "Worker timeout: exceeded 300s limit",
   },
 ];

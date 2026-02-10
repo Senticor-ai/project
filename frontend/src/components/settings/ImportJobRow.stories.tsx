@@ -16,6 +16,7 @@ const completedJob: ImportJobData = {
     skipped: 5,
     errors: 2,
   },
+  progress: null,
   error: null,
 };
 
@@ -56,6 +57,22 @@ export const Running: Story = {
       status: "running",
       finished_at: null,
       summary: null,
+    },
+  },
+};
+
+// ---------------------------------------------------------------------------
+// RunningWithProgress — shows live X / Y progress
+// ---------------------------------------------------------------------------
+
+export const RunningWithProgress: Story = {
+  args: {
+    job: {
+      ...completedJob,
+      status: "running",
+      finished_at: null,
+      summary: null,
+      progress: { processed: 67, total: 142 },
     },
   },
 };

@@ -68,6 +68,7 @@ const JOB_COMPLETED: ImportJobResponse = {
   started_at: "2026-02-06T12:00:01Z",
   finished_at: "2026-02-06T12:01:00Z",
   summary: SUMMARY,
+  progress: null,
   error: null,
 };
 

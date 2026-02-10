@@ -153,8 +153,8 @@ export function ActionList({
     if (isInbox) {
       return [...contextFiltered].sort(
         (a, b) =>
-          new Date(b.provenance.createdAt).getTime() -
-          new Date(a.provenance.createdAt).getTime(),
+          new Date(a.provenance.createdAt).getTime() -
+          new Date(b.provenance.createdAt).getTime(),
       );
     }
     return [...contextFiltered].sort((a, b) => {

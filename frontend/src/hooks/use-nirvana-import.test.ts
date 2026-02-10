@@ -57,6 +57,7 @@ const JOB_QUEUED: ImportJobResponse = {
   started_at: null,
   finished_at: null,
   summary: null,
+  progress: null,
   error: null,
 };
 

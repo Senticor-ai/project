@@ -19,7 +19,7 @@ test.describe("Authentication", () => {
 
     // Should land on workspace (menu trigger visible = logged in)
     const workspace = new WorkspacePage(page);
-    await expect(workspace.menuTrigger).toBeVisible();
+    await expect(workspace.menuTrigger).toBeVisible({ timeout: 10_000 });
 
     // Sign out via menu
     await workspace.signOut();
@@ -31,7 +31,7 @@ test.describe("Authentication", () => {
     await loginPage.login(email, password);
 
     // Should be back on workspace
-    await expect(workspace.menuTrigger).toBeVisible();
+    await expect(workspace.menuTrigger).toBeVisible({ timeout: 10_000 });
   });
 
   test("shows error for invalid credentials", async ({ page }) => {

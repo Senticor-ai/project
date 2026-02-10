@@ -98,6 +98,26 @@ def _emit_index_event(
         logger.warning("push.enqueue_failed", error=str(exc))
 
 
+def _make_progress_cb(job_id: str, total: int):
+    """Return a throttled callback that writes progress to the import_jobs table."""
+    last_update = [0.0]
+
+    def cb(processed: int) -> None:
+        now = time.monotonic()
+        if now - last_update[0] < 2.0 and processed < total:
+            return
+        last_update[0] = now
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE import_jobs SET progress = %s, updated_at = %s WHERE job_id = %s",
+                    (jsonb({"processed": processed, "total": total}), datetime.now(UTC), job_id),
+                )
+            conn.commit()
+
+    return cb
+
+
 def _process_import_job(payload: dict) -> None:
     job_id = payload.get("job_id")
     if not job_id:
@@ -177,6 +197,17 @@ def _process_import_job(payload: dict) -> None:
     options = job.get("options") or {}
     loaded_items = _load_items_from_file(file_row)
 
+    # Write initial progress and create throttled callback
+    total = len(loaded_items)
+    progress_cb = _make_progress_cb(str(job_id), total)
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE import_jobs SET progress = %s, updated_at = %s WHERE job_id = %s",
+                (jsonb({"processed": 0, "total": total}), datetime.now(UTC), job_id),
+            )
+        conn.commit()
+
     if job["source"] == "native":
         summary = run_native_import(
             loaded_items,
@@ -187,6 +218,7 @@ def _process_import_job(payload: dict) -> None:
             update_existing=bool(options.get("update_existing", True)),
             include_completed=bool(options.get("include_completed", True)),
             emit_events=bool(options.get("emit_events", True)),
+            on_progress=progress_cb,
         )
     else:
         summary = run_nirvana_import(
@@ -200,6 +232,7 @@ def _process_import_job(payload: dict) -> None:
             emit_events=bool(options.get("emit_events", True)),
             state_bucket_map=options.get("state_bucket_map"),
             default_bucket=options.get("default_bucket", "inbox"),
+            on_progress=progress_cb,
         )
 
     with db_conn() as job_conn:
@@ -209,6 +242,7 @@ def _process_import_job(payload: dict) -> None:
                 UPDATE import_jobs
                 SET status = 'completed',
                     summary = %s,
+                    progress = NULL,
                     finished_at = %s,
                     updated_at = %s
                 WHERE job_id = %s

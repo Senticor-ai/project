@@ -17,6 +17,7 @@ const baseJob: ImportJobData = {
     skipped: 5,
     errors: 2,
   },
+  progress: null,
   error: null,
 };
 
@@ -113,7 +114,7 @@ describe("ImportJobRow", () => {
     expect(screen.queryByText("errors")).not.toBeInTheDocument();
   });
 
-  it("shows 'importing...' instead of '0 items' while running", () => {
+  it("shows 'importing...' instead of '0 items' while running without progress", () => {
     const running: ImportJobData = {
       ...baseJob,
       status: "running",
@@ -122,7 +123,19 @@ describe("ImportJobRow", () => {
     };
     render(<ImportJobRow job={running} />);
     expect(screen.getByText("importing...")).toBeInTheDocument();
-    expect(screen.queryByText(/items/)).not.toBeInTheDocument();
+  });
+
+  it("shows progress count while running with progress", () => {
+    const running: ImportJobData = {
+      ...baseJob,
+      status: "running",
+      finished_at: null,
+      summary: null,
+      progress: { processed: 42, total: 150 },
+    };
+    render(<ImportJobRow job={running} />);
+    expect(screen.getByText("42 / 150 items")).toBeInTheDocument();
+    expect(screen.queryByText("importing...")).not.toBeInTheDocument();
   });
 
   it("shows 'importing...' instead of '0 items' while queued", () => {

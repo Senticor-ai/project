@@ -14,6 +14,7 @@ const COMPLETED_JOB: ImportJobData = {
   started_at: "2026-02-06T12:00:01Z",
   finished_at: "2026-02-06T12:01:00Z",
   summary: { total: 100, created: 80, updated: 10, skipped: 5, errors: 5 },
+  progress: null,
   error: null,
 };
 

@@ -761,6 +761,10 @@ class ImportJobResponse(BaseModel):
         default=None,
         description="Import summary, present when completed.",
     )
+    progress: dict | None = Field(
+        default=None,
+        description="Live progress while running: {processed, total}.",
+    )
     error: str | None = Field(
         default=None,
         description="Failure details, present when status is `failed`.",

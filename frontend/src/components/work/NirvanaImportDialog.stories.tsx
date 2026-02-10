@@ -114,6 +114,7 @@ const failedJob: ImportJobResponse = {
     },
     sample_errors: ["item[17] missing name"],
   },
+  progress: null,
   error: "Database connection lost",
 };
 

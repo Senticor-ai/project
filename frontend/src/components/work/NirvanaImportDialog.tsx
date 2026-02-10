@@ -235,12 +235,11 @@ function NirvanaImportDialogContent({
               size={32}
               className="animate-spin text-blueprint-500"
             />
-            <p className="text-sm text-text-muted">Importing...</p>
-            {jobData && (
-              <p className="text-xs text-text-subtle">
-                Status: {jobData.status}
-              </p>
-            )}
+            <p className="text-sm text-text-muted">
+              {jobData?.progress
+                ? `Importing ${jobData.progress.processed} / ${jobData.progress.total} items...`
+                : "Importing..."}
+            </p>
           </div>
         )}
 

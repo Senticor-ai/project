@@ -184,6 +184,7 @@ export const importsHandlers = [
       started_at: now,
       finished_at: now,
       summary: defaultImportSummary,
+      progress: null,
       error: null,
     };
     return HttpResponse.json(importJobState);
@@ -206,6 +207,7 @@ export const importsHandlers = [
       started_at: now,
       finished_at: now,
       summary: defaultImportSummary,
+      progress: null,
       error: null,
     };
     return HttpResponse.json(importJobState);

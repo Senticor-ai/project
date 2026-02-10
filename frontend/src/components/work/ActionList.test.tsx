@@ -424,7 +424,7 @@ describe("ActionList", () => {
   // Sorting
   // -------------------------------------------------------------------------
 
-  it("sorts inbox items newest first", () => {
+  it("sorts inbox items oldest first (FIFO)", () => {
     const items = [
       createActionItem({
         name: "Newer",
@@ -450,7 +450,7 @@ describe("ActionList", () => {
     const older = screen.getByText("Older");
     const newer = screen.getByText("Newer");
     expect(
-      newer.compareDocumentPosition(older) & Node.DOCUMENT_POSITION_FOLLOWING,
+      older.compareDocumentPosition(newer) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
 

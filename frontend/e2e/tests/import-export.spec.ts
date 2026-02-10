@@ -36,14 +36,12 @@ test.describe("Import from Settings", () => {
     await fileInput.setInputFiles(NIRVANA_FIXTURE);
 
     // 4. Wait for upload → preview transition
-    await expect(page.getByText(/\d+ items found/)).toBeVisible({
+    await expect(page.getByText(/^\d+ items found$/)).toBeVisible({
       timeout: 30_000,
     });
 
     // 5. Verify preview content
-    const previewText = await page
-      .getByText(/\d+ items found/)
-      .textContent();
+    const previewText = await page.getByText(/^\d+ items found$/).textContent();
     expect(previewText).toBeTruthy();
     const itemCount = parseInt(previewText!.match(/(\d+)/)?.[1] ?? "0", 10);
     expect(itemCount).toBeGreaterThan(0);
@@ -85,7 +83,7 @@ test.describe("Import from Settings", () => {
     await settings.importNirvanaButton().click();
     const fileInput = page.getByTestId("nirvana-file-input");
     await fileInput.setInputFiles(NIRVANA_FIXTURE);
-    await expect(page.getByText(/\d+ items found/)).toBeVisible({
+    await expect(page.getByText(/^\d+ items found$/)).toBeVisible({
       timeout: 30_000,
     });
     const importButton = page.getByRole("button", {
@@ -112,7 +110,7 @@ test.describe("Import from Settings", () => {
     // Re-upload same fixture — expect duplicate warning
     const fileInput2 = page.getByTestId("nirvana-file-input");
     await fileInput2.setInputFiles(NIRVANA_FIXTURE);
-    await expect(page.getByText(/\d+ items found/)).toBeVisible({
+    await expect(page.getByText(/^\d+ items found$/)).toBeVisible({
       timeout: 30_000,
     });
 
@@ -161,5 +159,4 @@ test.describe("Export from Settings", () => {
     const content = await download.path();
     expect(content).toBeTruthy();
   });
-
 });

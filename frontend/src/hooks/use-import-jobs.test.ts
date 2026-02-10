@@ -33,6 +33,7 @@ const COMPLETED_JOB: ImportJobResponse = {
     bucket_counts: { inbox: 50, next: 30, project: 20 },
     sample_errors: [],
   },
+  progress: null,
   error: null,
 };
 
@@ -47,6 +48,7 @@ const RUNNING_JOB: ImportJobResponse = {
   started_at: "2025-06-16T11:00:02Z",
   finished_at: null,
   summary: null,
+  progress: null,
   error: null,
 };
 

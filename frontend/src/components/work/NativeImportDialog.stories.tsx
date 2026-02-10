@@ -112,6 +112,7 @@ const failedJob: ImportJobResponse = {
     },
     sample_errors: ["item[17] missing canonical_id"],
   },
+  progress: null,
   error: "Database connection lost",
 };
 

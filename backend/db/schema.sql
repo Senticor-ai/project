@@ -182,6 +182,7 @@ CREATE TABLE IF NOT EXISTS import_jobs (
 
 CREATE INDEX IF NOT EXISTS idx_import_jobs_org_created_at
   ON import_jobs (org_id, created_at DESC);
+ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS progress JSONB;
 
 CREATE TABLE IF NOT EXISTS file_uploads (
   upload_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

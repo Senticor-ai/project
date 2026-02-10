@@ -135,6 +135,7 @@ describe("ImportExportPanel", () => {
           skipped: 0,
           errors: 0,
         },
+        progress: null,
         error: null,
       },
     ];
