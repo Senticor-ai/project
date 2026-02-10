@@ -51,10 +51,10 @@ def flush_org_data(
             deleted["idempotency_keys"] = cur.rowcount
 
             cur.execute(
-                "DELETE FROM things WHERE org_id = %s",
+                "DELETE FROM items WHERE org_id = %s",
                 (org_id,),
             )
-            deleted["things"] = cur.rowcount
+            deleted["items"] = cur.rowcount
 
             cur.execute(
                 "DELETE FROM import_jobs WHERE org_id = %s",

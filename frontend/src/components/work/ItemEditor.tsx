@@ -2,11 +2,7 @@ import { useState, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
 import { AutoGrowTextarea } from "@/components/ui/AutoGrowTextarea";
-import type {
-  ItemEditableFields,
-  Project,
-  EnergyLevel,
-} from "@/model/types";
+import type { ItemEditableFields, Project, EnergyLevel } from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
 
 export interface ItemEditorProps {

@@ -10,7 +10,7 @@ import {
   buildNewProjectJsonLd,
   buildNewFileInboxJsonLd,
   buildNewUrlInboxJsonLd,
-} from "./thing-serializer";
+} from "./item-serializer";
 import {
   createInboxItem,
   createAction,
@@ -18,9 +18,9 @@ import {
   createReferenceMaterial,
   resetFactoryCounter,
 } from "@/model/factories";
-import type { ThingRecord } from "./api-client";
+import type { ItemRecord } from "./api-client";
 import type {
-  Thing,
+  ActionItem,
   Project,
   ReferenceMaterial,
   CalendarEntry,
@@ -37,15 +37,15 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function wrapAsThingRecord(
-  thing: Record<string, unknown>,
-  overrides?: Partial<ThingRecord>,
-): ThingRecord {
+function wrapAsItemRecord(
+  item: Record<string, unknown>,
+  overrides?: Partial<ItemRecord>,
+): ItemRecord {
   return {
-    thing_id: overrides?.thing_id ?? "uuid-1",
-    canonical_id: overrides?.canonical_id ?? (thing["@id"] as string),
+    item_id: overrides?.item_id ?? "uuid-1",
+    canonical_id: overrides?.canonical_id ?? (item["@id"] as string),
     source: overrides?.source ?? "manual",
-    thing,
+    item,
     created_at: overrides?.created_at ?? "2025-01-01T00:00:00Z",
     updated_at: overrides?.updated_at ?? "2025-01-01T00:00:00Z",
   };
@@ -423,7 +423,7 @@ describe("toJsonLd", () => {
 describe("fromJsonLd", () => {
   describe("schema:Action (inbox) → InboxItem", () => {
     it("deserializes an Action in inbox with additionalProperty", () => {
-      const record = wrapAsThingRecord({
+      const record = wrapAsItemRecord({
         "@id": "urn:app:inbox:abc-123",
         "@type": "Action",
         _schemaVersion: 2,
@@ -474,7 +474,7 @@ describe("fromJsonLd", () => {
         ],
       });
 
-      const item = fromJsonLd(record) as Thing;
+      const item = fromJsonLd(record) as ActionItem;
       expect(item.bucket).toBe("inbox");
       expect(item.id).toBe("urn:app:inbox:abc-123");
       expect(item.name).toBe("Buy milk");
@@ -489,7 +489,7 @@ describe("fromJsonLd", () => {
 
   describe("schema:Action → Action", () => {
     it("deserializes an Action with app:projectRefs", () => {
-      const record = wrapAsThingRecord({
+      const record = wrapAsItemRecord({
         "@id": "urn:app:action:def-456",
         "@type": "Action",
         _schemaVersion: 2,
@@ -546,7 +546,7 @@ describe("fromJsonLd", () => {
         ],
       });
 
-      const action = fromJsonLd(record) as Thing;
+      const action = fromJsonLd(record) as ActionItem;
       expect(action.bucket).toBe("next");
       expect(action.name).toBe("Call dentist");
       expect(action.isFocused).toBe(true);
@@ -559,7 +559,7 @@ describe("fromJsonLd", () => {
 
   describe("schema:Project → Project", () => {
     it("deserializes a Project (no actionIds — projects no longer track actions)", () => {
-      const record = wrapAsThingRecord({
+      const record = wrapAsItemRecord({
         "@id": "urn:app:project:ghi-789",
         "@type": "Project",
         _schemaVersion: 2,
@@ -631,7 +631,7 @@ describe("fromJsonLd", () => {
 
   describe("schema:CreativeWork → ReferenceMaterial", () => {
     it("deserializes a CreativeWork with url and encodingFormat", () => {
-      const record = wrapAsThingRecord({
+      const record = wrapAsItemRecord({
         "@id": "urn:app:reference:jkl-012",
         "@type": "CreativeWork",
         _schemaVersion: 2,
@@ -692,7 +692,7 @@ describe("fromJsonLd", () => {
 
   describe("schema:Event → CalendarEntry", () => {
     it("deserializes an Event with startDate and duration", () => {
-      const record = wrapAsThingRecord({
+      const record = wrapAsItemRecord({
         "@id": "urn:app:event:evt-001",
         "@type": "Event",
         _schemaVersion: 2,
@@ -749,7 +749,7 @@ describe("fromJsonLd", () => {
     });
 
     it("treats Event without time component as all-day", () => {
-      const record = wrapAsThingRecord({
+      const record = wrapAsItemRecord({
         "@id": "urn:app:event:evt-002",
         "@type": "Event",
         _schemaVersion: 2,
@@ -803,7 +803,7 @@ describe("fromJsonLd", () => {
 
   describe("unknown @type fallback", () => {
     it("falls back to inbox for unknown @type", () => {
-      const record = wrapAsThingRecord({
+      const record = wrapAsItemRecord({
         "@id": "urn:app:inbox:unknown-1",
         "@type": "SomeFutureType",
         _schemaVersion: 2,
@@ -853,14 +853,14 @@ describe("fromJsonLd", () => {
     });
   });
 
-  describe("round-trip: toJsonLd → wrapAsThingRecord → fromJsonLd", () => {
+  describe("round-trip: toJsonLd → wrapAsItemRecord → fromJsonLd", () => {
     beforeEach(() => resetFactoryCounter());
 
     it("preserves inbox item data", () => {
       const original = createInboxItem({ name: "Buy milk" });
       const ld = toJsonLd(original);
-      const record = wrapAsThingRecord(ld);
-      const restored = fromJsonLd(record) as Thing;
+      const record = wrapAsItemRecord(ld);
+      const restored = fromJsonLd(record) as ActionItem;
 
       expect(restored.id).toBe(original.id);
       expect(restored.name).toBe(original.name);
@@ -883,8 +883,8 @@ describe("fromJsonLd", () => {
       });
 
       const ld = toJsonLd(original);
-      const record = wrapAsThingRecord(ld);
-      const restored = fromJsonLd(record) as Thing;
+      const record = wrapAsItemRecord(ld);
+      const restored = fromJsonLd(record) as ActionItem;
 
       expect(restored.id).toBe(original.id);
       expect(restored.name).toBe(original.name);
@@ -904,7 +904,7 @@ describe("fromJsonLd", () => {
       });
 
       const ld = toJsonLd(original);
-      const record = wrapAsThingRecord(ld);
+      const record = wrapAsItemRecord(ld);
       const restored = fromJsonLd(record) as Project;
 
       expect(restored.id).toBe(original.id);
@@ -922,7 +922,7 @@ describe("fromJsonLd", () => {
       });
 
       const ld = toJsonLd(original);
-      const record = wrapAsThingRecord(ld);
+      const record = wrapAsItemRecord(ld);
       const restored = fromJsonLd(record) as ReferenceMaterial;
 
       expect(restored.id).toBe(original.id);
@@ -1239,8 +1239,8 @@ describe("buildNewUrlInboxJsonLd", () => {
 // ---------------------------------------------------------------------------
 
 describe("fromJsonLd — intake classification types in inbox", () => {
-  it("deserializes Action with bucket inbox as a Thing", () => {
-    const record = wrapAsThingRecord({
+  it("deserializes Action with bucket inbox as an ActionItem", () => {
+    const record = wrapAsItemRecord({
       "@id": "urn:app:inbox:test-1",
       "@type": "Action",
       _schemaVersion: 2,
@@ -1299,8 +1299,8 @@ describe("fromJsonLd — intake classification types in inbox", () => {
     expect(item.needsEnrichment).toBe(true);
   });
 
-  it("deserializes CreativeWork with bucket inbox as a Thing (URL capture)", () => {
-    const record = wrapAsThingRecord({
+  it("deserializes CreativeWork with bucket inbox as an ActionItem (URL capture)", () => {
+    const record = wrapAsItemRecord({
       "@id": "urn:app:inbox:test-2",
       "@type": "CreativeWork",
       _schemaVersion: 2,
@@ -1352,7 +1352,7 @@ describe("fromJsonLd — intake classification types in inbox", () => {
   });
 
   it("deserializes DigitalDocument (unknown @type) as inbox fallback", () => {
-    const record = wrapAsThingRecord({
+    const record = wrapAsItemRecord({
       "@id": "urn:app:inbox:test-3",
       "@type": "DigitalDocument",
       _schemaVersion: 2,
@@ -1567,7 +1567,7 @@ describe("buildNewProjectJsonLd", () => {
 
 describe("fromJsonLd name normalization", () => {
   it("normalizes name: null to undefined", () => {
-    const record = wrapAsThingRecord({
+    const record = wrapAsItemRecord({
       "@id": "urn:app:inbox:n1",
       "@type": "Action",
       _schemaVersion: 2,
@@ -1611,13 +1611,13 @@ describe("fromJsonLd name normalization", () => {
         },
       ],
     });
-    const item = fromJsonLd(record) as Thing;
+    const item = fromJsonLd(record) as ActionItem;
     expect(item.name).toBeUndefined();
     expect(item.rawCapture).toBe("buy bananas");
   });
 
   it("normalizes missing name to undefined", () => {
-    const record = wrapAsThingRecord({
+    const record = wrapAsItemRecord({
       "@id": "urn:app:inbox:n2",
       "@type": "Action",
       _schemaVersion: 2,
@@ -1660,12 +1660,12 @@ describe("fromJsonLd name normalization", () => {
         },
       ],
     });
-    const item = fromJsonLd(record) as Thing;
+    const item = fromJsonLd(record) as ActionItem;
     expect(item.name).toBeUndefined();
   });
 
   it("normalizes empty string name to undefined", () => {
-    const record = wrapAsThingRecord({
+    const record = wrapAsItemRecord({
       "@id": "urn:app:inbox:n3",
       "@type": "Action",
       _schemaVersion: 2,
@@ -1709,12 +1709,12 @@ describe("fromJsonLd name normalization", () => {
         },
       ],
     });
-    const item = fromJsonLd(record) as Thing;
+    const item = fromJsonLd(record) as ActionItem;
     expect(item.name).toBeUndefined();
   });
 
   it("normalizes whitespace-only name to undefined", () => {
-    const record = wrapAsThingRecord({
+    const record = wrapAsItemRecord({
       "@id": "urn:app:inbox:n4",
       "@type": "Action",
       _schemaVersion: 2,
@@ -1758,12 +1758,12 @@ describe("fromJsonLd name normalization", () => {
         },
       ],
     });
-    const item = fromJsonLd(record) as Thing;
+    const item = fromJsonLd(record) as ActionItem;
     expect(item.name).toBeUndefined();
   });
 
   it("preserves actual name when set", () => {
-    const record = wrapAsThingRecord({
+    const record = wrapAsItemRecord({
       "@id": "urn:app:inbox:n5",
       "@type": "Action",
       _schemaVersion: 2,
@@ -1807,7 +1807,7 @@ describe("fromJsonLd name normalization", () => {
         },
       ],
     });
-    const item = fromJsonLd(record) as Thing;
+    const item = fromJsonLd(record) as ActionItem;
     expect(item.name).toBe("Weekly Groceries");
     expect(item.rawCapture).toBe("buy bananas");
   });
@@ -1831,8 +1831,8 @@ describe("roundtrip rawCapture-only", () => {
     expect(ld).not.toHaveProperty("name");
     expectPropertyValue(ld, "app:rawCapture", "Wireframes erstellen");
 
-    const record = wrapAsThingRecord(ld);
-    const restored = fromJsonLd(record) as Thing;
+    const record = wrapAsItemRecord(ld);
+    const restored = fromJsonLd(record) as ActionItem;
 
     expect(restored.name).toBeUndefined();
     expect(restored.rawCapture).toBe("Wireframes erstellen");
@@ -1846,8 +1846,8 @@ describe("roundtrip rawCapture-only", () => {
     expect(ld).not.toHaveProperty("name");
     expectPropertyValue(ld, "app:rawCapture", "Bananen kaufen");
 
-    const record = wrapAsThingRecord(ld);
-    const restored = fromJsonLd(record) as Thing;
+    const record = wrapAsItemRecord(ld);
+    const restored = fromJsonLd(record) as ActionItem;
 
     expect(restored.name).toBeUndefined();
     expect(restored.rawCapture).toBe("Bananen kaufen");
@@ -1879,51 +1879,51 @@ describe("JSON Schema contract validation", () => {
   beforeEach(() => resetFactoryCounter());
 
   describe("build* functions produce schema-valid payloads", () => {
-    it("buildNewInboxJsonLd → action-thing schema (text capture defaults to Action)", ({
+    it("buildNewInboxJsonLd → action-item schema (text capture defaults to Action)", ({
       skip,
     }) => {
       if (!backendUp) skip();
       const ld = buildNewInboxJsonLd("Anruf bei Frau Müller");
-      const valid = validators.validateActionThing(ld);
-      expect(valid, formatErrors(validators.validateActionThing)).toBe(true);
+      const valid = validators.validateActionItem(ld);
+      expect(valid, formatErrors(validators.validateActionItem)).toBe(true);
     });
 
-    it("buildNewActionJsonLd → action-thing schema", ({ skip }) => {
+    it("buildNewActionJsonLd → action-item schema", ({ skip }) => {
       if (!backendUp) skip();
       const ld = buildNewActionJsonLd("Wireframes erstellen", "next");
-      const valid = validators.validateActionThing(ld);
-      expect(valid, formatErrors(validators.validateActionThing)).toBe(true);
+      const valid = validators.validateActionItem(ld);
+      expect(valid, formatErrors(validators.validateActionItem)).toBe(true);
     });
 
-    it("buildNewActionJsonLd with projectId → action-thing schema", ({
+    it("buildNewActionJsonLd with projectId → action-item schema", ({
       skip,
     }) => {
       if (!backendUp) skip();
       const ld = buildNewActionJsonLd("Sub-task", "next", {
         projectId: "urn:app:project:p-1" as CanonicalId,
       });
-      const valid = validators.validateActionThing(ld);
-      expect(valid, formatErrors(validators.validateActionThing)).toBe(true);
+      const valid = validators.validateActionItem(ld);
+      expect(valid, formatErrors(validators.validateActionItem)).toBe(true);
     });
 
-    it("buildNewReferenceJsonLd → reference-thing schema", ({ skip }) => {
+    it("buildNewReferenceJsonLd → reference-item schema", ({ skip }) => {
       if (!backendUp) skip();
       const ld = buildNewReferenceJsonLd("SGB III § 159");
-      const valid = validators.validateReferenceThing(ld);
-      expect(valid, formatErrors(validators.validateReferenceThing)).toBe(true);
+      const valid = validators.validateReferenceItem(ld);
+      expect(valid, formatErrors(validators.validateReferenceItem)).toBe(true);
     });
   });
 
   describe("toJsonLd produces schema-valid payloads", () => {
-    it("inbox item → action-thing schema", ({ skip }) => {
+    it("inbox item → action-item schema", ({ skip }) => {
       if (!backendUp) skip();
       const item = createInboxItem({ rawCapture: "Buy milk" });
       const ld = toJsonLd(item);
-      const valid = validators.validateActionThing(ld);
-      expect(valid, formatErrors(validators.validateActionThing)).toBe(true);
+      const valid = validators.validateActionItem(ld);
+      expect(valid, formatErrors(validators.validateActionItem)).toBe(true);
     });
 
-    it("action → action-thing schema", ({ skip }) => {
+    it("action → action-item schema", ({ skip }) => {
       if (!backendUp) skip();
       const action = createAction({
         rawCapture: "Call dentist",
@@ -1932,22 +1932,22 @@ describe("JSON Schema contract validation", () => {
         dueDate: "2026-06-01",
       });
       const ld = toJsonLd(action);
-      const valid = validators.validateActionThing(ld);
-      expect(valid, formatErrors(validators.validateActionThing)).toBe(true);
+      const valid = validators.validateActionItem(ld);
+      expect(valid, formatErrors(validators.validateActionItem)).toBe(true);
     });
 
-    it("project → project-thing schema", ({ skip }) => {
+    it("project → project-item schema", ({ skip }) => {
       if (!backendUp) skip();
       const project = createProject({
         name: "Renovate kitchen",
         desiredOutcome: "Modern kitchen",
       });
       const ld = toJsonLd(project);
-      const valid = validators.validateProjectThing(ld);
-      expect(valid, formatErrors(validators.validateProjectThing)).toBe(true);
+      const valid = validators.validateProjectItem(ld);
+      expect(valid, formatErrors(validators.validateProjectItem)).toBe(true);
     });
 
-    it("reference → reference-thing schema", ({ skip }) => {
+    it("reference → reference-item schema", ({ skip }) => {
       if (!backendUp) skip();
       const ref = createReferenceMaterial({
         name: "Tax docs",
@@ -1955,29 +1955,29 @@ describe("JSON Schema contract validation", () => {
         encodingFormat: "text/html",
       });
       const ld = toJsonLd(ref);
-      const valid = validators.validateReferenceThing(ld);
-      expect(valid, formatErrors(validators.validateReferenceThing)).toBe(true);
+      const valid = validators.validateReferenceItem(ld);
+      expect(valid, formatErrors(validators.validateReferenceItem)).toBe(true);
     });
   });
 
   describe("patch functions produce schema-valid payloads", () => {
-    it("buildTriagePatch → thing-patch schema", ({ skip }) => {
+    it("buildTriagePatch → item-patch schema", ({ skip }) => {
       if (!backendUp) skip();
       const item = createInboxItem({ rawCapture: "Buy milk" });
       const patch = buildTriagePatch(item, { targetBucket: "next" });
-      const valid = validators.validateThingPatch(patch);
-      expect(valid, formatErrors(validators.validateThingPatch)).toBe(true);
+      const valid = validators.validateItemPatch(patch);
+      expect(valid, formatErrors(validators.validateItemPatch)).toBe(true);
     });
 
-    it("buildItemEditPatch → thing-patch schema", ({ skip }) => {
+    it("buildItemEditPatch → item-patch schema", ({ skip }) => {
       if (!backendUp) skip();
       const patch = buildItemEditPatch({
         dueDate: "2026-06-01",
         contexts: ["@phone"],
         description: "Updated notes",
       });
-      const valid = validators.validateThingPatch(patch);
-      expect(valid, formatErrors(validators.validateThingPatch)).toBe(true);
+      const valid = validators.validateItemPatch(patch);
+      expect(valid, formatErrors(validators.validateItemPatch)).toBe(true);
     });
   });
 });

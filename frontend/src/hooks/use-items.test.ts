@@ -2,18 +2,18 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
-import { ThingsApi } from "@/lib/api-client";
-import type { ThingRecord, SyncResponse } from "@/lib/api-client";
+import { ItemsApi } from "@/lib/api-client";
+import type { ItemRecord, SyncResponse } from "@/lib/api-client";
 import {
-  useThings,
+  useItems,
   useActions,
   useInboxItems,
   useProjects,
   useReferences,
-} from "./use-things";
+} from "./use-items";
 
 vi.mock("@/lib/api-client", () => ({
-  ThingsApi: {
+  ItemsApi: {
     sync: vi.fn(),
     list: vi.fn(),
     get: vi.fn(),
@@ -23,24 +23,24 @@ vi.mock("@/lib/api-client", () => ({
   },
 }));
 
-const mockedThings = vi.mocked(ThingsApi);
+const mockedItems = vi.mocked(ItemsApi);
 
 function makeRecord(
-  overrides: Partial<ThingRecord> & { thing: Record<string, unknown> },
-): ThingRecord {
+  overrides: Partial<ItemRecord> & { item: Record<string, unknown> },
+): ItemRecord {
   return {
-    thing_id: overrides.thing_id ?? crypto.randomUUID(),
+    item_id: overrides.item_id ?? crypto.randomUUID(),
     canonical_id:
       overrides.canonical_id ?? `urn:app:test:${crypto.randomUUID()}`,
     source: overrides.source ?? "test",
     created_at: overrides.created_at ?? "2026-01-01T00:00:00Z",
     updated_at: overrides.updated_at ?? "2026-01-01T00:00:00Z",
-    thing: overrides.thing,
+    item: overrides.item,
   };
 }
 
 function makeSyncPage(
-  items: ThingRecord[],
+  items: ItemRecord[],
   has_more: boolean,
   next_cursor: string | null = null,
 ): SyncResponse {
@@ -67,7 +67,7 @@ function pvFixture(propertyID: string, value: unknown) {
 }
 
 const ACTION_RECORD = makeRecord({
-  thing: {
+  item: {
     "@type": "Action",
     "@id": "urn:app:action:1",
     _schemaVersion: 2,
@@ -92,7 +92,7 @@ const ACTION_RECORD = makeRecord({
 });
 
 const INBOX_RECORD = makeRecord({
-  thing: {
+  item: {
     "@type": "Action",
     "@id": "urn:app:inbox:1",
     _schemaVersion: 2,
@@ -118,7 +118,7 @@ const INBOX_RECORD = makeRecord({
 });
 
 const PROJECT_RECORD = makeRecord({
-  thing: {
+  item: {
     "@type": "Project",
     "@id": "urn:app:project:1",
     _schemaVersion: 2,
@@ -143,7 +143,7 @@ const PROJECT_RECORD = makeRecord({
 });
 
 const REFERENCE_RECORD = makeRecord({
-  thing: {
+  item: {
     "@type": "CreativeWork",
     "@id": "urn:app:reference:1",
     _schemaVersion: 2,
@@ -165,25 +165,25 @@ const REFERENCE_RECORD = makeRecord({
 
 // -- Tests -------------------------------------------------------------------
 
-describe("useThings — cursor-based sync", () => {
+describe("useItems — cursor-based sync", () => {
   beforeEach(() => {
     vi.resetAllMocks();
   });
 
   it("fetches a single page when has_more is false", async () => {
-    mockedThings.sync.mockResolvedValue(
+    mockedItems.sync.mockResolvedValue(
       makeSyncPage([ACTION_RECORD, INBOX_RECORD], false),
     );
 
-    const { result } = renderHook(() => useThings(), {
+    const { result } = renderHook(() => useItems(), {
       wrapper: createWrapper(),
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     expect(result.current.data).toHaveLength(2);
-    expect(mockedThings.sync).toHaveBeenCalledTimes(1);
-    expect(mockedThings.sync).toHaveBeenCalledWith({
+    expect(mockedItems.sync).toHaveBeenCalledTimes(1);
+    expect(mockedItems.sync).toHaveBeenCalledWith({
       limit: 5000,
       cursor: undefined,
       completed: "false",
@@ -191,7 +191,7 @@ describe("useThings — cursor-based sync", () => {
   });
 
   it("paginates through multiple pages using cursors", async () => {
-    mockedThings.sync
+    mockedItems.sync
       .mockResolvedValueOnce(
         makeSyncPage([ACTION_RECORD], true, "cursor-page-2"),
       )
@@ -200,25 +200,25 @@ describe("useThings — cursor-based sync", () => {
       )
       .mockResolvedValueOnce(makeSyncPage([PROJECT_RECORD], false));
 
-    const { result } = renderHook(() => useThings(), {
+    const { result } = renderHook(() => useItems(), {
       wrapper: createWrapper(),
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     expect(result.current.data).toHaveLength(3);
-    expect(mockedThings.sync).toHaveBeenCalledTimes(3);
-    expect(mockedThings.sync).toHaveBeenNthCalledWith(1, {
+    expect(mockedItems.sync).toHaveBeenCalledTimes(3);
+    expect(mockedItems.sync).toHaveBeenNthCalledWith(1, {
       limit: 5000,
       cursor: undefined,
       completed: "false",
     });
-    expect(mockedThings.sync).toHaveBeenNthCalledWith(2, {
+    expect(mockedItems.sync).toHaveBeenNthCalledWith(2, {
       limit: 5000,
       cursor: "cursor-page-2",
       completed: "false",
     });
-    expect(mockedThings.sync).toHaveBeenNthCalledWith(3, {
+    expect(mockedItems.sync).toHaveBeenNthCalledWith(3, {
       limit: 5000,
       cursor: "cursor-page-3",
       completed: "false",
@@ -226,16 +226,16 @@ describe("useThings — cursor-based sync", () => {
   });
 
   it("returns empty array when no items exist", async () => {
-    mockedThings.sync.mockResolvedValue(makeSyncPage([], false));
+    mockedItems.sync.mockResolvedValue(makeSyncPage([], false));
 
-    const { result } = renderHook(() => useThings(), {
+    const { result } = renderHook(() => useItems(), {
       wrapper: createWrapper(),
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     expect(result.current.data).toEqual([]);
-    expect(mockedThings.sync).toHaveBeenCalledTimes(1);
+    expect(mockedItems.sync).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -249,7 +249,7 @@ describe("derived hooks filter by @type", () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
-    mockedThings.sync.mockResolvedValue(makeSyncPage(ALL_RECORDS, false));
+    mockedItems.sync.mockResolvedValue(makeSyncPage(ALL_RECORDS, false));
   });
 
   it("useActions returns only Action items", async () => {
@@ -264,7 +264,7 @@ describe("derived hooks filter by @type", () => {
     expect(result.current.data[0].bucket).toBe("next");
   });
 
-  it("useInboxItems returns only Thing items", async () => {
+  it("useInboxItems returns only ActionItem items", async () => {
     const { result } = renderHook(() => useInboxItems(), {
       wrapper: createWrapper(),
     });

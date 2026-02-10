@@ -30,7 +30,7 @@ class SessionRefreshResponse(BaseModel):
     refresh_expires_at: str
 
 
-class ThingSourceMetadata(BaseModel):
+class ItemSourceMetadata(BaseModel):
     schemaVersion: int = Field(..., description="Metadata schema version.")
     provider: str = Field(..., description="Origin provider name, e.g. nirvana.")
     rawId: str = Field(..., description="Original provider item identifier.")
@@ -235,7 +235,7 @@ class PropertyValueModel(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
-class ThingJsonLdBase(BaseModel):
+class ItemJsonLdBase(BaseModel):
     """Base schema.org JSON-LD model (v2).
 
     Direct schema.org properties live at the top level.
@@ -270,7 +270,7 @@ class ThingJsonLdBase(BaseModel):
         default_factory=list,
         description="App-specific properties as schema.org PropertyValue entries.",
     )
-    sourceMetadata: ThingSourceMetadata | None = Field(
+    sourceMetadata: ItemSourceMetadata | None = Field(
         default=None,
         description="Provider-specific source metadata preserved during imports.",
     )
@@ -278,11 +278,13 @@ class ThingJsonLdBase(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
 
-class ActionThingJsonLd(ThingJsonLdBase):
+class ActionItemJsonLd(ItemJsonLdBase):
     """schema:Action — all action-type items (inbox, next, waiting, calendar, someday)."""
 
     type: Literal["Action", "Thing"] = Field(
-        ..., alias="@type", description="schema.org Action (also accepts legacy 'Thing').",
+        ...,
+        alias="@type",
+        description="schema.org Action (also accepts legacy 'Thing').",
     )
     startTime: str | None = Field(
         default=None,
@@ -294,13 +296,13 @@ class ActionThingJsonLd(ThingJsonLdBase):
     )
 
 
-class ProjectThingJsonLd(ThingJsonLdBase):
+class ProjectItemJsonLd(ItemJsonLdBase):
     """schema:Project — multi-step outcome."""
 
     type: Literal["Project"] = Field(..., alias="@type", description="schema.org Project.")
 
 
-class ReferenceThingJsonLd(ThingJsonLdBase):
+class ReferenceItemJsonLd(ItemJsonLdBase):
     """schema:CreativeWork — reference material."""
 
     type: Literal["CreativeWork"] = Field(
@@ -315,7 +317,7 @@ class ReferenceThingJsonLd(ThingJsonLdBase):
     )
 
 
-class EventThingJsonLd(ThingJsonLdBase):
+class EventItemJsonLd(ItemJsonLdBase):
     """schema:Event — calendar event with date/time/duration."""
 
     type: Literal["Event"] = Field(
@@ -341,8 +343,8 @@ class EventThingJsonLd(ThingJsonLdBase):
     )
 
 
-def _resolve_thing_type(v: Any) -> str:
-    """Custom discriminator for ThingJsonLd union — maps @type to tag."""
+def _resolve_item_type(v: Any) -> str:
+    """Custom discriminator for ItemJsonLd union — maps @type to tag."""
     raw_type = str(
         v.get("@type", v.get("type", "")) if isinstance(v, dict) else getattr(v, "type", "")
     )
@@ -355,16 +357,16 @@ def _resolve_thing_type(v: Any) -> str:
     }.get(raw_type, "action")
 
 
-ThingJsonLd = Annotated[
-    Annotated[ActionThingJsonLd, Tag("action")]
-    | Annotated[ProjectThingJsonLd, Tag("project")]
-    | Annotated[ReferenceThingJsonLd, Tag("creative_work")]
-    | Annotated[EventThingJsonLd, Tag("event")],
-    Discriminator(_resolve_thing_type),
+ItemJsonLd = Annotated[
+    Annotated[ActionItemJsonLd, Tag("action")]
+    | Annotated[ProjectItemJsonLd, Tag("project")]
+    | Annotated[ReferenceItemJsonLd, Tag("creative_work")]
+    | Annotated[EventItemJsonLd, Tag("event")],
+    Discriminator(_resolve_item_type),
 ]
 
 
-class ThingPatchModel(BaseModel):
+class ItemPatchModel(BaseModel):
     """Partial JSON-LD for PATCH deep-merge (v2 schema.org format)."""
 
     id: str | None = Field(default=None, alias="@id", description="Canonical id (immutable).")
@@ -389,40 +391,40 @@ class ThingPatchModel(BaseModel):
     duration: str | None = None
     location: str | None = None
     additionalProperty: list[PropertyValueModel] | None = None
-    sourceMetadata: ThingSourceMetadata | None = None
+    sourceMetadata: ItemSourceMetadata | None = None
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
 
-class ThingCreateRequest(BaseModel):
+class ItemCreateRequest(BaseModel):
     source: str = "manual"
-    thing: ThingJsonLd = Field(..., description="JSON-LD GTD object.")
+    item: ItemJsonLd = Field(..., description="JSON-LD GTD object.")
 
 
-class ThingPatchRequest(BaseModel):
+class ItemPatchRequest(BaseModel):
     source: str | None = None
     name_source: str | None = Field(
         default=None,
         description="Provenance hint for name changes (e.g. 'AI suggested from rawCapture').",
     )
-    thing: ThingPatchModel = Field(
+    item: ItemPatchModel = Field(
         ...,
         description="Partial JSON-LD GTD object to deep-merge.",
     )
 
 
-class ThingResponse(BaseModel):
-    thing_id: str
+class ItemResponse(BaseModel):
+    item_id: str
     canonical_id: str
     source: str
-    thing: ThingJsonLd
+    item: ItemJsonLd
     content_hash: str | None = None
     created_at: str
     updated_at: str
 
 
 class AssertionCreateRequest(BaseModel):
-    thing_id: str
+    item_id: str
     assertion_type: str
     payload: dict[str, Any]
     actor_type: str
@@ -432,7 +434,7 @@ class AssertionCreateRequest(BaseModel):
 
 
 class SyncResponse(BaseModel):
-    items: list[ThingResponse]
+    items: list[ItemResponse]
     next_cursor: str | None = None
     has_more: bool
     server_time: str
@@ -532,6 +534,7 @@ class OrgMemberResponse(BaseModel):
 
 class ImportSource(StrEnum):
     NIRVANA = "nirvana"
+    NATIVE = "native"
 
 
 class ImportJobStatus(StrEnum):
@@ -583,8 +586,8 @@ class NirvanaImportRequest(BaseModel):
 
 class NirvanaImportSummary(BaseModel):
     total: int = Field(..., description="Total number of input items processed.")
-    created: int = Field(..., description="Number of new things created.")
-    updated: int = Field(..., description="Number of existing things updated.")
+    created: int = Field(..., description="Number of new items created.")
+    updated: int = Field(..., description="Number of existing items updated.")
     unchanged: int = Field(0, description="Items with identical content (no update needed).")
     skipped: int = Field(..., description="Number of items skipped (duplicates/filtered).")
     errors: int = Field(..., description="Number of items that failed import.")
@@ -685,6 +688,50 @@ class NirvanaImportFromFileRequest(BaseModel):
     default_bucket: str = Field(
         default="inbox",
         description="Fallback bucket when no state mapping applies.",
+    )
+
+
+class NativeImportInspectRequest(BaseModel):
+    file_id: str = Field(
+        ...,
+        description="Uploaded file identifier returned by `/files/complete`.",
+        examples=["8b9d7e3a-7b8b-4b8d-9b6c-8cf7e6d7d111"],
+    )
+    source: ImportSource = Field(
+        default=ImportSource.NATIVE,
+        description="Import source identifier.",
+    )
+    update_existing: bool = Field(
+        default=True,
+        description="Whether existing records should be updated.",
+    )
+    include_completed: bool = Field(
+        default=True,
+        description="Whether completed items are included in validation/import preview.",
+    )
+
+
+class NativeImportFromFileRequest(BaseModel):
+    file_id: str = Field(
+        ...,
+        description="Uploaded file identifier returned by `/files/complete`.",
+        examples=["8b9d7e3a-7b8b-4b8d-9b6c-8cf7e6d7d111"],
+    )
+    source: ImportSource = Field(
+        default=ImportSource.NATIVE,
+        description="Import source identifier.",
+    )
+    update_existing: bool = Field(
+        default=True,
+        description="Whether existing records should be updated.",
+    )
+    include_completed: bool = Field(
+        default=True,
+        description="Whether completed items should be imported.",
+    )
+    emit_events: bool = Field(
+        default=True,
+        description="Emit outbox events for downstream indexing/notifications.",
     )
 
 

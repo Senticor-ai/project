@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { ThingRow, type ThingRowProps } from "./ThingRow";
-import { createThing } from "@/model/factories";
+import { ActionRow, type ActionRowProps } from "./ActionRow";
+import { createActionItem } from "@/model/factories";
 import { resetFactoryCounter } from "@/model/factories";
 
 // dnd-kit stub
@@ -15,9 +15,9 @@ vi.mock("@dnd-kit/core", () => ({
   }),
 }));
 
-function renderRow(overrides: Partial<ThingRowProps> = {}) {
-  const thing = overrides.thing ?? createThing({ name: "Buy milk" });
-  const props: ThingRowProps = {
+function renderRow(overrides: Partial<ActionRowProps> = {}) {
+  const thing = overrides.thing ?? createActionItem({ name: "Buy milk" });
+  const props: ActionRowProps = {
     thing,
     onComplete: vi.fn(),
     onToggleFocus: vi.fn(),
@@ -25,7 +25,7 @@ function renderRow(overrides: Partial<ThingRowProps> = {}) {
     onArchive: vi.fn(),
     ...overrides,
   };
-  const result = render(<ThingRow {...props} />);
+  const result = render(<ActionRow {...props} />);
   return { ...result, props };
 }
 
@@ -37,29 +37,29 @@ beforeEach(() => {
 // Rendering
 // ---------------------------------------------------------------------------
 
-describe("ThingRow rendering", () => {
+describe("ActionRow rendering", () => {
   it("renders title", () => {
-    renderRow({ thing: createThing({ name: "Call dentist" }) });
+    renderRow({ thing: createActionItem({ name: "Call dentist" }) });
     expect(screen.getByText("Call dentist")).toBeInTheDocument();
   });
 
   it("renders drag handle", () => {
-    renderRow({ thing: createThing({ name: "Task" }) });
+    renderRow({ thing: createActionItem({ name: "Task" }) });
     expect(screen.getByLabelText("Drag Task")).toBeInTheDocument();
   });
 
   it("renders checkbox", () => {
-    renderRow({ thing: createThing({ name: "Task" }) });
+    renderRow({ thing: createActionItem({ name: "Task" }) });
     expect(screen.getByLabelText("Complete Task")).toBeInTheDocument();
   });
 
   it("renders focus star", () => {
-    renderRow({ thing: createThing({ name: "Task" }) });
+    renderRow({ thing: createActionItem({ name: "Task" }) });
     expect(screen.getByLabelText("Focus Task")).toBeInTheDocument();
   });
 
   it("shows strikethrough when completed", () => {
-    const thing = createThing({
+    const thing = createActionItem({
       name: "Done task",
       completedAt: new Date().toISOString(),
     });
@@ -69,13 +69,13 @@ describe("ThingRow rendering", () => {
   });
 
   it("shows filled star when focused", () => {
-    const thing = createThing({ name: "Starred", isFocused: true });
+    const thing = createActionItem({ name: "Starred", isFocused: true });
     renderRow({ thing });
     expect(screen.getByLabelText("Unfocus Starred")).toBeInTheDocument();
   });
 
   it("shows source subtitle for non-thought sources", () => {
-    const thing = createThing({
+    const thing = createActionItem({
       name: "Follow-up",
       captureSource: { kind: "email", subject: "Re: meeting" },
     });
@@ -84,36 +84,37 @@ describe("ThingRow rendering", () => {
   });
 
   it("does not show subtitle for thought sources", () => {
-    renderRow({ thing: createThing({ name: "Thought" }) });
+    renderRow({ thing: createActionItem({ name: "Thought" }) });
     expect(screen.queryByText(/via /)).not.toBeInTheDocument();
   });
 
   it("shows note indicator when expanded and notes exist", () => {
-    const thing = createThing({ name: "Task", description: "Some notes" });
-    renderRow({ thing, isExpanded: true, onToggleExpand: vi.fn(), onEdit: vi.fn() });
+    const thing = createActionItem({ name: "Task", description: "Some notes" });
+    renderRow({
+      thing,
+      isExpanded: true,
+      onToggleExpand: vi.fn(),
+      onEdit: vi.fn(),
+    });
     expect(screen.getByLabelText("Hide notes for Task")).toBeInTheDocument();
   });
 
   it("hides note indicator when collapsed (notes preview shown instead)", () => {
-    const thing = createThing({ name: "Task", description: "Some notes" });
+    const thing = createActionItem({ name: "Task", description: "Some notes" });
     renderRow({ thing });
-    expect(
-      screen.queryByLabelText(/notes for Task/i),
-    ).toBeInTheDocument(); // notes preview button is visible
+    expect(screen.queryByLabelText(/notes for Task/i)).toBeInTheDocument(); // notes preview button is visible
     expect(
       screen.queryByLabelText("Hide notes for Task"),
     ).not.toBeInTheDocument(); // but not the icon
   });
 
   it("hides note indicator when no notes", () => {
-    renderRow({ thing: createThing({ name: "Task" }) });
-    expect(
-      screen.queryByLabelText(/notes for Task/i),
-    ).not.toBeInTheDocument();
+    renderRow({ thing: createActionItem({ name: "Task" }) });
+    expect(screen.queryByLabelText(/notes for Task/i)).not.toBeInTheDocument();
   });
 
   it("shows due date when set", () => {
-    const thing = createThing({
+    const thing = createActionItem({
       name: "Task",
       bucket: "next",
       dueDate: "2099-12-31",
@@ -123,7 +124,7 @@ describe("ThingRow rendering", () => {
   });
 
   it("shows overdue styling for past due dates", () => {
-    const thing = createThing({
+    const thing = createActionItem({
       name: "Task",
       bucket: "next",
       dueDate: "2020-01-01",
@@ -134,13 +135,13 @@ describe("ThingRow rendering", () => {
   });
 
   it("shows bucket badge when showBucket is true", () => {
-    const thing = createThing({ name: "Task", bucket: "next" });
+    const thing = createActionItem({ name: "Task", bucket: "next" });
     renderRow({ thing, showBucket: true });
     expect(screen.getByText("Next")).toBeInTheDocument();
   });
 
   it("hides bucket badge by default", () => {
-    const thing = createThing({ name: "Task", bucket: "next" });
+    const thing = createActionItem({ name: "Task", bucket: "next" });
     renderRow({ thing });
     // "Next" text should only not be in the main row (it may be in the menu)
     // Check for BucketBadge specifically — it has a specific className
@@ -153,7 +154,7 @@ describe("ThingRow rendering", () => {
 
   it("title button has aria-expanded when expandable", () => {
     renderRow({
-      thing: createThing({ name: "Task" }),
+      thing: createActionItem({ name: "Task" }),
       onToggleExpand: vi.fn(),
     });
     expect(screen.getByRole("button", { name: "Task" })).toHaveAttribute(
@@ -164,7 +165,7 @@ describe("ThingRow rendering", () => {
 
   it("title button has aria-expanded=true when expanded", () => {
     renderRow({
-      thing: createThing({ name: "Task" }),
+      thing: createActionItem({ name: "Task" }),
       isExpanded: true,
       onToggleExpand: vi.fn(),
       onEdit: vi.fn(),
@@ -176,7 +177,7 @@ describe("ThingRow rendering", () => {
   });
 
   it("title button omits aria-expanded when not expandable", () => {
-    renderRow({ thing: createThing({ name: "Task" }) });
+    renderRow({ thing: createActionItem({ name: "Task" }) });
     expect(screen.getByRole("button", { name: "Task" })).not.toHaveAttribute(
       "aria-expanded",
     );
@@ -184,14 +185,14 @@ describe("ThingRow rendering", () => {
 
   it("shows edit button when onToggleExpand provided", () => {
     renderRow({
-      thing: createThing({ name: "Task" }),
+      thing: createActionItem({ name: "Task" }),
       onToggleExpand: vi.fn(),
     });
     expect(screen.getByLabelText("Edit Task")).toBeInTheDocument();
   });
 
   it("hides edit button when onToggleExpand not provided", () => {
-    renderRow({ thing: createThing({ name: "Task" }) });
+    renderRow({ thing: createActionItem({ name: "Task" }) });
     expect(screen.queryByLabelText("Edit Task")).not.toBeInTheDocument();
   });
 });
@@ -200,17 +201,17 @@ describe("ThingRow rendering", () => {
 // Notes preview
 // ---------------------------------------------------------------------------
 
-describe("ThingRow notes preview", () => {
+describe("ActionRow notes preview", () => {
   it("shows notes preview when collapsed and description exists", () => {
     renderRow({
-      thing: createThing({ name: "Task", description: "Some notes here" }),
+      thing: createActionItem({ name: "Task", description: "Some notes here" }),
     });
     expect(screen.getByText("Some notes here")).toBeInTheDocument();
   });
 
   it("hides notes preview when expanded", () => {
     renderRow({
-      thing: createThing({ name: "Task", description: "Some notes here" }),
+      thing: createActionItem({ name: "Task", description: "Some notes here" }),
       isExpanded: true,
       onToggleExpand: vi.fn(),
       onEdit: vi.fn(),
@@ -222,7 +223,7 @@ describe("ThingRow notes preview", () => {
   });
 
   it("hides notes preview when no description", () => {
-    renderRow({ thing: createThing({ name: "Task" }) });
+    renderRow({ thing: createActionItem({ name: "Task" }) });
     expect(screen.queryByLabelText(/Notes for/)).not.toBeInTheDocument();
   });
 
@@ -230,7 +231,7 @@ describe("ThingRow notes preview", () => {
     const user = userEvent.setup();
     const onToggleExpand = vi.fn();
     renderRow({
-      thing: createThing({ name: "Task", description: "Some notes here" }),
+      thing: createActionItem({ name: "Task", description: "Some notes here" }),
       onToggleExpand,
     });
     await user.click(screen.getByLabelText("Notes for Task"));
@@ -238,9 +239,12 @@ describe("ThingRow notes preview", () => {
   });
 
   it("applies line-clamp to long notes", () => {
-    const longNotes = Array.from({ length: 15 }, (_, i) => `Line ${i + 1}`).join("\n");
+    const longNotes = Array.from(
+      { length: 15 },
+      (_, i) => `Line ${i + 1}`,
+    ).join("\n");
     renderRow({
-      thing: createThing({ name: "Task", description: longNotes }),
+      thing: createActionItem({ name: "Task", description: longNotes }),
     });
     const preview = screen.getByLabelText("Notes for Task");
     expect(preview).toHaveClass("line-clamp-[10]");
@@ -251,11 +255,11 @@ describe("ThingRow notes preview", () => {
 // Interactions
 // ---------------------------------------------------------------------------
 
-describe("ThingRow interactions", () => {
+describe("ActionRow interactions", () => {
   it("calls onComplete when checkbox clicked", async () => {
     const user = userEvent.setup();
     const { props } = renderRow({
-      thing: createThing({ name: "Task" }),
+      thing: createActionItem({ name: "Task" }),
     });
     await user.click(screen.getByLabelText("Complete Task"));
     expect(props.onComplete).toHaveBeenCalledWith(props.thing.id);
@@ -264,7 +268,7 @@ describe("ThingRow interactions", () => {
   it("calls onToggleFocus when star clicked", async () => {
     const user = userEvent.setup();
     const { props } = renderRow({
-      thing: createThing({ name: "Task" }),
+      thing: createActionItem({ name: "Task" }),
     });
     await user.click(screen.getByLabelText("Focus Task"));
     expect(props.onToggleFocus).toHaveBeenCalledWith(props.thing.id);
@@ -274,7 +278,7 @@ describe("ThingRow interactions", () => {
     const user = userEvent.setup();
     const onToggleExpand = vi.fn();
     renderRow({
-      thing: createThing({ name: "Task" }),
+      thing: createActionItem({ name: "Task" }),
       onToggleExpand,
     });
     await user.click(screen.getByText("Task"));
@@ -285,7 +289,7 @@ describe("ThingRow interactions", () => {
     const user = userEvent.setup();
     const onToggleExpand = vi.fn();
     renderRow({
-      thing: createThing({ name: "Task" }),
+      thing: createActionItem({ name: "Task" }),
       onToggleExpand,
     });
     await user.click(screen.getByLabelText("Edit Task"));
@@ -296,7 +300,7 @@ describe("ThingRow interactions", () => {
     const user = userEvent.setup();
     const onToggleExpand = vi.fn();
     renderRow({
-      thing: createThing({ name: "Task", description: "Details" }),
+      thing: createActionItem({ name: "Task", description: "Details" }),
       onToggleExpand,
     });
     await user.click(screen.getByLabelText("Notes for Task"));
@@ -308,17 +312,17 @@ describe("ThingRow interactions", () => {
 // Move menu
 // ---------------------------------------------------------------------------
 
-describe("ThingRow move menu", () => {
+describe("ActionRow move menu", () => {
   it("opens move menu on click", async () => {
     const user = userEvent.setup();
-    renderRow({ thing: createThing({ name: "Task", bucket: "next" }) });
+    renderRow({ thing: createActionItem({ name: "Task", bucket: "next" }) });
     await user.click(screen.getByLabelText("Move Task"));
     expect(screen.getByRole("menu")).toBeInTheDocument();
   });
 
   it("excludes current bucket from menu", async () => {
     const user = userEvent.setup();
-    renderRow({ thing: createThing({ name: "Task", bucket: "next" }) });
+    renderRow({ thing: createActionItem({ name: "Task", bucket: "next" }) });
     await user.click(screen.getByLabelText("Move Task"));
     const menu = screen.getByRole("menu");
     expect(within(menu).queryByText("Move to Next")).not.toBeInTheDocument();
@@ -329,7 +333,7 @@ describe("ThingRow move menu", () => {
   it("calls onMove when menu item clicked", async () => {
     const user = userEvent.setup();
     const { props } = renderRow({
-      thing: createThing({ name: "Task", bucket: "next" }),
+      thing: createActionItem({ name: "Task", bucket: "next" }),
     });
     await user.click(screen.getByLabelText("Move Task"));
     await user.click(screen.getByText("Move to Someday"));
@@ -339,7 +343,7 @@ describe("ThingRow move menu", () => {
   it("calls onArchive from menu", async () => {
     const user = userEvent.setup();
     const { props } = renderRow({
-      thing: createThing({ name: "Task", bucket: "next" }),
+      thing: createActionItem({ name: "Task", bucket: "next" }),
     });
     await user.click(screen.getByLabelText("Move Task"));
     await user.click(screen.getByText("Archive"));
@@ -348,7 +352,7 @@ describe("ThingRow move menu", () => {
 
   it("closes menu after selection", async () => {
     const user = userEvent.setup();
-    renderRow({ thing: createThing({ name: "Task", bucket: "next" }) });
+    renderRow({ thing: createActionItem({ name: "Task", bucket: "next" }) });
     await user.click(screen.getByLabelText("Move Task"));
     await user.click(screen.getByText("Move to Someday"));
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
@@ -359,10 +363,10 @@ describe("ThingRow move menu", () => {
 // Expanded state
 // ---------------------------------------------------------------------------
 
-describe("ThingRow expanded", () => {
+describe("ActionRow expanded", () => {
   it("shows ItemEditor when expanded and onEdit provided", () => {
     renderRow({
-      thing: createThing({ name: "Task", bucket: "next" }),
+      thing: createActionItem({ name: "Task", bucket: "next" }),
       isExpanded: true,
       onEdit: vi.fn(),
       onToggleExpand: vi.fn(),
@@ -373,7 +377,7 @@ describe("ThingRow expanded", () => {
   it("hides ItemEditor behind More options toggle for inbox items", async () => {
     const user = userEvent.setup();
     renderRow({
-      thing: createThing({ name: "Inbox task", bucket: "inbox" }),
+      thing: createActionItem({ name: "Inbox task", bucket: "inbox" }),
       isExpanded: true,
       onEdit: vi.fn(),
       onToggleExpand: vi.fn(),
@@ -389,7 +393,7 @@ describe("ThingRow expanded", () => {
 
   it("hides ItemEditor when collapsed", () => {
     renderRow({
-      thing: createThing({ name: "Task" }),
+      thing: createActionItem({ name: "Task" }),
       isExpanded: false,
       onEdit: vi.fn(),
     });
@@ -398,7 +402,7 @@ describe("ThingRow expanded", () => {
 
   it("shows triage buttons when expanded and bucket is inbox", () => {
     renderRow({
-      thing: createThing({ name: "Inbox task", bucket: "inbox" }),
+      thing: createActionItem({ name: "Inbox task", bucket: "inbox" }),
       isExpanded: true,
       onToggleExpand: vi.fn(),
     });
@@ -412,7 +416,7 @@ describe("ThingRow expanded", () => {
 
   it("hides triage buttons for non-inbox buckets", () => {
     renderRow({
-      thing: createThing({ name: "Action", bucket: "next" }),
+      thing: createActionItem({ name: "Action", bucket: "next" }),
       isExpanded: true,
       onEdit: vi.fn(),
       onToggleExpand: vi.fn(),
@@ -423,7 +427,7 @@ describe("ThingRow expanded", () => {
   it("calls onMove when triage button clicked", async () => {
     const user = userEvent.setup();
     const { props } = renderRow({
-      thing: createThing({ name: "Inbox task", bucket: "inbox" }),
+      thing: createActionItem({ name: "Inbox task", bucket: "inbox" }),
       isExpanded: true,
       onToggleExpand: vi.fn(),
     });
@@ -434,7 +438,7 @@ describe("ThingRow expanded", () => {
   it("calls onArchive from triage archive button", async () => {
     const user = userEvent.setup();
     const { props } = renderRow({
-      thing: createThing({ name: "Inbox task", bucket: "inbox" }),
+      thing: createActionItem({ name: "Inbox task", bucket: "inbox" }),
       isExpanded: true,
       onToggleExpand: vi.fn(),
     });
@@ -447,10 +451,10 @@ describe("ThingRow expanded", () => {
 // Title editing
 // ---------------------------------------------------------------------------
 
-describe("ThingRow title collapse", () => {
+describe("ActionRow title collapse", () => {
   it("title is a button when expanded but not editing", () => {
     renderRow({
-      thing: createThing({ name: "Task" }),
+      thing: createActionItem({ name: "Task" }),
       isExpanded: true,
       onToggleExpand: vi.fn(),
       onEdit: vi.fn(),
@@ -463,7 +467,7 @@ describe("ThingRow title collapse", () => {
   it("clicking title when expanded enters title editing", async () => {
     const user = userEvent.setup();
     renderRow({
-      thing: createThing({ name: "Task" }),
+      thing: createActionItem({ name: "Task" }),
       isExpanded: true,
       onToggleExpand: vi.fn(),
       onEdit: vi.fn(),
@@ -477,7 +481,7 @@ describe("ThingRow title collapse", () => {
     const user = userEvent.setup();
     const onToggleExpand = vi.fn();
     renderRow({
-      thing: createThing({ name: "Task" }),
+      thing: createActionItem({ name: "Task" }),
       isExpanded: true,
       onToggleExpand,
       onEdit: vi.fn(),
@@ -487,9 +491,9 @@ describe("ThingRow title collapse", () => {
   });
 
   it("title editing resets when row collapses", () => {
-    const thing = createThing({ name: "Task" });
+    const thing = createActionItem({ name: "Task" });
     const { rerender } = render(
-      <ThingRow
+      <ActionRow
         thing={thing}
         onComplete={vi.fn()}
         onToggleFocus={vi.fn()}
@@ -503,7 +507,7 @@ describe("ThingRow title collapse", () => {
     );
     // Re-render collapsed then expanded again
     rerender(
-      <ThingRow
+      <ActionRow
         thing={thing}
         onComplete={vi.fn()}
         onToggleFocus={vi.fn()}
@@ -516,7 +520,7 @@ describe("ThingRow title collapse", () => {
       />,
     );
     rerender(
-      <ThingRow
+      <ActionRow
         thing={thing}
         onComplete={vi.fn()}
         onToggleFocus={vi.fn()}
@@ -534,11 +538,11 @@ describe("ThingRow title collapse", () => {
   });
 });
 
-describe("ThingRow title editing", () => {
+describe("ActionRow title editing", () => {
   it("saves title on Enter", async () => {
     const user = userEvent.setup();
     const onUpdateTitle = vi.fn();
-    const thing = createThing({ name: "Old title" });
+    const thing = createActionItem({ name: "Old title" });
     renderRow({
       thing,
       isExpanded: true,
@@ -556,7 +560,7 @@ describe("ThingRow title editing", () => {
 
   it("exits title editing on blur", async () => {
     const user = userEvent.setup();
-    const thing = createThing({ name: "Blur test" });
+    const thing = createActionItem({ name: "Blur test" });
     renderRow({
       thing,
       isExpanded: true,
@@ -570,7 +574,9 @@ describe("ThingRow title editing", () => {
     await user.tab();
     // Title should revert to a button
     expect(screen.queryByDisplayValue("Blur test")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Blur test" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Blur test" }),
+    ).toBeInTheDocument();
   });
 
   it("reverts title on Escape", async () => {
@@ -578,7 +584,7 @@ describe("ThingRow title editing", () => {
     const onUpdateTitle = vi.fn();
     const onToggleExpand = vi.fn();
     renderRow({
-      thing: createThing({ name: "Original" }),
+      thing: createActionItem({ name: "Original" }),
       isExpanded: true,
       onToggleExpand,
       onUpdateTitle,
@@ -597,11 +603,11 @@ describe("ThingRow title editing", () => {
 // Calendar triage date picker
 // ---------------------------------------------------------------------------
 
-describe("ThingRow calendar triage", () => {
+describe("ActionRow calendar triage", () => {
   it("shows date picker instead of moving when Calendar clicked", async () => {
     const user = userEvent.setup();
     const { props } = renderRow({
-      thing: createThing({ name: "Schedule me", bucket: "inbox" }),
+      thing: createActionItem({ name: "Schedule me", bucket: "inbox" }),
       isExpanded: true,
       onToggleExpand: vi.fn(),
       onEdit: vi.fn(),
@@ -616,7 +622,7 @@ describe("ThingRow calendar triage", () => {
     const user = userEvent.setup();
     const onEdit = vi.fn();
     const onMove = vi.fn();
-    const thing = createThing({ name: "Schedule me", bucket: "inbox" });
+    const thing = createActionItem({ name: "Schedule me", bucket: "inbox" });
     renderRow({
       thing,
       isExpanded: true,
@@ -638,7 +644,7 @@ describe("ThingRow calendar triage", () => {
   it("dismisses date picker on Escape", async () => {
     const user = userEvent.setup();
     renderRow({
-      thing: createThing({ name: "Schedule me", bucket: "inbox" }),
+      thing: createActionItem({ name: "Schedule me", bucket: "inbox" }),
       isExpanded: true,
       onToggleExpand: vi.fn(),
       onEdit: vi.fn(),
@@ -652,7 +658,7 @@ describe("ThingRow calendar triage", () => {
   it("dismisses date picker on Cancel click", async () => {
     const user = userEvent.setup();
     renderRow({
-      thing: createThing({ name: "Schedule me", bucket: "inbox" }),
+      thing: createActionItem({ name: "Schedule me", bucket: "inbox" }),
       isExpanded: true,
       onToggleExpand: vi.fn(),
       onEdit: vi.fn(),
@@ -663,7 +669,7 @@ describe("ThingRow calendar triage", () => {
   });
 
   it("resets date picker when row collapses", () => {
-    const thing = createThing({ name: "Schedule me", bucket: "inbox" });
+    const thing = createActionItem({ name: "Schedule me", bucket: "inbox" });
     const baseProps = {
       thing,
       onComplete: vi.fn(),
@@ -673,18 +679,18 @@ describe("ThingRow calendar triage", () => {
       onToggleExpand: vi.fn(),
       onEdit: vi.fn(),
     };
-    const { rerender } = render(<ThingRow {...baseProps} isExpanded={true} />);
+    const { rerender } = render(<ActionRow {...baseProps} isExpanded={true} />);
 
     // Collapse then re-expand — picker should be gone
-    rerender(<ThingRow {...baseProps} isExpanded={false} />);
-    rerender(<ThingRow {...baseProps} isExpanded={true} />);
+    rerender(<ActionRow {...baseProps} isExpanded={false} />);
+    rerender(<ActionRow {...baseProps} isExpanded={true} />);
     expect(screen.queryByLabelText("Schedule date")).not.toBeInTheDocument();
   });
 
   it("other triage buttons still move immediately", async () => {
     const user = userEvent.setup();
     const { props } = renderRow({
-      thing: createThing({ name: "Quick triage", bucket: "inbox" }),
+      thing: createActionItem({ name: "Quick triage", bucket: "inbox" }),
       isExpanded: true,
       onToggleExpand: vi.fn(),
     });

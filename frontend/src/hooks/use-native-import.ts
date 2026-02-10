@@ -6,7 +6,7 @@ import { useFileUpload } from "./use-file-upload";
 import { ITEMS_QUERY_KEY } from "./use-items";
 import { IMPORT_JOBS_QUERY_KEY } from "./use-import-jobs";
 
-export function useNirvanaImport() {
+export function useNativeImport() {
   const qc = useQueryClient();
   const upload = useFileUpload();
   const [jobId, setJobId] = useState<string | null>(null);
@@ -17,7 +17,7 @@ export function useNirvanaImport() {
     { fileId: string; includeCompleted: boolean }
   >({
     mutationFn: (params) =>
-      ImportsApi.inspectNirvana({
+      ImportsApi.inspectNative({
         file_id: params.fileId,
         include_completed: params.includeCompleted,
       }),
@@ -29,13 +29,11 @@ export function useNirvanaImport() {
     { fileId: string; includeCompleted: boolean }
   >({
     mutationFn: (params) =>
-      ImportsApi.importNirvanaFromFile({
+      ImportsApi.importNativeFromFile({
         file_id: params.fileId,
         include_completed: params.includeCompleted,
       }),
     onSuccess: () => {
-      // Immediately refresh import jobs list so the settings page picks up
-      // the new job even if the dialog is closed before polling completes.
       qc.invalidateQueries({ queryKey: IMPORT_JOBS_QUERY_KEY });
     },
   });
@@ -58,7 +56,6 @@ export function useNirvanaImport() {
 
   useEffect(() => {
     if (jobStatus === "running") {
-      // Periodically refetch so items appear incrementally
       qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
       const id = setInterval(() => {
         qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });

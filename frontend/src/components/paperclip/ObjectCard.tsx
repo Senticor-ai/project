@@ -3,11 +3,7 @@ import { cn } from "@/lib/utils";
 import { BucketBadge } from "./BucketBadge";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { AttachmentChip } from "./AttachmentChip";
-import type {
-  Bucket,
-  ConfidenceLevel,
-  TypedReference,
-} from "@/model/types";
+import type { Bucket, ConfidenceLevel, TypedReference } from "@/model/types";
 
 export interface ObjectCardProps {
   title: string;

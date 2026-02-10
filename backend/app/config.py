@@ -69,7 +69,7 @@ class Settings:
     fuseki_password: str | None
     meili_url: str | None
     meili_api_key: str | None
-    meili_index_things: str
+    meili_index_items: str
     meili_index_files: str
     meili_index_files_enabled: bool
     meili_timeout_seconds: float
@@ -174,7 +174,7 @@ def load_settings() -> Settings:
         fuseki_password=_get_env("FUSEKI_PASSWORD"),
         meili_url=_get_env("MEILI_URL"),
         meili_api_key=_get_env("MEILI_API_KEY"),
-        meili_index_things=_get_env("MEILI_INDEX_THINGS", "things") or "things",
+        meili_index_items=_get_env("MEILI_INDEX_ITEMS", "items") or "items",
         meili_index_files=_get_env("MEILI_INDEX_FILES", "files") or "files",
         meili_index_files_enabled=_get_bool_env("MEILI_INDEX_FILES_ENABLED", False),
         meili_timeout_seconds=float(_get_env("MEILI_TIMEOUT_SECONDS", "5") or "5"),

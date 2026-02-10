@@ -44,7 +44,7 @@ def create_assertion(
                 """
                 INSERT INTO assertions (
                     org_id,
-                    thing_id,
+                    item_id,
                     assertion_type,
                     payload_json,
                     actor_type,
@@ -52,9 +52,9 @@ def create_assertion(
                     otel_trace_id,
                     supersedes_assertion_id
                 )
-                SELECT %s, t.thing_id, %s, %s, %s, %s, %s, %s
-                FROM things t
-                WHERE t.thing_id = %s AND t.org_id = %s
+                SELECT %s, t.item_id, %s, %s, %s, %s, %s, %s
+                FROM items t
+                WHERE t.item_id = %s AND t.org_id = %s
                 RETURNING assertion_id
                 """,
                 (
@@ -65,7 +65,7 @@ def create_assertion(
                     payload.actor_id,
                     payload.otel_trace_id,
                     payload.supersedes_assertion_id,
-                    payload.thing_id,
+                    payload.item_id,
                     org_id,
                 ),
             )
@@ -73,7 +73,7 @@ def create_assertion(
             if row is None:
                 raise HTTPException(
                     status_code=404,
-                    detail="Thing not found",
+                    detail="Item not found",
                 )
         conn.commit()
 
@@ -81,7 +81,7 @@ def create_assertion(
         "assertion_created",
         {
             "assertion_id": str(row["assertion_id"]),
-            "thing_id": payload.thing_id,
+            "item_id": payload.item_id,
             "org_id": org_id,
         },
     )

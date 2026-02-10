@@ -3,13 +3,13 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
 import { BucketView } from "./BucketView";
 import type {
-  Thing,
-  ThingBucket,
+  ActionItem,
+  ActionItemBucket,
   Project,
   ReferenceMaterial,
 } from "@/model/types";
 import {
-  createThing,
+  createActionItem,
   createProject,
   createReferenceMaterial,
   resetFactoryCounter,
@@ -23,54 +23,57 @@ const sampleProjects = [
   createProject({ name: "Q1 Planning", desiredOutcome: "Q1 goals defined" }),
 ];
 
-const sampleThings: Thing[] = [
-  createThing({ rawCapture: "Buy groceries for the week", bucket: "inbox" }),
-  createThing({
+const sampleItems: ActionItem[] = [
+  createActionItem({
+    rawCapture: "Buy groceries for the week",
+    bucket: "inbox",
+  }),
+  createActionItem({
     rawCapture: "Call client about Q1 proposal",
     bucket: "inbox",
   }),
-  createThing({
+  createActionItem({
     rawCapture: "Draft project brief for redesign",
     bucket: "inbox",
   }),
-  createThing({
+  createActionItem({
     rawCapture: "Review team performance reports",
     bucket: "next",
     isFocused: true,
   }),
-  createThing({
+  createActionItem({
     rawCapture: "Submit expense report",
     bucket: "next",
     dueDate: "2026-02-14",
   }),
-  createThing({ rawCapture: "Follow up with vendor", bucket: "waiting" }),
-  createThing({ rawCapture: "Plan team offsite", bucket: "someday" }),
-  createThing({
+  createActionItem({ rawCapture: "Follow up with vendor", bucket: "waiting" }),
+  createActionItem({ rawCapture: "Plan team offsite", bucket: "someday" }),
+  createActionItem({
     rawCapture: "Quarterly review meeting",
     bucket: "calendar",
     dueDate: "2026-03-01",
   }),
   // Project-linked actions
-  createThing({
+  createActionItem({
     rawCapture: "Finalize brand guidelines",
     bucket: "next",
     projectId: sampleProjects[0].id,
     sequenceOrder: 1,
     completedAt: "2026-01-20T10:00:00Z",
   }),
-  createThing({
+  createActionItem({
     rawCapture: "Design homepage wireframes",
     bucket: "next",
     projectId: sampleProjects[0].id,
     sequenceOrder: 2,
   }),
-  createThing({
+  createActionItem({
     rawCapture: "Implement responsive layout",
     bucket: "next",
     projectId: sampleProjects[0].id,
     sequenceOrder: 3,
   }),
-  createThing({
+  createActionItem({
     rawCapture: "Define Q1 OKRs",
     bucket: "next",
     projectId: sampleProjects[1].id,
@@ -101,51 +104,51 @@ const sampleRefs: ReferenceMaterial[] = [
 // ---------------------------------------------------------------------------
 
 function StatefulBucketView({
-  initialThings = [],
+  initialItems = [],
   initialRefs = [],
   initialBucket = "inbox",
   projects = [],
 }: {
-  initialThings?: Thing[];
+  initialItems?: ActionItem[];
   initialRefs?: ReferenceMaterial[];
   initialBucket?: string;
   projects?: Project[];
 }) {
-  const [things, setThings] = useState<Thing[]>(initialThings);
+  const [items, setItems] = useState<ActionItem[]>(initialItems);
   const [refs, setRefs] = useState<ReferenceMaterial[]>(initialRefs);
   const [bucket, setBucket] = useState<string>(initialBucket);
 
   return (
     <BucketView
-      activeBucket={bucket as ThingBucket}
+      activeBucket={bucket as ActionItemBucket}
       onBucketChange={(b) => setBucket(b)}
-      things={things}
+      actionItems={items}
       referenceItems={refs}
       projects={projects}
-      onAddThing={(title, bucket) => {
-        setThings((prev) => [
+      onAddActionItem={(title, bucket) => {
+        setItems((prev) => [
           ...prev,
-          createThing({ rawCapture: title, bucket }),
+          createActionItem({ rawCapture: title, bucket }),
         ]);
       }}
-      onCompleteThing={(id) => {
+      onCompleteActionItem={(id) => {
         // In production, completing removes from the active query results
-        setThings((prev) => prev.filter((t) => t.id !== id));
+        setItems((prev) => prev.filter((t) => t.id !== id));
       }}
       onToggleFocus={(id) => {
-        setThings((prev) =>
+        setItems((prev) =>
           prev.map((t) =>
             t.id === id ? { ...t, isFocused: !t.isFocused } : t,
           ),
         );
       }}
-      onMoveThing={(id, bucket) => {
-        setThings((prev) =>
+      onMoveActionItem={(id, bucket) => {
+        setItems((prev) =>
           prev.map((t) => (t.id === id ? { ...t, bucket } : t)),
         );
       }}
-      onArchiveThing={(id) => {
-        setThings((prev) => prev.filter((t) => t.id !== id));
+      onArchiveActionItem={(id) => {
+        setItems((prev) => prev.filter((t) => t.id !== id));
       }}
       onAddReference={(title) => {
         setRefs((prev) => [
@@ -169,18 +172,18 @@ function StatefulBucketView({
         );
       }}
       onAddProjectAction={(projectId: CanonicalId, title: string) => {
-        setThings((prev) => [
+        setItems((prev) => [
           ...prev,
-          createThing({ rawCapture: title, bucket: "next", projectId }),
+          createActionItem({ rawCapture: title, bucket: "next", projectId }),
         ]);
       }}
       onUpdateTitle={(id, newTitle) => {
-        setThings((prev) =>
+        setItems((prev) =>
           prev.map((t) => (t.id === id ? { ...t, name: newTitle } : t)),
         );
       }}
-      onEditThing={(id, fields) => {
-        setThings((prev) =>
+      onEditActionItem={(id, fields) => {
+        setItems((prev) =>
           prev.map((t) => (t.id === id ? { ...t, ...fields } : t)),
         );
       }}
@@ -214,7 +217,7 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
   render: () => (
     <StatefulBucketView
-      initialThings={[...sampleThings]}
+      initialItems={[...sampleItems]}
       initialRefs={[...sampleRefs]}
       projects={sampleProjects}
     />
@@ -224,7 +227,7 @@ export const Default: Story = {
 export const EmptyInbox: Story = {
   render: () => (
     <StatefulBucketView
-      initialThings={sampleThings.filter((t) => t.bucket !== "inbox")}
+      initialItems={sampleItems.filter((t) => t.bucket !== "inbox")}
       initialRefs={[...sampleRefs]}
     />
   ),
@@ -247,7 +250,7 @@ export const ReferenceView: Story = {
 export const NavigateBuckets: Story = {
   render: () => (
     <StatefulBucketView
-      initialThings={[...sampleThings]}
+      initialItems={[...sampleItems]}
       initialRefs={[...sampleRefs]}
       projects={sampleProjects}
     />
@@ -304,8 +307,8 @@ export const NavigateBuckets: Story = {
 export const InboxToNext: Story = {
   render: () => (
     <StatefulBucketView
-      initialThings={[
-        createThing({
+      initialItems={[
+        createActionItem({
           rawCapture: "Write quarterly report",
           bucket: "inbox",
         }),
@@ -342,9 +345,9 @@ export const InboxToNext: Story = {
 export const CompleteFromNext: Story = {
   render: () => (
     <StatefulBucketView
-      initialThings={[
-        createThing({ rawCapture: "Task to complete", bucket: "next" }),
-        createThing({ rawCapture: "Task to keep", bucket: "next" }),
+      initialItems={[
+        createActionItem({ rawCapture: "Task to complete", bucket: "next" }),
+        createActionItem({ rawCapture: "Task to keep", bucket: "next" }),
       ]}
       initialBucket="next"
     />
@@ -368,9 +371,9 @@ export const CompleteFromNext: Story = {
 export const FocusStar: Story = {
   render: () => (
     <StatefulBucketView
-      initialThings={[
-        createThing({ rawCapture: "Important task", bucket: "next" }),
-        createThing({ rawCapture: "Regular task", bucket: "next" }),
+      initialItems={[
+        createActionItem({ rawCapture: "Important task", bucket: "next" }),
+        createActionItem({ rawCapture: "Regular task", bucket: "next" }),
       ]}
       initialBucket="next"
     />
@@ -395,29 +398,29 @@ export const FocusStar: Story = {
   },
 };
 
-/** Drag a thing's handle to a sidebar bucket to move it. Manual interaction only. */
+/** Drag an item's handle to a sidebar bucket to move it. Manual interaction only. */
 export const DragToSomeday: Story = {
   render: () => (
     <StatefulBucketView
-      initialThings={[
-        createThing({ rawCapture: "Drag me to Someday", bucket: "next" }),
-        createThing({ rawCapture: "Stay in Next", bucket: "next" }),
+      initialItems={[
+        createActionItem({ rawCapture: "Drag me to Someday", bucket: "next" }),
+        createActionItem({ rawCapture: "Stay in Next", bucket: "next" }),
       ]}
       initialBucket="next"
     />
   ),
 };
 
-/** Drag an inbox thing to a sidebar bucket to move it. Manual interaction only. */
+/** Drag an inbox item to a sidebar bucket to move it. Manual interaction only. */
 export const DragInboxToBucket: Story = {
   render: () => (
     <StatefulBucketView
-      initialThings={[
-        createThing({
+      initialItems={[
+        createActionItem({
           rawCapture: "Drag me to Next Actions",
           bucket: "inbox",
         }),
-        createThing({
+        createActionItem({
           rawCapture: "Drag me to Someday",
           bucket: "inbox",
         }),
@@ -483,7 +486,7 @@ export const FullWorkflow: Story = {
 export const ProjectsView: Story = {
   render: () => (
     <StatefulBucketView
-      initialThings={[...sampleThings]}
+      initialItems={[...sampleItems]}
       initialRefs={[...sampleRefs]}
       projects={sampleProjects}
       initialBucket="project"

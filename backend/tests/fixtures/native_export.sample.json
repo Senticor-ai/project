@@ -1,0 +1,151 @@
+[
+  {
+    "item_id": "aaaa-1111",
+    "canonical_id": "urn:app:action:ACT-001",
+    "source": "manual",
+    "item": {
+      "@id": "urn:app:action:ACT-001",
+      "@type": "Action",
+      "_schemaVersion": 2,
+      "name": "Buy groceries",
+      "description": "Weekly shopping list",
+      "keywords": ["personal"],
+      "dateCreated": "2026-01-10T08:00:00+00:00",
+      "dateModified": "2026-01-10T09:00:00+00:00",
+      "startTime": null,
+      "endTime": null,
+      "additionalProperty": [
+        {"@type": "PropertyValue", "propertyID": "app:bucket", "value": "next"},
+        {"@type": "PropertyValue", "propertyID": "app:isFocused", "value": true},
+        {"@type": "PropertyValue", "propertyID": "app:contexts", "value": ["errands"]},
+        {"@type": "PropertyValue", "propertyID": "app:dueDate", "value": "2026-01-15"},
+        {"@type": "PropertyValue", "propertyID": "app:captureSource", "value": {"kind": "import", "source": "manual"}}
+      ]
+    },
+    "created_at": "2026-01-10T08:00:00Z",
+    "updated_at": "2026-01-10T09:00:00Z"
+  },
+  {
+    "item_id": "aaaa-2222",
+    "canonical_id": "urn:app:project:PROJ-001",
+    "source": "nirvana",
+    "item": {
+      "@id": "urn:app:project:PROJ-001",
+      "@type": "Project",
+      "_schemaVersion": 2,
+      "name": "Website Relaunch",
+      "description": "Redesign marketing site",
+      "keywords": ["work"],
+      "dateCreated": "2026-01-05T10:00:00+00:00",
+      "dateModified": "2026-01-08T14:00:00+00:00",
+      "endTime": null,
+      "hasPart": [
+        {"@id": "urn:app:action:ACT-003"}
+      ],
+      "additionalProperty": [
+        {"@type": "PropertyValue", "propertyID": "app:bucket", "value": "project"},
+        {"@type": "PropertyValue", "propertyID": "app:projectStatus", "value": "active"},
+        {"@type": "PropertyValue", "propertyID": "app:desiredOutcome", "value": "Launch new site by Q2"},
+        {"@type": "PropertyValue", "propertyID": "app:isFocused", "value": false},
+        {"@type": "PropertyValue", "propertyID": "app:captureSource", "value": {"kind": "import", "source": "nirvana"}}
+      ]
+    },
+    "created_at": "2026-01-05T10:00:00Z",
+    "updated_at": "2026-01-08T14:00:00Z"
+  },
+  {
+    "item_id": "aaaa-3333",
+    "canonical_id": "urn:app:action:ACT-003",
+    "source": "nirvana",
+    "item": {
+      "@id": "urn:app:action:ACT-003",
+      "@type": "Action",
+      "_schemaVersion": 2,
+      "name": "Draft homepage copy",
+      "description": null,
+      "keywords": ["work"],
+      "dateCreated": "2026-01-06T11:00:00+00:00",
+      "dateModified": "2026-01-09T15:00:00+00:00",
+      "startTime": null,
+      "endTime": null,
+      "isPartOf": {"@id": "urn:app:project:PROJ-001"},
+      "additionalProperty": [
+        {"@type": "PropertyValue", "propertyID": "app:bucket", "value": "waiting"},
+        {"@type": "PropertyValue", "propertyID": "app:delegatedTo", "value": "Design team"},
+        {"@type": "PropertyValue", "propertyID": "app:isFocused", "value": false},
+        {"@type": "PropertyValue", "propertyID": "app:captureSource", "value": {"kind": "import", "source": "nirvana"}}
+      ]
+    },
+    "created_at": "2026-01-06T11:00:00Z",
+    "updated_at": "2026-01-09T15:00:00Z"
+  },
+  {
+    "item_id": "aaaa-4444",
+    "canonical_id": "urn:app:action:ACT-004",
+    "source": "manual",
+    "item": {
+      "@id": "urn:app:action:ACT-004",
+      "@type": "Action",
+      "_schemaVersion": 2,
+      "name": "File tax return",
+      "description": "Annual tax filing",
+      "keywords": ["finance"],
+      "dateCreated": "2026-01-02T06:00:00+00:00",
+      "dateModified": "2026-01-20T18:00:00+00:00",
+      "startTime": null,
+      "endTime": "2026-01-20T18:00:00+00:00",
+      "additionalProperty": [
+        {"@type": "PropertyValue", "propertyID": "app:bucket", "value": "next"},
+        {"@type": "PropertyValue", "propertyID": "app:isFocused", "value": false},
+        {"@type": "PropertyValue", "propertyID": "app:captureSource", "value": {"kind": "import", "source": "manual"}}
+      ]
+    },
+    "created_at": "2026-01-02T06:00:00Z",
+    "updated_at": "2026-01-20T18:00:00Z"
+  },
+  {
+    "item_id": "aaaa-5555",
+    "canonical_id": "urn:app:reference:REF-001",
+    "source": "manual",
+    "item": {
+      "@id": "urn:app:reference:REF-001",
+      "@type": "CreativeWork",
+      "_schemaVersion": 2,
+      "name": "GTD methodology notes",
+      "description": "Reference material on Getting Things Done",
+      "keywords": ["reference", "gtd"],
+      "dateCreated": "2026-01-01T00:00:00+00:00",
+      "dateModified": "2026-01-01T00:00:00+00:00",
+      "additionalProperty": [
+        {"@type": "PropertyValue", "propertyID": "app:bucket", "value": "reference"},
+        {"@type": "PropertyValue", "propertyID": "app:captureSource", "value": {"kind": "import", "source": "manual"}}
+      ]
+    },
+    "created_at": "2026-01-01T00:00:00Z",
+    "updated_at": "2026-01-01T00:00:00Z"
+  },
+  {
+    "item_id": "aaaa-6666",
+    "canonical_id": "urn:app:action:ACT-006",
+    "source": "manual",
+    "item": {
+      "@id": "urn:app:action:ACT-006",
+      "@type": "Action",
+      "_schemaVersion": 2,
+      "name": "Learn Esperanto",
+      "description": null,
+      "keywords": [],
+      "dateCreated": "2026-01-15T12:00:00+00:00",
+      "dateModified": "2026-01-15T12:00:00+00:00",
+      "startTime": null,
+      "endTime": null,
+      "additionalProperty": [
+        {"@type": "PropertyValue", "propertyID": "app:bucket", "value": "someday"},
+        {"@type": "PropertyValue", "propertyID": "app:isFocused", "value": false},
+        {"@type": "PropertyValue", "propertyID": "app:captureSource", "value": {"kind": "import", "source": "manual"}}
+      ]
+    },
+    "created_at": "2026-01-15T12:00:00Z",
+    "updated_at": "2026-01-15T12:00:00Z"
+  }
+]

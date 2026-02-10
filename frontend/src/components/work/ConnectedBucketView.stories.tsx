@@ -334,7 +334,7 @@ export const LoadError: Story = {
   parameters: {
     msw: {
       handlers: [
-        http.get("*/things/sync", () => {
+        http.get("*/items/sync", () => {
           return HttpResponse.json({ detail: "Server error" }, { status: 500 });
         }),
       ],

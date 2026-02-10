@@ -31,7 +31,7 @@ class OcrConfigResponse(BaseModel):
 @router.get("", summary="Search indexed documents")
 def search_index(
     q: str = "",
-    index: Literal["things", "files"] = "things",
+    index: Literal["items", "files"] = "items",
     limit: int = 20,
     offset: int = 0,
     current_org=Depends(get_current_org),
@@ -60,9 +60,7 @@ def search_index(
             detail="File search is disabled",
         )
 
-    index_uid = (
-        settings.meili_index_things if index == "things" else settings.meili_index_files
-    )
+    index_uid = settings.meili_index_items if index == "items" else settings.meili_index_files
 
     try:
         result = search(
@@ -107,11 +105,7 @@ def get_ocr_config_route(current_org=Depends(get_current_org)):
 def update_ocr_config(payload: OcrConfigRequest, current_org=Depends(get_current_org)):
     current = get_ocr_config(current_org["org_id"])
     engine = (payload.engine or current.engine).strip().lower()
-    languages = (
-        payload.languages
-        if payload.languages is not None
-        else list(current.languages)
-    )
+    languages = payload.languages if payload.languages is not None else list(current.languages)
     force_full_page_ocr = (
         payload.force_full_page_ocr
         if payload.force_full_page_ocr is not None

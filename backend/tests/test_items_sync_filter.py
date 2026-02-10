@@ -1,4 +1,4 @@
-"""Tests for the `completed` query parameter on GET /things/sync."""
+"""Tests for the `completed` query parameter on GET /items/sync."""
 
 
 def _pv(property_id: str, value: object) -> dict:
@@ -6,7 +6,7 @@ def _pv(property_id: str, value: object) -> dict:
 
 
 def _create_action(auth_client, *, name: str, bucket: str, end_time: str | None = None):
-    thing = {
+    item = {
         "@id": f"urn:app:action:{name.replace(' ', '-').lower()}",
         "@type": "Action",
         "name": name,
@@ -17,13 +17,13 @@ def _create_action(auth_client, *, name: str, bucket: str, end_time: str | None 
             _pv("app:contexts", []),
         ],
     }
-    resp = auth_client.post("/things", json={"thing": thing, "source": "manual"})
+    resp = auth_client.post("/items", json={"item": item, "source": "manual"})
     assert resp.status_code in (200, 201), resp.text
     return resp.json()
 
 
 def _create_inbox(auth_client, *, name: str):
-    thing = {
+    item = {
         "@id": f"urn:app:inbox:{name.replace(' ', '-').lower()}",
         "@type": "Action",
         "name": name,
@@ -36,13 +36,13 @@ def _create_inbox(auth_client, *, name: str):
             _pv("app:contexts", []),
         ],
     }
-    resp = auth_client.post("/things", json={"thing": thing, "source": "manual"})
+    resp = auth_client.post("/items", json={"item": item, "source": "manual"})
     assert resp.status_code in (200, 201), resp.text
     return resp.json()
 
 
 def _create_project(auth_client, *, name: str, end_time: str | None = None):
-    thing = {
+    item = {
         "@id": f"urn:app:project:{name.replace(' ', '-').lower()}",
         "@type": "Project",
         "name": name,
@@ -55,13 +55,13 @@ def _create_project(auth_client, *, name: str, end_time: str | None = None):
             _pv("app:reviewDate", None),
         ],
     }
-    resp = auth_client.post("/things", json={"thing": thing, "source": "manual"})
+    resp = auth_client.post("/items", json={"item": item, "source": "manual"})
     assert resp.status_code in (200, 201), resp.text
     return resp.json()
 
 
 def _create_reference(auth_client, *, name: str):
-    thing = {
+    item = {
         "@id": f"urn:app:reference:{name.replace(' ', '-').lower()}",
         "@type": "CreativeWork",
         "name": name,
@@ -70,13 +70,13 @@ def _create_reference(auth_client, *, name: str):
             _pv("app:origin", "captured"),
         ],
     }
-    resp = auth_client.post("/things", json={"thing": thing, "source": "manual"})
+    resp = auth_client.post("/items", json={"item": item, "source": "manual"})
     assert resp.status_code in (200, 201), resp.text
     return resp.json()
 
 
 def _sync(auth_client, **params) -> dict:
-    resp = auth_client.get("/things/sync", params=params)
+    resp = auth_client.get("/items/sync", params=params)
     assert resp.status_code == 200, resp.text
     return resp.json()
 
@@ -155,7 +155,7 @@ def test_completed_all_returns_everything(auth_client):
 
 
 def test_inbox_items_always_appear_with_completed_false(auth_client):
-    """Inbox Things (no endTime) should always be returned."""
+    """Inbox items (no endTime) should always be returned."""
     _create_inbox(auth_client, name="Capture idea")
 
     result = _sync(auth_client, completed="false")
@@ -202,7 +202,7 @@ def test_completed_projects_returned_with_completed_true(auth_client):
 
 def test_invalid_completed_returns_400(auth_client):
     """Invalid completed value should return 400."""
-    resp = auth_client.get("/things/sync", params={"completed": "maybe"})
+    resp = auth_client.get("/items/sync", params={"completed": "maybe"})
     assert resp.status_code == 400
 
 
@@ -243,8 +243,8 @@ def test_etag_differs_for_different_completed_values(auth_client):
         end_time="2026-01-15T12:00:00Z",
     )
 
-    resp_false = auth_client.get("/things/sync", params={"completed": "false"})
-    resp_true = auth_client.get("/things/sync", params={"completed": "true"})
+    resp_false = auth_client.get("/items/sync", params={"completed": "false"})
+    resp_true = auth_client.get("/items/sync", params={"completed": "true"})
     assert resp_false.status_code == 200
     assert resp_true.status_code == 200
     assert resp_false.headers.get("etag") != resp_true.headers.get("etag")

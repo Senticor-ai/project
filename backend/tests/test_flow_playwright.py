@@ -85,7 +85,7 @@ def test_gtd_flow_playwright(api_context: tuple[APIRequestContext, str]):
     assert response.ok
     org_two_id = response.json()["id"]
 
-    thing = {
+    item = {
         "@id": f"urn:task:{uuid.uuid4()}",
         "@type": "CreativeWork",
         "@context": "https://schema.org",
@@ -96,8 +96,8 @@ def test_gtd_flow_playwright(api_context: tuple[APIRequestContext, str]):
     idempotency_key = str(uuid.uuid4())
     response = _post_json(
         context,
-        "/things",
-        {"source": "manual", "thing": thing},
+        "/items",
+        {"source": "manual", "item": item},
         headers=_org_headers(default_org_id, {"Idempotency-Key": idempotency_key}),
     )
     assert response.status == 201
@@ -105,14 +105,14 @@ def test_gtd_flow_playwright(api_context: tuple[APIRequestContext, str]):
 
     retry = _post_json(
         context,
-        "/things",
-        {"source": "manual", "thing": thing},
+        "/items",
+        {"source": "manual", "item": item},
         headers=_org_headers(default_org_id, {"Idempotency-Key": idempotency_key}),
     )
     assert retry.status == 201
-    assert retry.json()["thing_id"] == created["thing_id"]
+    assert retry.json()["item_id"] == created["item_id"]
 
-    other_thing = {
+    other_item = {
         "@id": f"urn:task:{uuid.uuid4()}",
         "@type": "CreativeWork",
         "@context": "https://schema.org",
@@ -122,38 +122,38 @@ def test_gtd_flow_playwright(api_context: tuple[APIRequestContext, str]):
     }
     response = _post_json(
         context,
-        "/things",
-        {"source": "manual", "thing": other_thing},
+        "/items",
+        {"source": "manual", "item": other_item},
         headers=_org_headers(org_two_id),
     )
     assert response.status == 201
-    org_two_thing_id = response.json()["thing_id"]
+    org_two_item_id = response.json()["item_id"]
 
-    response = context.get("/things", headers=_org_headers(default_org_id))
+    response = context.get("/items", headers=_org_headers(default_org_id))
     assert response.ok
-    org_one_ids = {item["thing_id"] for item in response.json()}
-    assert created["thing_id"] in org_one_ids
-    assert org_two_thing_id not in org_one_ids
+    org_one_ids = {row["item_id"] for row in response.json()}
+    assert created["item_id"] in org_one_ids
+    assert org_two_item_id not in org_one_ids
 
-    response = context.get("/things", headers=_org_headers(org_two_id))
+    response = context.get("/items", headers=_org_headers(org_two_id))
     assert response.ok
-    org_two_ids = {item["thing_id"] for item in response.json()}
-    assert org_two_thing_id in org_two_ids
-    assert created["thing_id"] not in org_two_ids
+    org_two_ids = {row["item_id"] for row in response.json()}
+    assert org_two_item_id in org_two_ids
+    assert created["item_id"] not in org_two_ids
 
-    response = context.get("/things/sync?limit=50", headers=_org_headers(default_org_id))
+    response = context.get("/items/sync?limit=50", headers=_org_headers(default_org_id))
     assert response.ok
     etag = response.headers.get("etag")
     assert etag
 
     response = context.get(
-        "/things/sync?limit=50",
+        "/items/sync?limit=50",
         headers=_org_headers(default_org_id, {"If-None-Match": etag}),
     )
     assert response.status == 304
 
     triage_payload = {
-        "thing_id": created["thing_id"],
+        "item_id": created["item_id"],
         "assertion_type": "triage",
         "payload": {"category": "next-actions", "priority": "high", "context": "home"},
         "actor_type": "user",
@@ -204,22 +204,22 @@ def test_two_user_same_todo_with_attachment(playwright: Playwright, api_base_url
 
     response = _post_json(
         user_one_ctx,
-        "/things",
-        {"source": "manual", "thing": shared_task},
+        "/items",
+        {"source": "manual", "item": shared_task},
         headers=_org_headers(user_one["org_id"]),
     )
     assert response.status == 201
-    user_one_thing_id = response.json()["thing_id"]
+    user_one_item_id = response.json()["item_id"]
 
     response = _post_json(
         user_two_ctx,
-        "/things",
-        {"source": "manual", "thing": shared_task},
+        "/items",
+        {"source": "manual", "item": shared_task},
         headers=_org_headers(user_two["org_id"]),
     )
     assert response.status == 201
-    user_two_thing_id = response.json()["thing_id"]
-    assert user_two_thing_id != user_one_thing_id
+    user_two_item_id = response.json()["item_id"]
+    assert user_two_item_id != user_one_item_id
 
     conflicting_task = {
         **shared_task,
@@ -227,8 +227,8 @@ def test_two_user_same_todo_with_attachment(playwright: Playwright, api_base_url
     }
     response = _post_json(
         user_one_ctx,
-        "/things",
-        {"source": "manual", "thing": conflicting_task},
+        "/items",
+        {"source": "manual", "item": conflicting_task},
         headers=_org_headers(user_one["org_id"]),
     )
     assert response.status == 409
@@ -270,7 +270,7 @@ def test_two_user_same_todo_with_attachment(playwright: Playwright, api_base_url
     assert response.status == 404
 
     attach_payload = {
-        "thing_id": user_one_thing_id,
+        "item_id": user_one_item_id,
         "assertion_type": "attachment",
         "payload": {"file_id": file_id, "filename": "note.txt"},
         "actor_type": "user",
@@ -291,7 +291,7 @@ def test_two_user_same_todo_with_attachment(playwright: Playwright, api_base_url
 def test_patch_and_delete_flow_playwright(api_context: tuple[APIRequestContext, str]):
     context, default_org_id = api_context
 
-    thing = {
+    item = {
         "@id": f"urn:task:{uuid.uuid4()}",
         "@type": "Action",
         "_schemaVersion": 2,
@@ -304,38 +304,38 @@ def test_patch_and_delete_flow_playwright(api_context: tuple[APIRequestContext, 
     }
     response = _post_json(
         context,
-        "/things",
-        {"source": "manual", "thing": thing},
+        "/items",
+        {"source": "manual", "item": item},
         headers=_org_headers(default_org_id),
     )
     assert response.status == 201
-    thing_id = response.json()["thing_id"]
+    item_id = response.json()["item_id"]
 
-    patch = {"thing": {"meta": {"nested": {"b": 2}}, "name": "Patched name"}}
+    patch = {"item": {"meta": {"nested": {"b": 2}}, "name": "Patched name"}}
     response = _patch_json(
         context,
-        f"/things/{thing_id}",
+        f"/items/{item_id}",
         patch,
         headers=_org_headers(default_org_id),
     )
     assert response.status == 200
     patched = response.json()
-    assert patched["thing"]["name"] == "Patched name"
-    assert patched["thing"]["meta"]["nested"] == {"a": 1, "b": 2}
+    assert patched["item"]["name"] == "Patched name"
+    assert patched["item"]["meta"]["nested"] == {"a": 1, "b": 2}
 
     response = _patch_json(
         context,
-        f"/things/{thing_id}",
-        {"thing": {"@id": "urn:task:other"}},
+        f"/items/{item_id}",
+        {"item": {"@id": "urn:task:other"}},
         headers=_org_headers(default_org_id),
     )
     assert response.status == 400
 
     response = _patch_json(
         context,
-        f"/things/{thing_id}",
+        f"/items/{item_id}",
         {
-            "thing": {
+            "item": {
                 "@type": "Action",
                 "additionalProperty": [
                     {
@@ -350,8 +350,8 @@ def test_patch_and_delete_flow_playwright(api_context: tuple[APIRequestContext, 
     )
     assert response.status == 422
 
-    response = context.delete(f"/things/{thing_id}", headers=_org_headers(default_org_id))
+    response = context.delete(f"/items/{item_id}", headers=_org_headers(default_org_id))
     assert response.ok
 
-    response = context.get(f"/things/{thing_id}", headers=_org_headers(default_org_id))
+    response = context.get(f"/items/{item_id}", headers=_org_headers(default_org_id))
     assert response.status == 404

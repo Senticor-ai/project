@@ -14,71 +14,71 @@ def _load_fixture(path):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def _run_import(auth_client, items, **overrides):
-    payload = {"items": items, "emit_events": False}
+def _run_import(auth_client, raw_items, **overrides):
+    payload = {"items": raw_items, "emit_events": False}
     payload.update(overrides)
     response = auth_client.post("/imports/nirvana", json=payload)
     assert response.status_code == 200, response.text
     return response.json()
 
 
-def _things_by_canonical(auth_client):
-    response = auth_client.get("/things?limit=2000")
+def _items_by_canonical(auth_client):
+    response = auth_client.get("/items?limit=2000")
     assert response.status_code == 200
-    return {item["canonical_id"]: item for item in response.json()}
+    return {row["canonical_id"]: row for row in response.json()}
 
 
-def _get_prop(thing: dict, property_id: str):
+def _get_prop(item: dict, property_id: str):
     """Extract value from additionalProperty by propertyID."""
-    for pv in thing.get("additionalProperty", []):
+    for pv in item.get("additionalProperty", []):
         if pv.get("propertyID") == property_id:
             return pv.get("value")
     return None
 
 
 def test_matrix_fixture_dry_run_validates_without_writing(auth_client):
-    items = _load_fixture(MATRIX_FIXTURE_PATH)
-    summary = _run_import(auth_client, items, dry_run=True, include_completed=True)
+    raw_items = _load_fixture(MATRIX_FIXTURE_PATH)
+    summary = _run_import(auth_client, raw_items, dry_run=True, include_completed=True)
 
-    assert summary["total"] == len(items)
+    assert summary["total"] == len(raw_items)
     assert summary["errors"] == 0
     # Trashed item (state 6) is skipped
     assert summary["skipped"] == 1
-    assert summary["created"] == len(items) - 1
+    assert summary["created"] == len(raw_items) - 1
 
-    things = auth_client.get("/things?limit=10").json()
-    assert things == []
+    items = auth_client.get("/items?limit=10").json()
+    assert items == []
 
 
 def test_matrix_fixture_imports_exclude_completed(auth_client):
     """With include_completed=False, completed/deleted/cancelled items are skipped."""
-    items = _load_fixture(MATRIX_FIXTURE_PATH)
-    summary = _run_import(auth_client, items, include_completed=False)
+    raw_items = _load_fixture(MATRIX_FIXTURE_PATH)
+    summary = _run_import(auth_client, raw_items, include_completed=False)
     assert summary["errors"] == 0
     # 12 skipped: TRASHED (state 6), COMPLETED, LOGGED, DELETED, CANCELLED,
     # DELETED-FLAG, DELETED-CHILD, INBOX-COMPLETED, PROJ-COMPLETED,
     # WAITING-COMPLETED, SOMEDAY-COMPLETED, CALENDAR-COMPLETED
     assert summary["skipped"] == 12
 
-    things = _things_by_canonical(auth_client)
+    items = _items_by_canonical(auth_client)
 
     # Completed/deleted items should NOT be present
-    assert "urn:app:action:TASK-MATRIX-COMPLETED" not in things
-    assert "urn:app:action:TASK-MATRIX-LOGGED" not in things
-    assert "urn:app:action:TASK-MATRIX-TRASHED" not in things
-    assert "urn:app:action:TASK-MATRIX-DELETED" not in things
-    assert "urn:app:action:TASK-MATRIX-CANCELLED" not in things
-    assert "urn:app:action:TASK-MATRIX-DELETED-FLAG" not in things
-    assert "urn:app:action:TASK-MATRIX-DELETED-CHILD" not in things
-    assert "urn:app:action:TASK-MATRIX-INBOX-COMPLETED" not in things
-    assert "urn:app:project:PROJ-MATRIX-COMPLETED" not in things
-    assert "urn:app:action:TASK-MATRIX-WAITING-COMPLETED" not in things
-    assert "urn:app:action:TASK-MATRIX-SOMEDAY-COMPLETED" not in things
-    assert "urn:app:action:TASK-MATRIX-CALENDAR-COMPLETED" not in things
+    assert "urn:app:action:TASK-MATRIX-COMPLETED" not in items
+    assert "urn:app:action:TASK-MATRIX-LOGGED" not in items
+    assert "urn:app:action:TASK-MATRIX-TRASHED" not in items
+    assert "urn:app:action:TASK-MATRIX-DELETED" not in items
+    assert "urn:app:action:TASK-MATRIX-CANCELLED" not in items
+    assert "urn:app:action:TASK-MATRIX-DELETED-FLAG" not in items
+    assert "urn:app:action:TASK-MATRIX-DELETED-CHILD" not in items
+    assert "urn:app:action:TASK-MATRIX-INBOX-COMPLETED" not in items
+    assert "urn:app:project:PROJ-MATRIX-COMPLETED" not in items
+    assert "urn:app:action:TASK-MATRIX-WAITING-COMPLETED" not in items
+    assert "urn:app:action:TASK-MATRIX-SOMEDAY-COMPLETED" not in items
+    assert "urn:app:action:TASK-MATRIX-CALENDAR-COMPLETED" not in items
 
     # Active items should be present
-    assert "urn:app:action:TASK-MATRIX-SOMEDAY-ACTIVE" in things
-    assert "urn:app:action:TASK-MATRIX-LOGGED-NO-EPOCH" in things
+    assert "urn:app:action:TASK-MATRIX-SOMEDAY-ACTIVE" in items
+    assert "urn:app:action:TASK-MATRIX-LOGGED-NO-EPOCH" in items
 
 
 # ---------------------------------------------------------------------------
@@ -323,27 +323,27 @@ _ITEM_EXPECTATIONS = [
 ]
 
 
-def _check_extra(thing: dict, key: str, expected):
+def _check_extra(item: dict, key: str, expected):
     """Check a property assertion, handling special keys."""
     if key == "_recurrence_kind":
-        recurrence = _get_prop(thing, "app:recurrence")
+        recurrence = _get_prop(item, "app:recurrence")
         assert recurrence is not None, "recurrence should be set"
         assert recurrence["kind"] == expected
     elif key == "_energy":
-        ports = _get_prop(thing, "app:ports") or []
+        ports = _get_prop(item, "app:ports") or []
         assert len(ports) > 0, "ports should have computation port"
         assert ports[0].get("energyLevel") == expected
     elif key == "_time_estimate":
-        ports = _get_prop(thing, "app:ports") or []
+        ports = _get_prop(item, "app:ports") or []
         assert len(ports) > 0, "ports should have computation port"
         assert ports[0].get("timeEstimate") == expected
     elif key == "_keywords":
-        assert thing.get("keywords") == expected, (
-            f"keywords: expected {expected!r}, got {thing.get('keywords')!r}"
+        assert item.get("keywords") == expected, (
+            f"keywords: expected {expected!r}, got {item.get('keywords')!r}"
         )
     else:
-        assert _get_prop(thing, key) == expected, (
-            f"{key}: expected {expected!r}, got {_get_prop(thing, key)!r}"
+        assert _get_prop(item, key) == expected, (
+            f"{key}: expected {expected!r}, got {_get_prop(item, key)!r}"
         )
 
 
@@ -353,7 +353,7 @@ def _check_extra(thing: dict, key: str, expected):
     ids=[e[0] for e in _ITEM_EXPECTATIONS],
 )
 def test_matrix_item_imports_correctly(
-    matrix_things,
+    matrix_items,
     raw_id,
     canonical_id,
     expected_type,
@@ -362,41 +362,41 @@ def test_matrix_item_imports_correctly(
     extra,
 ):
     """Each fixture item should produce the correct type, bucket, and completion status."""
-    assert canonical_id in matrix_things, f"{canonical_id} not found in imported things"
-    thing = matrix_things[canonical_id]["thing"]
+    assert canonical_id in matrix_items, f"{canonical_id} not found in imported items"
+    item = matrix_items[canonical_id]["item"]
 
-    assert thing["@type"] == expected_type, (
-        f"{raw_id}: expected @type={expected_type!r}, got {thing['@type']!r}"
+    assert item["@type"] == expected_type, (
+        f"{raw_id}: expected @type={expected_type!r}, got {item['@type']!r}"
     )
-    assert _get_prop(thing, "app:bucket") == expected_bucket, (
-        f"{raw_id}: expected bucket={expected_bucket!r}, got {_get_prop(thing, 'app:bucket')!r}"
+    assert _get_prop(item, "app:bucket") == expected_bucket, (
+        f"{raw_id}: expected bucket={expected_bucket!r}, got {_get_prop(item, 'app:bucket')!r}"
     )
     if completed:
-        assert thing.get("endTime") is not None, f"{raw_id}: expected endTime to be set"
+        assert item.get("endTime") is not None, f"{raw_id}: expected endTime to be set"
     else:
-        assert thing.get("endTime") is None, f"{raw_id}: expected endTime to be None"
+        assert item.get("endTime") is None, f"{raw_id}: expected endTime to be None"
 
     for key, expected_value in extra.items():
-        _check_extra(thing, key, expected_value)
+        _check_extra(item, key, expected_value)
 
     # Every imported item should have source metadata
-    assert thing.get("sourceMetadata", {}).get("provider") == "nirvana"
+    assert item.get("sourceMetadata", {}).get("provider") == "nirvana"
 
 
 @pytest.fixture()
-def matrix_things(auth_client):
-    """Import the full matrix fixture with include_completed=True and return things dict."""
-    items = _load_fixture(MATRIX_FIXTURE_PATH)
-    summary = _run_import(auth_client, items, include_completed=True)
+def matrix_items(auth_client):
+    """Import the full matrix fixture with include_completed=True and return items dict."""
+    raw_items = _load_fixture(MATRIX_FIXTURE_PATH)
+    summary = _run_import(auth_client, raw_items, include_completed=True)
     assert summary["errors"] == 0
     assert summary["skipped"] == 1  # Only TRASHED
-    return _things_by_canonical(auth_client)
+    return _items_by_canonical(auth_client)
 
 
 def test_matrix_summary_bucket_counts(auth_client):
     """Verify aggregate bucket_counts in the import summary."""
-    items = _load_fixture(MATRIX_FIXTURE_PATH)
-    summary = _run_import(auth_client, items, include_completed=True)
+    raw_items = _load_fixture(MATRIX_FIXTURE_PATH)
+    summary = _run_import(auth_client, raw_items, include_completed=True)
     assert summary["errors"] == 0
     assert summary["bucket_counts"] == {
         "project": 4,
@@ -410,8 +410,8 @@ def test_matrix_summary_bucket_counts(auth_client):
 
 def test_matrix_summary_completed_counts(auth_client):
     """Verify completed_counts tracks per-bucket completion breakdown."""
-    items = _load_fixture(MATRIX_FIXTURE_PATH)
-    summary = _run_import(auth_client, items, include_completed=True)
+    raw_items = _load_fixture(MATRIX_FIXTURE_PATH)
+    summary = _run_import(auth_client, raw_items, include_completed=True)
     assert summary["errors"] == 0
     assert summary["completed_counts"] == {
         "next": 6,
@@ -423,17 +423,17 @@ def test_matrix_summary_completed_counts(auth_client):
 
 
 def test_matrix_fixture_preserves_source_metadata_and_state_override(auth_client):
-    items = _load_fixture(MATRIX_FIXTURE_PATH)
+    raw_items = _load_fixture(MATRIX_FIXTURE_PATH)
     summary = _run_import(
         auth_client,
-        items,
+        raw_items,
         include_completed=False,
         state_bucket_map={7: "reference"},
     )
     assert summary["errors"] == 0
 
-    things = _things_by_canonical(auth_client)
-    ref = things["urn:app:reference:TASK-MATRIX-STATE7"]["thing"]
+    items = _items_by_canonical(auth_client)
+    ref = items["urn:app:reference:TASK-MATRIX-STATE7"]["item"]
     assert _get_prop(ref, "app:bucket") == "reference"
     assert ref["sourceMetadata"]["provider"] == "nirvana"
     assert ref["sourceMetadata"]["rawState"] == 7
@@ -444,13 +444,13 @@ def test_matrix_fixture_preserves_source_metadata_and_state_override(auth_client
 
 def test_cancelled_project_keeps_archived_status(auth_client):
     """Cancelled projects should keep project_status='archived' (not 'completed')."""
-    items = _load_fixture(MATRIX_FIXTURE_PATH)
-    summary = _run_import(auth_client, items, include_completed=True)
+    raw_items = _load_fixture(MATRIX_FIXTURE_PATH)
+    summary = _run_import(auth_client, raw_items, include_completed=True)
     assert summary["errors"] == 0
 
-    things = _things_by_canonical(auth_client)
+    items = _items_by_canonical(auth_client)
 
-    proj = things["urn:app:project:PROJ-MATRIX-CANCELLED"]["thing"]
+    proj = items["urn:app:project:PROJ-MATRIX-CANCELLED"]["item"]
     assert proj["@type"] == "Project"
     assert _get_prop(proj, "app:projectStatus") == "archived"
 
@@ -458,13 +458,13 @@ def test_cancelled_project_keeps_archived_status(auth_client):
 def test_deleted_child_excluded_from_project_hasPart(auth_client):
     """When include_completed=False, deleted children should not appear
     in their parent project's hasPart list."""
-    items = _load_fixture(MATRIX_FIXTURE_PATH)
-    summary = _run_import(auth_client, items, include_completed=False)
+    raw_items = _load_fixture(MATRIX_FIXTURE_PATH)
+    summary = _run_import(auth_client, raw_items, include_completed=False)
     assert summary["errors"] == 0
 
-    things = _things_by_canonical(auth_client)
+    items = _items_by_canonical(auth_client)
 
-    project = things["urn:app:project:PROJ-MATRIX"]["thing"]
+    project = items["urn:app:project:PROJ-MATRIX"]["item"]
     child_ids = {ref["@id"] for ref in project.get("hasPart", [])}
     assert "urn:app:action:TASK-MATRIX-DELETED-CHILD" not in child_ids
 
@@ -479,14 +479,14 @@ _skip_unless_large = pytest.mark.skipif(
 def test_real_export_dry_run_smoke(auth_client):
     if not REAL_EXPORT_PATH.is_file():
         pytest.skip(f"Missing fixture: {REAL_EXPORT_PATH}")
-    items = _load_fixture(REAL_EXPORT_PATH)
+    raw_items = _load_fixture(REAL_EXPORT_PATH)
     summary = _run_import(
         auth_client,
-        items,
+        raw_items,
         dry_run=True,
         include_completed=True,
     )
-    assert summary["total"] == len(items)
+    assert summary["total"] == len(raw_items)
     assert summary["errors"] == 0
 
 
@@ -523,7 +523,7 @@ _SPOT_CHECK_IDS = {
 def _extract_spot_check_items(path):
     """Load the real export and return only the items whose id is in _SPOT_CHECK_IDS."""
     all_items = _load_fixture(path)
-    selected = [item for item in all_items if item.get("id") in _SPOT_CHECK_IDS]
+    selected = [raw for raw in all_items if raw.get("id") in _SPOT_CHECK_IDS]
     found_ids = {i["id"] for i in selected}
     missing = _SPOT_CHECK_IDS - found_ids
     assert not missing, f"Missing items in export: {missing}"
@@ -534,7 +534,7 @@ def _extract_spot_check_items(path):
 # (raw_id, canonical_id, expected_type, expected_bucket, completed, extra_checks_dict)
 _SPOT_CHECK_EXPECTATIONS = [
     # --- Mixed sample ---
-    # 1. state=0, completed → inbox redirected to "next"
+    # 1. state=0, completed -> inbox redirected to "next"
     (
         "CD32FF15-558B-415C-B25F-59CF94091454",
         "urn:app:action:CD32FF15-558B-415C-B25F-59CF94091454",
@@ -543,7 +543,7 @@ _SPOT_CHECK_EXPECTATIONS = [
         True,
         {},
     ),
-    # 2. state=0, active → inbox Action
+    # 2. state=0, active -> inbox Action
     (
         "019c1aba-bdfa-74d6-aed9-02baae3491f1",
         "urn:app:inbox:019c1aba-bdfa-74d6-aed9-02baae3491f1",
@@ -579,7 +579,7 @@ _SPOT_CHECK_EXPECTATIONS = [
         True,
         {"app:delegatedTo": "CMA HOA Saddlebrook Glen"},
     ),
-    # 6. state=3, active, startdate=20260905 (calendar backfill → both dates)
+    # 6. state=3, active, startdate=20260905 (calendar backfill -> both dates)
     (
         "18168947-41F5-46FF-B489-8E009E33BC46",
         "urn:app:action:18168947-41F5-46FF-B489-8E009E33BC46",
@@ -723,14 +723,14 @@ _ACTIVE_SPOT_CHECK_EXPECTATIONS = [
 
 
 @pytest.fixture()
-def spot_check_things(auth_client):
+def spot_check_items(auth_client):
     """Import 20 spot-check items from the real export with include_completed=True."""
     if not REAL_EXPORT_PATH.is_file():
         pytest.skip(f"Missing fixture: {REAL_EXPORT_PATH}")
-    items = _extract_spot_check_items(REAL_EXPORT_PATH)
-    summary = _run_import(auth_client, items, include_completed=True)
+    raw_items = _extract_spot_check_items(REAL_EXPORT_PATH)
+    summary = _run_import(auth_client, raw_items, include_completed=True)
     assert summary["errors"] == 0
-    return _things_by_canonical(auth_client)
+    return _items_by_canonical(auth_client)
 
 
 @_skip_unless_large
@@ -740,7 +740,7 @@ def spot_check_things(auth_client):
     ids=[e[0] for e in _SPOT_CHECK_EXPECTATIONS],
 )
 def test_real_export_spot_checks(
-    spot_check_things,
+    spot_check_items,
     raw_id,
     canonical_id,
     expected_type,
@@ -749,24 +749,24 @@ def test_real_export_spot_checks(
     extra,
 ):
     """Each spot-check item from the real export should map correctly."""
-    assert canonical_id in spot_check_things, f"{canonical_id} not found"
-    thing = spot_check_things[canonical_id]["thing"]
+    assert canonical_id in spot_check_items, f"{canonical_id} not found"
+    item = spot_check_items[canonical_id]["item"]
 
-    assert thing["@type"] == expected_type, (
-        f"{raw_id}: expected @type={expected_type!r}, got {thing['@type']!r}"
+    assert item["@type"] == expected_type, (
+        f"{raw_id}: expected @type={expected_type!r}, got {item['@type']!r}"
     )
-    assert _get_prop(thing, "app:bucket") == expected_bucket, (
-        f"{raw_id}: expected bucket={expected_bucket!r}, got {_get_prop(thing, 'app:bucket')!r}"
+    assert _get_prop(item, "app:bucket") == expected_bucket, (
+        f"{raw_id}: expected bucket={expected_bucket!r}, got {_get_prop(item, 'app:bucket')!r}"
     )
     if completed:
-        assert thing.get("endTime") is not None, f"{raw_id}: expected endTime to be set"
+        assert item.get("endTime") is not None, f"{raw_id}: expected endTime to be set"
     else:
-        assert thing.get("endTime") is None, f"{raw_id}: expected endTime to be None"
+        assert item.get("endTime") is None, f"{raw_id}: expected endTime to be None"
 
     for key, expected_value in extra.items():
-        _check_extra(thing, key, expected_value)
+        _check_extra(item, key, expected_value)
 
-    assert thing.get("sourceMetadata", {}).get("provider") == "nirvana"
+    assert item.get("sourceMetadata", {}).get("provider") == "nirvana"
 
 
 @_skip_unless_large
@@ -774,15 +774,15 @@ def test_real_export_exclude_completed_spot_checks(auth_client):
     """With include_completed=False, completed items are absent, active items correct."""
     if not REAL_EXPORT_PATH.is_file():
         pytest.skip(f"Missing fixture: {REAL_EXPORT_PATH}")
-    items = _extract_spot_check_items(REAL_EXPORT_PATH)
-    summary = _run_import(auth_client, items, include_completed=False)
+    raw_items = _extract_spot_check_items(REAL_EXPORT_PATH)
+    summary = _run_import(auth_client, raw_items, include_completed=False)
     assert summary["errors"] == 0
     assert summary["skipped"] == 5  # 5 completed items
 
-    things = _things_by_canonical(auth_client)
+    items = _items_by_canonical(auth_client)
 
     for canonical_id in _COMPLETED_SPOT_CHECK_IDS:
-        assert canonical_id not in things, f"{canonical_id} should have been excluded"
+        assert canonical_id not in items, f"{canonical_id} should have been excluded"
 
     for (
         _raw_id,
@@ -792,8 +792,8 @@ def test_real_export_exclude_completed_spot_checks(auth_client):
         _,
         _,
     ) in _ACTIVE_SPOT_CHECK_EXPECTATIONS:
-        assert canonical_id in things, f"{canonical_id} not found"
-        thing = things[canonical_id]["thing"]
-        assert thing["@type"] == expected_type
-        assert _get_prop(thing, "app:bucket") == expected_bucket
-        assert thing.get("endTime") is None
+        assert canonical_id in items, f"{canonical_id} not found"
+        item = items[canonical_id]["item"]
+        assert item["@type"] == expected_type
+        assert _get_prop(item, "app:bucket") == expected_bucket
+        assert item.get("endTime") is None

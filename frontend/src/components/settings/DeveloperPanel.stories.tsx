@@ -25,7 +25,7 @@ type Story = StoryObj<typeof meta>;
 const mockFlushResult = {
   ok: true as const,
   deleted: {
-    things: 128,
+    items: 128,
     assertions: 34,
     search_index_jobs: 128,
     idempotency_keys: 45,
@@ -49,7 +49,7 @@ export const FlushFlow: Story = {
   args: {
     onFlush: fn(async () => ({
       ok: true as const,
-      deleted: { things: 42, assertions: 5, files: 3 },
+      deleted: { items: 42, assertions: 5, files: 3 },
     })),
   },
   play: async ({ canvas, userEvent, step }) => {
@@ -72,7 +72,7 @@ export const FlushFlow: Story = {
         expect(canvas.getByText(/data flushed/i)).toBeInTheDocument();
       });
       const main = within(canvas.getByText(/data flushed/i).closest("div")!);
-      await expect(main.getByText(/things: 42/)).toBeInTheDocument();
+      await expect(main.getByText(/items: 42/)).toBeInTheDocument();
     });
   },
 };

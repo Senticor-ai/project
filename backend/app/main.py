@@ -34,10 +34,11 @@ from .observability import (
     generate_request_id,
     get_logger,
 )
-from .routes import assertions, auth, dev, files, imports, orgs, push, schemas, search, things
+from .routes import assertions, auth, dev, files, imports, items, orgs, push, schemas, search
 
 configure_logging()
 logger = get_logger("app")
+
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -164,7 +165,7 @@ async def unhandled_exception_with_request_id(request: Request, exc: Exception):
 
 
 app.include_router(auth.router)
-app.include_router(things.router)
+app.include_router(items.router)
 app.include_router(imports.router)
 app.include_router(assertions.router)
 app.include_router(files.router)
@@ -347,7 +348,7 @@ def prometheus_metrics():
 @app.get("/health/schema")
 def schema_health_check():
     required_tables = [
-        "things",
+        "items",
         "files",
         "search_index_jobs",
         "import_jobs",

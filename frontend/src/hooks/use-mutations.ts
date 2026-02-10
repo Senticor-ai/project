@@ -4,8 +4,8 @@ import {
   useQueryClient,
   type QueryClient,
 } from "@tanstack/react-query";
-import { ThingsApi } from "@/lib/api-client";
-import type { ThingRecord } from "@/lib/api-client";
+import { ItemsApi } from "@/lib/api-client";
+import type { ItemRecord } from "@/lib/api-client";
 import {
   buildNewInboxJsonLd,
   buildNewReferenceJsonLd,
@@ -14,44 +14,44 @@ import {
   buildNewActionJsonLd,
   buildNewFileInboxJsonLd,
   buildNewUrlInboxJsonLd,
-} from "@/lib/thing-serializer";
+} from "@/lib/item-serializer";
 import { classifyText, classifyFile } from "@/lib/intake-classifier";
-import type { Thing, ThingBucket, TriageResult } from "@/model/types";
+import type { ActionItem, ActionItemBucket, TriageResult } from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
-import { THINGS_QUERY_KEY } from "./use-things";
+import { ITEMS_QUERY_KEY } from "./use-items";
 
 // ---------------------------------------------------------------------------
 // Cache keys for active and completed partitions
 // ---------------------------------------------------------------------------
 
-const ACTIVE_KEY = [...THINGS_QUERY_KEY, { completed: "false" }];
-const COMPLETED_KEY = [...THINGS_QUERY_KEY, { completed: "true" }];
+const ACTIVE_KEY = [...ITEMS_QUERY_KEY, { completed: "false" }];
+const COMPLETED_KEY = [...ITEMS_QUERY_KEY, { completed: "true" }];
 
 // ---------------------------------------------------------------------------
 // Helpers: search both active + completed caches
 // ---------------------------------------------------------------------------
 
-function findThingId(
+function findItemId(
   qc: QueryClient,
   canonicalId: CanonicalId,
 ): string | undefined {
-  const active = qc.getQueryData<ThingRecord[]>(ACTIVE_KEY);
+  const active = qc.getQueryData<ItemRecord[]>(ACTIVE_KEY);
   const match = active?.find((r) => r.canonical_id === canonicalId);
-  if (match) return match.thing_id;
+  if (match) return match.item_id;
 
-  const completed = qc.getQueryData<ThingRecord[]>(COMPLETED_KEY);
-  return completed?.find((r) => r.canonical_id === canonicalId)?.thing_id;
+  const completed = qc.getQueryData<ItemRecord[]>(COMPLETED_KEY);
+  return completed?.find((r) => r.canonical_id === canonicalId)?.item_id;
 }
 
 function findRecord(
   qc: QueryClient,
   canonicalId: CanonicalId,
-): ThingRecord | undefined {
-  const active = qc.getQueryData<ThingRecord[]>(ACTIVE_KEY);
+): ItemRecord | undefined {
+  const active = qc.getQueryData<ItemRecord[]>(ACTIVE_KEY);
   const match = active?.find((r) => r.canonical_id === canonicalId);
   if (match) return match;
 
-  const completed = qc.getQueryData<ThingRecord[]>(COMPLETED_KEY);
+  const completed = qc.getQueryData<ItemRecord[]>(COMPLETED_KEY);
   return completed?.find((r) => r.canonical_id === canonicalId);
 }
 
@@ -68,7 +68,7 @@ function needsTypePromotion(
 ): boolean {
   const record = findRecord(qc, canonicalId);
   if (!record) return false;
-  const currentType = record.thing["@type"] as string;
+  const currentType = record.item["@type"] as string;
   const expectedType = targetTypeForBucket(targetBucket);
   return currentType !== expectedType;
 }
@@ -82,7 +82,7 @@ type AdditionalProp = { "@type": string; propertyID: string; value: unknown };
 /** Cancel in-flight queries and snapshot the active cache for rollback. */
 async function snapshotActive(qc: QueryClient) {
   await qc.cancelQueries({ queryKey: ACTIVE_KEY });
-  return qc.getQueryData<ThingRecord[]>(ACTIVE_KEY);
+  return qc.getQueryData<ItemRecord[]>(ACTIVE_KEY);
 }
 
 /** Cancel in-flight queries and snapshot both caches for rollback. */
@@ -90,14 +90,14 @@ async function snapshotBoth(qc: QueryClient) {
   await qc.cancelQueries({ queryKey: ACTIVE_KEY });
   await qc.cancelQueries({ queryKey: COMPLETED_KEY });
   return {
-    prevActive: qc.getQueryData<ThingRecord[]>(ACTIVE_KEY),
-    prevCompleted: qc.getQueryData<ThingRecord[]>(COMPLETED_KEY),
+    prevActive: qc.getQueryData<ItemRecord[]>(ACTIVE_KEY),
+    prevCompleted: qc.getQueryData<ItemRecord[]>(COMPLETED_KEY),
   };
 }
 
 /** Remove a record from the completed cache by canonical ID. */
 function removeFromCompleted(qc: QueryClient, canonicalId: CanonicalId) {
-  qc.setQueryData<ThingRecord[]>(COMPLETED_KEY, (old) =>
+  qc.setQueryData<ItemRecord[]>(COMPLETED_KEY, (old) =>
     old?.filter((r) => r.canonical_id !== canonicalId),
   );
 }
@@ -106,14 +106,14 @@ function removeFromCompleted(qc: QueryClient, canonicalId: CanonicalId) {
 function addToCache(
   qc: QueryClient,
   key: readonly unknown[],
-  record: ThingRecord,
+  record: ItemRecord,
 ) {
-  qc.setQueryData<ThingRecord[]>(key, (old) => [...(old ?? []), record]);
+  qc.setQueryData<ItemRecord[]>(key, (old) => [...(old ?? []), record]);
 }
 
 /** Remove a record from the active cache by canonical ID. */
 function removeFromCache(qc: QueryClient, canonicalId: CanonicalId) {
-  qc.setQueryData<ThingRecord[]>(ACTIVE_KEY, (old) =>
+  qc.setQueryData<ItemRecord[]>(ACTIVE_KEY, (old) =>
     old?.filter((r) => r.canonical_id !== canonicalId),
   );
 }
@@ -129,10 +129,10 @@ function promoteTypeInCache(
   canonicalId: CanonicalId,
   targetType: string,
 ) {
-  qc.setQueryData<ThingRecord[]>(ACTIVE_KEY, (old) =>
+  qc.setQueryData<ItemRecord[]>(ACTIVE_KEY, (old) =>
     old?.map((r) =>
       r.canonical_id === canonicalId
-        ? { ...r, thing: { ...r.thing, "@type": targetType } }
+        ? { ...r, item: { ...r.item, "@type": targetType } }
         : r,
     ),
   );
@@ -144,15 +144,15 @@ function updateBucketInCache(
   canonicalId: CanonicalId,
   newBucket: string,
 ) {
-  qc.setQueryData<ThingRecord[]>(ACTIVE_KEY, (old) =>
+  qc.setQueryData<ItemRecord[]>(ACTIVE_KEY, (old) =>
     old?.map((r) =>
       r.canonical_id === canonicalId
         ? {
             ...r,
-            thing: {
-              ...r.thing,
+            item: {
+              ...r.item,
               additionalProperty: (
-                r.thing.additionalProperty as AdditionalProp[]
+                r.item.additionalProperty as AdditionalProp[]
               ).map((p) =>
                 p.propertyID === "app:bucket" ? { ...p, value: newBucket } : p,
               ),
@@ -177,26 +177,26 @@ export function useCaptureInbox() {
         classification.captureSource.kind === "url"
           ? buildNewUrlInboxJsonLd(classification.captureSource.url)
           : buildNewInboxJsonLd(rawText);
-      return ThingsApi.create(jsonLd, "manual");
+      return ItemsApi.create(jsonLd, "manual");
     },
     onMutate: async (rawText) => {
       const prev = await snapshotActive(qc);
       const classification = classifyText(rawText);
       const tempId = `urn:app:inbox:temp-${Date.now()}`;
       const now = new Date().toISOString();
-      const thing =
+      const jsonLd =
         classification.captureSource.kind === "url"
           ? buildNewUrlInboxJsonLd(classification.captureSource.url)
           : buildNewInboxJsonLd(rawText);
-      const optimistic: ThingRecord = {
-        thing_id: `temp-${Date.now()}`,
+      const optimistic: ItemRecord = {
+        item_id: `temp-${Date.now()}`,
         canonical_id: tempId,
         source: "manual",
-        thing,
+        item: jsonLd,
         created_at: now,
         updated_at: now,
       };
-      qc.setQueryData<ThingRecord[]>(ACTIVE_KEY, (old) => [
+      qc.setQueryData<ItemRecord[]>(ACTIVE_KEY, (old) => [
         ...(old ?? []),
         optimistic,
       ]);
@@ -206,7 +206,7 @@ export function useCaptureInbox() {
       if (context?.prev) qc.setQueryData(ACTIVE_KEY, context.prev);
     },
     onSettled: () => {
-      qc.invalidateQueries({ queryKey: THINGS_QUERY_KEY });
+      qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
     },
   });
 }
@@ -222,22 +222,22 @@ export function useCaptureFile() {
     mutationFn: async (file: File) => {
       const classification = classifyFile(file);
       const jsonLd = buildNewFileInboxJsonLd(classification, file.name);
-      return ThingsApi.create(jsonLd, "manual");
+      return ItemsApi.create(jsonLd, "manual");
     },
     onMutate: async (file) => {
       const prev = await snapshotActive(qc);
       const classification = classifyFile(file);
       const tempId = `urn:app:inbox:temp-${Date.now()}`;
       const now = new Date().toISOString();
-      const optimistic: ThingRecord = {
-        thing_id: `temp-${Date.now()}`,
+      const optimistic: ItemRecord = {
+        item_id: `temp-${Date.now()}`,
         canonical_id: tempId,
         source: "manual",
-        thing: buildNewFileInboxJsonLd(classification, file.name),
+        item: buildNewFileInboxJsonLd(classification, file.name),
         created_at: now,
         updated_at: now,
       };
-      qc.setQueryData<ThingRecord[]>(ACTIVE_KEY, (old) => [
+      qc.setQueryData<ItemRecord[]>(ACTIVE_KEY, (old) => [
         ...(old ?? []),
         optimistic,
       ]);
@@ -247,7 +247,7 @@ export function useCaptureFile() {
       if (context?.prev) qc.setQueryData(ACTIVE_KEY, context.prev);
     },
     onSettled: () => {
-      qc.invalidateQueries({ queryKey: THINGS_QUERY_KEY });
+      qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
     },
   });
 }
@@ -265,22 +265,22 @@ export function useTriageItem() {
       item,
       result,
     }: {
-      item: Thing;
+      item: ActionItem;
       result: TriageResult;
     }) => {
-      const thingId = savedIds.current.get(item.id) ?? findThingId(qc, item.id);
-      if (!thingId) throw new Error(`Thing not found: ${item.id}`);
+      const itemId = savedIds.current.get(item.id) ?? findItemId(qc, item.id);
+      if (!itemId) throw new Error(`Item not found: ${item.id}`);
 
       if (result.targetBucket === "archive") {
-        return ThingsApi.archive(thingId);
+        return ItemsApi.archive(itemId);
       }
 
       const patch = buildTriagePatch(item, result);
-      return ThingsApi.update(thingId, patch);
+      return ItemsApi.update(itemId, patch);
     },
     onMutate: async ({ item, result }) => {
-      const thingId = findThingId(qc, item.id);
-      if (thingId) savedIds.current.set(item.id, thingId);
+      const itemId = findItemId(qc, item.id);
+      if (itemId) savedIds.current.set(item.id, itemId);
 
       if (result.targetBucket === "archive") {
         const record = findRecord(qc, item.id);
@@ -290,7 +290,7 @@ export function useTriageItem() {
         if (record) {
           addToCache(qc, COMPLETED_KEY, {
             ...record,
-            thing: { ...record.thing, endTime: new Date().toISOString() },
+            item: { ...record.item, endTime: new Date().toISOString() },
           });
         }
         return { prevActive, prevCompleted };
@@ -327,16 +327,16 @@ export function useTriageItem() {
 
 export function useCompleteAction() {
   const qc = useQueryClient();
-  const savedRecords = useRef(new Map<string, ThingRecord>());
+  const savedRecords = useRef(new Map<string, ItemRecord>());
 
   return useMutation({
     mutationFn: async (canonicalId: CanonicalId) => {
       const record =
         savedRecords.current.get(canonicalId) ?? findRecord(qc, canonicalId);
-      if (!record) throw new Error(`Thing not found: ${canonicalId}`);
+      if (!record) throw new Error(`Item not found: ${canonicalId}`);
 
-      const isCompleted = !!record.thing.endTime;
-      return ThingsApi.update(record.thing_id, {
+      const isCompleted = !!record.item.endTime;
+      return ItemsApi.update(record.item_id, {
         endTime: isCompleted ? null : new Date().toISOString(),
       });
     },
@@ -345,14 +345,14 @@ export function useCompleteAction() {
       if (record) savedRecords.current.set(canonicalId, record);
 
       const { prevActive, prevCompleted } = await snapshotBoth(qc);
-      const isCompleted = !!record?.thing.endTime;
+      const isCompleted = !!record?.item.endTime;
 
       if (isCompleted && record) {
         // Un-completing: move from COMPLETED → ACTIVE (clear endTime)
         removeFromCompleted(qc, canonicalId);
         addToCache(qc, ACTIVE_KEY, {
           ...record,
-          thing: { ...record.thing, endTime: undefined },
+          item: { ...record.item, endTime: undefined },
         });
       } else {
         // Completing: move from ACTIVE → COMPLETED (set endTime)
@@ -360,7 +360,7 @@ export function useCompleteAction() {
         if (record) {
           addToCache(qc, COMPLETED_KEY, {
             ...record,
-            thing: { ...record.thing, endTime: new Date().toISOString() },
+            item: { ...record.item, endTime: new Date().toISOString() },
           });
         }
       }
@@ -374,7 +374,7 @@ export function useCompleteAction() {
     },
     onSettled: (_data, _err, canonicalId) => {
       savedRecords.current.delete(canonicalId);
-      qc.invalidateQueries({ queryKey: THINGS_QUERY_KEY });
+      qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
     },
   });
 }
@@ -385,20 +385,20 @@ export function useCompleteAction() {
 
 export function useToggleFocus() {
   const qc = useQueryClient();
-  const savedRecords = useRef(new Map<string, ThingRecord>());
+  const savedRecords = useRef(new Map<string, ItemRecord>());
 
   return useMutation({
     mutationFn: async (canonicalId: CanonicalId) => {
       const record =
         savedRecords.current.get(canonicalId) ?? findRecord(qc, canonicalId);
-      if (!record) throw new Error(`Thing not found: ${canonicalId}`);
+      if (!record) throw new Error(`Item not found: ${canonicalId}`);
 
-      const props = record.thing.additionalProperty as
+      const props = record.item.additionalProperty as
         | Array<{ propertyID: string; value: unknown }>
         | undefined;
       const currentFocused =
         props?.find((p) => p.propertyID === "app:isFocused")?.value ?? false;
-      return ThingsApi.update(record.thing_id, {
+      return ItemsApi.update(record.item_id, {
         additionalProperty: [
           {
             "@type": "PropertyValue",
@@ -413,15 +413,15 @@ export function useToggleFocus() {
       if (record) savedRecords.current.set(canonicalId, record);
 
       const prev = await snapshotActive(qc);
-      qc.setQueryData<ThingRecord[]>(ACTIVE_KEY, (old) =>
+      qc.setQueryData<ItemRecord[]>(ACTIVE_KEY, (old) =>
         old?.map((r) =>
           r.canonical_id === canonicalId
             ? {
                 ...r,
-                thing: {
-                  ...r.thing,
+                item: {
+                  ...r.item,
                   additionalProperty: (
-                    r.thing.additionalProperty as AdditionalProp[]
+                    r.item.additionalProperty as AdditionalProp[]
                   ).map((p) =>
                     p.propertyID === "app:isFocused"
                       ? { ...p, value: !p.value }
@@ -439,7 +439,7 @@ export function useToggleFocus() {
     },
     onSettled: (_data, _err, canonicalId) => {
       savedRecords.current.delete(canonicalId);
-      qc.invalidateQueries({ queryKey: THINGS_QUERY_KEY });
+      qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
     },
   });
 }
@@ -451,7 +451,7 @@ export function useToggleFocus() {
 export function useMoveAction() {
   const qc = useQueryClient();
   const savedMeta = useRef(
-    new Map<string, { thingId: string; needsPromotion: boolean }>(),
+    new Map<string, { itemId: string; needsPromotion: boolean }>(),
   );
 
   return useMutation({
@@ -463,8 +463,8 @@ export function useMoveAction() {
       bucket: string;
     }) => {
       const meta = savedMeta.current.get(canonicalId);
-      const thingId = meta?.thingId ?? findThingId(qc, canonicalId);
-      if (!thingId) throw new Error(`Thing not found: ${canonicalId}`);
+      const itemId = meta?.itemId ?? findItemId(qc, canonicalId);
+      if (!itemId) throw new Error(`Item not found: ${canonicalId}`);
 
       const needsPromotion =
         meta?.needsPromotion ?? needsTypePromotion(qc, canonicalId, bucket);
@@ -481,13 +481,13 @@ export function useMoveAction() {
       if (needsPromotion) {
         patch["@type"] = targetTypeForBucket(bucket);
       }
-      return ThingsApi.update(thingId, patch);
+      return ItemsApi.update(itemId, patch);
     },
     onMutate: async ({ canonicalId, bucket }) => {
-      const thingId = findThingId(qc, canonicalId);
+      const itemId = findItemId(qc, canonicalId);
       const needsPromotion = needsTypePromotion(qc, canonicalId, bucket);
-      if (thingId)
-        savedMeta.current.set(canonicalId, { thingId, needsPromotion });
+      if (itemId)
+        savedMeta.current.set(canonicalId, { itemId, needsPromotion });
 
       const prev = await snapshotActive(qc);
       updateBucketInCache(qc, canonicalId, bucket);
@@ -501,7 +501,7 @@ export function useMoveAction() {
     },
     onSettled: (_data, _err, { canonicalId }) => {
       savedMeta.current.delete(canonicalId);
-      qc.invalidateQueries({ queryKey: THINGS_QUERY_KEY });
+      qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
     },
   });
 }
@@ -521,17 +521,17 @@ export function useUpdateItem() {
       canonicalId: CanonicalId;
       patch: Record<string, unknown>;
     }) => {
-      const thingId = findThingId(qc, canonicalId);
-      if (!thingId) throw new Error(`Thing not found: ${canonicalId}`);
+      const itemId = findItemId(qc, canonicalId);
+      if (!itemId) throw new Error(`Item not found: ${canonicalId}`);
 
-      return ThingsApi.update(thingId, patch);
+      return ItemsApi.update(itemId, patch);
     },
     onMutate: async ({ canonicalId, patch }) => {
       const prev = await snapshotActive(qc);
-      qc.setQueryData<ThingRecord[]>(ACTIVE_KEY, (old) =>
+      qc.setQueryData<ItemRecord[]>(ACTIVE_KEY, (old) =>
         old?.map((r) =>
           r.canonical_id === canonicalId
-            ? { ...r, thing: { ...r.thing, ...patch } }
+            ? { ...r, item: { ...r.item, ...patch } }
             : r,
         ),
       );
@@ -541,7 +541,7 @@ export function useUpdateItem() {
       if (context?.prev) qc.setQueryData(ACTIVE_KEY, context.prev);
     },
     onSettled: () => {
-      qc.invalidateQueries({ queryKey: THINGS_QUERY_KEY });
+      qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
     },
   });
 }
@@ -559,23 +559,23 @@ export function useAddAction() {
       bucket,
     }: {
       title: string;
-      bucket: ThingBucket;
+      bucket: ActionItemBucket;
     }) => {
       const jsonLd = buildNewActionJsonLd(title, bucket);
-      return ThingsApi.create(jsonLd, "manual");
+      return ItemsApi.create(jsonLd, "manual");
     },
     onMutate: async ({ title, bucket }) => {
       const prev = await snapshotActive(qc);
       const now = new Date().toISOString();
-      const optimistic: ThingRecord = {
-        thing_id: `temp-${Date.now()}`,
+      const optimistic: ItemRecord = {
+        item_id: `temp-${Date.now()}`,
         canonical_id: `urn:app:action:temp-${Date.now()}` as CanonicalId,
         source: "manual",
-        thing: buildNewActionJsonLd(title, bucket),
+        item: buildNewActionJsonLd(title, bucket),
         created_at: now,
         updated_at: now,
       };
-      qc.setQueryData<ThingRecord[]>(ACTIVE_KEY, (old) => [
+      qc.setQueryData<ItemRecord[]>(ACTIVE_KEY, (old) => [
         ...(old ?? []),
         optimistic,
       ]);
@@ -585,7 +585,7 @@ export function useAddAction() {
       if (context?.prev) qc.setQueryData(ACTIVE_KEY, context.prev);
     },
     onSettled: () => {
-      qc.invalidateQueries({ queryKey: THINGS_QUERY_KEY });
+      qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
     },
   });
 }
@@ -600,20 +600,20 @@ export function useAddReference() {
   return useMutation({
     mutationFn: async (title: string) => {
       const jsonLd = buildNewReferenceJsonLd(title);
-      return ThingsApi.create(jsonLd, "manual");
+      return ItemsApi.create(jsonLd, "manual");
     },
     onMutate: async (title) => {
       const prev = await snapshotActive(qc);
       const now = new Date().toISOString();
-      const optimistic: ThingRecord = {
-        thing_id: `temp-${Date.now()}`,
+      const optimistic: ItemRecord = {
+        item_id: `temp-${Date.now()}`,
         canonical_id: `urn:app:ref:temp-${Date.now()}`,
         source: "manual",
-        thing: buildNewReferenceJsonLd(title),
+        item: buildNewReferenceJsonLd(title),
         created_at: now,
         updated_at: now,
       };
-      qc.setQueryData<ThingRecord[]>(ACTIVE_KEY, (old) => [
+      qc.setQueryData<ItemRecord[]>(ACTIVE_KEY, (old) => [
         ...(old ?? []),
         optimistic,
       ]);
@@ -623,7 +623,7 @@ export function useAddReference() {
       if (context?.prev) qc.setQueryData(ACTIVE_KEY, context.prev);
     },
     onSettled: () => {
-      qc.invalidateQueries({ queryKey: THINGS_QUERY_KEY });
+      qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
     },
   });
 }
@@ -644,20 +644,20 @@ export function useAddProjectAction() {
       title: string;
     }) => {
       const jsonLd = buildNewActionJsonLd(title, "next", { projectId });
-      return ThingsApi.create(jsonLd, "manual");
+      return ItemsApi.create(jsonLd, "manual");
     },
     onMutate: async ({ projectId, title }) => {
       const prev = await snapshotActive(qc);
       const now = new Date().toISOString();
-      const optimistic: ThingRecord = {
-        thing_id: `temp-${Date.now()}`,
+      const optimistic: ItemRecord = {
+        item_id: `temp-${Date.now()}`,
         canonical_id: `urn:app:action:temp-${Date.now()}` as CanonicalId,
         source: "manual",
-        thing: buildNewActionJsonLd(title, "next", { projectId }),
+        item: buildNewActionJsonLd(title, "next", { projectId }),
         created_at: now,
         updated_at: now,
       };
-      qc.setQueryData<ThingRecord[]>(ACTIVE_KEY, (old) => [
+      qc.setQueryData<ItemRecord[]>(ACTIVE_KEY, (old) => [
         ...(old ?? []),
         optimistic,
       ]);
@@ -667,7 +667,7 @@ export function useAddProjectAction() {
       if (context?.prev) qc.setQueryData(ACTIVE_KEY, context.prev);
     },
     onSettled: () => {
-      qc.invalidateQueries({ queryKey: THINGS_QUERY_KEY });
+      qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
     },
   });
 }
@@ -688,20 +688,20 @@ export function useCreateProject() {
       desiredOutcome: string;
     }) => {
       const jsonLd = buildNewProjectJsonLd(name, desiredOutcome);
-      return ThingsApi.create(jsonLd, "manual");
+      return ItemsApi.create(jsonLd, "manual");
     },
     onMutate: async ({ name, desiredOutcome }) => {
       const prev = await snapshotActive(qc);
       const now = new Date().toISOString();
-      const optimistic: ThingRecord = {
-        thing_id: `temp-${Date.now()}`,
+      const optimistic: ItemRecord = {
+        item_id: `temp-${Date.now()}`,
         canonical_id: `urn:app:project:temp-${Date.now()}` as CanonicalId,
         source: "manual",
-        thing: buildNewProjectJsonLd(name, desiredOutcome),
+        item: buildNewProjectJsonLd(name, desiredOutcome),
         created_at: now,
         updated_at: now,
       };
-      qc.setQueryData<ThingRecord[]>(ACTIVE_KEY, (old) => [
+      qc.setQueryData<ItemRecord[]>(ACTIVE_KEY, (old) => [
         ...(old ?? []),
         optimistic,
       ]);
@@ -711,7 +711,7 @@ export function useCreateProject() {
       if (context?.prev) qc.setQueryData(ACTIVE_KEY, context.prev);
     },
     onSettled: () => {
-      qc.invalidateQueries({ queryKey: THINGS_QUERY_KEY });
+      qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
     },
   });
 }
@@ -726,15 +726,15 @@ export function useArchiveReference() {
 
   return useMutation({
     mutationFn: async (canonicalId: CanonicalId) => {
-      const thingId =
-        savedIds.current.get(canonicalId) ?? findThingId(qc, canonicalId);
-      if (!thingId) throw new Error(`Thing not found: ${canonicalId}`);
+      const itemId =
+        savedIds.current.get(canonicalId) ?? findItemId(qc, canonicalId);
+      if (!itemId) throw new Error(`Item not found: ${canonicalId}`);
 
-      return ThingsApi.archive(thingId);
+      return ItemsApi.archive(itemId);
     },
     onMutate: async (canonicalId) => {
-      const thingId = findThingId(qc, canonicalId);
-      if (thingId) savedIds.current.set(canonicalId, thingId);
+      const itemId = findItemId(qc, canonicalId);
+      if (itemId) savedIds.current.set(canonicalId, itemId);
 
       const record = findRecord(qc, canonicalId);
       const { prevActive, prevCompleted } = await snapshotBoth(qc);
@@ -743,7 +743,7 @@ export function useArchiveReference() {
       if (record) {
         addToCache(qc, COMPLETED_KEY, {
           ...record,
-          thing: { ...record.thing, endTime: new Date().toISOString() },
+          item: { ...record.item, endTime: new Date().toISOString() },
         });
       }
       return { prevActive, prevCompleted };

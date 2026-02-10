@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Preview } from "@storybook/react-vite";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ToastProvider } from "../src/components/ui/ToastProvider";
 import { worker } from "./msw-setup";
 import "../src/index.css";
 
@@ -47,7 +48,9 @@ const preview: Preview = {
       );
       return (
         <QueryClientProvider client={qc}>
-          <Story />
+          <ToastProvider>
+            <Story />
+          </ToastProvider>
         </QueryClientProvider>
       );
     },

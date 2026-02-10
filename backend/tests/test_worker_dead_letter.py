@@ -24,7 +24,7 @@ def _clean_outbox(app):
 
 
 def _insert_outbox_event(
-    event_type: str = "thing_upserted",
+    event_type: str = "item_upserted",
     payload: dict | None = None,
     attempts: int = 0,
 ) -> str:
@@ -33,7 +33,7 @@ def _insert_outbox_event(
     if payload is None:
         # Omit org_id so the worker raises ValueError("missing org_id")
         # before hitting any FK-constrained tables.
-        payload = {"thing_id": str(uuid.uuid4())}
+        payload = {"item_id": str(uuid.uuid4())}
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(

@@ -2,9 +2,9 @@ import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
 import { BucketView } from "./BucketView";
-import type { Thing } from "@/model/types";
+import type { ActionItem } from "@/model/types";
 import {
-  createThing,
+  createActionItem,
   createProject,
   resetFactoryCounter,
 } from "@/model/factories";
@@ -26,8 +26,8 @@ const sampleProjects = [
   }),
 ];
 
-const sampleThings: Thing[] = [
-  createThing({
+const sampleItems: ActionItem[] = [
+  createActionItem({
     rawCapture: "Antrag von Frau Schmidt bearbeiten",
     bucket: "inbox",
     captureSource: {
@@ -36,20 +36,20 @@ const sampleThings: Thing[] = [
       from: "schmidt@bund.de",
     },
   }),
-  createThing({
+  createActionItem({
     rawCapture: "Protokoll der Abteilungsbesprechung erstellen",
     bucket: "inbox",
     captureSource: { kind: "meeting", title: "Abteilungsbesprechung" },
   }),
-  createThing({
+  createActionItem({
     rawCapture: "Schulungsunterlagen aktualisieren",
     bucket: "inbox",
   }),
-  createThing({
+  createActionItem({
     rawCapture: "Reisekostenabrechnung einreichen",
     bucket: "next",
   }),
-  createThing({
+  createActionItem({
     rawCapture: "Rückmeldung von Abteilung B abwarten",
     bucket: "waiting",
   }),
@@ -59,51 +59,51 @@ const sampleThings: Thing[] = [
 // Stateful wrapper
 // ---------------------------------------------------------------------------
 
-function WorkScreenApp({ initialThings = [] }: { initialThings?: Thing[] }) {
-  const [things, setThings] = useState<Thing[]>(initialThings);
+function WorkScreenApp({ initialItems = [] }: { initialItems?: ActionItem[] }) {
+  const [items, setItems] = useState<ActionItem[]>(initialItems);
   const [bucket, setBucket] = useState<string>("inbox");
 
   return (
     <BucketView
       activeBucket={bucket as "inbox"}
       onBucketChange={(b) => setBucket(b)}
-      things={things}
+      actionItems={items}
       projects={sampleProjects}
-      onAddThing={(title, bucket) => {
-        setThings((prev) => [
+      onAddActionItem={(title, bucket) => {
+        setItems((prev) => [
           ...prev,
-          createThing({ rawCapture: title, bucket }),
+          createActionItem({ rawCapture: title, bucket }),
         ]);
       }}
-      onCompleteThing={(id) => {
-        setThings((prev) =>
+      onCompleteActionItem={(id) => {
+        setItems((prev) =>
           prev.map((t) =>
             t.id === id ? { ...t, completedAt: new Date().toISOString() } : t,
           ),
         );
       }}
       onToggleFocus={(id) => {
-        setThings((prev) =>
+        setItems((prev) =>
           prev.map((t) =>
             t.id === id ? { ...t, isFocused: !t.isFocused } : t,
           ),
         );
       }}
-      onMoveThing={(id, bucket) => {
-        setThings((prev) =>
+      onMoveActionItem={(id, bucket) => {
+        setItems((prev) =>
           prev.map((t) => (t.id === id ? { ...t, bucket } : t)),
         );
       }}
-      onArchiveThing={(id) => {
-        setThings((prev) => prev.filter((t) => t.id !== id));
+      onArchiveActionItem={(id) => {
+        setItems((prev) => prev.filter((t) => t.id !== id));
       }}
       onUpdateTitle={(id, newTitle) => {
-        setThings((prev) =>
+        setItems((prev) =>
           prev.map((t) => (t.id === id ? { ...t, name: newTitle } : t)),
         );
       }}
-      onEditThing={(id, fields) => {
-        setThings((prev) =>
+      onEditActionItem={(id, fields) => {
+        setItems((prev) =>
           prev.map((t) => (t.id === id ? { ...t, ...fields } : t)),
         );
       }}
@@ -135,7 +135,7 @@ type Story = StoryObj<typeof meta>;
 // ---------------------------------------------------------------------------
 
 export const Default: Story = {
-  render: () => <WorkScreenApp initialThings={[...sampleThings]} />,
+  render: () => <WorkScreenApp initialItems={[...sampleItems]} />,
 };
 
 // ---------------------------------------------------------------------------
@@ -144,7 +144,7 @@ export const Default: Story = {
 
 /** Capture an item, move it to Next, navigate to Next Actions, verify counts. */
 export const CaptureTriageNavigate: Story = {
-  render: () => <WorkScreenApp initialThings={[...sampleThings]} />,
+  render: () => <WorkScreenApp initialItems={[...sampleItems]} />,
   play: async ({ canvas, userEvent, step }) => {
     const nav = canvas.getByRole("navigation", { name: "Buckets" });
     const sidebar = within(nav);

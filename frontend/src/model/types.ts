@@ -182,13 +182,18 @@ export interface BaseEntity extends Enrichable {
 }
 
 // ---------------------------------------------------------------------------
-// Thing — unified type for inbox items and actions
+// ActionItem — unified type for inbox items and actions
 // ---------------------------------------------------------------------------
 
-export type ThingBucket = "inbox" | "next" | "waiting" | "calendar" | "someday";
+export type ActionItemBucket =
+  | "inbox"
+  | "next"
+  | "waiting"
+  | "calendar"
+  | "someday";
 
-export interface Thing extends BaseEntity {
-  bucket: ThingBucket;
+export interface ActionItem extends BaseEntity {
+  bucket: ActionItemBucket;
   rawCapture?: string;
   contexts: CanonicalId[];
   projectIds: CanonicalId[];
@@ -275,7 +280,7 @@ export interface CalendarEntry extends BaseEntity {
 // Union Types
 // ---------------------------------------------------------------------------
 
-export type AppItem = Thing | Project | ReferenceMaterial | CalendarEntry;
+export type AppItem = ActionItem | Project | ReferenceMaterial | CalendarEntry;
 
 export type Bucket =
   | "inbox"
@@ -291,17 +296,17 @@ export type Bucket =
 // Type Guards
 // ---------------------------------------------------------------------------
 
-export function isThing(item: AppItem): item is Thing {
+export function isActionItem(item: AppItem): item is ActionItem {
   return ["inbox", "next", "waiting", "calendar", "someday"].includes(
     item.bucket,
   );
 }
 
-export function isInboxItem(item: AppItem): item is Thing {
+export function isInboxItem(item: AppItem): item is ActionItem {
   return item.bucket === "inbox";
 }
 
-export function isAction(item: AppItem): item is Thing {
+export function isAction(item: AppItem): item is ActionItem {
   return ["next", "waiting", "calendar", "someday"].includes(item.bucket);
 }
 

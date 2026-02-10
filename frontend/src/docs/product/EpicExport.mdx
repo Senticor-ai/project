@@ -13,7 +13,7 @@ The Settings > Import/Export panel has JSON and CSV export buttons, but clicking
 
 This epic adds a streaming backend export endpoint and wires the frontend buttons to trigger a browser download.
 
-**Design goal:** Users can export all their GTD items as JSON or CSV for backup or migration to another system. The export includes all non-archived things with full schema.org/JSON-LD data preserved.
+**Design goal:** Users can export all their GTD items as JSON or CSV for backup or migration to another system. The export includes all non-archived items with full schema.org/JSON-LD data preserved.
 
 ---
 
@@ -23,31 +23,31 @@ This epic adds a streaming backend export endpoint and wires the frontend button
 
 `backend/tests/test_export.py`:
 
-- `GET /things/export?format=json` returns `200` with `Content-Type: application/json`
-- `GET /things/export?format=csv` returns `200` with `Content-Type: text/csv`
-- Both include `Content-Disposition: attachment; filename="things-export-{timestamp}.{ext}"`
-- JSON response is a valid JSON array of thing records
-- CSV response has a header row and one data row per thing
+- `GET /items/export?format=json` returns `200` with `Content-Type: application/json`
+- `GET /items/export?format=csv` returns `200` with `Content-Type: text/csv`
+- Both include `Content-Disposition: attachment; filename="items-export-{timestamp}.{ext}"`
+- JSON response is a valid JSON array of item records
+- CSV response has a header row and one data row per item
 - Empty database returns empty array (JSON) or header-only (CSV)
 - Unauthenticated request returns `401`
 - Invalid format returns `400`
 
 ### 1b. GREEN — Implement streaming endpoint
 
-`backend/app/routes/things.py` — new route on existing router:
+`backend/app/routes/items.py` — new route on existing router:
 
 ```python
-@router.get("/export", summary="Export all things")
-def export_things(format: str = "json", current_org=Depends(get_current_org)):
+@router.get("/export", summary="Export all items")
+def export_items(format: str = "json", current_org=Depends(get_current_org)):
 ```
 
-- Query all non-archived things for the org (no pagination limit)
+- Query all non-archived items for the org (no pagination limit)
 - **JSON format**: `StreamingResponse` with `application/json` content type
   - Stream as JSON array: write `[`, then each record separated by `,\n`, then `]`
-  - Each record matches `ThingResponse` schema
+  - Each record matches `ItemResponse` schema
 - **CSV format**: `StreamingResponse` with `text/csv` content type
   - Flatten `schema_jsonld` top-level keys into columns
-  - Fixed columns: `thing_id`, `canonical_id`, `source`, `created_at`, `updated_at`
+  - Fixed columns: `item_id`, `canonical_id`, `source`, `created_at`, `updated_at`
   - Dynamic columns from `schema_jsonld`: `name`, `@type`, `description`, `rawCapture`, `app:bucket` (extracted from `additionalProperty`)
   - Use Python `csv` module with proper escaping
 - Set `Content-Disposition` header with timestamped filename
@@ -55,8 +55,8 @@ def export_things(format: str = "json", current_org=Depends(get_current_org)):
 ### 1c. VERIFY
 
 ```bash
-cd backend && uv run ruff check app/routes/things.py
-cd backend && uv run mypy app/routes/things.py
+cd backend && uv run ruff check app/routes/items.py
+cd backend && uv run mypy app/routes/items.py
 cd backend && uv run python -m pytest tests/test_export.py -v
 ```
 
@@ -66,15 +66,15 @@ cd backend && uv run python -m pytest tests/test_export.py -v
 
 ### 2a. RED — Test for export trigger
 
-`frontend/src/lib/export-things.test.ts`:
+`frontend/src/lib/export-items.test.ts`:
 
 - Calling `triggerExport("json")` opens the correct URL
 - Calling `triggerExport("csv")` opens the correct URL
-- URL includes the API base path: `{API_BASE_URL}/things/export?format={format}`
+- URL includes the API base path: `{API_BASE_URL}/items/export?format={format}`
 
 ### 2b. GREEN — Implement export trigger
 
-`frontend/src/lib/export-things.ts`:
+`frontend/src/lib/export-items.ts`:
 
 ```typescript
 import type { ExportOptions } from "@/model/settings-types";
@@ -86,7 +86,7 @@ export function triggerExport(options: ExportOptions): void {
   if (options.includeArchived) params.set("include_archived", "true");
   if (options.includeCompleted) params.set("include_completed", "true");
   const qs = params.toString();
-  window.open(`${API_BASE_URL}/things/export${qs ? `?${qs}` : ""}`, "_blank");
+  window.open(`${API_BASE_URL}/items/export${qs ? `?${qs}` : ""}`, "_blank");
 }
 ```
 
@@ -97,7 +97,7 @@ Since auth uses HTTP-only cookies with `credentials: "include"`, a direct `windo
 `frontend/src/App.tsx`:
 
 ```typescript
-import { triggerExport } from "./lib/export-things";
+import { triggerExport } from "./lib/export-items";
 // ...
 <SettingsScreen
   onImportNirvana={() => setShowImport(true)}
@@ -110,7 +110,7 @@ import { triggerExport } from "./lib/export-things";
 ```bash
 cd frontend && CI=1 npx vitest run --project=unit
 cd frontend && npx tsc --noEmit
-cd frontend && npx eslint src/lib/export-things.ts src/App.tsx
+cd frontend && npx eslint src/lib/export-items.ts src/App.tsx
 ```
 
 ---
@@ -120,37 +120,37 @@ cd frontend && npx eslint src/lib/export-things.ts src/App.tsx
 **New files:**
 
 - `backend/tests/test_export.py` — pytest for export endpoint
-- `frontend/src/lib/export-things.ts` — download trigger utility
-- `frontend/src/lib/export-things.test.ts` — unit test for trigger
+- `frontend/src/lib/export-items.ts` — download trigger utility
+- `frontend/src/lib/export-items.test.ts` — unit test for trigger
 
 **Modified files:**
 
-- `backend/app/routes/things.py` — new `GET /export` route
+- `backend/app/routes/items.py` — new `GET /export` route
 - `frontend/src/App.tsx` — pass `onExport={triggerExport}` to SettingsScreen
 
 ---
 
 ## CSV column mapping
 
-| CSV Column | Source |
-| --- | --- |
-| `thing_id` | `ThingResponse.thing_id` |
-| `canonical_id` | `ThingResponse.canonical_id` |
-| `source` | `ThingResponse.source` |
-| `type` | `schema_jsonld["@type"]` |
-| `name` | `schema_jsonld["name"]` |
-| `raw_capture` | `schema_jsonld["rawCapture"]` |
-| `description` | `schema_jsonld["description"]` |
-| `bucket` | `additionalProperty` where `propertyID == "app:bucket"` |
-| `created_at` | `ThingResponse.created_at` |
-| `updated_at` | `ThingResponse.updated_at` |
+| CSV Column     | Source                                                  |
+| -------------- | ------------------------------------------------------- |
+| `item_id`      | `ItemResponse.item_id`                                  |
+| `canonical_id` | `ItemResponse.canonical_id`                             |
+| `source`       | `ItemResponse.source`                                   |
+| `type`         | `schema_jsonld["@type"]`                                |
+| `name`         | `schema_jsonld["name"]`                                 |
+| `raw_capture`  | `schema_jsonld["rawCapture"]`                           |
+| `description`  | `schema_jsonld["description"]`                          |
+| `bucket`       | `additionalProperty` where `propertyID == "app:bucket"` |
+| `created_at`   | `ItemResponse.created_at`                               |
+| `updated_at`   | `ItemResponse.updated_at`                               |
 
 ---
 
 ## Verification checklist
 
-- [ ] `GET /things/export?format=json` returns valid JSON array
-- [ ] `GET /things/export?format=csv` returns valid CSV with headers
+- [ ] `GET /items/export?format=json` returns valid JSON array
+- [ ] `GET /items/export?format=csv` returns valid CSV with headers
 - [ ] Content-Disposition header has timestamped filename
 - [ ] Auth required (401 without session)
 - [ ] Frontend JSON button triggers download

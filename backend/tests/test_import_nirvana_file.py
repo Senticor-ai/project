@@ -13,9 +13,9 @@ from app.storage import get_storage
 from app.worker import process_batch
 
 
-def _get_prop(thing: dict, property_id: str):
+def _get_prop(item: dict, property_id: str):
     """Extract value from additionalProperty by propertyID."""
-    for pv in thing.get("additionalProperty", []):
+    for pv in item.get("additionalProperty", []):
         if pv.get("propertyID") == property_id:
             return pv.get("value")
     return None
@@ -136,8 +136,8 @@ def test_import_from_file_flow(auth_client):
     assert payload["status"] == "completed"
     assert payload["summary"]["errors"] == 0
 
-    things = auth_client.get("/things?limit=1000").json()
-    assert any(t["canonical_id"] == "urn:app:project:PROJ-123" for t in things)
+    items = auth_client.get("/items?limit=1000").json()
+    assert any(t["canonical_id"] == "urn:app:project:PROJ-123" for t in items)
 
 
 def test_import_from_file_matrix_fixture_preserves_fields(auth_client):
@@ -185,17 +185,17 @@ def test_import_from_file_matrix_fixture_preserves_fields(auth_client):
     # WAITING-COMPLETED, SOMEDAY-COMPLETED, CALENDAR-COMPLETED
     assert payload["summary"]["skipped"] == 12
 
-    things = {row["canonical_id"]: row for row in auth_client.get("/things?limit=2000").json()}
-    assert "urn:app:action:TASK-MATRIX-COMPLETED" not in things
+    items = {row["canonical_id"]: row for row in auth_client.get("/items?limit=2000").json()}
+    assert "urn:app:action:TASK-MATRIX-COMPLETED" not in items
 
-    focused = things["urn:app:action:TASK-MATRIX-FOCUS"]["thing"]
+    focused = items["urn:app:action:TASK-MATRIX-FOCUS"]["item"]
     assert _get_prop(focused, "app:isFocused") is True
 
-    calendar_start = things["urn:app:action:TASK-MATRIX-CALENDAR-START"]["thing"]
+    calendar_start = items["urn:app:action:TASK-MATRIX-CALENDAR-START"]["item"]
     assert _get_prop(calendar_start, "app:startDate") == "2026-04-01"
     assert _get_prop(calendar_start, "app:dueDate") == "2026-04-01"
 
-    state7_reference = things["urn:app:reference:TASK-MATRIX-STATE7"]["thing"]
+    state7_reference = items["urn:app:reference:TASK-MATRIX-STATE7"]["item"]
     assert _get_prop(state7_reference, "app:bucket") == "reference"
     assert state7_reference["sourceMetadata"]["raw"]["seqp"] == 3
 
@@ -268,7 +268,7 @@ def test_list_import_jobs_filters_by_status(auth_client):
 
     queued_list = auth_client.get("/imports/jobs?status=queued&limit=20")
     assert queued_list.status_code == 200
-    queued_ids = {item["job_id"] for item in queued_list.json()}
+    queued_ids = {row["job_id"] for row in queued_list.json()}
     assert job_id in queued_ids
 
     processed = process_batch(limit=25)
@@ -277,13 +277,13 @@ def test_list_import_jobs_filters_by_status(auth_client):
     completed_list = auth_client.get("/imports/jobs?status=completed&limit=20")
     assert completed_list.status_code == 200
     completed_items = completed_list.json()
-    completed_ids = {item["job_id"] for item in completed_items}
+    completed_ids = {row["job_id"] for row in completed_items}
     assert job_id in completed_ids
-    assert all(item["status"] == "completed" for item in completed_items)
+    assert all(row["status"] == "completed" for row in completed_items)
 
     default_list = auth_client.get("/imports/jobs?limit=20")
     assert default_list.status_code == 200
-    default_ids = {item["job_id"] for item in default_list.json()}
+    default_ids = {row["job_id"] for row in default_list.json()}
     assert job_id in default_ids
 
 

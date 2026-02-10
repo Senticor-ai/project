@@ -1,11 +1,15 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect } from "storybook/test";
-import { ThingList } from "./ThingList";
-import type { Thing, ItemEditableFields, ThingBucket } from "@/model/types";
+import { ActionList } from "./ActionList";
+import type {
+  ActionItem,
+  ItemEditableFields,
+  ActionItemBucket,
+} from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
 import {
-  createThing,
+  createActionItem,
   createProject,
   resetFactoryCounter,
 } from "@/model/factories";
@@ -32,58 +36,63 @@ const sampleProjects = [
 // ---------------------------------------------------------------------------
 
 interface WorkflowAppProps {
-  initialThings?: Thing[];
-  bucket?: Thing["bucket"] | "focus";
+  initialItems?: ActionItem[];
+  bucket?: ActionItem["bucket"] | "focus";
 }
 
 function WorkflowApp({
-  initialThings = [],
+  initialItems = [],
   bucket = "inbox",
 }: WorkflowAppProps) {
-  const [things, setThings] = useState<Thing[]>(initialThings);
+  const [items, setItems] = useState<ActionItem[]>(initialItems);
 
   return (
-    <ThingList
+    <ActionList
       bucket={bucket}
-      things={things}
+      items={items}
       projects={sampleProjects}
       onAdd={(title) => {
-        setThings((prev) => [
+        setItems((prev) => [
           ...prev,
-          createThing({
+          createActionItem({
             rawCapture: title,
-            bucket: bucket === "focus" ? "next" : (bucket as Thing["bucket"]),
+            bucket:
+              bucket === "focus" ? "next" : (bucket as ActionItem["bucket"]),
           }),
         ]);
       }}
       onComplete={(id) => {
         // In production, completing removes from the active query results
-        setThings((prev) => prev.filter((t) => t.id !== id));
+        setItems((prev) => prev.filter((t) => t.id !== id));
       }}
       onToggleFocus={(id) => {
-        setThings((prev) =>
+        setItems((prev) =>
           prev.map((t) =>
             t.id === id ? { ...t, isFocused: !t.isFocused } : t,
           ),
         );
       }}
       onMove={(id, targetBucket) => {
-        setThings((prev) =>
+        setItems((prev) =>
           prev.map((t) =>
-            t.id === id ? { ...t, bucket: targetBucket as ThingBucket } : t,
+            t.id === id
+              ? { ...t, bucket: targetBucket as ActionItemBucket }
+              : t,
           ),
         );
       }}
       onArchive={(id) => {
-        setThings((prev) => prev.filter((t) => t.id !== id));
+        setItems((prev) => prev.filter((t) => t.id !== id));
       }}
       onEdit={(id: CanonicalId, fields: Partial<ItemEditableFields>) => {
-        setThings((prev) =>
-          prev.map((t) => (t.id === id ? ({ ...t, ...fields } as Thing) : t)),
+        setItems((prev) =>
+          prev.map((t) =>
+            t.id === id ? ({ ...t, ...fields } as ActionItem) : t,
+          ),
         );
       }}
       onUpdateTitle={(id: CanonicalId, newTitle: string) => {
-        setThings((prev) =>
+        setItems((prev) =>
           prev.map((t) => (t.id === id ? { ...t, name: newTitle } : t)),
         );
       }}
@@ -147,8 +156,8 @@ export const CaptureThreeTodos: Story = {
 export const TriageToNext: Story = {
   render: () => (
     <WorkflowApp
-      initialThings={[
-        createThing({ rawCapture: "Review annual budget report" }),
+      initialItems={[
+        createActionItem({ rawCapture: "Review annual budget report" }),
       ]}
     />
   ),
@@ -173,8 +182,8 @@ export const TriageToNext: Story = {
 export const TriageToWaiting: Story = {
   render: () => (
     <WorkflowApp
-      initialThings={[
-        createThing({ rawCapture: "Call client about Q1 proposal" }),
+      initialItems={[
+        createActionItem({ rawCapture: "Call client about Q1 proposal" }),
       ]}
     />
   ),
@@ -196,16 +205,16 @@ export const CompleteFromNextActions: Story = {
   render: () => (
     <WorkflowApp
       bucket="next"
-      initialThings={[
-        createThing({
+      initialItems={[
+        createActionItem({
           rawCapture: "Buy groceries",
           bucket: "next",
         }),
-        createThing({
+        createActionItem({
           rawCapture: "Schedule dentist appointment",
           bucket: "next",
         }),
-        createThing({
+        createActionItem({
           rawCapture: "Update resume",
           bucket: "next",
         }),

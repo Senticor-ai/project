@@ -62,12 +62,12 @@ def test_register_rejects_duplicate_username_case_insensitive(client):
     assert response.status_code == 409
 
 
-def test_auth_required_for_things(client):
-    response = client.get("/things")
+def test_auth_required_for_items(client):
+    response = client.get("/items")
     assert response.status_code == 401
 
 
-def test_authorized_access_for_things(auth_client):
-    response = auth_client.get("/things")
+def test_authorized_access_for_items(auth_client):
+    response = auth_client.get("/items")
     assert response.status_code == 200
     assert isinstance(response.json(), list)

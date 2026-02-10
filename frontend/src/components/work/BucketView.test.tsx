@@ -3,15 +3,15 @@ import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { BucketView } from "./BucketView";
 import {
-  createThing,
+  createActionItem,
   createReferenceMaterial,
   createProject,
   createAction,
 } from "@/model/factories";
 
-// Mock completed items hook (used by ThingList)
-vi.mock("@/hooks/use-things", () => ({
-  useAllCompletedThings: () => ({ data: [], isFetching: false }),
+// Mock completed items hook (used by ActionList)
+vi.mock("@/hooks/use-items", () => ({
+  useAllCompletedItems: () => ({ data: [], isFetching: false }),
 }));
 
 // Mock @dnd-kit/core — capture onDragStart/onDragEnd for testing drag handler
@@ -56,16 +56,16 @@ vi.mock("@dnd-kit/core", () => ({
 const baseProps = {
   activeBucket: "inbox" as const,
   onBucketChange: vi.fn(),
-  things: [
-    createThing({ name: "Buy milk", bucket: "inbox" }),
+  actionItems: [
+    createActionItem({ name: "Buy milk", bucket: "inbox" }),
     createAction({ name: "Call dentist", bucket: "next" }),
     createAction({ name: "Review docs", bucket: "waiting" }),
   ],
-  onAddThing: vi.fn(),
-  onCompleteThing: vi.fn(),
+  onAddActionItem: vi.fn(),
+  onCompleteActionItem: vi.fn(),
   onToggleFocus: vi.fn(),
-  onMoveThing: vi.fn(),
-  onArchiveThing: vi.fn(),
+  onMoveActionItem: vi.fn(),
+  onArchiveActionItem: vi.fn(),
 };
 
 describe("BucketView", () => {
@@ -89,7 +89,7 @@ describe("BucketView", () => {
     expect(inboxBtn).toHaveTextContent("1");
   });
 
-  it("renders ThingList for thing-type buckets", () => {
+  it("renders ActionList for thing-type buckets", () => {
     render(<BucketView {...baseProps} activeBucket="next" />);
     // The "next" action should appear in the list
     expect(screen.getByText("Call dentist")).toBeInTheDocument();
@@ -138,8 +138,8 @@ describe("BucketView", () => {
 describe("BucketView counts", () => {
   it("excludes completed items from bucket counts", () => {
     const things = [
-      createThing({ name: "Active inbox", bucket: "inbox" }),
-      createThing({
+      createActionItem({ name: "Active inbox", bucket: "inbox" }),
+      createActionItem({
         name: "Done inbox",
         bucket: "inbox",
         completedAt: "2026-01-01T00:00:00Z",
@@ -151,7 +151,7 @@ describe("BucketView counts", () => {
         completedAt: "2026-01-01T00:00:00Z",
       }),
     ];
-    render(<BucketView {...baseProps} things={things} />);
+    render(<BucketView {...baseProps} actionItems={things} />);
     const nav = screen.getByRole("navigation", { name: "Buckets" });
     const inboxBtn = within(nav).getByText("Inbox").closest("button")!;
     expect(inboxBtn).toHaveTextContent("1");
@@ -173,7 +173,7 @@ describe("BucketView counts", () => {
       }),
       createAction({ name: "Not focused", bucket: "next" }),
     ];
-    render(<BucketView {...baseProps} things={things} />);
+    render(<BucketView {...baseProps} actionItems={things} />);
     const nav = screen.getByRole("navigation", { name: "Buckets" });
     const focusBtn = within(nav).getByText("Focus").closest("button")!;
     expect(focusBtn).toHaveTextContent("2");
@@ -192,7 +192,9 @@ describe("BucketView counts", () => {
         },
       }),
     ];
-    render(<BucketView {...baseProps} things={[]} referenceItems={refs} />);
+    render(
+      <BucketView {...baseProps} actionItems={[]} referenceItems={refs} />,
+    );
     const nav = screen.getByRole("navigation", { name: "Buckets" });
     const refBtn = within(nav).getByText("Reference").closest("button")!;
     expect(refBtn).toHaveTextContent("1");
@@ -211,7 +213,7 @@ describe("BucketView counts", () => {
         status: "completed",
       }),
     ];
-    render(<BucketView {...baseProps} things={[]} projects={projects} />);
+    render(<BucketView {...baseProps} actionItems={[]} projects={projects} />);
     const nav = screen.getByRole("navigation", { name: "Buckets" });
     const projBtn = within(nav).getByText("Projects").closest("button")!;
     expect(projBtn).toHaveTextContent("1");
@@ -232,7 +234,9 @@ describe("BucketView focus bucket", () => {
       }),
       createAction({ name: "Not focused", bucket: "next" }),
     ];
-    render(<BucketView {...baseProps} activeBucket="focus" things={things} />);
+    render(
+      <BucketView {...baseProps} activeBucket="focus" actionItems={things} />,
+    );
     expect(screen.getByText("Focused action")).toBeInTheDocument();
     expect(screen.queryByText("Not focused")).not.toBeInTheDocument();
   });
@@ -245,8 +249,10 @@ describe("BucketView focus bucket", () => {
         isFocused: true,
       }),
     ];
-    render(<BucketView {...baseProps} activeBucket="focus" things={things} />);
-    // Focus view shows BucketBadge for each item (showBucket=true in ThingList)
+    render(
+      <BucketView {...baseProps} activeBucket="focus" actionItems={things} />,
+    );
+    // Focus view shows BucketBadge for each item (showBucket=true in ActionList)
     expect(screen.getByText("Next")).toBeInTheDocument();
   });
 });
@@ -287,43 +293,47 @@ describe("BucketView optional callbacks", () => {
 // ---------------------------------------------------------------------------
 
 describe("BucketView drag and drop", () => {
-  it("calls onMoveThing when item is dropped on a bucket", () => {
-    const onMoveThing = vi.fn();
+  it("calls onMoveActionItem when item is dropped on a bucket", () => {
+    const onMoveActionItem = vi.fn();
     const thing = createAction({ name: "Drag me", bucket: "next" });
     render(
-      <BucketView {...baseProps} things={[thing]} onMoveThing={onMoveThing} />,
+      <BucketView
+        {...baseProps}
+        actionItems={[thing]}
+        onMoveActionItem={onMoveActionItem}
+      />,
     );
     capturedOnDragEnd?.({
       active: { id: thing.id },
       over: { data: { current: { bucket: "someday" } } },
     });
-    expect(onMoveThing).toHaveBeenCalledWith(thing.id, "someday");
+    expect(onMoveActionItem).toHaveBeenCalledWith(thing.id, "someday");
   });
 
-  it("does not call onMoveThing when drop target is null", () => {
-    const onMoveThing = vi.fn();
-    render(<BucketView {...baseProps} onMoveThing={onMoveThing} />);
+  it("does not call onMoveActionItem when drop target is null", () => {
+    const onMoveActionItem = vi.fn();
+    render(<BucketView {...baseProps} onMoveActionItem={onMoveActionItem} />);
     capturedOnDragEnd?.({
       active: { id: "urn:app:action:1" },
       over: null,
     });
-    expect(onMoveThing).not.toHaveBeenCalled();
+    expect(onMoveActionItem).not.toHaveBeenCalled();
   });
 
-  it("does not call onMoveThing when drop target has no bucket", () => {
-    const onMoveThing = vi.fn();
-    render(<BucketView {...baseProps} onMoveThing={onMoveThing} />);
+  it("does not call onMoveActionItem when drop target has no bucket", () => {
+    const onMoveActionItem = vi.fn();
+    render(<BucketView {...baseProps} onMoveActionItem={onMoveActionItem} />);
     capturedOnDragEnd?.({
       active: { id: "urn:app:action:1" },
       over: { data: { current: {} } },
     });
-    expect(onMoveThing).not.toHaveBeenCalled();
+    expect(onMoveActionItem).not.toHaveBeenCalled();
   });
 
   it("shows drag overlay with item name during drag", () => {
     const thing = createAction({ name: "Drag me", bucket: "next" });
     render(
-      <BucketView {...baseProps} things={[thing]} activeBucket="next" />,
+      <BucketView {...baseProps} actionItems={[thing]} activeBucket="next" />,
     );
 
     const overlay = screen.getByTestId("drag-overlay");
@@ -344,7 +354,7 @@ describe("BucketView drag and drop", () => {
   it("clears drag overlay when drag ends", () => {
     const thing = createAction({ name: "Drag me", bucket: "next" });
     render(
-      <BucketView {...baseProps} things={[thing]} activeBucket="next" />,
+      <BucketView {...baseProps} actionItems={[thing]} activeBucket="next" />,
     );
 
     act(() => {

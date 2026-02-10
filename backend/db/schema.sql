@@ -59,8 +59,8 @@ CREATE TABLE IF NOT EXISTS sessions (
 
 CREATE INDEX IF NOT EXISTS idx_sessions_refresh_hash ON sessions (refresh_token_hash);
 
-CREATE TABLE IF NOT EXISTS things (
-  thing_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+CREATE TABLE IF NOT EXISTS items (
+  item_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID NOT NULL REFERENCES organizations(id),
   created_by_user_id UUID REFERENCES users(id),
   canonical_id TEXT NOT NULL,
@@ -72,33 +72,33 @@ CREATE TABLE IF NOT EXISTS things (
   archived_at TIMESTAMPTZ
 );
 
-ALTER TABLE things ADD COLUMN IF NOT EXISTS org_id UUID;
-ALTER TABLE things ADD COLUMN IF NOT EXISTS created_by_user_id UUID;
-CREATE UNIQUE INDEX IF NOT EXISTS idx_things_org_canonical_id ON things (org_id, canonical_id);
-CREATE INDEX IF NOT EXISTS idx_things_org_updated_at ON things (org_id, updated_at);
+ALTER TABLE items ADD COLUMN IF NOT EXISTS org_id UUID;
+ALTER TABLE items ADD COLUMN IF NOT EXISTS created_by_user_id UUID;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_items_org_canonical_id ON items (org_id, canonical_id);
+CREATE INDEX IF NOT EXISTS idx_items_org_updated_at ON items (org_id, updated_at);
 
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
-CREATE INDEX IF NOT EXISTS idx_things_name
-  ON things (org_id, (schema_jsonld->>'name'))
+CREATE INDEX IF NOT EXISTS idx_items_name
+  ON items (org_id, (schema_jsonld->>'name'))
   WHERE archived_at IS NULL;
 
-CREATE INDEX IF NOT EXISTS idx_things_name_trgm
-  ON things USING gin ((schema_jsonld->>'name') gin_trgm_ops)
+CREATE INDEX IF NOT EXISTS idx_items_name_trgm
+  ON items USING gin ((schema_jsonld->>'name') gin_trgm_ops)
   WHERE archived_at IS NULL;
 
-CREATE INDEX IF NOT EXISTS idx_things_jsonld_gin
-  ON things USING gin (schema_jsonld jsonb_path_ops)
+CREATE INDEX IF NOT EXISTS idx_items_jsonld_gin
+  ON items USING gin (schema_jsonld jsonb_path_ops)
   WHERE archived_at IS NULL;
 
-CREATE INDEX IF NOT EXISTS idx_things_endtime
-  ON things ((schema_jsonld->>'endTime'))
+CREATE INDEX IF NOT EXISTS idx_items_endtime
+  ON items ((schema_jsonld->>'endTime'))
   WHERE archived_at IS NULL;
 
 CREATE TABLE IF NOT EXISTS assertions (
   assertion_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID NOT NULL REFERENCES organizations(id),
-  thing_id UUID REFERENCES things(thing_id),
+  item_id UUID REFERENCES items(item_id),
   assertion_type TEXT NOT NULL,
   payload_json JSONB NOT NULL,
   actor_type TEXT NOT NULL,

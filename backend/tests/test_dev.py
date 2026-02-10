@@ -29,12 +29,12 @@ def test_flush_returns_401_without_auth(client):
         _disable_dev_tools()
 
 
-def test_flush_deletes_all_things(auth_client):
+def test_flush_deletes_all_items(auth_client):
     _enable_dev_tools()
     try:
-        # Create some things first
+        # Create some items first
         for i in range(3):
-            thing = {
+            item = {
                 "@id": f"urn:app:action:{uuid.uuid4()}",
                 "@type": "Action",
                 "_schemaVersion": 2,
@@ -48,12 +48,13 @@ def test_flush_deletes_all_things(auth_client):
                 ],
             }
             response = auth_client.post(
-                "/things", json={"thing": thing, "source": "manual"},
+                "/items",
+                json={"item": item, "source": "manual"},
             )
             assert response.status_code == 201
 
-        # Verify things exist
-        response = auth_client.get("/things")
+        # Verify items exist
+        response = auth_client.get("/items")
         assert response.status_code == 200
         assert len(response.json()) >= 3
 
@@ -62,10 +63,10 @@ def test_flush_deletes_all_things(auth_client):
         assert response.status_code == 200
         body = response.json()
         assert body["ok"] is True
-        assert body["deleted"]["things"] >= 3
+        assert body["deleted"]["items"] >= 3
 
-        # Verify things are gone (hard deleted, not archived)
-        response = auth_client.get("/things")
+        # Verify items are gone (hard deleted, not archived)
+        response = auth_client.get("/items")
         assert response.status_code == 200
         assert len(response.json()) == 0
     finally:
@@ -75,8 +76,8 @@ def test_flush_deletes_all_things(auth_client):
 def test_flush_preserves_user_and_session(auth_client):
     _enable_dev_tools()
     try:
-        # Create a thing
-        thing = {
+        # Create an item
+        item = {
             "@id": f"urn:app:action:{uuid.uuid4()}",
             "@type": "Action",
             "_schemaVersion": 2,
@@ -90,7 +91,8 @@ def test_flush_preserves_user_and_session(auth_client):
             ],
         }
         auth_client.post(
-            "/things", json={"thing": thing, "source": "manual"},
+            "/items",
+            json={"item": item, "source": "manual"},
         )
 
         # Flush

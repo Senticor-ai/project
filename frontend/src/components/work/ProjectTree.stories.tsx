@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, waitFor } from "storybook/test";
 import { ProjectTree } from "./ProjectTree";
-import type { Thing, Project } from "@/model/types";
+import type { ActionItem, Project } from "@/model/types";
 import {
-  createThing,
+  createActionItem,
   createProject,
   resetFactoryCounter,
 } from "@/model/factories";
@@ -28,40 +28,40 @@ const project3 = createProject({
   status: "completed",
 });
 
-const sampleActions: Thing[] = [
-  createThing({
+const sampleActions: ActionItem[] = [
+  createActionItem({
     rawCapture: "Finalize brand guidelines",
     bucket: "next",
     projectId: project1.id,
     sequenceOrder: 1,
     completedAt: "2026-01-15T10:00:00Z",
   }),
-  createThing({
+  createActionItem({
     rawCapture: "Design homepage wireframes",
     bucket: "next",
     projectId: project1.id,
     sequenceOrder: 2,
   }),
-  createThing({
+  createActionItem({
     rawCapture: "Implement responsive layout",
     bucket: "next",
     projectId: project1.id,
     sequenceOrder: 3,
   }),
-  createThing({
+  createActionItem({
     rawCapture: "Write copy for landing page",
     bucket: "next",
     projectId: project1.id,
     sequenceOrder: 4,
   }),
-  createThing({
+  createActionItem({
     rawCapture: "Set up CI/CD pipeline",
     bucket: "next",
     projectId: project2.id,
     sequenceOrder: 1,
     isFocused: true,
   }),
-  createThing({
+  createActionItem({
     rawCapture: "Implement push notifications",
     bucket: "next",
     projectId: project2.id,

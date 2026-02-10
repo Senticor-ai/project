@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
-import { ThingsApi } from "@/lib/api-client";
-import type { ThingRecord } from "@/lib/api-client";
+import { ItemsApi } from "@/lib/api-client";
+import type { ItemRecord } from "@/lib/api-client";
 import {
   useCaptureInbox,
   useTriageItem,
@@ -17,12 +17,12 @@ import {
   useArchiveReference,
   useCreateProject,
 } from "./use-mutations";
-import { THINGS_QUERY_KEY } from "./use-things";
-import type { Thing } from "@/model/types";
+import { ITEMS_QUERY_KEY } from "./use-items";
+import type { ActionItem } from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
 
 vi.mock("@/lib/api-client", () => ({
-  ThingsApi: {
+  ItemsApi: {
     sync: vi.fn(),
     list: vi.fn(),
     get: vi.fn(),
@@ -32,27 +32,27 @@ vi.mock("@/lib/api-client", () => ({
   },
 }));
 
-const mocked = vi.mocked(ThingsApi);
+const mocked = vi.mocked(ItemsApi);
 
 function pv(propertyID: string, value: unknown) {
   return { "@type": "PropertyValue", propertyID, value };
 }
 
-function makeRecord(overrides: Partial<ThingRecord>): ThingRecord {
+function makeRecord(overrides: Partial<ItemRecord>): ItemRecord {
   return {
-    thing_id: overrides.thing_id ?? "tid-1",
+    item_id: overrides.item_id ?? "tid-1",
     canonical_id: overrides.canonical_id ?? "urn:app:test:1",
     source: overrides.source ?? "test",
     created_at: overrides.created_at ?? "2026-01-01T00:00:00Z",
     updated_at: overrides.updated_at ?? "2026-01-01T00:00:00Z",
-    thing: overrides.thing ?? {},
+    item: overrides.item ?? {},
   };
 }
 
 const ACTION_RECORD = makeRecord({
-  thing_id: "tid-action-1",
+  item_id: "tid-action-1",
   canonical_id: "urn:app:action:1",
-  thing: {
+  item: {
     "@type": "Action",
     "@id": "urn:app:action:1",
     name: "Buy milk",
@@ -62,9 +62,9 @@ const ACTION_RECORD = makeRecord({
 });
 
 const COMPLETED_RECORD = makeRecord({
-  thing_id: "tid-completed-1",
+  item_id: "tid-completed-1",
   canonical_id: "urn:app:completed:1",
-  thing: {
+  item: {
     "@type": "Action",
     "@id": "urn:app:completed:1",
     name: "Done task",
@@ -74,9 +74,9 @@ const COMPLETED_RECORD = makeRecord({
 });
 
 const REFERENCE_RECORD = makeRecord({
-  thing_id: "tid-ref-1",
+  item_id: "tid-ref-1",
   canonical_id: "urn:app:reference:1",
-  thing: {
+  item: {
     "@type": "CreativeWork",
     "@id": "urn:app:reference:1",
     name: "Style guide",
@@ -85,9 +85,9 @@ const REFERENCE_RECORD = makeRecord({
 });
 
 const INBOX_RECORD = makeRecord({
-  thing_id: "tid-inbox-1",
+  item_id: "tid-inbox-1",
   canonical_id: "urn:app:inbox:1",
-  thing: {
+  item: {
     "@type": "Action",
     "@id": "urn:app:inbox:1",
     startTime: null,
@@ -101,12 +101,12 @@ const INBOX_RECORD = makeRecord({
 });
 
 // The production code now partitions active/completed into separate cache keys
-const ACTIVE_KEY = [...THINGS_QUERY_KEY, { completed: "false" }];
-const COMPLETED_KEY = [...THINGS_QUERY_KEY, { completed: "true" }];
+const ACTIVE_KEY = [...ITEMS_QUERY_KEY, { completed: "false" }];
+const COMPLETED_KEY = [...ITEMS_QUERY_KEY, { completed: "true" }];
 
 function createWrapper(
-  initialData?: ThingRecord[],
-  completedData?: ThingRecord[],
+  initialData?: ItemRecord[],
+  completedData?: ItemRecord[],
 ) {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -130,8 +130,8 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("useCaptureInbox", () => {
-  it("calls ThingsApi.create with inbox JSON-LD", async () => {
-    mocked.create.mockResolvedValue(makeRecord({ thing: {} }));
+  it("calls ItemsApi.create with inbox JSON-LD", async () => {
+    mocked.create.mockResolvedValue(makeRecord({ item: {} }));
 
     const { result } = renderHook(() => useCaptureInbox(), {
       wrapper: createWrapper(),
@@ -161,7 +161,7 @@ describe("useCaptureInbox", () => {
 
 describe("useAddAction", () => {
   it("creates action with specified bucket", async () => {
-    mocked.create.mockResolvedValue(makeRecord({ thing: {} }));
+    mocked.create.mockResolvedValue(makeRecord({ item: {} }));
 
     const { result } = renderHook(() => useAddAction(), {
       wrapper: createWrapper(),
@@ -189,7 +189,7 @@ describe("useAddAction", () => {
 
 describe("useAddReference", () => {
   it("creates CreativeWork reference", async () => {
-    mocked.create.mockResolvedValue(makeRecord({ thing: {} }));
+    mocked.create.mockResolvedValue(makeRecord({ item: {} }));
 
     const { result } = renderHook(() => useAddReference(), {
       wrapper: createWrapper(),
@@ -220,8 +220,8 @@ describe("useCompleteAction", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(mocked.update).toHaveBeenCalledTimes(1);
-    const [thingId, patch] = mocked.update.mock.calls[0];
-    expect(thingId).toBe("tid-action-1");
+    const [itemId, patch] = mocked.update.mock.calls[0];
+    expect(itemId).toBe("tid-action-1");
     expect(patch.endTime).toBeTruthy(); // ISO date string
   });
 
@@ -347,7 +347,7 @@ describe("useMoveAction", () => {
 // ---------------------------------------------------------------------------
 
 describe("useUpdateItem", () => {
-  it("sends arbitrary patch to ThingsApi.update", async () => {
+  it("sends arbitrary patch to ItemsApi.update", async () => {
     mocked.update.mockResolvedValue(ACTION_RECORD);
 
     const { result } = renderHook(() => useUpdateItem(), {
@@ -362,8 +362,8 @@ describe("useUpdateItem", () => {
     );
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    const [thingId, patch] = mocked.update.mock.calls[0];
-    expect(thingId).toBe("tid-action-1");
+    const [itemId, patch] = mocked.update.mock.calls[0];
+    expect(itemId).toBe("tid-action-1");
     expect(patch).toEqual({ name: "Updated title" });
   });
 });
@@ -375,7 +375,7 @@ describe("useUpdateItem", () => {
 describe("useTriageItem", () => {
   it("archives when targetBucket is archive", async () => {
     mocked.archive.mockResolvedValue({
-      thing_id: "tid-action-1",
+      item_id: "tid-action-1",
       archived_at: "2026-01-01",
       ok: true,
     });
@@ -384,7 +384,7 @@ describe("useTriageItem", () => {
       wrapper: createWrapper([ACTION_RECORD]),
     });
 
-    const item: Thing = {
+    const item: ActionItem = {
       id: "urn:app:action:1" as CanonicalId,
       name: "Buy milk",
       type: "inbox",
@@ -421,7 +421,7 @@ describe("useTriageItem", () => {
 
 describe("useAddProjectAction", () => {
   it("creates action linked to project", async () => {
-    mocked.create.mockResolvedValue(makeRecord({ thing: {} }));
+    mocked.create.mockResolvedValue(makeRecord({ item: {} }));
 
     const { result } = renderHook(() => useAddProjectAction(), {
       wrapper: createWrapper(),
@@ -497,9 +497,9 @@ describe("completed cache fallback", () => {
 describe("useToggleFocus edge cases", () => {
   it("toggles focused from true to false", async () => {
     const focusedRecord = makeRecord({
-      thing_id: "tid-focused-1",
+      item_id: "tid-focused-1",
       canonical_id: "urn:app:focused:1",
-      thing: {
+      item: {
         "@type": "Action",
         "@id": "urn:app:focused:1",
         name: "Focused task",
@@ -527,9 +527,9 @@ describe("useToggleFocus edge cases", () => {
 
   it("adds isFocused when property is missing", async () => {
     const noFocusPropRecord = makeRecord({
-      thing_id: "tid-nofocus-1",
+      item_id: "tid-nofocus-1",
       canonical_id: "urn:app:nofocus:1",
-      thing: {
+      item: {
         "@type": "Action",
         "@id": "urn:app:nofocus:1",
         name: "No focus prop",
@@ -609,7 +609,7 @@ describe("onError rollback", () => {
 describe("useArchiveReference", () => {
   it("archives a reference by canonical_id", async () => {
     mocked.archive.mockResolvedValue({
-      thing_id: "tid-ref-1",
+      item_id: "tid-ref-1",
       archived_at: "2026-01-01",
       ok: true,
     });
@@ -642,7 +642,7 @@ describe("useArchiveReference", () => {
 
 describe("useCreateProject", () => {
   it("creates project JSON-LD", async () => {
-    mocked.create.mockResolvedValue(makeRecord({ thing: {} }));
+    mocked.create.mockResolvedValue(makeRecord({ item: {} }));
 
     const { result } = renderHook(() => useCreateProject(), {
       wrapper: createWrapper(),
@@ -678,7 +678,7 @@ describe("not-found errors", () => {
   const missing = "urn:app:missing:1" as CanonicalId;
 
   it("useTriageItem throws when canonical_id not in cache", async () => {
-    const item: Thing = {
+    const item: ActionItem = {
       id: missing,
       name: "Ghost",
       type: "inbox",
@@ -772,7 +772,7 @@ describe("onError rollback (remaining hooks)", () => {
     const wrapper = createWrapper([ACTION_RECORD]);
     const { result } = renderHook(() => useTriageItem(), { wrapper });
 
-    const item: Thing = {
+    const item: ActionItem = {
       id: "urn:app:action:1" as CanonicalId,
       name: "Buy milk",
       type: "inbox",
@@ -882,7 +882,7 @@ describe("useTriageItem non-archive", () => {
       wrapper: createWrapper([ACTION_RECORD]),
     });
 
-    const item: Thing = {
+    const item: ActionItem = {
       id: "urn:app:action:1" as CanonicalId,
       name: "Buy milk",
       type: "inbox",

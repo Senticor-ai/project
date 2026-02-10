@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ConnectedBucketView } from "./ConnectedBucketView";
-import type { Thing, Project, ReferenceMaterial } from "@/model/types";
+import type { ActionItem, Project, ReferenceMaterial } from "@/model/types";
 import {
   createAction,
   createProject,
@@ -16,9 +16,9 @@ import type { CanonicalId } from "@/model/canonical-id";
 
 const mockRefetch = vi.fn();
 
-const mockAllThings = vi.fn<
+const mockAllItems = vi.fn<
   () => {
-    data: Thing[];
+    data: ActionItem[];
     isLoading: boolean;
     isFetching: boolean;
     error: Error | null;
@@ -42,8 +42,8 @@ const mockReferences = vi.fn<
   }
 >();
 
-vi.mock("@/hooks/use-things", () => ({
-  useAllThings: () => mockAllThings(),
+vi.mock("@/hooks/use-items", () => ({
+  useAllItems: () => mockAllItems(),
   useProjects: () => mockProjects(),
   useReferences: () => mockReferences(),
 }));
@@ -81,7 +81,9 @@ vi.mock("./BucketView", () => ({
       <div
         data-testid="bucket-view"
         data-bucket={props.activeBucket}
-        data-thing-count={Array.isArray(props.things) ? props.things.length : 0}
+        data-item-count={
+          Array.isArray(props.actionItems) ? props.actionItems.length : 0
+        }
       />
     );
   },
@@ -140,14 +142,14 @@ describe("ConnectedBucketView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Default: loaded state with empty data
-    mockAllThings.mockReturnValue(loadedQuery([]));
+    mockAllItems.mockReturnValue(loadedQuery([]));
     mockProjects.mockReturnValue(loadedQuery([]));
     mockReferences.mockReturnValue(loadedQuery([]));
   });
 
   it("renders loading spinner when queries are loading", () => {
-    mockAllThings.mockReturnValue(
-      loadingQuery() as ReturnType<typeof mockAllThings>,
+    mockAllItems.mockReturnValue(
+      loadingQuery() as ReturnType<typeof mockAllItems>,
     );
     renderComponent();
 
@@ -157,8 +159,8 @@ describe("ConnectedBucketView", () => {
   });
 
   it("renders error state with retry button", async () => {
-    mockAllThings.mockReturnValue(
-      errorQuery("Network error") as ReturnType<typeof mockAllThings>,
+    mockAllItems.mockReturnValue(
+      errorQuery("Network error") as ReturnType<typeof mockAllItems>,
     );
     renderComponent();
 
@@ -168,8 +170,8 @@ describe("ConnectedBucketView", () => {
   });
 
   it("calls refetch when retry button is clicked", async () => {
-    mockAllThings.mockReturnValue(
-      errorQuery("fail") as ReturnType<typeof mockAllThings>,
+    mockAllItems.mockReturnValue(
+      errorQuery("fail") as ReturnType<typeof mockAllItems>,
     );
     renderComponent();
 
@@ -179,18 +181,18 @@ describe("ConnectedBucketView", () => {
   });
 
   it("renders BucketView with data when loaded", () => {
-    const things = [createAction({ name: "Task 1" })];
-    mockAllThings.mockReturnValue(loadedQuery(things));
+    const items = [createAction({ name: "Task 1" })];
+    mockAllItems.mockReturnValue(loadedQuery(items));
     renderComponent("next");
 
     const view = screen.getByTestId("bucket-view");
     expect(view).toHaveAttribute("data-bucket", "next");
-    expect(view).toHaveAttribute("data-thing-count", "1");
+    expect(view).toHaveAttribute("data-item-count", "1");
   });
 
   it("shows progress bar during background refetch (after 400ms debounce)", () => {
     vi.useFakeTimers();
-    mockAllThings.mockReturnValue({
+    mockAllItems.mockReturnValue({
       ...loadedQuery([]),
       isFetching: true,
     });
@@ -233,29 +235,29 @@ describe("ConnectedBucketView", () => {
       renderComponent();
     });
 
-    it("onAddThing calls captureInbox for inbox bucket", async () => {
-      const onAddThing = capturedProps.onAddThing as (
+    it("onAddActionItem calls captureInbox for inbox bucket", async () => {
+      const onAddActionItem = capturedProps.onAddActionItem as (
         title: string,
         bucket: string,
       ) => Promise<void>;
-      await onAddThing("New item", "inbox");
+      await onAddActionItem("New item", "inbox");
       expect(mockCapture.mutateAsync).toHaveBeenCalledWith("New item");
     });
 
-    it("onAddThing calls addAction for non-inbox bucket", async () => {
-      const onAddThing = capturedProps.onAddThing as (
+    it("onAddActionItem calls addAction for non-inbox bucket", async () => {
+      const onAddActionItem = capturedProps.onAddActionItem as (
         title: string,
         bucket: string,
       ) => Promise<void>;
-      await onAddThing("New action", "next");
+      await onAddActionItem("New action", "next");
       expect(mockAddAction.mutateAsync).toHaveBeenCalledWith({
         title: "New action",
         bucket: "next",
       });
     });
 
-    it("onCompleteThing calls complete mutation", () => {
-      const onComplete = capturedProps.onCompleteThing as (
+    it("onCompleteActionItem calls complete mutation", () => {
+      const onComplete = capturedProps.onCompleteActionItem as (
         id: CanonicalId,
       ) => void;
       onComplete("thing:test-1" as CanonicalId);
@@ -270,8 +272,8 @@ describe("ConnectedBucketView", () => {
       expect(mockFocus.mutate).toHaveBeenCalledWith("thing:test-2");
     });
 
-    it("onMoveThing calls move mutation", () => {
-      const onMove = capturedProps.onMoveThing as (
+    it("onMoveActionItem calls move mutation", () => {
+      const onMove = capturedProps.onMoveActionItem as (
         id: CanonicalId,
         bucket: string,
       ) => void;
@@ -308,8 +310,8 @@ describe("ConnectedBucketView", () => {
       });
     });
 
-    it("onEditThing calls updateItem with partial fields", () => {
-      const onEdit = capturedProps.onEditThing as (
+    it("onEditActionItem calls updateItem with partial fields", () => {
+      const onEdit = capturedProps.onEditActionItem as (
         id: CanonicalId,
         fields: Record<string, unknown>,
       ) => void;

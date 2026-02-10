@@ -6,11 +6,11 @@ import { BucketBadge } from "@/components/paperclip/BucketBadge";
 import { EditableTitle } from "./EditableTitle";
 import { ItemEditor } from "./ItemEditor";
 import { getDisplayName } from "@/model/types";
-import type { Thing, Project, ItemEditableFields } from "@/model/types";
+import type { ActionItem, Project, ItemEditableFields } from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
 
-export interface ThingRowProps {
-  thing: Thing;
+export interface ActionRowProps {
+  thing: ActionItem;
   onComplete: (id: CanonicalId) => void;
   onToggleFocus: (id: CanonicalId) => void;
   onMove: (id: CanonicalId, bucket: string) => void;
@@ -24,7 +24,7 @@ export interface ThingRowProps {
   className?: string;
 }
 
-const moveTargets: Array<{ bucket: Thing["bucket"]; label: string }> = [
+const moveTargets: Array<{ bucket: ActionItem["bucket"]; label: string }> = [
   { bucket: "inbox", label: "Inbox" },
   { bucket: "next", label: "Next" },
   { bucket: "waiting", label: "Waiting" },
@@ -47,7 +47,7 @@ function formatDueDate(dueDate: string): { text: string; className: string } {
   return { text: dueDate, className: "text-text-subtle" };
 }
 
-function thingToEditorValues(thing: Thing): ItemEditableFields {
+function actionItemToEditorValues(thing: ActionItem): ItemEditableFields {
   const energyPort = thing.ports?.find(
     (p) => p.kind === "computation" && "energyLevel" in p,
   );
@@ -96,7 +96,7 @@ const triageTargets: Array<{
   },
 ];
 
-export function ThingRow({
+export function ActionRow({
   thing,
   onComplete,
   onToggleFocus,
@@ -109,7 +109,7 @@ export function ThingRow({
   projects,
   showBucket = false,
   className,
-}: ThingRowProps) {
+}: ActionRowProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showMore, setShowMore] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -277,9 +277,7 @@ export function ThingRow({
           <button
             onClick={() => onToggleExpand()}
             aria-label={
-              isExpanded
-                ? `Collapse ${displayName}`
-                : `Edit ${displayName}`
+              isExpanded ? `Collapse ${displayName}` : `Edit ${displayName}`
             }
             className="shrink-0 text-text-subtle opacity-0 hover:text-text group-hover:opacity-100 focus-visible:opacity-100"
           >
@@ -426,7 +424,7 @@ export function ThingRow({
                   </button>
                   {showMore && (
                     <ItemEditor
-                      values={thingToEditorValues(thing)}
+                      values={actionItemToEditorValues(thing)}
                       onChange={handleEditorChange}
                       projects={projects}
                     />
@@ -439,7 +437,7 @@ export function ThingRow({
           {/* Item editor for non-inbox items */}
           {!isInbox && onEdit && (
             <ItemEditor
-              values={thingToEditorValues(thing)}
+              values={actionItemToEditorValues(thing)}
               onChange={handleEditorChange}
               projects={projects}
             />

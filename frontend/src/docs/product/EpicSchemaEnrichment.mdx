@@ -43,7 +43,7 @@ class ThingRefModel(BaseModel):
 
 Supports both `{"object": "Buy groceries"}` (string) and `{"object": {"@id": "urn:app:reference:xyz"}}` (ref).
 
-### 1.3 Enrich `ActionThingJsonLd`
+### 1.3 Enrich `ActionItemJsonLd`
 
 - Change `type: Literal["Action"]` to `type: str` with a `@model_validator` that checks against `ACTION_SUBTYPES`
 - Add 6 optional schema.org relationship properties:
@@ -55,7 +55,7 @@ Supports both `{"object": "Buy groceries"}` (string) and `{"object": {"@id": "ur
   - `location` -- where it happens
 - All typed as `ThingRefModel | str | None`
 
-### 1.4 Switch `ThingJsonLd` union to custom discriminator
+### 1.4 Switch `ItemJsonLd` union to custom discriminator
 
 Replace `Field(discriminator="type")` with Pydantic v2 `Discriminator(callable)`:
 
@@ -74,17 +74,17 @@ def _resolve_thing_type(v: Any) -> str:
     return "thing"
 ```
 
-### 1.5 Update `ThingPatchModel`
+### 1.5 Update `ItemPatchModel`
 
 - Change `type` from `Literal[...]` to `str | None`
-- Add the same relationship properties as `ActionThingJsonLd`
+- Add the same relationship properties as `ActionItemJsonLd`
 - Add `"decomposed"` to `ProvenanceEntryModel.action` Literal union
 
 ---
 
 ## Phase 2: Backend Route Updates
 
-### 2.1 Update `_is_action_type` in `things.py`
+### 2.1 Update `_is_action_type` in `items.py`
 
 ```python
 from ..models import ACTION_SUBTYPES
@@ -112,12 +112,18 @@ Import pipeline always creates base `Action` type. Subtypes are assigned via use
 
 ### 4.1 Update `fromJsonLd` type routing
 
-`frontend/src/lib/thing-serializer.ts`:
+`frontend/src/lib/item-serializer.ts`:
 
 ```typescript
 const ACTION_TYPES = new Set([
-  "Action", "PlanAction", "BuyAction", "CommunicateAction",
-  "ReviewAction", "CreateAction", "SendAction", "CheckAction",
+  "Action",
+  "PlanAction",
+  "BuyAction",
+  "CommunicateAction",
+  "ReviewAction",
+  "CreateAction",
+  "SendAction",
+  "CheckAction",
 ]);
 ```
 
@@ -143,19 +149,19 @@ Add test for deserializing `BuyAction` as an action with correct bucket.
 
 ## Files to create/modify
 
-| File | Change |
-| --- | --- |
-| `backend/app/models.py` | `ACTION_SUBTYPES`, `ThingRefModel`, relationship props, custom discriminator |
-| `backend/app/routes/things.py` | `_is_action_type()` uses `ACTION_SUBTYPES` |
-| `backend/tests/test_openapi_things_schema.py` | Update assertions for subtypes |
-| `frontend/src/lib/thing-serializer.ts` | `fromJsonLd` recognizes subtypes |
-| `frontend/src/test/msw/fixtures.ts` | `createThingRecord` handles subtypes |
+| File                                         | Change                                                                       |
+| -------------------------------------------- | ---------------------------------------------------------------------------- |
+| `backend/app/models.py`                      | `ACTION_SUBTYPES`, `ThingRefModel`, relationship props, custom discriminator |
+| `backend/app/routes/items.py`                | `_is_action_type()` uses `ACTION_SUBTYPES`                                   |
+| `backend/tests/test_openapi_items_schema.py` | Update assertions for subtypes                                               |
+| `frontend/src/lib/item-serializer.ts`        | `fromJsonLd` recognizes subtypes                                             |
+| `frontend/src/test/msw/fixtures.ts`          | `createItemRecord` handles subtypes                                          |
 
 ---
 
 ## Verification checklist
 
-- [ ] POST a `BuyAction` with `object` to `POST /things` -- stores and round-trips
+- [ ] POST a `BuyAction` with `object` to `POST /items` -- stores and round-trips
 - [ ] PATCH an inbox `Thing` to `BuyAction` -- type change persists
 - [ ] Relationship properties survive JSONB storage
 - [ ] Frontend deserializes `BuyAction` as a normal action (correct bucket)

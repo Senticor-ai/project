@@ -1,51 +1,52 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn } from "storybook/test";
-import { ThingList } from "./ThingList";
-import type { Thing } from "@/model/types";
-import { createThing, resetFactoryCounter } from "@/model/factories";
+import { expect, fn, waitFor } from "storybook/test";
+import { ActionList } from "./ActionList";
+import type { ActionItem } from "@/model/types";
+import { createActionItem, resetFactoryCounter } from "@/model/factories";
+import { store, createItemRecord } from "@/test/msw/fixtures";
 
 resetFactoryCounter();
 
-const sampleThings: Thing[] = [
-  createThing({
+const sampleItems: ActionItem[] = [
+  createActionItem({
     rawCapture: "Call client about Q1 proposal",
     bucket: "next",
     isFocused: true,
     dueDate: "2026-02-14",
   }),
-  createThing({
+  createActionItem({
     rawCapture: "Review team performance reports",
     bucket: "next",
     description: "Include Q4 metrics",
   }),
-  createThing({
+  createActionItem({
     rawCapture: "Submit expense report",
     bucket: "next",
     dueDate: "2026-01-15",
   }),
-  createThing({
+  createActionItem({
     rawCapture: "Plan team offsite agenda",
     bucket: "someday",
     isFocused: true,
   }),
-  createThing({
+  createActionItem({
     rawCapture: "Research new CRM tools",
     bucket: "waiting",
   }),
-  createThing({
+  createActionItem({
     rawCapture: "Anruf bei Frau Müller",
     bucket: "inbox",
   }),
-  createThing({
+  createActionItem({
     rawCapture: "Steuererklärung prüfen",
     bucket: "inbox",
   }),
 ];
 
 const meta = {
-  title: "Work/ThingList",
-  component: ThingList,
+  title: "Work/ActionList",
+  component: ActionList,
   tags: ["autodocs"],
   args: {
     onAdd: fn(),
@@ -61,7 +62,7 @@ const meta = {
       </div>
     ),
   ],
-} satisfies Meta<typeof ThingList>;
+} satisfies Meta<typeof ActionList>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
@@ -73,42 +74,42 @@ type Story = StoryObj<typeof meta>;
 export const InboxView: Story = {
   args: {
     bucket: "inbox",
-    things: sampleThings,
+    items: sampleItems,
   },
 };
 
 export const NextActions: Story = {
   args: {
     bucket: "next",
-    things: sampleThings,
+    items: sampleItems,
   },
 };
 
 export const FocusView: Story = {
   args: {
     bucket: "focus",
-    things: sampleThings,
+    items: sampleItems,
   },
 };
 
 export const WaitingView: Story = {
   args: {
     bucket: "waiting",
-    things: sampleThings,
+    items: sampleItems,
   },
 };
 
 export const CalendarView: Story = {
   args: {
     bucket: "calendar",
-    things: [
-      createThing({
+    items: [
+      createActionItem({
         rawCapture: "Steuererklärung abgeben",
         bucket: "calendar",
         dueDate: "2026-03-15",
         scheduledDate: "2026-03-10",
       }),
-      createThing({
+      createActionItem({
         rawCapture: "Team Standup",
         bucket: "calendar",
         scheduledDate: "2026-02-10",
@@ -120,50 +121,50 @@ export const CalendarView: Story = {
 export const SomedayView: Story = {
   args: {
     bucket: "someday",
-    things: sampleThings,
+    items: sampleItems,
   },
 };
 
 export const Empty: Story = {
   args: {
     bucket: "next",
-    things: [],
+    items: [],
   },
 };
 
 export const EmptyInbox: Story = {
   args: {
     bucket: "inbox",
-    things: [],
+    items: [],
   },
 };
 
 export const EmptyFocus: Story = {
   args: {
     bucket: "focus",
-    things: [],
+    items: [],
   },
 };
 
 export const WithContextFilters: Story = {
   args: {
     bucket: "next",
-    things: [
-      createThing({
+    items: [
+      createActionItem({
         rawCapture: "Call boss",
         bucket: "next",
         contexts: [
           "@phone",
         ] as unknown as import("@/model/canonical-id").CanonicalId[],
       }),
-      createThing({
+      createActionItem({
         rawCapture: "Write report",
         bucket: "next",
         contexts: [
           "@computer",
         ] as unknown as import("@/model/canonical-id").CanonicalId[],
       }),
-      createThing({
+      createActionItem({
         rawCapture: "Email team",
         bucket: "next",
         contexts: [
@@ -178,7 +179,7 @@ export const WithContextFilters: Story = {
 export const WithEditing: Story = {
   args: {
     bucket: "next",
-    things: sampleThings,
+    items: sampleItems,
     onEdit: fn(),
     onUpdateTitle: fn(),
   },
@@ -192,7 +193,7 @@ export const WithEditing: Story = {
 export const RapidEntry: Story = {
   args: {
     bucket: "next",
-    things: [],
+    items: [],
   },
   play: async ({ canvas, userEvent, args }) => {
     const input = canvas.getByLabelText("Rapid entry");
@@ -205,7 +206,7 @@ export const RapidEntry: Story = {
 export const InboxCapture: Story = {
   args: {
     bucket: "inbox",
-    things: [],
+    items: [],
   },
   play: async ({ canvas, userEvent, args }) => {
     const input = canvas.getByLabelText("Capture a thought");
@@ -218,7 +219,7 @@ export const InboxCapture: Story = {
 export const MultilineEntry: Story = {
   args: {
     bucket: "inbox",
-    things: [],
+    items: [],
   },
   play: async ({ canvas, userEvent, args }) => {
     const input = canvas.getByLabelText("Capture a thought");
@@ -238,19 +239,19 @@ export const MultilineEntry: Story = {
 /** Click the checkbox to complete an action — it disappears from the active list. */
 export const CompleteFromList: Story = {
   render: function CompleteDemo() {
-    const [things, setThings] = useState<Thing[]>([
-      createThing({ rawCapture: "Task to complete", bucket: "next" }),
-      createThing({ rawCapture: "Task to keep", bucket: "next" }),
+    const [items, setItems] = useState<ActionItem[]>([
+      createActionItem({ rawCapture: "Task to complete", bucket: "next" }),
+      createActionItem({ rawCapture: "Task to keep", bucket: "next" }),
     ]);
 
     return (
-      <ThingList
+      <ActionList
         bucket="next"
-        things={things}
+        items={items}
         onAdd={fn()}
         onComplete={(id) => {
           // In production, completing removes from the active query results
-          setThings((prev) => prev.filter((t) => t.id !== id));
+          setItems((prev) => prev.filter((t) => t.id !== id));
         }}
         onToggleFocus={fn()}
         onMove={fn()}
@@ -277,36 +278,48 @@ export const CompleteFromList: Story = {
 export const ToggleCompletedInteractive: Story = {
   args: {
     bucket: "next",
-    things: [
-      createThing({ rawCapture: "Active task one", bucket: "next" }),
-      createThing({ rawCapture: "Active task two", bucket: "next" }),
+    items: [
+      createActionItem({ rawCapture: "Active task one", bucket: "next" }),
+      createActionItem({ rawCapture: "Active task two", bucket: "next" }),
     ],
+  },
+  beforeEach: () => {
+    store.seed([
+      createItemRecord({
+        bucket: "next",
+        name: "Completed task",
+        completedAt: "2026-01-15T10:00:00Z",
+      }),
+    ]);
+    return () => store.clear();
   },
   play: async ({ canvas }) => {
     await expect(canvas.getByText("Active task one")).toBeInTheDocument();
     await expect(canvas.getByText("Active task two")).toBeInTheDocument();
     await expect(canvas.getByText("2 actions")).toBeInTheDocument();
-    // Toggle button is always visible
-    await expect(canvas.getByLabelText("Show completed")).toBeInTheDocument();
+    // Toggle button visible once completed items load from API
+    await waitFor(() =>
+      expect(canvas.getByLabelText("Expand Done")).toBeInTheDocument(),
+    );
   },
 };
 
 /** Type multiple entries rapidly — input clears instantly after each Enter. */
 export const RapidMultiEntry: Story = {
   render: function RapidEntryDemo() {
-    const [things, setThings] = useState<Thing[]>([]);
+    const [items, setItems] = useState<ActionItem[]>([]);
 
     return (
-      <ThingList
+      <ActionList
         bucket="next"
-        things={things}
+        items={items}
         onAdd={(title) => {
           // Simulate 500ms API delay
           return new Promise<void>((resolve) => {
             setTimeout(() => {
-              setThings((prev) => [
+              setItems((prev) => [
                 ...prev,
-                createThing({ rawCapture: title, bucket: "next" }),
+                createActionItem({ rawCapture: title, bucket: "next" }),
               ]);
               resolve();
             }, 500);
@@ -337,20 +350,20 @@ export const RapidMultiEntry: Story = {
 /** Click inbox item to expand, triage it, auto-advance to next. */
 export const InboxTriageFlow: Story = {
   render: function TriageDemo() {
-    const [things, setThings] = useState<Thing[]>([
-      createThing({ rawCapture: "First inbox item", bucket: "inbox" }),
-      createThing({ rawCapture: "Second inbox item", bucket: "inbox" }),
+    const [items, setItems] = useState<ActionItem[]>([
+      createActionItem({ rawCapture: "First inbox item", bucket: "inbox" }),
+      createActionItem({ rawCapture: "Second inbox item", bucket: "inbox" }),
     ]);
 
     return (
-      <ThingList
+      <ActionList
         bucket="inbox"
-        things={things}
+        items={items}
         onAdd={fn()}
         onComplete={fn()}
         onToggleFocus={fn()}
         onMove={(id) => {
-          setThings((prev) => prev.filter((t) => t.id !== id));
+          setItems((prev) => prev.filter((t) => t.id !== id));
         }}
         onArchive={fn()}
         onEdit={fn()}
@@ -377,19 +390,19 @@ export const InboxTriageFlow: Story = {
 /** Click the star to focus an action — it sorts to the top. */
 export const FocusFromList: Story = {
   render: function FocusDemo() {
-    const [things, setThings] = useState<Thing[]>([
-      createThing({ rawCapture: "Unfocused task", bucket: "next" }),
-      createThing({ rawCapture: "Will be focused", bucket: "next" }),
+    const [items, setItems] = useState<ActionItem[]>([
+      createActionItem({ rawCapture: "Unfocused task", bucket: "next" }),
+      createActionItem({ rawCapture: "Will be focused", bucket: "next" }),
     ]);
 
     return (
-      <ThingList
+      <ActionList
         bucket="next"
-        things={things}
+        items={items}
         onAdd={fn()}
         onComplete={fn()}
         onToggleFocus={(id) => {
-          setThings((prev) =>
+          setItems((prev) =>
             prev.map((t) =>
               t.id === id ? { ...t, isFocused: !t.isFocused } : t,
             ),

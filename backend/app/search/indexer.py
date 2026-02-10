@@ -14,7 +14,7 @@ from .meili import (
     add_documents,
     delete_document,
     ensure_files_index,
-    ensure_things_index,
+    ensure_items_index,
     is_enabled,
 )
 from .ocr_settings import OcrConfig, default_ocr_config
@@ -82,25 +82,23 @@ def _isoformat(value: Any) -> str | None:
     return str(value)
 
 
-def _get_additional_property_value(thing: dict, property_id: str) -> Any:
+def _get_additional_property_value(jsonld: dict, property_id: str) -> Any:
     """Extract a value from additionalProperty by propertyID."""
-    for pv in thing.get("additionalProperty", []):
+    for pv in jsonld.get("additionalProperty", []):
         if isinstance(pv, dict) and pv.get("propertyID") == property_id:
             return pv.get("value")
     return None
 
 
-def build_thing_document(row: dict[str, Any]) -> dict[str, Any]:
-    thing = row.get("schema_jsonld") or {}
-    types = _normalize_types(thing.get("@type"))
-    name = thing.get("name") if isinstance(thing.get("name"), str) else None
-    description = (
-        thing.get("description") if isinstance(thing.get("description"), str) else None
-    )
-    bucket_value = _get_additional_property_value(thing, "app:bucket")
+def build_item_document(row: dict[str, Any]) -> dict[str, Any]:
+    jsonld = row.get("schema_jsonld") or {}
+    types = _normalize_types(jsonld.get("@type"))
+    name = jsonld.get("name") if isinstance(jsonld.get("name"), str) else None
+    description = jsonld.get("description") if isinstance(jsonld.get("description"), str) else None
+    bucket_value = _get_additional_property_value(jsonld, "app:bucket")
     bucket = bucket_value if isinstance(bucket_value, str) else None
     return {
-        "thing_id": str(row.get("thing_id")),
+        "item_id": str(row.get("item_id")),
         "org_id": str(row.get("org_id")),
         "canonical_id": row.get("canonical_id"),
         "source": row.get("source"),
@@ -111,7 +109,7 @@ def build_thing_document(row: dict[str, Any]) -> dict[str, Any]:
         "created_at": _isoformat(row.get("created_at")),
         "updated_at": _isoformat(row.get("updated_at")),
         "search_text": _build_search_text(
-            thing,
+            jsonld,
             max_chars=settings.meili_document_max_chars,
         ),
     }
@@ -264,9 +262,7 @@ def _extract_file_text(
     return _extract_docling_text(path, settings.meili_file_text_max_chars, ocr_config)
 
 
-def build_file_document(
-    row: dict[str, Any], ocr_config: OcrConfig | None = None
-) -> dict[str, Any]:
+def build_file_document(row: dict[str, Any], ocr_config: OcrConfig | None = None) -> dict[str, Any]:
     original_name = row.get("original_name") or ""
     content_type = _guess_content_type(original_name, row.get("content_type"))
     storage_key = row.get("storage_path") or ""
@@ -298,19 +294,19 @@ def build_file_document(
     }
 
 
-def index_thing(row: dict[str, Any]) -> None:
+def index_item(row: dict[str, Any]) -> None:
     if not is_enabled():
         return
-    ensure_things_index()
-    doc = build_thing_document(row)
-    add_documents(settings.meili_index_things, [doc])
+    ensure_items_index()
+    doc = build_item_document(row)
+    add_documents(settings.meili_index_items, [doc])
 
 
-def delete_thing(thing_id: str) -> None:
+def delete_item(item_id: str) -> None:
     if not is_enabled():
         return
-    ensure_things_index()
-    delete_document(settings.meili_index_things, thing_id)
+    ensure_items_index()
+    delete_document(settings.meili_index_items, item_id)
 
 
 def index_file(row: dict[str, Any], ocr_config: OcrConfig | None = None) -> None:

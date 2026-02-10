@@ -8,7 +8,7 @@ import {
 } from "../types";
 import type { AppItem, TriageResult } from "../types";
 import {
-  createThing,
+  createActionItem,
   createInboxItem,
   createAction,
   createProject,
@@ -60,7 +60,9 @@ describe("InboxItem", () => {
 
   it("throws when neither name nor rawCapture is provided", () => {
     expect(() =>
-      createThing({ bucket: "inbox" } as Parameters<typeof createThing>[0]),
+      createActionItem({ bucket: "inbox" } as Parameters<
+        typeof createActionItem
+      >[0]),
     ).toThrow();
   });
 
@@ -237,7 +239,7 @@ describe("getDisplayName", () => {
   });
 
   it("returns rawCapture when name is undefined", () => {
-    const item = createThing({
+    const item = createActionItem({
       name: "placeholder",
       bucket: "inbox",
       rawCapture: "buy bananas",
@@ -248,7 +250,7 @@ describe("getDisplayName", () => {
   });
 
   it("prefers name over rawCapture when both are set", () => {
-    const item = createThing({
+    const item = createActionItem({
       name: "Weekly Groceries",
       bucket: "inbox",
       rawCapture: "buy bananas",

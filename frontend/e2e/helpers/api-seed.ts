@@ -7,14 +7,14 @@ function pv(propertyID: string, value: unknown) {
 export class ApiSeed {
   constructor(private request: APIRequestContext) {}
 
-  /** Create an inbox item via API (v2 schema). Returns the thing_id. */
+  /** Create an inbox item via API (v2 schema). Returns the item_id. */
   async createInboxItem(title: string): Promise<string> {
     const id = `urn:app:inbox:${crypto.randomUUID()}`;
     const now = new Date().toISOString();
-    const response = await this.request.post("/api/things", {
+    const response = await this.request.post("/api/items", {
       data: {
         source: "manual",
-        thing: {
+        item: {
           "@id": id,
           "@type": "Action",
           _schemaVersion: 2,
@@ -42,10 +42,10 @@ export class ApiSeed {
       },
     });
     const json = await response.json();
-    return json.thing_id;
+    return json.item_id;
   }
 
-  /** Create an action in a specific bucket via API (v2 schema). Returns the thing_id. */
+  /** Create an action in a specific bucket via API (v2 schema). Returns the item_id. */
   async createAction(
     title: string,
     bucket: "next" | "waiting" | "calendar" | "someday",
@@ -61,7 +61,7 @@ export class ApiSeed {
     const id = `urn:app:action:${crypto.randomUUID()}`;
     const now = new Date().toISOString();
 
-    const thing: Record<string, unknown> = {
+    const itemData: Record<string, unknown> = {
       "@id": id,
       "@type": "Action",
       _schemaVersion: 2,
@@ -89,11 +89,11 @@ export class ApiSeed {
       ],
     };
 
-    const response = await this.request.post("/api/things", {
-      data: { source: "manual", thing },
+    const response = await this.request.post("/api/items", {
+      data: { source: "manual", item: itemData },
     });
     const json = await response.json();
-    return json.thing_id;
+    return json.item_id;
   }
 
   /** Create a project via API (v2 schema). Returns the canonical ID (urn:app:project:...). */
@@ -104,10 +104,10 @@ export class ApiSeed {
   ): Promise<string> {
     const id = `urn:app:project:${crypto.randomUUID()}`;
     const now = new Date().toISOString();
-    await this.request.post("/api/things", {
+    await this.request.post("/api/items", {
       data: {
         source: "manual",
-        thing: {
+        item: {
           "@id": id,
           "@type": "Project",
           _schemaVersion: 2,

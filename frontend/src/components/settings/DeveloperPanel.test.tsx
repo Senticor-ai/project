@@ -45,7 +45,7 @@ describe("DeveloperPanel", () => {
     const user = userEvent.setup();
     const onFlush = vi.fn().mockResolvedValue({
       ok: true,
-      deleted: { things: 42, assertions: 5, files: 3 },
+      deleted: { items: 42, assertions: 5, files: 3 },
     });
     render(<DeveloperPanel onFlush={onFlush} />);
 
@@ -56,7 +56,7 @@ describe("DeveloperPanel", () => {
     expect(onFlush).toHaveBeenCalledOnce();
 
     // After flush completes, result should be shown
-    expect(await screen.findByText(/things: 42/)).toBeInTheDocument();
+    expect(await screen.findByText(/items: 42/)).toBeInTheDocument();
   });
 
   it("shows error message when flush fails", async () => {

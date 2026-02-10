@@ -3,11 +3,11 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ProjectTree } from "./ProjectTree";
 import {
-  createThing,
+  createActionItem,
   createProject,
   resetFactoryCounter,
 } from "@/model/factories";
-import type { Thing, Project } from "@/model/types";
+import type { ActionItem, Project } from "@/model/types";
 
 beforeEach(() => resetFactoryCounter());
 
@@ -21,13 +21,13 @@ function makeProject(overrides?: Partial<Project> & { name?: string }) {
   });
 }
 
-function makeAction(overrides: Partial<Thing> & { name: string }) {
-  return createThing({ bucket: "next", ...overrides });
+function makeAction(overrides: Partial<ActionItem> & { name: string }) {
+  return createActionItem({ bucket: "next", ...overrides });
 }
 
 function renderTree(
   projects: Project[] = [],
-  actions: Thing[] = [],
+  actions: ActionItem[] = [],
   overrides: Partial<React.ComponentProps<typeof ProjectTree>> = {},
 ) {
   return render(

@@ -10,13 +10,13 @@ import { Icon } from "@/components/ui/Icon";
 import { BucketBadge } from "@/components/paperclip/BucketBadge";
 import { getDisplayName } from "@/model/types";
 import { BucketNav } from "./BucketNav";
-import { ThingList } from "./ThingList";
+import { ActionList } from "./ActionList";
 import { ReferenceList } from "./ReferenceList";
 import { ProjectTree } from "./ProjectTree";
 import type {
   Bucket,
-  Thing,
-  ThingBucket,
+  ActionItem,
+  ActionItemBucket,
   Project,
   ReferenceMaterial,
   ItemEditableFields,
@@ -35,15 +35,21 @@ const thingBuckets = new Set<string>([
 export interface BucketViewProps {
   activeBucket: Bucket;
   onBucketChange: (bucket: Bucket) => void;
-  things: Thing[];
+  actionItems: ActionItem[];
   referenceItems?: ReferenceMaterial[];
   projects?: Project[];
-  onAddThing: (title: string, bucket: ThingBucket) => Promise<void> | void;
-  onCompleteThing: (id: CanonicalId) => void;
+  onAddActionItem: (
+    title: string,
+    bucket: ActionItemBucket,
+  ) => Promise<void> | void;
+  onCompleteActionItem: (id: CanonicalId) => void;
   onToggleFocus: (id: CanonicalId) => void;
-  onMoveThing: (id: CanonicalId, bucket: string) => void;
-  onArchiveThing: (id: CanonicalId) => void;
-  onEditThing?: (id: CanonicalId, fields: Partial<ItemEditableFields>) => void;
+  onMoveActionItem: (id: CanonicalId, bucket: string) => void;
+  onArchiveActionItem: (id: CanonicalId) => void;
+  onEditActionItem?: (
+    id: CanonicalId,
+    fields: Partial<ItemEditableFields>,
+  ) => void;
   onUpdateTitle?: (id: CanonicalId, newTitle: string) => void;
   onAddReference?: (title: string) => void;
   onArchiveReference?: (id: CanonicalId) => void;
@@ -60,15 +66,15 @@ export interface BucketViewProps {
 export function BucketView({
   activeBucket,
   onBucketChange,
-  things,
+  actionItems,
   referenceItems = [],
   projects = [],
-  onAddThing,
-  onCompleteThing,
+  onAddActionItem,
+  onCompleteActionItem,
   onToggleFocus,
-  onMoveThing,
-  onArchiveThing,
-  onEditThing,
+  onMoveActionItem,
+  onArchiveActionItem,
+  onEditActionItem,
   onUpdateTitle,
   onAddReference,
   onArchiveReference,
@@ -78,35 +84,40 @@ export function BucketView({
   onSelectReference,
   className,
 }: BucketViewProps) {
-  const [activeThing, setActiveThing] = useState<Thing | null>(null);
+  const [activeItem, setActiveItem] = useState<ActionItem | null>(null);
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
-    const thing = event.active.data.current?.thing as Thing | undefined;
-    setActiveThing(thing ?? null);
+    const item = event.active.data.current?.thing as ActionItem | undefined;
+    setActiveItem(item ?? null);
   }, []);
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
-      setActiveThing(null);
+      setActiveItem(null);
       const { active, over } = event;
       if (!over) return;
-      const targetBucket = over.data.current?.bucket as ThingBucket | undefined;
+      const targetBucket = over.data.current?.bucket as
+        | ActionItemBucket
+        | undefined;
       if (!targetBucket) return;
 
-      onMoveThing(active.id as CanonicalId, targetBucket);
+      onMoveActionItem(active.id as CanonicalId, targetBucket);
     },
-    [onMoveThing],
+    [onMoveActionItem],
   );
 
   const counts: Partial<Record<Bucket, number>> = {
-    inbox: things.filter((t) => t.bucket === "inbox" && !t.completedAt).length,
-    focus: things.filter((t) => t.isFocused && !t.completedAt).length,
-    next: things.filter((t) => t.bucket === "next" && !t.completedAt).length,
-    waiting: things.filter((t) => t.bucket === "waiting" && !t.completedAt)
+    inbox: actionItems.filter((t) => t.bucket === "inbox" && !t.completedAt)
       .length,
-    calendar: things.filter((t) => t.bucket === "calendar" && !t.completedAt)
+    focus: actionItems.filter((t) => t.isFocused && !t.completedAt).length,
+    next: actionItems.filter((t) => t.bucket === "next" && !t.completedAt)
       .length,
-    someday: things.filter((t) => t.bucket === "someday" && !t.completedAt)
+    waiting: actionItems.filter((t) => t.bucket === "waiting" && !t.completedAt)
+      .length,
+    calendar: actionItems.filter(
+      (t) => t.bucket === "calendar" && !t.completedAt,
+    ).length,
+    someday: actionItems.filter((t) => t.bucket === "someday" && !t.completedAt)
       .length,
     reference: referenceItems.filter((r) => !r.provenance.archivedAt).length,
     project: projects.filter((p) => p.status === "active").length,
@@ -124,21 +135,21 @@ export function BucketView({
 
         <main className="min-w-0 flex-1" aria-label="Bucket content">
           {thingBuckets.has(activeBucket) ? (
-            <ThingList
-              bucket={activeBucket as ThingBucket | "focus"}
-              things={things}
+            <ActionList
+              bucket={activeBucket as ActionItemBucket | "focus"}
+              items={actionItems}
               onAdd={(title) => {
                 const bucket =
                   activeBucket === "focus"
                     ? "next"
-                    : (activeBucket as ThingBucket);
-                return onAddThing(title, bucket);
+                    : (activeBucket as ActionItemBucket);
+                return onAddActionItem(title, bucket);
               }}
-              onComplete={onCompleteThing}
+              onComplete={onCompleteActionItem}
               onToggleFocus={onToggleFocus}
-              onMove={onMoveThing}
-              onArchive={onArchiveThing}
-              onEdit={onEditThing}
+              onMove={onMoveActionItem}
+              onArchive={onArchiveActionItem}
+              onEdit={onEditActionItem}
               onUpdateTitle={onUpdateTitle}
               projects={projects}
             />
@@ -153,8 +164,8 @@ export function BucketView({
           ) : activeBucket === "project" ? (
             <ProjectTree
               projects={projects}
-              actions={things.filter((t) => t.bucket !== "inbox")}
-              onCompleteAction={onCompleteThing}
+              actions={actionItems.filter((t) => t.bucket !== "inbox")}
+              onCompleteAction={onCompleteActionItem}
               onToggleFocus={onToggleFocus}
               onAddAction={onAddProjectAction ?? (() => {})}
               onCreateProject={onCreateProject}
@@ -164,15 +175,15 @@ export function BucketView({
         </main>
       </div>
       <DragOverlay dropAnimation={{ duration: 200, easing: "ease" }}>
-        {activeThing ? (
+        {activeItem ? (
           <div className="flex items-center gap-2 rounded-[var(--radius-md)] border border-border bg-surface-raised px-3 py-2 shadow-[var(--shadow-sheet)]">
             <Icon
               name="drag_indicator"
               size={14}
               className="text-text-subtle"
             />
-            <span className="text-sm">{getDisplayName(activeThing)}</span>
-            <BucketBadge bucket={activeThing.bucket} className="ml-auto" />
+            <span className="text-sm">{getDisplayName(activeItem)}</span>
+            <BucketBadge bucket={activeItem.bucket} className="ml-auto" />
           </div>
         ) : null}
       </DragOverlay>

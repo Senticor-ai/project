@@ -1,7 +1,7 @@
-import type { ThingRecord } from "./api-client";
+import type { ItemRecord } from "./api-client";
 import type {
-  Thing,
-  ThingBucket,
+  ActionItem,
+  ActionItemBucket,
   Project,
   ReferenceMaterial,
   CalendarEntry,
@@ -56,7 +56,9 @@ function getAdditionalProperty(
 // toJsonLd — Frontend GTD entity → schema.org JSON-LD for the backend
 // ---------------------------------------------------------------------------
 
-function serializeThingAdditionalProps(thing: Thing): PropertyValue[] {
+function serializeActionItemAdditionalProps(
+  thing: ActionItem,
+): PropertyValue[] {
   const props: PropertyValue[] = [
     pv("app:bucket", thing.bucket),
     pv("app:needsEnrichment", thing.needsEnrichment),
@@ -99,7 +101,7 @@ function serializeThingAdditionalProps(thing: Thing): PropertyValue[] {
 }
 
 export function toJsonLd(
-  item: Thing | Project | ReferenceMaterial,
+  item: ActionItem | Project | ReferenceMaterial,
 ): Record<string, unknown> {
   const base: Record<string, unknown> = {
     "@id": item.id,
@@ -121,11 +123,11 @@ export function toJsonLd(
     item.bucket === "calendar" ||
     item.bucket === "someday"
   ) {
-    const thing = item as Thing;
+    const actionItem = item as ActionItem;
     base["@type"] = TYPE_MAP.action;
-    base.startTime = thing.scheduledDate ?? null;
-    base.endTime = thing.completedAt ?? null;
-    base.additionalProperty = serializeThingAdditionalProps(thing);
+    base.startTime = actionItem.scheduledDate ?? null;
+    base.endTime = actionItem.completedAt ?? null;
+    base.additionalProperty = serializeActionItemAdditionalProps(actionItem);
   } else if (item.bucket === "project") {
     const project = item as Project;
     base["@type"] = TYPE_MAP.project;
@@ -168,11 +170,11 @@ export function toJsonLd(
 }
 
 // ---------------------------------------------------------------------------
-// fromJsonLd — ThingRecord from backend → Frontend GTD entity
+// fromJsonLd — ItemRecord from backend → Frontend GTD entity
 // ---------------------------------------------------------------------------
 
-export function fromJsonLd(record: ThingRecord): AppItem {
-  const t = record.thing;
+export function fromJsonLd(record: ItemRecord): AppItem {
+  const t = record.item;
   const type = t["@type"] as string;
   const props = t.additionalProperty as PropertyValue[] | undefined;
 
@@ -236,7 +238,7 @@ export function fromJsonLd(record: ThingRecord): AppItem {
     recurrence: getAdditionalProperty(
       props,
       "app:recurrence",
-    ) as Thing["recurrence"],
+    ) as ActionItem["recurrence"],
     completedAt: (t.endTime as string) || undefined,
     sequenceOrder:
       (getAdditionalProperty(props, "app:sequenceOrder") as number) ||
@@ -245,7 +247,8 @@ export function fromJsonLd(record: ThingRecord): AppItem {
 
   if (type === TYPE_MAP.action || type === "Action") {
     const bucket =
-      (getAdditionalProperty(props, "app:bucket") as ThingBucket) ?? "next";
+      (getAdditionalProperty(props, "app:bucket") as ActionItemBucket) ??
+      "next";
     return {
       ...base,
       ...thingFields,
@@ -329,7 +332,7 @@ export function fromJsonLd(record: ThingRecord): AppItem {
 // ---------------------------------------------------------------------------
 
 export function buildTriagePatch(
-  item: Thing,
+  item: ActionItem,
   result: TriageResult,
 ): Record<string, unknown> {
   if (result.targetBucket === "reference") {
@@ -411,7 +414,7 @@ export function buildItemEditPatch(
 }
 
 // ---------------------------------------------------------------------------
-// buildNewInboxJsonLd — raw text → full JSON-LD for POST /things
+// buildNewInboxJsonLd — raw text → full JSON-LD for POST /items
 // ---------------------------------------------------------------------------
 
 export function buildNewInboxJsonLd(rawText: string): Record<string, unknown> {
@@ -444,7 +447,7 @@ export function buildNewInboxJsonLd(rawText: string): Record<string, unknown> {
 }
 
 // ---------------------------------------------------------------------------
-// buildNewActionJsonLd — rapid action entry → full JSON-LD for POST /things
+// buildNewActionJsonLd — rapid action entry → full JSON-LD for POST /items
 // ---------------------------------------------------------------------------
 
 export function buildNewActionJsonLd(
@@ -482,7 +485,7 @@ export function buildNewActionJsonLd(
 }
 
 // ---------------------------------------------------------------------------
-// buildNewFileInboxJsonLd — file drop → full JSON-LD for POST /things
+// buildNewFileInboxJsonLd — file drop → full JSON-LD for POST /items
 // ---------------------------------------------------------------------------
 
 export function buildNewFileInboxJsonLd(
@@ -525,7 +528,7 @@ export function buildNewFileInboxJsonLd(
 }
 
 // ---------------------------------------------------------------------------
-// buildNewUrlInboxJsonLd — URL paste → full JSON-LD for POST /things
+// buildNewUrlInboxJsonLd — URL paste → full JSON-LD for POST /items
 // ---------------------------------------------------------------------------
 
 export function buildNewUrlInboxJsonLd(url: string): Record<string, unknown> {
@@ -556,7 +559,7 @@ export function buildNewUrlInboxJsonLd(url: string): Record<string, unknown> {
 }
 
 // ---------------------------------------------------------------------------
-// buildNewProjectJsonLd — name + desiredOutcome → full JSON-LD for POST /things
+// buildNewProjectJsonLd — name + desiredOutcome → full JSON-LD for POST /items
 // ---------------------------------------------------------------------------
 
 export function buildNewProjectJsonLd(
@@ -591,7 +594,7 @@ export function buildNewProjectJsonLd(
 }
 
 // ---------------------------------------------------------------------------
-// buildNewReferenceJsonLd — name → full JSON-LD for POST /things
+// buildNewReferenceJsonLd — name → full JSON-LD for POST /items
 // ---------------------------------------------------------------------------
 
 export function buildNewReferenceJsonLd(name: string): Record<string, unknown> {

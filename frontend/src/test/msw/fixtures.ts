@@ -1,4 +1,4 @@
-import type { ThingRecord, SyncResponse, FileRecord } from "@/lib/api-client";
+import type { ItemRecord, SyncResponse, FileRecord } from "@/lib/api-client";
 import type { CanonicalId } from "@/model/canonical-id";
 
 // ---------------------------------------------------------------------------
@@ -6,13 +6,13 @@ import type { CanonicalId } from "@/model/canonical-id";
 // ---------------------------------------------------------------------------
 
 export const store = {
-  things: new Map<string, ThingRecord>(),
+  items: new Map<string, ItemRecord>(),
   clear() {
-    this.things.clear();
+    this.items.clear();
   },
-  seed(records: ThingRecord[]) {
+  seed(records: ItemRecord[]) {
     this.clear();
-    for (const r of records) this.things.set(r.thing_id, r);
+    for (const r of records) this.items.set(r.item_id, r);
   },
 };
 
@@ -25,13 +25,13 @@ function pv(propertyID: string, value: unknown) {
 }
 
 // ---------------------------------------------------------------------------
-// ThingRecord factory
+// ItemRecord factory
 // ---------------------------------------------------------------------------
 
 let counter = 0;
 
-export function createThingRecord(
-  overrides: Partial<ThingRecord> & {
+export function createItemRecord(
+  overrides: Partial<ItemRecord> & {
     bucket?: string;
     type?: string;
     name?: string;
@@ -48,9 +48,9 @@ export function createThingRecord(
     duration?: string;
     location?: string;
   } = {},
-): ThingRecord {
+): ItemRecord {
   counter++;
-  const id = overrides.thing_id ?? `thing-${counter}`;
+  const id = overrides.item_id ?? `item-${counter}`;
   const now = new Date().toISOString();
   const bucket = overrides.bucket ?? "inbox";
   const type =
@@ -137,10 +137,10 @@ export function createThingRecord(
   }
 
   return {
-    thing_id: id,
+    item_id: id,
     canonical_id: canonicalId,
     source: "manual",
-    thing: base,
+    item: base,
     created_at: now,
     updated_at: now,
     ...overrides,
@@ -151,10 +151,10 @@ export function createThingRecord(
 // Preset seed data sets
 // ---------------------------------------------------------------------------
 
-export function seedInboxItems(count = 3): ThingRecord[] {
+export function seedInboxItems(count = 3): ItemRecord[] {
   const records = Array.from({ length: count }, (_, i) =>
-    createThingRecord({
-      thing_id: `inbox-${i + 1}`,
+    createItemRecord({
+      item_id: `inbox-${i + 1}`,
       bucket: "inbox",
       rawCapture: `Inbox item ${i + 1}`,
     }),
@@ -163,47 +163,47 @@ export function seedInboxItems(count = 3): ThingRecord[] {
   return records;
 }
 
-export function seedMixedBuckets(): ThingRecord[] {
+export function seedMixedBuckets(): ItemRecord[] {
   const records = [
-    createThingRecord({
-      thing_id: "inbox-1",
+    createItemRecord({
+      item_id: "inbox-1",
       bucket: "inbox",
       rawCapture: "Unprocessed thought",
     }),
-    createThingRecord({
-      thing_id: "inbox-2",
+    createItemRecord({
+      item_id: "inbox-2",
       bucket: "inbox",
       rawCapture: "Another capture",
     }),
-    createThingRecord({
-      thing_id: "next-1",
+    createItemRecord({
+      item_id: "next-1",
       bucket: "next",
       name: "Draft wireframes",
     }),
-    createThingRecord({
-      thing_id: "next-2",
+    createItemRecord({
+      item_id: "next-2",
       bucket: "next",
       name: "Review PR",
       isFocused: true,
     }),
-    createThingRecord({
-      thing_id: "waiting-1",
+    createItemRecord({
+      item_id: "waiting-1",
       bucket: "waiting",
       name: "Waiting on vendor",
     }),
-    createThingRecord({
-      thing_id: "someday-1",
+    createItemRecord({
+      item_id: "someday-1",
       bucket: "someday",
       name: "Learn Rust",
     }),
-    createThingRecord({
-      thing_id: "project-1",
+    createItemRecord({
+      item_id: "project-1",
       bucket: "project",
       name: "Website Redesign",
       desiredOutcome: "Launch new site",
     }),
-    createThingRecord({
-      thing_id: "ref-1",
+    createItemRecord({
+      item_id: "ref-1",
       bucket: "reference",
       name: "Brand guidelines",
       type: "CreativeWork",
@@ -217,7 +217,7 @@ export function seedMixedBuckets(): ThingRecord[] {
 // SyncResponse builder
 // ---------------------------------------------------------------------------
 
-export function buildSyncResponse(records: ThingRecord[]): SyncResponse {
+export function buildSyncResponse(records: ItemRecord[]): SyncResponse {
   return {
     items: records,
     next_cursor: null,

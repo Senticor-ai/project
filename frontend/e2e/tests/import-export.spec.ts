@@ -154,7 +154,7 @@ test.describe("Export from Settings", () => {
 
     // Verify download filename pattern
     expect(download.suggestedFilename()).toMatch(
-      /things-export-\d{8}T\d{6}Z\.json/,
+      /items-export-\d{8}T\d{6}Z\.json/,
     );
 
     // Read and verify content

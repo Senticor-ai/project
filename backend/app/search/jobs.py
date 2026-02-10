@@ -14,7 +14,7 @@ def _now() -> datetime:
 
 def _normalize_entity(entity_type: str) -> str:
     lowered = entity_type.strip().lower()
-    if lowered not in {"thing", "file"}:
+    if lowered not in {"item", "file"}:
         raise ValueError(f"Invalid entity_type: {entity_type}")
     return lowered
 
@@ -219,9 +219,7 @@ def mark_succeeded(
         return _fallback_job(org_id, entity_type, entity_id, action or "upsert")
 
     if row is None:
-        return enqueue_job(
-            org_id, entity_type, entity_id, action=action or "upsert"
-        )
+        return enqueue_job(org_id, entity_type, entity_id, action=action or "upsert")
     return row
 
 
@@ -269,9 +267,7 @@ def mark_failed(
         return _fallback_job(org_id, entity_type, entity_id, action or "upsert")
 
     if row is None:
-        return enqueue_job(
-            org_id, entity_type, entity_id, action=action or "upsert"
-        )
+        return enqueue_job(org_id, entity_type, entity_id, action=action or "upsert")
     return row
 
 
@@ -318,9 +314,7 @@ def mark_skipped(
         return _fallback_job(org_id, entity_type, entity_id, action or "upsert")
 
     if row is None:
-        return enqueue_job(
-            org_id, entity_type, entity_id, action=action or "upsert"
-        )
+        return enqueue_job(org_id, entity_type, entity_id, action=action or "upsert")
     return row
 
 

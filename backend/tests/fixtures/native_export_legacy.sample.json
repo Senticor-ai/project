@@ -1,0 +1,50 @@
+[
+  {
+    "thing_id": "bbbb-1111",
+    "canonical_id": "urn:app:action:LEGACY-001",
+    "source": "nirvana",
+    "thing": {
+      "@id": "urn:app:action:LEGACY-001",
+      "@type": "Action",
+      "_schemaVersion": 2,
+      "name": "Legacy action item",
+      "description": "From old export format",
+      "keywords": ["legacy"],
+      "dateCreated": "2025-12-01T10:00:00+00:00",
+      "dateModified": "2025-12-15T14:00:00+00:00",
+      "startTime": null,
+      "endTime": null,
+      "additionalProperty": [
+        {"@type": "PropertyValue", "propertyID": "app:bucket", "value": "next"},
+        {"@type": "PropertyValue", "propertyID": "app:isFocused", "value": false},
+        {"@type": "PropertyValue", "propertyID": "app:captureSource", "value": {"kind": "import", "source": "nirvana"}}
+      ]
+    },
+    "created_at": "2025-12-01T10:00:00Z",
+    "updated_at": "2025-12-15T14:00:00Z"
+  },
+  {
+    "thing_id": "bbbb-2222",
+    "canonical_id": "urn:app:action:LEGACY-002",
+    "source": "manual",
+    "thing": {
+      "@id": "urn:app:action:LEGACY-002",
+      "@type": "Action",
+      "_schemaVersion": 2,
+      "name": "Legacy completed item",
+      "description": null,
+      "keywords": [],
+      "dateCreated": "2025-11-01T08:00:00+00:00",
+      "dateModified": "2025-11-20T16:00:00+00:00",
+      "startTime": null,
+      "endTime": "2025-11-20T16:00:00+00:00",
+      "additionalProperty": [
+        {"@type": "PropertyValue", "propertyID": "app:bucket", "value": "next"},
+        {"@type": "PropertyValue", "propertyID": "app:isFocused", "value": false},
+        {"@type": "PropertyValue", "propertyID": "app:captureSource", "value": {"kind": "import", "source": "manual"}}
+      ]
+    },
+    "created_at": "2025-11-01T08:00:00Z",
+    "updated_at": "2025-11-20T16:00:00Z"
+  }
+]

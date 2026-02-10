@@ -2,18 +2,18 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
 import { AutoGrowTextarea } from "@/components/ui/AutoGrowTextarea";
-import { ThingRow } from "./ThingRow";
+import { ActionRow } from "./ActionRow";
 import {
   getProjectActions,
   getNextActionId,
   isProjectStalled,
 } from "@/lib/project-utils";
-import type { Thing, Project } from "@/model/types";
+import type { ActionItem, Project } from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
 
 export interface ProjectTreeProps {
   projects: Project[];
-  actions: Thing[];
+  actions: ActionItem[];
   onCompleteAction: (id: CanonicalId) => void;
   onToggleFocus: (id: CanonicalId) => void;
   onAddAction: (projectId: CanonicalId, title: string) => void;
@@ -181,8 +181,8 @@ export function ProjectTree({
 
 interface ProjectRowProps {
   project: Project;
-  actions: Thing[];
-  allActions: Thing[];
+  actions: ActionItem[];
+  allActions: ActionItem[];
   isExpanded: boolean;
   onToggleExpand: () => void;
   onCompleteAction: (id: CanonicalId) => void;
@@ -282,7 +282,7 @@ function ProjectRow({
 // ---------------------------------------------------------------------------
 
 interface ProjectActionListProps {
-  actions: Thing[];
+  actions: ActionItem[];
   onComplete: (id: CanonicalId) => void;
   onToggleFocus: (id: CanonicalId) => void;
   onAdd: (title: string) => void;
@@ -329,7 +329,7 @@ function ProjectActionList({
                   "ring-2 ring-blueprint-300 rounded-[var(--radius-md)]",
               )}
             >
-              <ThingRow
+              <ActionRow
                 thing={action}
                 onComplete={onComplete}
                 onToggleFocus={onToggleFocus}

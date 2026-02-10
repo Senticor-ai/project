@@ -160,13 +160,13 @@ Always use `CI=1 npx vitest run` (not `npx vitest` which starts watch mode).
 
 Storybook stories use MSW to intercept API requests in-browser, enabling "connected" stories that exercise real hooks and serialization.
 
-- **Handlers**: `frontend/src/test/msw/handlers.ts` — in-memory store with handlers for Things, Files, Imports, Auth APIs
-- **Fixtures**: `frontend/src/test/msw/fixtures.ts` — `store`, `seedMixedBuckets()`, `createThingRecord()`, `buildSyncResponse()`
+- **Handlers**: `frontend/src/test/msw/handlers.ts` — in-memory store with handlers for Items, Files, Imports, Auth APIs
+- **Fixtures**: `frontend/src/test/msw/fixtures.ts` — `store`, `seedMixedBuckets()`, `createItemRecord()`, `buildSyncResponse()`
 - **Worker setup**: `frontend/.storybook/msw-setup.ts` — `setupWorker(...handlers)` from `msw/browser`
 - **Vitest lifecycle**: `frontend/.storybook/vitest.setup.ts` — `beforeAll(worker.start)`, `afterEach(worker.resetHandlers)`, `afterAll(worker.stop)`
 - **Preview**: `frontend/.storybook/preview.tsx` — conditional start (skips in vitest mode), per-story handler overrides via `parameters.msw.handlers`
 
-**Handler URL patterns**: Use wildcard prefix `*/path` (e.g. `*/things/sync`) because `VITE_API_BASE_URL=http://localhost:8000` makes fetch URLs absolute. MSW needs wildcards to match any origin.
+**Handler URL patterns**: Use wildcard prefix `*/path` (e.g. `*/items/sync`) because `VITE_API_BASE_URL=http://localhost:8000` makes fetch URLs absolute. MSW needs wildcards to match any origin.
 
 **Per-story overrides**: Use `parameters.msw.handlers` array — the preview loader applies them via `worker.use()`. Cleaned up by `afterEach(worker.resetHandlers)` in tests.
 

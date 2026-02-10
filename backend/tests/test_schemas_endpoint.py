@@ -7,18 +7,18 @@ def test_list_schemas(client):
     data = response.json()
     assert "schemas" in data
     names = data["schemas"]
-    assert "inbox-thing" in names
-    assert "action-thing" in names
-    assert "project-thing" in names
-    assert "reference-thing" in names
-    assert "event-thing" in names
-    assert "thing-patch" in names
+    assert "inbox-item" in names
+    assert "action-item" in names
+    assert "project-item" in names
+    assert "reference-item" in names
+    assert "event-item" in names
+    assert "item-patch" in names
     assert "property-value" in names
 
 
-def test_get_schema_inbox_thing(client):
-    """inbox-thing is a deprecated alias that now returns the Action schema."""
-    response = client.get("/schemas/inbox-thing")
+def test_get_schema_inbox_item(client):
+    """inbox-item is a deprecated alias that now returns the Action schema."""
+    response = client.get("/schemas/inbox-item")
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/schema+json"
     schema = response.json()
@@ -30,8 +30,8 @@ def test_get_schema_inbox_thing(client):
     assert set(props["@type"]["enum"]) == {"Action", "Thing"}
 
 
-def test_get_schema_action_thing(client):
-    response = client.get("/schemas/action-thing")
+def test_get_schema_action_item(client):
+    response = client.get("/schemas/action-item")
     assert response.status_code == 200
     schema = response.json()
     props = schema["properties"]
@@ -40,16 +40,16 @@ def test_get_schema_action_thing(client):
     assert "endTime" in props
 
 
-def test_get_schema_project_thing(client):
-    response = client.get("/schemas/project-thing")
+def test_get_schema_project_item(client):
+    response = client.get("/schemas/project-item")
     assert response.status_code == 200
     schema = response.json()
     props = schema["properties"]
     assert props["@type"]["const"] == "Project"
 
 
-def test_get_schema_event_thing(client):
-    response = client.get("/schemas/event-thing")
+def test_get_schema_event_item(client):
+    response = client.get("/schemas/event-item")
     assert response.status_code == 200
     schema = response.json()
     props = schema["properties"]

@@ -9,23 +9,23 @@ from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import JSONResponse
 
 from ..models import (
-    ActionThingJsonLd,
-    EventThingJsonLd,
-    ProjectThingJsonLd,
+    ActionItemJsonLd,
+    EventItemJsonLd,
+    ItemPatchModel,
+    ProjectItemJsonLd,
     PropertyValueModel,
-    ReferenceThingJsonLd,
-    ThingPatchModel,
+    ReferenceItemJsonLd,
 )
 
 router = APIRouter(prefix="/schemas", tags=["schemas"])
 
 _REGISTRY: dict[str, type] = {
-    "inbox-thing": ActionThingJsonLd,  # deprecated alias — inbox uses Action
-    "action-thing": ActionThingJsonLd,
-    "project-thing": ProjectThingJsonLd,
-    "reference-thing": ReferenceThingJsonLd,
-    "event-thing": EventThingJsonLd,
-    "thing-patch": ThingPatchModel,
+    "inbox-item": ActionItemJsonLd,  # deprecated alias — inbox uses Action
+    "action-item": ActionItemJsonLd,
+    "project-item": ProjectItemJsonLd,
+    "reference-item": ReferenceItemJsonLd,
+    "event-item": EventItemJsonLd,
+    "item-patch": ItemPatchModel,
     "property-value": PropertyValueModel,
 }
 
@@ -50,7 +50,7 @@ def list_schemas() -> dict:
     summary="Get a JSON-LD schema by name",
     description=(
         "Returns the JSON Schema for a specific entity type. "
-        "Use the name from the listing endpoint (e.g. `inbox-thing`, `action-thing`)."
+        "Use the name from the listing endpoint (e.g. `inbox-item`, `action-item`)."
     ),
 )
 def get_schema(name: str) -> JSONResponse:

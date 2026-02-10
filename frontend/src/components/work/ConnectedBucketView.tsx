@@ -1,6 +1,6 @@
 import { useCallback, useState, useEffect } from "react";
 import { BucketView } from "./BucketView";
-import { useAllThings, useProjects, useReferences } from "@/hooks/use-things";
+import { useAllItems, useProjects, useReferences } from "@/hooks/use-items";
 import {
   useCaptureInbox,
   useAddAction,
@@ -14,7 +14,7 @@ import {
   useCreateProject,
 } from "@/hooks/use-mutations";
 import { Icon } from "@/components/ui/Icon";
-import type { ThingBucket, ItemEditableFields } from "@/model/types";
+import type { ActionItemBucket, ItemEditableFields } from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
 import { cn } from "@/lib/utils";
 
@@ -31,7 +31,7 @@ export function ConnectedBucketView({
   onBucketChange,
   className,
 }: ConnectedBucketViewProps) {
-  const thingsQuery = useAllThings();
+  const actionItemsQuery = useAllItems();
   const projectsQuery = useProjects();
   const referencesQuery = useReferences();
 
@@ -47,11 +47,11 @@ export function ConnectedBucketView({
   const createProjectMutation = useCreateProject();
 
   const isLoading =
-    thingsQuery.isLoading ||
+    actionItemsQuery.isLoading ||
     projectsQuery.isLoading ||
     referencesQuery.isLoading;
   const isFetching =
-    thingsQuery.isFetching ||
+    actionItemsQuery.isFetching ||
     projectsQuery.isFetching ||
     referencesQuery.isFetching;
 
@@ -67,10 +67,10 @@ export function ConnectedBucketView({
   }, [isFetching, isLoading]);
 
   const error =
-    thingsQuery.error ?? projectsQuery.error ?? referencesQuery.error;
+    actionItemsQuery.error ?? projectsQuery.error ?? referencesQuery.error;
 
-  const handleAddThing = useCallback(
-    async (title: string, bucket: ThingBucket) => {
+  const handleAddActionItem = useCallback(
+    async (title: string, bucket: ActionItemBucket) => {
       if (bucket === "inbox") {
         await captureMutation.mutateAsync(title);
       } else {
@@ -157,7 +157,7 @@ export function ConnectedBucketView({
         <p className="mt-2 text-sm text-text-muted">Failed to load data</p>
         <button
           onClick={() => {
-            thingsQuery.refetch();
+            actionItemsQuery.refetch();
           }}
           className="mt-3 rounded-[var(--radius-md)] border border-border px-3 py-1.5 text-xs hover:bg-paper-100"
         >
@@ -178,17 +178,17 @@ export function ConnectedBucketView({
         />
       )}
       <BucketView
-        things={thingsQuery.data ?? []}
+        actionItems={actionItemsQuery.data ?? []}
         referenceItems={referencesQuery.data ?? []}
         projects={projectsQuery.data ?? []}
         activeBucket={activeBucket}
         onBucketChange={onBucketChange}
-        onAddThing={handleAddThing}
-        onCompleteThing={handleComplete}
+        onAddActionItem={handleAddActionItem}
+        onCompleteActionItem={handleComplete}
         onToggleFocus={handleToggleFocus}
-        onMoveThing={handleMove}
-        onArchiveThing={handleArchive}
-        onEditThing={handleEditItem}
+        onMoveActionItem={handleMove}
+        onArchiveActionItem={handleArchive}
+        onEditActionItem={handleEditItem}
         onUpdateTitle={handleUpdateTitle}
         onAddReference={handleAddReference}
         onArchiveReference={handleArchiveReference}

@@ -16,12 +16,12 @@ for the system. For the data model that sits on top of this architecture, see
 using a schema.org `@type`. Custom fields use `additionalProperty` (PropertyValue) rather
 than a parallel type system. This applies across all layers:
 
-| Layer | How schema.org is used |
-| --- | --- |
+| Layer        | How schema.org is used                                                          |
+| ------------ | ------------------------------------------------------------------------------- |
 | **Postgres** | `schema_jsonld` column stores JSON-LD with `@type`, `name`, `description`, etc. |
-| **Fuseki** | RDF projection uses `schema:isPartOf`, `schema:relatedTo`, etc. |
-| **SHACL** | Shapes validate schema.org compliance at the graph boundary |
-| **Frontend** | TypeScript types map 1:1 to schema.org properties; serializer handles JSON-LD |
+| **Fuseki**   | RDF projection uses `schema:isPartOf`, `schema:relatedTo`, etc.                 |
+| **SHACL**    | Shapes validate schema.org compliance at the graph boundary                     |
+| **Frontend** | TypeScript types map 1:1 to schema.org properties; serializer handles JSON-LD   |
 
 See [Data Model](?path=/docs/engineering-ontology--docs) for type mappings and
 [Schema.org Vocabulary](?path=/docs/engineering-ontology-schema-org-vocabulary--docs)
@@ -55,38 +55,38 @@ for the full type catalog.
 
 ### Frontend
 
-| Technology | Purpose |
-| --- | --- |
-| React + Vite | UI framework and build |
-| Vitest + Testing Library | Unit & component tests |
-| Playwright | E2E / BDD scenarios |
-| OpenTelemetry JS SDK | Trace propagation |
+| Technology                | Purpose                     |
+| ------------------------- | --------------------------- |
+| React + Vite              | UI framework and build      |
+| Vitest + Testing Library  | Unit & component tests      |
+| Playwright                | E2E / BDD scenarios         |
+| OpenTelemetry JS SDK      | Trace propagation           |
 | MSW (Mock Service Worker) | API mocking for development |
 
 ### Backend
 
-| Technology | Purpose |
-| --- | --- |
-| Python (FastAPI) | API server |
-| Haystack | AI pipelines & agents |
-| OpenRouter | LLM access |
-| Local auth | HTTP-only cookie sessions (Postgres) |
+| Technology       | Purpose                              |
+| ---------------- | ------------------------------------ |
+| Python (FastAPI) | API server                           |
+| Haystack         | AI pipelines & agents                |
+| OpenRouter       | LLM access                           |
+| Local auth       | HTTP-only cookie sessions (Postgres) |
 
 ### Storage & Indexes
 
-| Store | Purpose |
-| --- | --- |
-| **PostgreSQL** | Immutable catalog (Things + Assertions, JSON-LD) — source of truth |
-| **Apache Jena Fuseki** | RDF relationship graph (derived projection) |
-| **Qdrant** | Vector store (semantic retrieval) |
+| Store                  | Purpose                                                           |
+| ---------------------- | ----------------------------------------------------------------- |
+| **PostgreSQL**         | Immutable catalog (Items + Assertions, JSON-LD) — source of truth |
+| **Apache Jena Fuseki** | RDF relationship graph (derived projection)                       |
+| **Qdrant**             | Vector store (semantic retrieval)                                 |
 
 ### Observability
 
-| Technology | Purpose |
-| --- | --- |
-| OpenTelemetry | Distributed tracing |
-| Grafana LGTM | Loki (logs), Grafana (UI), Tempo (traces), Mimir (metrics) |
-| MLflow | LLM & agent evaluation |
+| Technology    | Purpose                                                    |
+| ------------- | ---------------------------------------------------------- |
+| OpenTelemetry | Distributed tracing                                        |
+| Grafana LGTM  | Loki (logs), Grafana (UI), Tempo (traces), Mimir (metrics) |
+| MLflow        | LLM & agent evaluation                                     |
 
 ---
 
@@ -99,13 +99,13 @@ for the full type catalog.
 3. **One-way projection.** Data flows from Postgres to Fuseki only.
 4. **Rebuildable graph.** The graph can be regenerated from Postgres events.
 
-### Things (Postgres)
+### Items (Postgres)
 
 All objects are stored as schema.org Things in JSON-LD form.
 
 ```sql
--- Table: things
-thing_id        UUID PRIMARY KEY
+-- Table: items
+item_id         UUID PRIMARY KEY
 schema_jsonld   JSONB           -- Full JSON-LD with schema.org @type
 source          TEXT            -- imap | manual | api | ai
 created_at      TIMESTAMP
@@ -119,7 +119,7 @@ Assertions represent _all changes_ to the system. No UPDATE or DELETE is permitt
 ```sql
 -- Table: assertions
 assertion_id            UUID PRIMARY KEY
-thing_id                UUID REFERENCES things
+item_id                 UUID REFERENCES items
 assertion_type          TEXT            -- Enum: LabelApplied, StatusChanged, etc.
 payload_json            JSONB           -- Type-specific data
 actor_type              TEXT            -- user | agent | system
@@ -131,16 +131,16 @@ otel_trace_id           TEXT            -- Required for AI assertions
 
 **Key assertion types:**
 
-| Type | Description |
-| --- | --- |
-| `LabelApplied` | Label added to a Thing |
-| `LabelRemoved` | Label removed |
-| `AssociatedWithCase` | Thing assigned to a Case |
-| `RemovedFromCase` | Thing removed from Case |
-| `StatusChanged` | Status update |
+| Type                     | Description                              |
+| ------------------------ | ---------------------------------------- |
+| `LabelApplied`           | Label added to a Thing                   |
+| `LabelRemoved`           | Label removed                            |
+| `AssociatedWithCase`     | Thing assigned to a Case                 |
+| `RemovedFromCase`        | Thing removed from Case                  |
+| `StatusChanged`          | Status update                            |
 | `ProposedClassification` | AI suggestion (requires `otel_trace_id`) |
-| `ProposalAccepted` | User accepted AI proposal |
-| `ProposalRejected` | User rejected AI proposal |
+| `ProposalAccepted`       | User accepted AI proposal                |
+| `ProposalRejected`       | User rejected AI proposal                |
 
 ---
 
@@ -204,7 +204,7 @@ Embeddings for semantic search:
 - Thing textual fields
 - Document attachments
 
-Payload includes: `thing_id`, `type`, `labels`, `case_id`, `timestamp`
+Payload includes: `item_id`, `type`, `labels`, `case_id`, `timestamp`
 
 ### Rebuild & Migration
 
@@ -292,7 +292,7 @@ Every AI proposal includes `otel_trace_id` for navigating to:
 ```
 fixtures/worlds/<world_id>/
   world.yaml          # World definition
-  things/             # Thing JSON-LD files
+  items/              # Item JSON-LD files
   assertions/         # Assertion sequence
   blobs/              # Attachments
   imap/               # Mock emails (ElektroMail format)
@@ -303,20 +303,20 @@ World packs define a complete, deterministic system state.
 
 ### Frontend Testing
 
-| Level | Tool | Purpose |
-| --- | --- | --- |
-| Unit | Vitest | Component logic |
-| Component | Testing Library | DOM interaction |
-| Integration | MSW | Mocked API |
-| E2E | Playwright | Full user journeys |
+| Level       | Tool            | Purpose            |
+| ----------- | --------------- | ------------------ |
+| Unit        | Vitest          | Component logic    |
+| Component   | Testing Library | DOM interaction    |
+| Integration | MSW             | Mocked API         |
+| E2E         | Playwright      | Full user journeys |
 
 ### Backend Testing
 
-| Level | Tool | Purpose |
-| --- | --- | --- |
-| Unit | pytest | Business logic |
-| API | pytest + httpx | Endpoint behavior |
-| Integration | World packs | Full system state |
+| Level       | Tool           | Purpose           |
+| ----------- | -------------- | ----------------- |
+| Unit        | pytest         | Business logic    |
+| API         | pytest + httpx | Endpoint behavior |
+| Integration | World packs    | Full system state |
 
 ### Dev Harness
 

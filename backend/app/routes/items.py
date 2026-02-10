@@ -15,20 +15,21 @@ from ..idempotency import (
     store_idempotent_response,
 )
 from ..models import (
+    ItemCreateRequest,
+    ItemPatchRequest,
+    ItemResponse,
     SearchIndexStatusResponse,
     SyncResponse,
-    ThingCreateRequest,
-    ThingPatchRequest,
-    ThingResponse,
 )
 from ..outbox import enqueue_event
 from ..search.jobs import enqueue_job, get_job, serialize_job
 
 router = APIRouter(
-    prefix="/things",
-    tags=["things"],
+    prefix="/items",
+    tags=["items"],
     dependencies=[Depends(get_current_user)],
 )
+
 
 def _hash_payload(payload: dict) -> str:
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -56,7 +57,7 @@ def _parse_since(since: str) -> datetime:
 def _decode_cursor(cursor: str) -> tuple[datetime, str]:
     try:
         decoded = base64.urlsafe_b64decode(cursor.encode("utf-8")).decode("utf-8")
-        created_raw, thing_id = decoded.split("|", 1)
+        created_raw, item_id = decoded.split("|", 1)
         created_at = datetime.fromisoformat(created_raw.replace("Z", "+00:00"))
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(
@@ -65,20 +66,20 @@ def _decode_cursor(cursor: str) -> tuple[datetime, str]:
         ) from exc
     if created_at.tzinfo is None:
         created_at = created_at.replace(tzinfo=UTC)
-    return created_at, thing_id
+    return created_at, item_id
 
 
-def _encode_cursor(created_at: datetime, thing_id: str) -> str:
-    payload = f"{created_at.isoformat()}|{thing_id}"
+def _encode_cursor(created_at: datetime, item_id: str) -> str:
+    payload = f"{created_at.isoformat()}|{item_id}"
     return base64.urlsafe_b64encode(payload.encode("utf-8")).decode("utf-8")
 
 
-def _build_thing_response(row) -> ThingResponse:
-    return ThingResponse(
-        thing_id=str(row["thing_id"]),
+def _build_item_response(row) -> ItemResponse:
+    return ItemResponse(
+        item_id=str(row["item_id"]),
         canonical_id=row["canonical_id"],
         source=row["source"],
-        thing=row["schema_jsonld"],
+        item=row["schema_jsonld"],
         content_hash=row["content_hash"],
         created_at=row["created_at"].isoformat(),
         updated_at=row["updated_at"].isoformat(),
@@ -210,9 +211,9 @@ def _is_action_type(type_value: str) -> bool:
     return type_value.split(":")[-1] in {"Action", "PlanAction"}
 
 
-def _get_additional_property(thing: dict, property_id: str):
+def _get_additional_property(item: dict, property_id: str):
     """Extract a value from additionalProperty by propertyID."""
-    for pv in thing.get("additionalProperty", []):
+    for pv in item.get("additionalProperty", []):
         if isinstance(pv, dict) and pv.get("propertyID") == property_id:
             return pv.get("value")
     return None
@@ -223,16 +224,16 @@ def _stream_export_json(rows) -> Iterator[bytes]:
     for index, row in enumerate(rows):
         if index:
             yield b",\n"
-        payload = _dump_response_model(_build_thing_response(row))
+        payload = _dump_response_model(_build_item_response(row))
         yield json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     yield b"]"
 
 
-def _validate_action_bucket(thing: dict) -> None:
-    types = _normalize_types(thing.get("@type"))
+def _validate_action_bucket(item: dict) -> None:
+    types = _normalize_types(item.get("@type"))
     if not any(_is_action_type(t) for t in types):
         return
-    bucket = _get_additional_property(thing, "app:bucket")
+    bucket = _get_additional_property(item, "app:bucket")
     if not isinstance(bucket, str) or not bucket.strip():
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -240,8 +241,8 @@ def _validate_action_bucket(thing: dict) -> None:
         )
 
 
-@router.get("/export", summary="Export all things")
-def export_things(
+@router.get("/export", summary="Export all items")
+def export_items(
     include_archived: bool = False,
     include_completed: bool = False,
     current_org=Depends(get_current_org),
@@ -264,23 +265,23 @@ def export_things(
             cur.execute(
                 f"""
                 SELECT
-                    thing_id,
+                    item_id,
                     canonical_id,
                     source,
                     schema_jsonld,
                     content_hash,
                     created_at,
                     updated_at
-                FROM things
+                FROM items
                 WHERE {where_clause}
-                ORDER BY created_at ASC, thing_id ASC
+                ORDER BY created_at ASC, item_id ASC
                 """,
                 tuple(params),
             )
             rows = cur.fetchall()
 
     timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-    filename = f"things-export-{timestamp}.json"
+    filename = f"items-export-{timestamp}.json"
     headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
 
     return StreamingResponse(
@@ -292,11 +293,11 @@ def export_things(
 
 @router.get(
     "",
-    response_model=list[ThingResponse],
-    summary="List catalog things",
+    response_model=list[ItemResponse],
+    summary="List catalog items",
     description="Supports `since` for incremental reads and ETags for caching.",
 )
-def list_things(
+def list_items(
     limit: int = 50,
     offset: int = 0,
     since: str | None = None,
@@ -316,14 +317,14 @@ def list_things(
                 cur.execute(
                     """
                     SELECT
-                        thing_id,
+                        item_id,
                         canonical_id,
                         source,
                         schema_jsonld,
                         content_hash,
                         created_at,
                         updated_at
-                    FROM things
+                    FROM items
                     WHERE archived_at IS NULL AND org_id = %s AND updated_at > %s
                     ORDER BY created_at DESC
                     LIMIT %s OFFSET %s
@@ -334,14 +335,14 @@ def list_things(
                 cur.execute(
                     """
                     SELECT
-                        thing_id,
+                        item_id,
                         canonical_id,
                         source,
                         schema_jsonld,
                         content_hash,
                         created_at,
                         updated_at
-                    FROM things
+                    FROM items
                     WHERE archived_at IS NULL AND org_id = %s
                     ORDER BY created_at DESC
                     LIMIT %s OFFSET %s
@@ -367,7 +368,7 @@ def list_things(
             headers={"ETag": etag, "Last-Modified": last_modified},
         )
 
-    response = [_build_thing_response(row) for row in rows]
+    response = [_build_item_response(row) for row in rows]
     return JSONResponse(
         content=[_dump_response_model(item) for item in response],
         headers={"ETag": etag, "Last-Modified": last_modified},
@@ -377,10 +378,10 @@ def list_things(
 @router.get(
     "/sync",
     response_model=SyncResponse,
-    summary="Sync catalog things",
+    summary="Sync catalog items",
     description="Use `since` for time-based sync or `cursor` for pagination. ETags supported.",
 )
-def sync_things(
+def sync_items(
     limit: int = 50,
     since: str | None = None,
     cursor: str | None = None,
@@ -430,18 +431,18 @@ def sync_things(
                 cur.execute(
                     f"""
                     SELECT
-                        thing_id,
+                        item_id,
                         canonical_id,
                         source,
                         schema_jsonld,
                         content_hash,
                         created_at,
                         updated_at
-                    FROM things
+                    FROM items
                     WHERE archived_at IS NULL AND org_id = %s
                       {endtime_clause}
-                      AND (created_at, thing_id) > (%s, %s)
-                    ORDER BY created_at ASC, thing_id ASC
+                      AND (created_at, item_id) > (%s, %s)
+                    ORDER BY created_at ASC, item_id ASC
                     LIMIT %s
                     """,
                     (org_id, cursor_filter[0], cursor_filter[1], limit),
@@ -450,17 +451,17 @@ def sync_things(
                 cur.execute(
                     f"""
                     SELECT
-                        thing_id,
+                        item_id,
                         canonical_id,
                         source,
                         schema_jsonld,
                         content_hash,
                         created_at,
                         updated_at
-                    FROM things
+                    FROM items
                     WHERE archived_at IS NULL AND org_id = %s AND updated_at > %s
                       {endtime_clause}
-                    ORDER BY created_at ASC, thing_id ASC
+                    ORDER BY created_at ASC, item_id ASC
                     LIMIT %s
                     """,
                     (org_id, since_filter, limit),
@@ -469,29 +470,29 @@ def sync_things(
                 cur.execute(
                     f"""
                     SELECT
-                        thing_id,
+                        item_id,
                         canonical_id,
                         source,
                         schema_jsonld,
                         content_hash,
                         created_at,
                         updated_at
-                    FROM things
+                    FROM items
                     WHERE archived_at IS NULL AND org_id = %s
                       {endtime_clause}
-                    ORDER BY created_at ASC, thing_id ASC
+                    ORDER BY created_at ASC, item_id ASC
                     LIMIT %s
                     """,
                     (org_id, limit),
                 )
             rows = cur.fetchall()
 
-    items = [_build_thing_response(row) for row in rows]
+    items = [_build_item_response(row) for row in rows]
 
     next_cursor = None
     if rows:
         last = rows[-1]
-        next_cursor = _encode_cursor(last["created_at"], str(last["thing_id"]))
+        next_cursor = _encode_cursor(last["created_at"], str(last["item_id"]))
 
     has_more = len(rows) == limit
     server_time = datetime.now(UTC).isoformat()
@@ -532,9 +533,9 @@ def sync_things(
     )
 
 
-@router.get("/{thing_id}", response_model=ThingResponse, summary="Get a thing by id")
-def get_thing(
-    thing_id: str,
+@router.get("/{item_id}", response_model=ItemResponse, summary="Get an item by id")
+def get_item(
+    item_id: str,
     if_none_match: str | None = Header(
         default=None,
         alias="If-None-Match",
@@ -548,22 +549,22 @@ def get_thing(
             cur.execute(
                 """
                 SELECT
-                    thing_id,
+                    item_id,
                     canonical_id,
                     source,
                     schema_jsonld,
                     content_hash,
                     created_at,
                     updated_at
-                FROM things
-                WHERE thing_id = %s AND org_id = %s AND archived_at IS NULL
+                FROM items
+                WHERE item_id = %s AND org_id = %s AND archived_at IS NULL
                 """,
-                (thing_id, org_id),
+                (item_id, org_id),
             )
             row = cur.fetchone()
 
     if row is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thing not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
 
     etag = _build_etag([row["content_hash"] or row["updated_at"].isoformat()])
     last_modified = row["updated_at"].isoformat()
@@ -573,7 +574,7 @@ def get_thing(
             headers={"ETag": etag, "Last-Modified": last_modified},
         )
 
-    payload = _build_thing_response(row)
+    payload = _build_item_response(row)
     return JSONResponse(
         content=_dump_response_model(payload),
         headers={"ETag": etag, "Last-Modified": last_modified},
@@ -581,28 +582,28 @@ def get_thing(
 
 
 @router.get(
-    "/{thing_id}/index-status",
+    "/{item_id}/index-status",
     response_model=SearchIndexStatusResponse,
-    summary="Get thing search indexing status",
+    summary="Get item search indexing status",
 )
-def get_thing_index_status(
-    thing_id: str,
+def get_item_index_status(
+    item_id: str,
     current_org=Depends(get_current_org),
 ):
     org_id = current_org["org_id"]
-    job = get_job(org_id, "thing", thing_id)
-    payload = serialize_job(job, "thing", thing_id, org_id)
+    job = get_job(org_id, "item", item_id)
+    payload = serialize_job(job, "item", item_id, org_id)
     return JSONResponse(content=payload)
 
 
 @router.patch(
-    "/{thing_id}",
-    response_model=ThingResponse,
-    summary="Update a thing with deep-merge semantics",
+    "/{item_id}",
+    response_model=ItemResponse,
+    summary="Update an item with deep-merge semantics",
 )
-def update_thing(
-    thing_id: str,
-    payload: ThingPatchRequest,
+def update_item(
+    item_id: str,
+    payload: ItemPatchRequest,
     idempotency_key: str | None = Header(
         default=None,
         alias="Idempotency-Key",
@@ -616,7 +617,7 @@ def update_thing(
         request_payload = payload.model_dump(mode="json", by_alias=True, exclude_unset=True)
         request_hash = compute_request_hash(
             "PATCH",
-            f"/things/{thing_id}",
+            f"/items/{item_id}",
             request_payload,
         )
         cached = get_idempotent_response(org_id, idempotency_key, request_hash)
@@ -631,24 +632,24 @@ def update_thing(
             cur.execute(
                 """
                 SELECT
-                    thing_id,
+                    item_id,
                     canonical_id,
                     source,
                     schema_jsonld,
                     content_hash,
                     created_at,
                     updated_at
-                FROM things
-                WHERE thing_id = %s AND org_id = %s AND archived_at IS NULL
+                FROM items
+                WHERE item_id = %s AND org_id = %s AND archived_at IS NULL
                 """,
-                (thing_id, org_id),
+                (item_id, org_id),
             )
             existing = cur.fetchone()
 
     if existing is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thing not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
 
-    patch_payload = payload.thing.model_dump(mode="json", by_alias=True, exclude_unset=True)
+    patch_payload = payload.item.model_dump(mode="json", by_alias=True, exclude_unset=True)
 
     if "@id" in patch_payload and patch_payload["@id"] != existing["canonical_id"]:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="@id cannot be changed")
@@ -682,14 +683,14 @@ def update_thing(
         with conn.cursor() as cur:
             cur.execute(
                 """
-                UPDATE things
+                UPDATE items
                 SET schema_jsonld = %s,
                     source = %s,
                     content_hash = %s,
                     updated_at = %s
-                WHERE thing_id = %s AND org_id = %s AND archived_at IS NULL
+                WHERE item_id = %s AND org_id = %s AND archived_at IS NULL
                 RETURNING
-                    thing_id,
+                    item_id,
                     canonical_id,
                     source,
                     schema_jsonld,
@@ -697,24 +698,24 @@ def update_thing(
                     created_at,
                     updated_at
                 """,
-                (jsonb(merged), source, content_hash, updated_at, thing_id, org_id),
+                (jsonb(merged), source, content_hash, updated_at, item_id, org_id),
             )
             row = cur.fetchone()
         conn.commit()
 
     if row is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thing not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
 
-    enqueue_event("thing_upserted", {"thing_id": str(row["thing_id"]), "org_id": org_id})
+    enqueue_event("item_upserted", {"item_id": str(row["item_id"]), "org_id": org_id})
     enqueue_job(
         org_id=org_id,
-        entity_type="thing",
-        entity_id=str(row["thing_id"]),
+        entity_type="item",
+        entity_id=str(row["item_id"]),
         action="upsert",
         requested_by_user_id=str(current_user["id"]),
     )
 
-    response = _build_thing_response(row)
+    response = _build_item_response(row)
     if idempotency_key:
         store_idempotent_response(
             org_id,
@@ -735,11 +736,11 @@ def update_thing(
 
 
 @router.delete(
-    "/{thing_id}",
-    summary="Archive a thing",
+    "/{item_id}",
+    summary="Archive an item",
 )
-def archive_thing(
-    thing_id: str,
+def archive_item(
+    item_id: str,
     current_org=Depends(get_current_org),
     current_user=Depends(get_current_user),
 ):
@@ -750,24 +751,24 @@ def archive_thing(
         with conn.cursor() as cur:
             cur.execute(
                 """
-                UPDATE things
+                UPDATE items
                 SET archived_at = %s,
                     updated_at = %s
-                WHERE thing_id = %s AND org_id = %s AND archived_at IS NULL
-                RETURNING thing_id, archived_at
+                WHERE item_id = %s AND org_id = %s AND archived_at IS NULL
+                RETURNING item_id, archived_at
                 """,
-                (archived_at, archived_at, thing_id, org_id),
+                (archived_at, archived_at, item_id, org_id),
             )
             row = cur.fetchone()
 
             if row is None:
                 cur.execute(
                     """
-                    SELECT thing_id, archived_at
-                    FROM things
-                    WHERE thing_id = %s AND org_id = %s
+                    SELECT item_id, archived_at
+                    FROM items
+                    WHERE item_id = %s AND org_id = %s
                     """,
-                    (thing_id, org_id),
+                    (item_id, org_id),
                 )
                 existing = cur.fetchone()
             else:
@@ -776,32 +777,32 @@ def archive_thing(
 
     if row is None:
         if existing is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thing not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
         return {
-            "thing_id": str(existing["thing_id"]),
+            "item_id": str(existing["item_id"]),
             "archived_at": existing["archived_at"].isoformat(),
             "ok": True,
         }
 
-    enqueue_event("thing_archived", {"thing_id": str(row["thing_id"]), "org_id": org_id})
+    enqueue_event("item_archived", {"item_id": str(row["item_id"]), "org_id": org_id})
     enqueue_job(
         org_id=org_id,
-        entity_type="thing",
-        entity_id=str(row["thing_id"]),
+        entity_type="item",
+        entity_id=str(row["item_id"]),
         action="delete",
         requested_by_user_id=str(current_user["id"]),
     )
 
     return {
-        "thing_id": str(row["thing_id"]),
+        "item_id": str(row["item_id"]),
         "archived_at": row["archived_at"].isoformat(),
         "ok": True,
     }
 
 
-@router.post("", response_model=ThingResponse, summary="Create a thing (idempotent)")
-def create_thing(
-    payload: ThingCreateRequest,
+@router.post("", response_model=ItemResponse, summary="Create an item (idempotent)")
+def create_item(
+    payload: ItemCreateRequest,
     idempotency_key: str | None = Header(
         default=None,
         alias="Idempotency-Key",
@@ -814,7 +815,7 @@ def create_thing(
     if idempotency_key:
         request_hash = compute_request_hash(
             "POST",
-            "/things",
+            "/items",
             payload.model_dump(mode="json", by_alias=True),
         )
         cached = get_idempotent_response(org_id, idempotency_key, request_hash)
@@ -824,21 +825,21 @@ def create_thing(
                 status_code=cached["status_code"],
             )
 
-    thing = payload.thing.model_dump(mode="json", by_alias=True)
-    canonical_id = thing.get("@id")
+    item_data = payload.item.model_dump(mode="json", by_alias=True)
+    canonical_id = item_data.get("@id")
     if not canonical_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="@id is required")
-    if not thing.get("@type"):
+    if not item_data.get("@type"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="@type is required")
-    _validate_action_bucket(thing)
+    _validate_action_bucket(item_data)
 
-    content_hash = _hash_payload(thing)
+    content_hash = _hash_payload(item_data)
 
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO things (
+                INSERT INTO items (
                     org_id,
                     created_by_user_id,
                     canonical_id,
@@ -849,7 +850,7 @@ def create_thing(
                 VALUES (%s, %s, %s, %s, %s, %s)
                 ON CONFLICT (org_id, canonical_id) DO NOTHING
                 RETURNING
-                    thing_id,
+                    item_id,
                     canonical_id,
                     source,
                     schema_jsonld,
@@ -861,7 +862,7 @@ def create_thing(
                     org_id,
                     current_user["id"],
                     canonical_id,
-                    jsonb(thing),
+                    jsonb(item_data),
                     payload.source,
                     content_hash,
                 ),
@@ -872,14 +873,14 @@ def create_thing(
                 cur.execute(
                     """
                     SELECT
-                        thing_id,
+                        item_id,
                         canonical_id,
                         source,
                         schema_jsonld,
                         content_hash,
                         created_at,
                         updated_at
-                    FROM things
+                    FROM items
                     WHERE canonical_id = %s AND org_id = %s
                     """,
                     (canonical_id, org_id),
@@ -888,11 +889,11 @@ def create_thing(
                 if existing is None:
                     raise HTTPException(
                         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail="Failed to create thing",
+                        detail="Failed to create item",
                     )
 
                 if existing["content_hash"] == content_hash:
-                    response = _build_thing_response(existing)
+                    response = _build_item_response(existing)
                     if idempotency_key:
                         store_idempotent_response(
                             org_id,
@@ -912,7 +913,7 @@ def create_thing(
 
                 conflict_payload = {
                     "detail": "Conflict: canonical_id already exists",
-                    "existing": _dump_response_model(_build_thing_response(existing)),
+                    "existing": _dump_response_model(_build_item_response(existing)),
                 }
                 if idempotency_key:
                     store_idempotent_response(
@@ -933,9 +934,9 @@ def create_thing(
 
         conn.commit()
 
-    enqueue_event("thing_upserted", {"thing_id": str(row["thing_id"]), "org_id": org_id})
+    enqueue_event("item_upserted", {"item_id": str(row["item_id"]), "org_id": org_id})
 
-    response = _build_thing_response(row)
+    response = _build_item_response(row)
     if idempotency_key:
         store_idempotent_response(
             org_id,

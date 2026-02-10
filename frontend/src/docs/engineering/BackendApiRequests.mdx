@@ -14,13 +14,13 @@ This page documents the end-to-end import flow as currently implemented (Nirvana
 
 The import follows a five-step dialog: **select → uploading → preview → importing → results**.
 
-| Step | User sees | What happens |
-|------|-----------|--------------|
-| **select** | File drop zone | User picks a `.json` file |
-| **uploading** | Spinner, "Uploading file..." | Chunked upload via `FilesApi`, then `ImportsApi.inspectNirvana()` |
-| **preview** | Item count, bucket breakdown, "Include completed" toggle | User reviews and clicks "Import N items" |
-| **importing** | Spinner, "Importing...", job status text | `ImportsApi.importNirvanaFromFile()` starts a background job; hook polls every 2s |
-| **results** | Success/error icon, created/updated/skipped/errors stats, bucket breakdown | User can click a bucket to navigate or close |
+| Step          | User sees                                                                  | What happens                                                                      |
+| ------------- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| **select**    | File drop zone                                                             | User picks a `.json` file                                                         |
+| **uploading** | Spinner, "Uploading file..."                                               | Chunked upload via `FilesApi`, then `ImportsApi.inspectNirvana()`                 |
+| **preview**   | Item count, bucket breakdown, "Include completed" toggle                   | User reviews and clicks "Import N items"                                          |
+| **importing** | Spinner, "Importing...", job status text                                   | `ImportsApi.importNirvanaFromFile()` starts a background job; hook polls every 2s |
+| **results**   | Success/error icon, created/updated/skipped/errors stats, bucket breakdown | User can click a bucket to navigate or close                                      |
 
 ### Architecture Layers
 
@@ -69,7 +69,7 @@ The import follows a five-step dialog: **select → uploading → preview → im
 - `startImport` mutation → backend returns `ImportJobResponse` with `job_id` and `status: "queued"`
 - `useQuery` polls `GET /imports/jobs/{job_id}` every **2 seconds** while status is `"queued"` or `"running"`
 - Polling stops automatically when status changes to `"completed"` or `"failed"`
-- During `"running"`, the hook invalidates the things query cache every **3 seconds** so imported items appear incrementally in the list behind the dialog
+- During `"running"`, the hook invalidates the items query cache every **3 seconds** so imported items appear incrementally in the list behind the dialog
 - A `hasCompletedInvalidation` ref guard ensures the final cache invalidation fires exactly once
 
 **Error handling**:
@@ -108,15 +108,15 @@ type NirvanaImportSummary = {
 // Job status (polling response)
 type ImportJobResponse = {
   job_id: string;
-  status: string;       // "queued" | "running" | "completed" | "failed"
+  status: string; // "queued" | "running" | "completed" | "failed"
   file_id: string;
   source: string;
   created_at: string;
   updated_at: string;
   started_at: string | null;
   finished_at: string | null;
-  summary: NirvanaImportSummary | null;  // populated on completion
-  error: string | null;                   // populated on failure
+  summary: NirvanaImportSummary | null; // populated on completion
+  error: string | null; // populated on failure
 };
 ```
 
@@ -151,11 +151,11 @@ The source is already declared in `IMPORT_SOURCES` — flip `available: true`:
 
 Follow the Nirvana pattern — the backend needs three endpoints per source:
 
-| Endpoint | Purpose | Returns |
-|----------|---------|---------|
-| `POST /imports/{source}/inspect` | Dry-run: parse file, count items, report errors | Source-specific summary type (same shape as `NirvanaImportSummary`) |
-| `POST /imports/{source}/from-file` | Start the actual import as a background job | `ImportJobResponse` |
-| `GET /imports/jobs/{job_id}` | Poll job status | `ImportJobResponse` (shared across all sources) |
+| Endpoint                           | Purpose                                         | Returns                                                             |
+| ---------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------- |
+| `POST /imports/{source}/inspect`   | Dry-run: parse file, count items, report errors | Source-specific summary type (same shape as `NirvanaImportSummary`) |
+| `POST /imports/{source}/from-file` | Start the actual import as a background job     | `ImportJobResponse`                                                 |
+| `GET /imports/jobs/{job_id}`       | Poll job status                                 | `ImportJobResponse` (shared across all sources)                     |
 
 The job endpoint is **shared** — all import sources use the same `import_jobs` table and the same polling endpoint. Only the inspect and from-file endpoints are source-specific.
 
@@ -215,20 +215,21 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ImportsApi } from "@/lib/api-client";
 import type { NirvanaImportSummary, ImportJobResponse } from "@/lib/api-client";
 import { useFileUpload } from "./use-file-upload";
-import { THINGS_QUERY_KEY } from "./use-things";
+import { ITEMS_QUERY_KEY } from "./use-items";
 
 export function useThings3Import() {
   const qc = useQueryClient();
-  const upload = useFileUpload();                   // ← reused as-is
+  const upload = useFileUpload(); // ← reused as-is
   const [jobId, setJobId] = useState<string | null>(null);
 
   const inspect = useMutation<
-    NirvanaImportSummary,                            // ← same summary shape
+    NirvanaImportSummary, // ← same summary shape
     Error,
     { fileId: string; includeCompleted: boolean }
   >({
     mutationFn: (params) =>
-      ImportsApi.inspectThings3({                    // ← swap method
+      ImportsApi.inspectThings3({
+        // ← swap method
         file_id: params.fileId,
         include_completed: params.includeCompleted,
       }),
@@ -240,7 +241,8 @@ export function useThings3Import() {
     { fileId: string; includeCompleted: boolean }
   >({
     mutationFn: (params) =>
-      ImportsApi.importThings3FromFile({             // ← swap method
+      ImportsApi.importThings3FromFile({
+        // ← swap method
         file_id: params.fileId,
         include_completed: params.includeCompleted,
       }),
@@ -263,15 +265,15 @@ export function useThings3Import() {
 
   useEffect(() => {
     if (jobStatus === "running") {
-      qc.invalidateQueries({ queryKey: THINGS_QUERY_KEY });
+      qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
       const id = setInterval(() => {
-        qc.invalidateQueries({ queryKey: THINGS_QUERY_KEY });
+        qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
       }, 3000);
       return () => clearInterval(id);
     }
     if (jobStatus === "completed" && !hasCompletedInvalidation.current) {
       hasCompletedInvalidation.current = true;
-      qc.invalidateQueries({ queryKey: THINGS_QUERY_KEY });
+      qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
     }
   }, [jobStatus, qc]);
 
@@ -301,7 +303,7 @@ The five-step flow (select → uploading → preview → importing → results) 
 Add an `onImportThings3` callback to `ImportExportPanelProps` and route the button click:
 
 ```typescript
-source.id === "things3" ? onImportThings3 : undefined
+source.id === "things3" ? onImportThings3 : undefined;
 ```
 
 ### 7. Write tests
@@ -313,17 +315,17 @@ Follow the existing test structure:
 
 ### Shared vs. Source-Specific Summary
 
-| Piece | Shared | Source-specific |
-|-------|--------|-----------------|
-| `useFileUpload` hook | Yes | — |
-| `FilesApi` (chunked upload) | Yes | — |
-| `ImportsApi.getJob` | Yes | — |
-| `ImportJobResponse` type | Yes | — |
-| `ImportSummary` type | Likely (same shape) | May add fields per source |
-| Inspect endpoint | — | `/imports/{source}/inspect` |
-| From-file endpoint | — | `/imports/{source}/from-file` |
-| Import hook | — | One per source |
-| Dialog component | — | One per source |
+| Piece                       | Shared              | Source-specific               |
+| --------------------------- | ------------------- | ----------------------------- |
+| `useFileUpload` hook        | Yes                 | —                             |
+| `FilesApi` (chunked upload) | Yes                 | —                             |
+| `ImportsApi.getJob`         | Yes                 | —                             |
+| `ImportJobResponse` type    | Yes                 | —                             |
+| `ImportSummary` type        | Likely (same shape) | May add fields per source     |
+| Inspect endpoint            | —                   | `/imports/{source}/inspect`   |
+| From-file endpoint          | —                   | `/imports/{source}/from-file` |
+| Import hook                 | —                   | One per source                |
+| Dialog component            | —                   | One per source                |
 
 ---
 
@@ -337,27 +339,27 @@ Add `processed_count` and `total_count` to `ImportJobResponse` so the frontend c
 
 ### Bucket Counts Endpoint
 
-A `GET /things/counts` endpoint returning `Record<string, number>` would let `BucketNav` show sidebar counts without fetching all things. Currently the frontend loads all items and counts client-side.
+A `GET /items/counts` endpoint returning `Record<string, number>` would let `BucketNav` show sidebar counts without fetching all items. Currently the frontend loads all items and counts client-side.
 
 ### Server-Side Bucket Filtering
 
-Adding `?bucket=` and `?type=` params to `GET /things/sync` would avoid loading 20K items when the user only needs the 86 in their inbox.
+Adding `?bucket=` and `?type=` params to `GET /items/sync` would avoid loading 20K items when the user only needs the 86 in their inbox.
 
 ### Server-Sent Events
 
-An SSE endpoint (`GET /things/events`) with `thing_upserted`, `thing_archived`, `import_progress`, and `import_completed` events would replace polling entirely and enable real-time multi-user sync.
+An SSE endpoint (`GET /items/events`) with `item_upserted`, `item_archived`, `import_progress`, and `import_completed` events would replace polling entirely and enable real-time multi-user sync.
 
 ---
 
 ## JSON-LD Payload Schemas
 
-The exact JSON-LD shapes accepted by `POST /things` and `PATCH /things/{id}` are available as machine-readable JSON Schema via the backend API:
+The exact JSON-LD shapes accepted by `POST /items` and `PATCH /items/{id}` are available as machine-readable JSON Schema via the backend API:
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /schemas` | List available schema names |
+| Endpoint              | Description                                        |
+| --------------------- | -------------------------------------------------- |
+| `GET /schemas`        | List available schema names                        |
 | `GET /schemas/{name}` | Download a JSON Schema (`application/schema+json`) |
 
-Available schemas: `inbox-thing`, `action-thing`, `project-thing`, `reference-thing`, `thing-patch`, `property-value`.
+Available schemas: `inbox-item`, `action-item`, `project-item`, `reference-item`, `item-patch`, `property-value`.
 
 These are generated at runtime from the backend Pydantic models — the API is the single source of truth. Frontend tests can fetch schemas directly from the API for validation.

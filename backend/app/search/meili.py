@@ -12,7 +12,7 @@ logger = get_logger("meilisearch")
 _INDEX_READY: set[str] = set()
 _INDEX_CONFIGURED: set[str] = set()
 
-THINGS_SETTINGS = {
+ITEMS_SETTINGS = {
     "filterableAttributes": ["org_id", "types", "source", "bucket"],
     "sortableAttributes": ["created_at", "updated_at"],
     "searchableAttributes": [
@@ -114,8 +114,8 @@ def ensure_index(
         _update_settings(index_uid, settings_payload)
 
 
-def ensure_things_index() -> None:
-    ensure_index(settings.meili_index_things, "thing_id", THINGS_SETTINGS)
+def ensure_items_index() -> None:
+    ensure_index(settings.meili_index_items, "item_id", ITEMS_SETTINGS)
 
 
 def ensure_files_index() -> None:

@@ -163,17 +163,15 @@ export const ToggleArchivedInteractive: Story = {
     await expect(canvas.getByText("2 references")).toBeInTheDocument();
 
     await step("Show archived", async () => {
-      await userEvent.click(canvas.getByLabelText("Show archived"));
+      await userEvent.click(canvas.getByLabelText("Expand Archived"));
     });
 
     // Archived items now visible
     await expect(canvas.getByText("Archived ref one")).toBeInTheDocument();
     await expect(canvas.getByText("Archived ref two")).toBeInTheDocument();
-    await expect(canvas.getByText("2 archived")).toBeInTheDocument();
-    await expect(canvas.getByText("(+2 archived)")).toBeInTheDocument();
 
     await step("Hide archived", async () => {
-      await userEvent.click(canvas.getByLabelText("Hide archived"));
+      await userEvent.click(canvas.getByLabelText("Collapse Archived"));
     });
 
     // Back to hidden

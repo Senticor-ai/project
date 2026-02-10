@@ -1,7 +1,7 @@
 import { http, HttpResponse } from "msw";
 import { store, buildSyncResponse, createFileRecord } from "./fixtures";
 import type {
-  ThingRecord,
+  ItemRecord,
   NirvanaImportSummary,
   ImportJobResponse,
 } from "@/lib/api-client";
@@ -10,8 +10,8 @@ import type {
 // Helpers
 // ---------------------------------------------------------------------------
 
-// Wildcard prefix matches any origin (e.g. http://localhost:8000/things/sync).
-// API paths in api-client.ts are /things/sync, /auth/me, etc. (no /api prefix).
+// Wildcard prefix matches any origin (e.g. http://localhost:8000/items/sync).
+// API paths in api-client.ts are /items/sync, /auth/me, etc. (no /api prefix).
 const API = "*";
 
 function deepMerge(
@@ -47,79 +47,79 @@ function deepMerge(
 }
 
 // ---------------------------------------------------------------------------
-// Things API handlers
+// Items API handlers
 // ---------------------------------------------------------------------------
 
-export const thingsHandlers = [
-  // Sync endpoint — used by useThings / useAllThings
-  http.get(`${API}/things/sync`, ({ request }) => {
+export const itemsHandlers = [
+  // Sync endpoint — used by useItems / useAllItems
+  http.get(`${API}/items/sync`, ({ request }) => {
     const url = new URL(request.url);
     const completed = url.searchParams.get("completed") ?? "false";
-    const all = Array.from(store.things.values());
+    const all = Array.from(store.items.values());
 
     const filtered = all.filter((r) => {
-      const hasEndTime = !!r.thing.endTime;
+      const hasEndTime = !!r.item.endTime;
       return completed === "true" ? hasEndTime : !hasEndTime;
     });
 
     return HttpResponse.json(buildSyncResponse(filtered));
   }),
 
-  // Create thing — used by useCaptureInbox, useAddAction, useAddReference
-  http.post(`${API}/things`, async ({ request }) => {
+  // Create item — used by useCaptureInbox, useAddAction, useAddReference
+  http.post(`${API}/items`, async ({ request }) => {
     const body = (await request.json()) as {
-      thing: Record<string, unknown>;
+      item: Record<string, unknown>;
       source: string;
     };
-    const thingId = `msw-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const itemId = `msw-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const now = new Date().toISOString();
     const canonicalId =
-      (body.thing["@id"] as string) ?? `urn:app:inbox:${thingId}`;
+      (body.item["@id"] as string) ?? `urn:app:inbox:${itemId}`;
 
-    const record: ThingRecord = {
-      thing_id: thingId,
+    const record: ItemRecord = {
+      item_id: itemId,
       canonical_id: canonicalId,
       source: body.source,
-      thing: body.thing,
+      item: body.item,
       created_at: now,
       updated_at: now,
     };
-    store.things.set(thingId, record);
+    store.items.set(itemId, record);
     return HttpResponse.json(record, { status: 201 });
   }),
 
-  // Update thing — used by useMoveAction, useToggleFocus, useUpdateItem, useTriageItem, useCompleteAction
-  http.patch(`${API}/things/:thingId`, async ({ params, request }) => {
-    const thingId = params.thingId as string;
-    const body = (await request.json()) as { thing: Record<string, unknown> };
-    const existing = store.things.get(thingId);
+  // Update item — used by useMoveAction, useToggleFocus, useUpdateItem, useTriageItem, useCompleteAction
+  http.patch(`${API}/items/:itemId`, async ({ params, request }) => {
+    const itemId = params.itemId as string;
+    const body = (await request.json()) as { item: Record<string, unknown> };
+    const existing = store.items.get(itemId);
 
     if (!existing) {
       return HttpResponse.json({ detail: "Not found" }, { status: 404 });
     }
 
-    const merged = deepMerge(existing.thing, body.thing);
-    const updated: ThingRecord = {
+    const merged = deepMerge(existing.item, body.item);
+    const updated: ItemRecord = {
       ...existing,
-      thing: merged,
+      item: merged,
       updated_at: new Date().toISOString(),
     };
-    store.things.set(thingId, updated);
+    store.items.set(itemId, updated);
     return HttpResponse.json(updated);
   }),
 
-  // Archive thing — used by useArchiveReference
-  http.delete(`${API}/things/:thingId`, ({ params }) => {
-    const thingId = params.thingId as string;
-    const existing = store.things.get(thingId);
+  // Archive item — used by useArchiveReference
+  http.delete(`${API}/items/:itemId`, ({ params }) => {
+    const itemId = params.itemId as string;
+    const existing = store.items.get(itemId);
 
     if (!existing) {
       return HttpResponse.json({ detail: "Not found" }, { status: 404 });
     }
 
-    store.things.delete(thingId);
+    store.items.delete(itemId);
     return HttpResponse.json({
-      thing_id: thingId,
+      item_id: itemId,
       archived_at: new Date().toISOString(),
       ok: true,
     });
@@ -189,6 +189,28 @@ export const importsHandlers = [
     return HttpResponse.json(importJobState);
   }),
 
+  http.post(`${API}/imports/native/inspect`, () => {
+    return HttpResponse.json(defaultImportSummary);
+  }),
+
+  http.post(`${API}/imports/native/from-file`, () => {
+    const now = new Date().toISOString();
+    importJobState = {
+      job_id: "msw-job-2",
+      status: "completed",
+      file_id: "file-msw-2",
+      file_sha256: "def456abc789",
+      source: "native",
+      created_at: now,
+      updated_at: now,
+      started_at: now,
+      finished_at: now,
+      summary: defaultImportSummary,
+      error: null,
+    };
+    return HttpResponse.json(importJobState);
+  }),
+
   http.get(`${API}/imports/jobs/:jobId`, () => {
     if (!importJobState) {
       return HttpResponse.json({ detail: "Not found" }, { status: 404 });
@@ -225,7 +247,7 @@ export const authHandlers = [
 // ---------------------------------------------------------------------------
 
 export const handlers = [
-  ...thingsHandlers,
+  ...itemsHandlers,
   ...filesHandlers,
   ...importsHandlers,
   ...authHandlers,

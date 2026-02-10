@@ -11,7 +11,7 @@ def _json_payload(value):
     return value
 
 
-def test_user_flow_creates_things_and_assertions(client):
+def test_user_flow_creates_items_and_assertions(client):
     email = f"user-{uuid.uuid4().hex}@example.com"
     username = f"user-{uuid.uuid4().hex}"
     password = "Testpass1!"
@@ -29,9 +29,9 @@ def test_user_flow_creates_things_and_assertions(client):
     assert response.status_code == 200
     user = response.json()
 
-    thing_ids = []
+    item_ids = []
     for index in range(3):
-        thing = {
+        item = {
             "@id": f"urn:task:{uuid.uuid4()}",
             "@type": "CreativeWork",
             "@context": "https://schema.org",
@@ -40,17 +40,17 @@ def test_user_flow_creates_things_and_assertions(client):
             "dueDate": "2026-02-10",
         }
         response = client.post(
-            "/things",
-            json={"source": "manual", "thing": thing},
+            "/items",
+            json={"source": "manual", "item": item},
             headers={"Idempotency-Key": str(uuid.uuid4())},
         )
         assert response.status_code == 201
-        thing_ids.append(response.json()["thing_id"])
+        item_ids.append(response.json()["item_id"])
 
     response = client.post(
         "/assertions",
         json={
-            "thing_id": thing_ids[0],
+            "item_id": item_ids[0],
             "assertion_type": "labels",
             "payload": {"labels": ["urgent", "home"], "due_date": "2026-02-10"},
             "actor_type": "user",
@@ -66,9 +66,9 @@ def test_user_flow_creates_things_and_assertions(client):
                 """
                 SELECT assertion_type, payload_json, actor_type, actor_id
                 FROM assertions
-                WHERE thing_id = %s
+                WHERE item_id = %s
                 """,
-                (thing_ids[0],),
+                (item_ids[0],),
             )
             row = cur.fetchone()
 

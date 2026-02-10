@@ -55,8 +55,8 @@ export function DeveloperPanel({ onFlush, className }: DeveloperPanelProps) {
                 Flush All Data
               </span>
               <p className="text-xs text-text-subtle">
-                Permanently deletes all things, files, imports, and related
-                data. Your user account and session are preserved.
+                Permanently deletes all items, files, imports, and related data.
+                Your user account and session are preserved.
               </p>
 
               {state.step === "idle" && (

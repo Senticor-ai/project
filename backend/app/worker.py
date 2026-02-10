@@ -8,7 +8,7 @@ from .observability import configure_logging, get_logger
 from .projection.fuseki import is_enabled as fuseki_enabled
 from .projection.fuseki import upsert_jsonld
 from .push_events import enqueue_push_payload
-from .search.indexer import delete_thing, index_file, index_thing
+from .search.indexer import delete_item, index_file, index_item
 from .search.jobs import mark_failed, mark_processing, mark_skipped, mark_succeeded
 from .search.meili import is_enabled
 from .search.ocr_settings import get_ocr_config
@@ -172,21 +172,35 @@ def _process_import_job(payload: dict) -> None:
     if file_row is None:
         raise ValueError("import file not found")
 
-    from .routes.imports import _load_items_from_file, run_nirvana_import
+    from .routes.imports import _load_items_from_file, run_native_import, run_nirvana_import
 
     options = job.get("options") or {}
-    summary = run_nirvana_import(
-        _load_items_from_file(file_row),
-        org_id=str(job["org_id"]),
-        user_id=str(job["owner_id"]),
-        source=job["source"],
-        dry_run=False,
-        update_existing=bool(options.get("update_existing", True)),
-        include_completed=bool(options.get("include_completed", True)),
-        emit_events=bool(options.get("emit_events", True)),
-        state_bucket_map=options.get("state_bucket_map"),
-        default_bucket=options.get("default_bucket", "inbox"),
-    )
+    loaded_items = _load_items_from_file(file_row)
+
+    if job["source"] == "native":
+        summary = run_native_import(
+            loaded_items,
+            org_id=str(job["org_id"]),
+            user_id=str(job["owner_id"]),
+            source=job["source"],
+            dry_run=False,
+            update_existing=bool(options.get("update_existing", True)),
+            include_completed=bool(options.get("include_completed", True)),
+            emit_events=bool(options.get("emit_events", True)),
+        )
+    else:
+        summary = run_nirvana_import(
+            loaded_items,
+            org_id=str(job["org_id"]),
+            user_id=str(job["owner_id"]),
+            source=job["source"],
+            dry_run=False,
+            update_existing=bool(options.get("update_existing", True)),
+            include_completed=bool(options.get("include_completed", True)),
+            emit_events=bool(options.get("emit_events", True)),
+            state_bucket_map=options.get("state_bucket_map"),
+            default_bucket=options.get("default_bucket", "inbox"),
+        )
 
     with db_conn() as job_conn:
         with job_conn.cursor() as cur:
@@ -280,13 +294,13 @@ def process_batch(limit: int = 25) -> int:
             target_user_id = None
 
             try:
-                if event_type == "thing_upserted":
-                    entity_type = "thing"
+                if event_type == "item_upserted":
+                    entity_type = "item"
                     if not org_id:
                         raise ValueError("missing org_id")
-                    if not payload.get("thing_id"):
-                        raise ValueError("missing thing_id")
-                    entity_id = str(payload.get("thing_id"))
+                    if not payload.get("item_id"):
+                        raise ValueError("missing item_id")
+                    entity_id = str(payload.get("item_id"))
                     action = "upsert"
                     if org_id and entity_id:
                         mark_processing(org_id, entity_type, entity_id, action=action)
@@ -294,7 +308,7 @@ def process_batch(limit: int = 25) -> int:
                         cur.execute(
                             """
                             SELECT
-                                thing_id,
+                                item_id,
                                 org_id,
                                 canonical_id,
                                 source,
@@ -302,14 +316,14 @@ def process_batch(limit: int = 25) -> int:
                                 created_at,
                                 updated_at,
                                 created_by_user_id
-                            FROM things
-                            WHERE thing_id = %s
+                            FROM items
+                            WHERE item_id = %s
                             """,
-                            (payload["thing_id"],),
+                            (payload["item_id"],),
                         )
                         row = cur.fetchone()
                     if row is None:
-                        raise ValueError("thing not found for indexing")
+                        raise ValueError("item not found for indexing")
                     if fuseki_enabled():
                         upsert_jsonld(row["schema_jsonld"])
                     target_user_id = payload.get("_context", {}).get("user_id")
@@ -320,7 +334,7 @@ def process_batch(limit: int = 25) -> int:
                             else None
                         )
                     if is_enabled():
-                        index_thing(row)
+                        index_item(row)
                         mark_succeeded(org_id, entity_type, entity_id, action=action)
                         _emit_index_event(
                             status="succeeded",
@@ -328,7 +342,7 @@ def process_batch(limit: int = 25) -> int:
                             entity_id=entity_id,
                             org_id=org_id,
                             action=action,
-                            title="Thing indexed",
+                            title="Item indexed",
                             body=f"{row.get('canonical_id') or entity_id} indexed.",
                             target_user_id=target_user_id,
                         )
@@ -340,18 +354,18 @@ def process_batch(limit: int = 25) -> int:
                             reason="Search disabled",
                             action=action,
                         )
-                elif event_type == "thing_archived":
-                    entity_type = "thing"
+                elif event_type == "item_archived":
+                    entity_type = "item"
                     if not org_id:
                         raise ValueError("missing org_id")
-                    if not payload.get("thing_id"):
-                        raise ValueError("missing thing_id")
-                    entity_id = str(payload.get("thing_id"))
+                    if not payload.get("item_id"):
+                        raise ValueError("missing item_id")
+                    entity_id = str(payload.get("item_id"))
                     action = "delete"
                     if org_id and entity_id:
                         mark_processing(org_id, entity_type, entity_id, action=action)
                     if is_enabled():
-                        delete_thing(payload.get("thing_id", ""))
+                        delete_item(payload.get("item_id", ""))
                         mark_succeeded(org_id, entity_type, entity_id, action=action)
                         _emit_index_event(
                             status="succeeded",
@@ -359,8 +373,8 @@ def process_batch(limit: int = 25) -> int:
                             entity_id=entity_id,
                             org_id=org_id,
                             action=action,
-                            title="Thing removed from search",
-                            body=f"Thing {entity_id} removed from search.",
+                            title="Item removed from search",
+                            body=f"Item {entity_id} removed from search.",
                             target_user_id=payload.get("_context", {}).get("user_id"),
                         )
                     else:
@@ -402,9 +416,7 @@ def process_batch(limit: int = 25) -> int:
                         row = cur.fetchone()
                     if row is None:
                         raise ValueError("file not found for indexing")
-                    target_user_id = (
-                        str(row.get("owner_id")) if row.get("owner_id") else None
-                    )
+                    target_user_id = str(row.get("owner_id")) if row.get("owner_id") else None
                     if is_enabled() and settings.meili_index_files_enabled:
                         ocr_config = get_ocr_config(str(row["org_id"]))
                         index_file(row, ocr_config=ocr_config)
@@ -427,7 +439,7 @@ def process_batch(limit: int = 25) -> int:
                             reason="File indexing disabled",
                             action=action,
                         )
-                elif event_type == "nirvana_import_job":
+                elif event_type in ("nirvana_import_job", "native_import_job"):
                     _process_import_job(payload)
 
                 _mark_processed(conn, event_id)
@@ -440,7 +452,7 @@ def process_batch(limit: int = 25) -> int:
                 )
             except Exception as exc:  # noqa: BLE001
                 logger.exception("outbox.process_failed", event_id=str(event_id))
-                if event_type == "nirvana_import_job":
+                if event_type in ("nirvana_import_job", "native_import_job"):
                     _mark_import_failed(payload.get("job_id"), str(exc))
                 if org_id and entity_type and entity_id:
                     try:

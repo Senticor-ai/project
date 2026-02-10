@@ -10,28 +10,28 @@ The frontend uses **URL-based navigation** so that every screen and tab selectio
 
 ## URL Structure
 
-| URL | Screen | Selection |
-| --- | --- | --- |
-| `/workspace/inbox` | Workspace | Inbox bucket |
-| `/workspace/focus` | Workspace | Focus bucket |
-| `/workspace/next` | Workspace | Next Actions bucket |
-| `/workspace/project` | Workspace | Projects bucket |
-| `/workspace/waiting` | Workspace | Waiting For bucket |
-| `/workspace/calendar` | Workspace | Calendar bucket |
-| `/workspace/someday` | Workspace | Someday/Maybe bucket |
-| `/workspace/reference` | Workspace | Reference bucket |
-| `/settings/import-export` | Settings | Import / Export tab |
-| `/settings/labels` | Settings | Labels & Contexts tab |
-| `/settings/preferences` | Settings | Preferences tab |
+| URL                       | Screen    | Selection             |
+| ------------------------- | --------- | --------------------- |
+| `/workspace/inbox`        | Workspace | Inbox bucket          |
+| `/workspace/focus`        | Workspace | Focus bucket          |
+| `/workspace/next`         | Workspace | Next Actions bucket   |
+| `/workspace/project`      | Workspace | Projects bucket       |
+| `/workspace/waiting`      | Workspace | Waiting For bucket    |
+| `/workspace/calendar`     | Workspace | Calendar bucket       |
+| `/workspace/someday`      | Workspace | Someday/Maybe bucket  |
+| `/workspace/reference`    | Workspace | Reference bucket      |
+| `/settings/import-export` | Settings  | Import / Export tab   |
+| `/settings/labels`        | Settings  | Labels & Contexts tab |
+| `/settings/preferences`   | Settings  | Preferences tab       |
 
 ### Defaults & Redirects
 
-| Input | Redirects to |
-| --- | --- |
-| `/` | `/workspace/inbox` |
-| `/workspace` | `/workspace/inbox` |
-| `/settings` | `/settings/import-export` |
-| Invalid paths | `/workspace/inbox` |
+| Input         | Redirects to              |
+| ------------- | ------------------------- |
+| `/`           | `/workspace/inbox`        |
+| `/workspace`  | `/workspace/inbox`        |
+| `/settings`   | `/settings/import-export` |
+| Invalid paths | `/workspace/inbox`        |
 
 Redirects use `replaceState` so they don't pollute the browser history stack.
 
@@ -45,11 +45,11 @@ The app uses a custom `useLocationState` hook wrapping the History API (`pushSta
 
 ### Key files
 
-| File | Role |
-| --- | --- |
-| `src/lib/route-utils.ts` | `parsePathname()`, `buildPath()`, type definitions (`AppView`, `SettingsTab`) |
-| `src/hooks/use-location-state.ts` | Hook that syncs URL with React state |
-| `src/App.tsx` | Wires the hook to `ConnectedBucketView` and `SettingsScreen` |
+| File                              | Role                                                                          |
+| --------------------------------- | ----------------------------------------------------------------------------- |
+| `src/lib/route-utils.ts`          | `parsePathname()`, `buildPath()`, type definitions (`AppView`, `SettingsTab`) |
+| `src/hooks/use-location-state.ts` | Hook that syncs URL with React state                                          |
+| `src/App.tsx`                     | Wires the hook to `ConnectedBucketView` and `SettingsScreen`                  |
 
 ### Component contract
 

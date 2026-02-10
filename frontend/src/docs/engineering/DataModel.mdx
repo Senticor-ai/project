@@ -168,22 +168,22 @@ parseCanonicalId("urn:app:project:xyz"); // → { entityType: "project", uuid: "
 
 These map 1:1 to schema.org and appear as flat fields on the JSON-LD object:
 
-| Frontend field         | JSON-LD property  | schema.org type                                     | Notes                                                                       |
-| ---------------------- | ----------------- | --------------------------------------------------- | --------------------------------------------------------------------------- |
-| `name`                 | `name`            | [name](https://schema.org/name)                     | Optional for Thing/Action; required for Project, ReferenceMaterial, Context |
-| `description`          | `description`     | [description](https://schema.org/description)       | All entities                                                                |
-| `tags`                 | `keywords`        | [keywords](https://schema.org/keywords)             | Array of strings                                                            |
-| `provenance.createdAt` | `dateCreated`     | [dateCreated](https://schema.org/dateCreated)       | ISO 8601                                                                    |
-| `provenance.updatedAt` | `dateModified`    | [dateModified](https://schema.org/dateModified)     | ISO 8601                                                                    |
-| `scheduledDate`        | `startTime`       | [startTime](https://schema.org/startTime)           | Actions (schema.org Action property)                                        |
-| `completedAt`          | `endTime`         | [endTime](https://schema.org/endTime)               | Completed Actions and Projects                                              |
-| `url`                  | `url`             | [url](https://schema.org/url)                       | CreativeWork, URL inbox captures                                            |
-| `encodingFormat`       | `encodingFormat`  | [encodingFormat](https://schema.org/encodingFormat) | MIME type for files and references                                          |
-| `date`                 | `startDate`       | [startDate](https://schema.org/startDate)           | Event start (ISO 8601)                                                      |
-| (end)                  | `endDate`         | [endDate](https://schema.org/endDate)               | Event end (ISO 8601)                                                        |
-| `duration`             | `duration`        | [duration](https://schema.org/duration)             | Event duration (minutes or ISO 8601 duration)                               |
-| (location)             | `location`        | [location](https://schema.org/location)             | Event location (text)                                                       |
-| `projectIds`           | `app:projectRefs` | `additionalProperty`                                | Thing → Project(s), many-to-many                                            |
+| Frontend field         | JSON-LD property  | schema.org type                                     | Notes                                                                     |
+| ---------------------- | ----------------- | --------------------------------------------------- | ------------------------------------------------------------------------- |
+| `name`                 | `name`            | [name](https://schema.org/name)                     | Optional for ActionItem; required for Project, ReferenceMaterial, Context |
+| `description`          | `description`     | [description](https://schema.org/description)       | All entities                                                              |
+| `tags`                 | `keywords`        | [keywords](https://schema.org/keywords)             | Array of strings                                                          |
+| `provenance.createdAt` | `dateCreated`     | [dateCreated](https://schema.org/dateCreated)       | ISO 8601                                                                  |
+| `provenance.updatedAt` | `dateModified`    | [dateModified](https://schema.org/dateModified)     | ISO 8601                                                                  |
+| `scheduledDate`        | `startTime`       | [startTime](https://schema.org/startTime)           | Actions (schema.org Action property)                                      |
+| `completedAt`          | `endTime`         | [endTime](https://schema.org/endTime)               | Completed Actions and Projects                                            |
+| `url`                  | `url`             | [url](https://schema.org/url)                       | CreativeWork, URL inbox captures                                          |
+| `encodingFormat`       | `encodingFormat`  | [encodingFormat](https://schema.org/encodingFormat) | MIME type for files and references                                        |
+| `date`                 | `startDate`       | [startDate](https://schema.org/startDate)           | Event start (ISO 8601)                                                    |
+| (end)                  | `endDate`         | [endDate](https://schema.org/endDate)               | Event end (ISO 8601)                                                      |
+| `duration`             | `duration`        | [duration](https://schema.org/duration)             | Event duration (minutes or ISO 8601 duration)                             |
+| (location)             | `location`        | [location](https://schema.org/location)             | Event location (text)                                                     |
+| `projectIds`           | `app:projectRefs` | `additionalProperty`                                | ActionItem → Project(s), many-to-many                                     |
 
 ### Custom via `additionalProperty`
 
@@ -240,17 +240,17 @@ All entities share these fields:
 
 ### Entity Types
 
-| `@type`           | TypeScript type                | Bucket(s)                                             | Key additional fields                                                 |
-| ----------------- | ------------------------------ | ----------------------------------------------------- | --------------------------------------------------------------------- |
-| `Action`          | `Thing`                        | `inbox` / `next` / `waiting` / `calendar` / `someday` | `contexts`, `isFocused`, `delegatedTo`, `recurrence`, `sequenceOrder` |
-| `DigitalDocument` | `Thing`                        | `inbox` (before triage)                               | `rawCapture` (set to `name` by `fromJsonLd` fallback)                 |
-| `EmailMessage`    | `Thing`                        | `inbox` (before triage)                               | `rawCapture`, `extractableEntities` via additionalProperty            |
-| `CreativeWork`    | `Thing` or `ReferenceMaterial` | `inbox` or `reference`                                | `url`, `encodingFormat`                                               |
-| `Project`         | `Project`                      | `project`                                             | `desiredOutcome`, `status`                                            |
-| `Event`           | `CalendarEntry`                | `calendar`                                            | `date`, `time`, `duration`, `isAllDay`                                |
+| `@type`           | TypeScript type                     | Bucket(s)                                             | Key additional fields                                                 |
+| ----------------- | ----------------------------------- | ----------------------------------------------------- | --------------------------------------------------------------------- |
+| `Action`          | `ActionItem`                        | `inbox` / `next` / `waiting` / `calendar` / `someday` | `contexts`, `isFocused`, `delegatedTo`, `recurrence`, `sequenceOrder` |
+| `DigitalDocument` | `ActionItem`                        | `inbox` (before triage)                               | `rawCapture` (set to `name` by `fromJsonLd` fallback)                 |
+| `EmailMessage`    | `ActionItem`                        | `inbox` (before triage)                               | `rawCapture`, `extractableEntities` via additionalProperty            |
+| `CreativeWork`    | `ActionItem` or `ReferenceMaterial` | `inbox` or `reference`                                | `url`, `encodingFormat`                                               |
+| `Project`         | `Project`                           | `project`                                             | `desiredOutcome`, `status`                                            |
+| `Event`           | `CalendarEntry`                     | `calendar`                                            | `date`, `time`, `duration`, `isAllDay`                                |
 
 Note: `DigitalDocument` and `EmailMessage` are deserialized by `fromJsonLd`'s fallback branch
-as `Thing` with `bucket: "inbox"`. `CreativeWork` in inbox is also deserialized as `Thing`.
+as `ActionItem` with `bucket: "inbox"`. `CreativeWork` in inbox is also deserialized as `ActionItem`.
 After triage to `reference` bucket, `CreativeWork` becomes `ReferenceMaterial`.
 
 ---
@@ -618,13 +618,13 @@ only set when the user (or AI, with provenance) explicitly renames an item.
 
 ### Per-entity rules
 
-| Entity type       | `name`                      | `rawCapture` |
-| ----------------- | --------------------------- | ------------ |
-| Thing (inbox)     | optional — unset at capture | **required** |
-| Action            | optional — unset at capture | **required** |
-| Project           | **required**                | n/a          |
-| ReferenceMaterial | **required**                | n/a          |
-| Context           | **required**                | n/a          |
+| Entity type        | `name`                      | `rawCapture` |
+| ------------------ | --------------------------- | ------------ |
+| ActionItem (inbox) | optional — unset at capture | **required** |
+| Action             | optional — unset at capture | **required** |
+| Project            | **required**                | n/a          |
+| ReferenceMaterial  | **required**                | n/a          |
+| Context            | **required**                | n/a          |
 
 File captures set `name` to the file name. URL captures do not set `name`.
 
@@ -681,19 +681,19 @@ The machine-readable contract for JSON-LD payloads is **served by the backend AP
 `GET /schemas/{name}`. Schemas are generated at runtime from the Pydantic models in
 `backend/app/models.py` — no static files to keep in sync.
 
-The serializer contract tests in `thing-serializer.test.ts` fetch these schemas, compile
+The serializer contract tests in `item-serializer.test.ts` fetch these schemas, compile
 AJV validators, and verify that every `build*` and `toJsonLd` output conforms. Tests skip
 gracefully when the backend is unreachable.
 
-| Schema name       | Pydantic model         | Purpose                                                 |
-| ----------------- | ---------------------- | ------------------------------------------------------- |
-| `inbox-thing`     | `InboxThingJsonLd`     | Inbox capture payload (deprecated — use `action-thing`) |
-| `action-thing`    | `ActionThingJsonLd`    | Action payload (inbox captures + triaged actions)       |
-| `project-thing`   | `ProjectThingJsonLd`   | Project payload                                         |
-| `reference-thing` | `ReferenceThingJsonLd` | Reference payload                                       |
-| `event-thing`     | `EventThingJsonLd`     | Event payload                                           |
-| `thing-patch`     | `ThingPatchModel`      | PATCH payload                                           |
-| `property-value`  | `PropertyValueModel`   | PropertyValue shape                                     |
+| Schema name      | Pydantic model        | Purpose                                                |
+| ---------------- | --------------------- | ------------------------------------------------------ |
+| `inbox-item`     | `InboxItemJsonLd`     | Inbox capture payload (deprecated — use `action-item`) |
+| `action-item`    | `ActionItemJsonLd`    | Action payload (inbox captures + triaged actions)      |
+| `project-item`   | `ProjectItemJsonLd`   | Project payload                                        |
+| `reference-item` | `ReferenceItemJsonLd` | Reference payload                                      |
+| `event-item`     | `EventItemJsonLd`     | Event payload                                          |
+| `item-patch`     | `ItemPatchModel`      | PATCH payload                                          |
+| `property-value` | `PropertyValueModel`  | PropertyValue shape                                    |
 
 See [Schema Contract Validation](?path=/docs/engineering-ontology-schema-contract-validation--docs)
 for the full pipeline documentation, and
@@ -765,7 +765,7 @@ Users can belong to multiple Organizations (multi-tenancy ready).
 
 ### Backend schema alignment
 
-- Deprecate `inbox-thing` schema — inbox items now use `action-thing` (`@type: "Action"`)
+- Deprecate `inbox-item` schema — inbox items now use `action-item` (`@type: "Action"`)
 - Add `DigitalDocument`, `EmailMessage` schema variants for file capture payloads
 - Add `app:extractableEntities` to the backend `PropertyValue` allowlist
 

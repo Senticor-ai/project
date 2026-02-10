@@ -1,8 +1,8 @@
 import { createCanonicalId } from "./canonical-id";
 import type { CanonicalId } from "./canonical-id";
 import type {
-  Thing,
-  ThingBucket,
+  ActionItem,
+  ActionItemBucket,
   Project,
   ReferenceMaterial,
   Provenance,
@@ -37,21 +37,23 @@ function defaultSource(): CaptureSource {
 }
 
 // ---------------------------------------------------------------------------
-// Thing Factory (unified)
+// ActionItem Factory (unified)
 // ---------------------------------------------------------------------------
 
-/** Overrides for createThing — accepts `projectId` (convenience, wraps in array) or `projectIds`. */
-type ThingOverrides = Partial<Thing> &
+/** Overrides for createActionItem — accepts `projectId` (convenience, wraps in array) or `projectIds`. */
+type ActionItemOverrides = Partial<ActionItem> &
   ({ name: string } | { rawCapture: string }) & {
     /** Convenience: single project ID (wrapped into projectIds). */
     projectId?: CanonicalId;
   };
 
-export function createThing(overrides: ThingOverrides): Thing {
+export function createActionItem(overrides: ActionItemOverrides): ActionItem {
   if (!overrides.name && !overrides.rawCapture) {
-    throw new Error("createThing requires at least one of {name, rawCapture}");
+    throw new Error(
+      "createActionItem requires at least one of {name, rawCapture}",
+    );
   }
-  const bucket: ThingBucket = overrides.bucket ?? "inbox";
+  const bucket: ActionItemBucket = overrides.bucket ?? "inbox";
   const entityType = bucket === "inbox" ? "inbox" : "action";
   const id = overrides.id ?? createCanonicalId(entityType, nextId());
   return {
@@ -84,11 +86,11 @@ export function createThing(overrides: ThingOverrides): Thing {
 }
 
 // ---------------------------------------------------------------------------
-// Inbox Item Factory (convenience — delegates to createThing)
+// Inbox Item Factory (convenience — delegates to createActionItem)
 // ---------------------------------------------------------------------------
 
-export function createInboxItem(overrides: ThingOverrides): Thing {
-  return createThing({
+export function createInboxItem(overrides: ActionItemOverrides): ActionItem {
+  return createActionItem({
     ...overrides,
     bucket: "inbox",
     rawCapture: overrides.rawCapture ?? overrides.name,
@@ -98,11 +100,11 @@ export function createInboxItem(overrides: ThingOverrides): Thing {
 }
 
 // ---------------------------------------------------------------------------
-// Action Factory (convenience — delegates to createThing)
+// Action Factory (convenience — delegates to createActionItem)
 // ---------------------------------------------------------------------------
 
-export function createAction(overrides: ThingOverrides): Thing {
-  return createThing({
+export function createAction(overrides: ActionItemOverrides): ActionItem {
+  return createActionItem({
     ...overrides,
     bucket: overrides.bucket ?? "next",
     needsEnrichment: overrides.needsEnrichment ?? false,

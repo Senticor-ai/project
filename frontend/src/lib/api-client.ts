@@ -187,17 +187,17 @@ export const AuthApi = {
   },
 };
 
-export type ThingRecord = {
-  thing_id: string;
+export type ItemRecord = {
+  item_id: string;
   canonical_id: string;
   source: string;
-  thing: Record<string, unknown>;
+  item: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 };
 
 export type ArchiveResponse = {
-  thing_id: string;
+  item_id: string;
   archived_at: string;
   ok: boolean;
 };
@@ -302,6 +302,21 @@ export type ImportJobResponse = {
   error: string | null;
 };
 
+export type NativeInspectRequest = {
+  file_id: string;
+  source?: string;
+  update_existing?: boolean;
+  include_completed?: boolean;
+};
+
+export type NativeImportFromFileRequest = {
+  file_id: string;
+  source?: string;
+  update_existing?: boolean;
+  include_completed?: boolean;
+  emit_events?: boolean;
+};
+
 export const ImportsApi = {
   inspectNirvana: (req: NirvanaInspectRequest) =>
     request<NirvanaImportSummary>("/imports/nirvana/inspect", {
@@ -311,6 +326,18 @@ export const ImportsApi = {
 
   importNirvanaFromFile: (req: NirvanaImportFromFileRequest) =>
     request<ImportJobResponse>("/imports/nirvana/from-file", {
+      method: "POST",
+      body: JSON.stringify(req),
+    }),
+
+  inspectNative: (req: NativeInspectRequest) =>
+    request<NirvanaImportSummary>("/imports/native/inspect", {
+      method: "POST",
+      body: JSON.stringify(req),
+    }),
+
+  importNativeFromFile: (req: NativeImportFromFileRequest) =>
+    request<ImportJobResponse>("/imports/native/from-file", {
       method: "POST",
       body: JSON.stringify(req),
     }),
@@ -343,11 +370,11 @@ export const DevApi = {
 };
 
 // ---------------------------------------------------------------------------
-// Things API
+// Items API
 // ---------------------------------------------------------------------------
 
 export type SyncResponse = {
-  items: ThingRecord[];
+  items: ItemRecord[];
   next_cursor: string | null;
   has_more: boolean;
   server_time: string;
@@ -361,7 +388,7 @@ export function downloadExport(options: {
   if (options.includeArchived) params.set("include_archived", "true");
   if (options.includeCompleted) params.set("include_completed", "true");
   const qs = params.toString();
-  const url = `${API_BASE_URL}/things/export${qs ? `?${qs}` : ""}`;
+  const url = `${API_BASE_URL}/items/export${qs ? `?${qs}` : ""}`;
   const a = document.createElement("a");
   a.href = url;
   a.download = "";
@@ -370,9 +397,9 @@ export function downloadExport(options: {
   document.body.removeChild(a);
 }
 
-export const ThingsApi = {
+export const ItemsApi = {
   list: (limit = 50, offset = 0) =>
-    request<ThingRecord[]>(`/things?limit=${limit}&offset=${offset}`),
+    request<ItemRecord[]>(`/items?limit=${limit}&offset=${offset}`),
 
   sync: (params?: {
     limit?: number;
@@ -386,34 +413,34 @@ export const ThingsApi = {
     if (params?.since) sp.set("since", params.since);
     if (params?.completed) sp.set("completed", params.completed);
     const qs = sp.toString();
-    return request<SyncResponse>(`/things/sync${qs ? `?${qs}` : ""}`);
+    return request<SyncResponse>(`/items/sync${qs ? `?${qs}` : ""}`);
   },
 
-  get: (thingId: string) => request<ThingRecord>(`/things/${thingId}`),
+  get: (itemId: string) => request<ItemRecord>(`/items/${itemId}`),
 
-  create: (thing: Record<string, unknown>, source = "manual") =>
-    request<ThingRecord>("/things", {
+  create: (item: Record<string, unknown>, source = "manual") =>
+    request<ItemRecord>("/items", {
       method: "POST",
-      body: JSON.stringify({ thing, source }),
+      body: JSON.stringify({ item, source }),
     }),
 
   update: (
-    thingId: string,
-    thing: Record<string, unknown>,
+    itemId: string,
+    item: Record<string, unknown>,
     source?: string,
     idempotencyKey?: string,
   ) => {
     const headers: Record<string, string> = {};
     if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
-    return request<ThingRecord>(`/things/${thingId}`, {
+    return request<ItemRecord>(`/items/${itemId}`, {
       method: "PATCH",
-      body: JSON.stringify({ thing, ...(source && { source }) }),
+      body: JSON.stringify({ item, ...(source && { source }) }),
       headers,
     });
   },
 
-  archive: (thingId: string) =>
-    request<ArchiveResponse>(`/things/${thingId}`, {
+  archive: (itemId: string) =>
+    request<ArchiveResponse>(`/items/${itemId}`, {
       method: "DELETE",
     }),
 };

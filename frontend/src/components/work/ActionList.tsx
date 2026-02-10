@@ -1,9 +1,9 @@
 import { useState, useCallback, useMemo } from "react";
 import { ItemList } from "./ItemList";
-import { ThingRow } from "./ThingRow";
+import { ActionRow } from "./ActionRow";
 import { ContextFilterBar } from "./ContextFilterBar";
-import { useAllCompletedThings } from "@/hooks/use-things";
-import type { Thing, Project, ItemEditableFields } from "@/model/types";
+import { useAllCompletedItems } from "@/hooks/use-items";
+import type { ActionItem, Project, ItemEditableFields } from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
 
 // ---------------------------------------------------------------------------
@@ -11,7 +11,7 @@ import type { CanonicalId } from "@/model/canonical-id";
 // ---------------------------------------------------------------------------
 
 const bucketMeta: Record<
-  Thing["bucket"] | "focus",
+  ActionItem["bucket"] | "focus",
   { label: string; icon: string; subtitle: string }
 > = {
   inbox: {
@@ -50,9 +50,9 @@ const bucketMeta: Record<
 // Props
 // ---------------------------------------------------------------------------
 
-export interface ThingListProps {
-  bucket: Thing["bucket"] | "focus";
-  things: Thing[];
+export interface ActionListProps {
+  bucket: ActionItem["bucket"] | "focus";
+  items: ActionItem[];
   onAdd: (title: string) => Promise<void> | void;
   onComplete: (id: CanonicalId) => void;
   onToggleFocus: (id: CanonicalId) => void;
@@ -68,9 +68,9 @@ export interface ThingListProps {
 // Component
 // ---------------------------------------------------------------------------
 
-export function ThingList({
+export function ActionList({
   bucket,
-  things,
+  items,
   onAdd,
   onComplete,
   onToggleFocus,
@@ -80,7 +80,7 @@ export function ThingList({
   onUpdateTitle,
   projects,
   className,
-}: ThingListProps) {
+}: ActionListProps) {
   const [expandedId, setExpandedId] = useState<CanonicalId | null>(null);
   const [selectedContexts, setSelectedContexts] = useState<string[]>([]);
   const [prevBucket, setPrevBucket] = useState(bucket);
@@ -95,7 +95,7 @@ export function ThingList({
   }
 
   // Always fetch completed items (shown in collapsible Done section)
-  const completedQuery = useAllCompletedThings(true);
+  const completedQuery = useAllCompletedItems(true);
 
   const handleToggleFocus = useCallback(
     (id: CanonicalId) => onToggleFocus(id),
@@ -105,10 +105,10 @@ export function ThingList({
   // Filter active items
   const filtered = useMemo(() => {
     if (isFocusView) {
-      return things.filter((t) => t.isFocused);
+      return items.filter((t) => t.isFocused);
     }
-    return things.filter((t) => t.bucket === bucket);
-  }, [things, bucket, isFocusView]);
+    return items.filter((t) => t.bucket === bucket);
+  }, [items, bucket, isFocusView]);
 
   // Completed items from the lazy-loaded query
   const completedItems = useMemo(() => {
@@ -181,7 +181,7 @@ export function ThingList({
   }
 
   return (
-    <ItemList<Thing>
+    <ItemList<ActionItem>
       items={sorted}
       header={meta}
       rapidEntry={
@@ -197,7 +197,7 @@ export function ThingList({
           : undefined
       }
       renderItem={(thing, { isExpanded, onToggleExpand }) => (
-        <ThingRow
+        <ActionRow
           key={thing.id}
           thing={thing}
           onComplete={onComplete}
@@ -233,7 +233,7 @@ export function ThingList({
               items: completedItems,
               isLoading: completedQuery.isFetching,
               renderItem: (thing) => (
-                <ThingRow
+                <ActionRow
                   key={thing.id}
                   thing={thing}
                   onComplete={onComplete}

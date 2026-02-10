@@ -30,6 +30,11 @@ const NirvanaImportDialog = lazy(() =>
     default: m.NirvanaImportDialog,
   })),
 );
+const NativeImportDialog = lazy(() =>
+  import("./components/work/NativeImportDialog").then((m) => ({
+    default: m.NativeImportDialog,
+  })),
+);
 
 function LoadingFallback() {
   return (
@@ -75,6 +80,7 @@ function AuthenticatedApp({
   const queryClient = useQueryClient();
   const { location, navigate } = useLocationState();
   const [showImport, setShowImport] = useState(false);
+  const [showNativeImport, setShowNativeImport] = useState(false);
   const { jobs: importJobs, checkDuplicate } = useImportJobs();
   useImportJobToasts(importJobs);
 
@@ -135,9 +141,7 @@ function AuthenticatedApp({
             <SettingsScreen
               activeTab={location.sub as SettingsTab}
               onTabChange={handleSettingsTabChange}
-              onImportNative={() => {
-                /* TODO: native import dialog */
-              }}
+              onImportNative={() => setShowNativeImport(true)}
               onImportNirvana={() => setShowImport(true)}
               onExport={downloadExport}
               onFlush={handleFlush}
@@ -146,11 +150,19 @@ function AuthenticatedApp({
           </Suspense>
         )}
 
-        {/* Import dialog */}
+        {/* Import dialogs */}
         <Suspense fallback={null}>
           <NirvanaImportDialog
             open={showImport}
             onClose={() => setShowImport(false)}
+            onNavigateToBucket={(bucket) => navigate("workspace", bucket)}
+            checkDuplicate={checkDuplicate}
+          />
+        </Suspense>
+        <Suspense fallback={null}>
+          <NativeImportDialog
+            open={showNativeImport}
+            onClose={() => setShowNativeImport(false)}
             onNavigateToBucket={(bucket) => navigate("workspace", bucket)}
             checkDuplicate={checkDuplicate}
           />

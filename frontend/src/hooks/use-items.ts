@@ -1,25 +1,25 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ThingsApi } from "@/lib/api-client";
-import type { ThingRecord } from "@/lib/api-client";
-import { fromJsonLd } from "@/lib/thing-serializer";
-import type { Thing, Project, ReferenceMaterial } from "@/model/types";
-import { isThing } from "@/model/types";
+import { ItemsApi } from "@/lib/api-client";
+import type { ItemRecord } from "@/lib/api-client";
+import { fromJsonLd } from "@/lib/item-serializer";
+import type { ActionItem, Project, ReferenceMaterial } from "@/model/types";
+import { isActionItem } from "@/model/types";
 
 // ---------------------------------------------------------------------------
 // Shared query key + fetcher
 // ---------------------------------------------------------------------------
 
-export const THINGS_QUERY_KEY = ["things"] as const;
+export const ITEMS_QUERY_KEY = ["items"] as const;
 
 const SYNC_PAGE_SIZE = 5000;
 
-async function fetchThings(completed: string): Promise<ThingRecord[]> {
-  const all: ThingRecord[] = [];
+async function fetchItems(completed: string): Promise<ItemRecord[]> {
+  const all: ItemRecord[] = [];
   let cursor: string | undefined;
 
   do {
-    const page = await ThingsApi.sync({
+    const page = await ItemsApi.sync({
       limit: SYNC_PAGE_SIZE,
       cursor,
       completed,
@@ -32,21 +32,21 @@ async function fetchThings(completed: string): Promise<ThingRecord[]> {
 }
 
 // ---------------------------------------------------------------------------
-// Base hook: raw ThingRecords (active only by default)
+// Base hook: raw ItemRecords (active only by default)
 // ---------------------------------------------------------------------------
 
-export function useThings() {
+export function useItems() {
   return useQuery({
-    queryKey: [...THINGS_QUERY_KEY, { completed: "false" }],
-    queryFn: () => fetchThings("false"),
+    queryKey: [...ITEMS_QUERY_KEY, { completed: "false" }],
+    queryFn: () => fetchItems("false"),
   });
 }
 
 /** Completed items — enabled lazily when needed. */
-export function useCompletedThings(enabled: boolean) {
+export function useCompletedItems(enabled: boolean) {
   return useQuery({
-    queryKey: [...THINGS_QUERY_KEY, { completed: "true" }],
-    queryFn: () => fetchThings("true"),
+    queryKey: [...ITEMS_QUERY_KEY, { completed: "true" }],
+    queryFn: () => fetchItems("true"),
     enabled,
   });
 }
@@ -57,9 +57,9 @@ export function useCompletedThings(enabled: boolean) {
 
 type AdditionalProp = { propertyID: string; value: unknown };
 
-/** Extract app:bucket from a ThingRecord's additionalProperty array. */
-function getBucketFromRecord(r: ThingRecord): string | undefined {
-  const props = r.thing.additionalProperty as AdditionalProp[] | undefined;
+/** Extract app:bucket from an ItemRecord's additionalProperty array. */
+function getBucketFromRecord(r: ItemRecord): string | undefined {
+  const props = r.item.additionalProperty as AdditionalProp[] | undefined;
   return props?.find((p) => p.propertyID === "app:bucket")?.value as
     | string
     | undefined;
@@ -69,57 +69,59 @@ function getBucketFromRecord(r: ThingRecord): string | undefined {
 // Derived hooks: filter + deserialize
 // ---------------------------------------------------------------------------
 
-function deserializeThings(records: ThingRecord[] | undefined): Thing[] {
+function deserializeActionItems(
+  records: ItemRecord[] | undefined,
+): ActionItem[] {
   return (
     records
       ?.filter((r) => {
-        const type = r.thing["@type"] as string;
+        const type = r.item["@type"] as string;
         if (type === "Action") return true;
         // Include any @type that sits in the inbox bucket (file/URL captures)
         return getBucketFromRecord(r) === "inbox";
       })
       .map((r) => {
         const item = fromJsonLd(r);
-        return isThing(item) ? item : undefined;
+        return isActionItem(item) ? item : undefined;
       })
-      .filter((x): x is Thing => x !== undefined) ?? []
+      .filter((x): x is ActionItem => x !== undefined) ?? []
   );
 }
 
-/** All Things (inbox + action buckets). */
-export function useAllThings() {
-  const query = useThings();
-  const items = useMemo<Thing[]>(
-    () => deserializeThings(query.data),
+/** All ActionItems (inbox + action buckets). */
+export function useAllItems() {
+  const query = useItems();
+  const items = useMemo<ActionItem[]>(
+    () => deserializeActionItems(query.data),
     [query.data],
   );
   return { ...query, data: items };
 }
 
-/** Completed Things — enabled lazily. */
-export function useAllCompletedThings(enabled: boolean) {
-  const query = useCompletedThings(enabled);
-  const items = useMemo<Thing[]>(
-    () => deserializeThings(query.data),
+/** Completed ActionItems — enabled lazily. */
+export function useAllCompletedItems(enabled: boolean) {
+  const query = useCompletedItems(enabled);
+  const items = useMemo<ActionItem[]>(
+    () => deserializeActionItems(query.data),
     [query.data],
   );
   return { ...query, data: items };
 }
 
-/** Things with bucket="inbox". */
+/** ActionItems with bucket="inbox". */
 export function useInboxItems() {
-  const query = useAllThings();
-  const items = useMemo<Thing[]>(
+  const query = useAllItems();
+  const items = useMemo<ActionItem[]>(
     () => query.data.filter((t) => t.bucket === "inbox"),
     [query.data],
   );
   return { ...query, data: items };
 }
 
-/** Things with action buckets (next, waiting, calendar, someday). */
+/** ActionItems with action buckets (next, waiting, calendar, someday). */
 export function useActions() {
-  const query = useAllThings();
-  const items = useMemo<Thing[]>(
+  const query = useAllItems();
+  const items = useMemo<ActionItem[]>(
     () => query.data.filter((t) => t.bucket !== "inbox"),
     [query.data],
   );
@@ -127,11 +129,11 @@ export function useActions() {
 }
 
 export function useProjects() {
-  const query = useThings();
+  const query = useItems();
   const items = useMemo<Project[]>(
     () =>
       query.data
-        ?.filter((r) => r.thing["@type"] === "Project")
+        ?.filter((r) => r.item["@type"] === "Project")
         .map((r) => fromJsonLd(r) as Project) ?? [],
     [query.data],
   );
@@ -139,13 +141,13 @@ export function useProjects() {
 }
 
 export function useReferences() {
-  const query = useThings();
+  const query = useItems();
   const items = useMemo<ReferenceMaterial[]>(
     () =>
       query.data
         ?.filter(
           (r) =>
-            r.thing["@type"] === "CreativeWork" &&
+            r.item["@type"] === "CreativeWork" &&
             getBucketFromRecord(r) !== "inbox",
         )
         .map((r) => fromJsonLd(r) as ReferenceMaterial) ?? [],

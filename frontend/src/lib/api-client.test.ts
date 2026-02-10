@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   ApiError,
   AuthApi,
-  ThingsApi,
+  ItemsApi,
   FilesApi,
   ImportsApi,
   setUserContext,
@@ -72,7 +72,7 @@ describe("ApiError", () => {
 });
 
 // ---------------------------------------------------------------------------
-// request() internals (tested via AuthApi/ThingsApi)
+// request() internals (tested via AuthApi/ItemsApi)
 // ---------------------------------------------------------------------------
 
 describe("request()", () => {
@@ -100,7 +100,7 @@ describe("request()", () => {
   it("sends X-User-ID when user context is set", async () => {
     setUserContext({ id: "u-42", email: "a@b.com", created_at: "" });
     fetchSpy.mockResolvedValue(jsonResponse([]));
-    await ThingsApi.list();
+    await ItemsApi.list();
 
     const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
     const headers = new Headers(init.headers);
@@ -164,7 +164,7 @@ describe("request()", () => {
 
   it("handles empty response body (204-like)", async () => {
     fetchSpy.mockResolvedValue(new Response("", { status: 200 }));
-    const result = await ThingsApi.get("t-1");
+    const result = await ItemsApi.get("t-1");
     expect(result).toBeNull();
   });
 });
@@ -210,7 +210,7 @@ describe("AuthApi", () => {
 
     // Verify subsequent requests don't include the cleared context
     fetchSpy.mockResolvedValue(jsonResponse([]));
-    await ThingsApi.list();
+    await ItemsApi.list();
     const [, init] = fetchSpy.mock.calls[1] as [string, RequestInit];
     const headers = new Headers(init.headers);
     expect(headers.has("X-User-ID")).toBe(false);
@@ -263,15 +263,15 @@ describe("refreshCsrfToken", () => {
 });
 
 // ---------------------------------------------------------------------------
-// ThingsApi
+// ItemsApi
 // ---------------------------------------------------------------------------
 
-describe("ThingsApi", () => {
+describe("ItemsApi", () => {
   it("list sends GET with limit and offset", async () => {
     fetchSpy.mockResolvedValue(jsonResponse([]));
-    await ThingsApi.list(10, 20);
+    await ItemsApi.list(10, 20);
     const [url] = fetchSpy.mock.calls[0] as [string];
-    expect(url).toContain("/things?limit=10&offset=20");
+    expect(url).toContain("/items?limit=10&offset=20");
   });
 
   it("sync builds query string from params", async () => {
@@ -283,7 +283,7 @@ describe("ThingsApi", () => {
         server_time: "2026-01-01T00:00:00Z",
       }),
     );
-    await ThingsApi.sync({ limit: 100, cursor: "c-1", since: "2026-01-01" });
+    await ItemsApi.sync({ limit: 100, cursor: "c-1", since: "2026-01-01" });
     const [url] = fetchSpy.mock.calls[0] as [string];
     expect(url).toContain("limit=100");
     expect(url).toContain("cursor=c-1");
@@ -299,28 +299,28 @@ describe("ThingsApi", () => {
         server_time: "2026-01-01T00:00:00Z",
       }),
     );
-    await ThingsApi.sync();
+    await ItemsApi.sync();
     const [url] = fetchSpy.mock.calls[0] as [string];
-    expect(url).toMatch(/\/things\/sync$/);
+    expect(url).toMatch(/\/items\/sync$/);
   });
 
-  it("create sends POST with thing and source", async () => {
-    const record = { thing_id: "t-1" };
+  it("create sends POST with item and source", async () => {
+    const record = { item_id: "t-1" };
     fetchSpy.mockResolvedValue(jsonResponse(record));
-    await ThingsApi.create({ name: "Test" }, "manual");
+    await ItemsApi.create({ name: "Test" }, "manual");
 
     const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
-    expect(url).toContain("/things");
+    expect(url).toContain("/items");
     expect(init.method).toBe("POST");
     expect(JSON.parse(init.body as string)).toEqual({
-      thing: { name: "Test" },
+      item: { name: "Test" },
       source: "manual",
     });
   });
 
   it("update sends PATCH with Idempotency-Key header when provided", async () => {
-    fetchSpy.mockResolvedValue(jsonResponse({ thing_id: "t-1" }));
-    await ThingsApi.update("t-1", { name: "Updated" }, "manual", "key-abc");
+    fetchSpy.mockResolvedValue(jsonResponse({ item_id: "t-1" }));
+    await ItemsApi.update("t-1", { name: "Updated" }, "manual", "key-abc");
 
     const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
     expect(init.method).toBe("PATCH");
@@ -330,12 +330,12 @@ describe("ThingsApi", () => {
 
   it("archive sends DELETE", async () => {
     fetchSpy.mockResolvedValue(
-      jsonResponse({ thing_id: "t-1", archived_at: "2026-01-01", ok: true }),
+      jsonResponse({ item_id: "t-1", archived_at: "2026-01-01", ok: true }),
     );
-    await ThingsApi.archive("t-1");
+    await ItemsApi.archive("t-1");
 
     const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
-    expect(url).toContain("/things/t-1");
+    expect(url).toContain("/items/t-1");
     expect(init.method).toBe("DELETE");
   });
 });
@@ -430,12 +430,12 @@ describe("401 session recovery", () => {
   it("retries original request after successful refresh on 401", async () => {
     // First call: 401, then refresh succeeds, then retry succeeds
     fetchSpy
-      .mockResolvedValueOnce(errorResponse("Unauthorized", 401)) // GET /things
+      .mockResolvedValueOnce(errorResponse("Unauthorized", 401)) // GET /items
       .mockResolvedValueOnce(jsonResponse(REFRESH_RESPONSE)) // POST /auth/refresh
       .mockResolvedValueOnce(jsonResponse({ csrf_token: "new" })) // GET /auth/csrf
-      .mockResolvedValueOnce(jsonResponse([])); // retry GET /things
+      .mockResolvedValueOnce(jsonResponse([])); // retry GET /items
 
-    const result = await ThingsApi.list();
+    const result = await ItemsApi.list();
     expect(result).toEqual([]);
     expect(fetchSpy).toHaveBeenCalledTimes(4);
 
@@ -451,27 +451,24 @@ describe("401 session recovery", () => {
 
     // First call: 401, then refresh also fails
     fetchSpy
-      .mockResolvedValueOnce(errorResponse("Unauthorized", 401)) // GET /things
+      .mockResolvedValueOnce(errorResponse("Unauthorized", 401)) // GET /items
       .mockResolvedValueOnce(errorResponse("Refresh failed", 401)); // POST /auth/refresh
 
-    await expect(ThingsApi.list()).rejects.toThrow(ApiError);
+    await expect(ItemsApi.list()).rejects.toThrow(ApiError);
     expect(expiredHandler).toHaveBeenCalledOnce();
   });
 
   it("deduplicates concurrent refresh calls", async () => {
     // Two requests both get 401, but only one refresh should happen
     fetchSpy
-      .mockResolvedValueOnce(errorResponse("Unauthorized", 401)) // GET /things (1)
-      .mockResolvedValueOnce(errorResponse("Unauthorized", 401)) // GET /things (2)
+      .mockResolvedValueOnce(errorResponse("Unauthorized", 401)) // GET /items (1)
+      .mockResolvedValueOnce(errorResponse("Unauthorized", 401)) // GET /items (2)
       .mockResolvedValueOnce(jsonResponse(REFRESH_RESPONSE)) // POST /auth/refresh (shared)
       .mockResolvedValueOnce(jsonResponse({ csrf_token: "new" })) // GET /auth/csrf
       .mockResolvedValueOnce(jsonResponse([])) // retry (1)
       .mockResolvedValueOnce(jsonResponse([])); // retry (2)
 
-    const [r1, r2] = await Promise.all([
-      ThingsApi.list(),
-      ThingsApi.list(10, 0),
-    ]);
+    const [r1, r2] = await Promise.all([ItemsApi.list(), ItemsApi.list(10, 0)]);
     expect(r1).toEqual([]);
     expect(r2).toEqual([]);
 

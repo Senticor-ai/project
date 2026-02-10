@@ -301,8 +301,7 @@ describe("useNirvanaImport running invalidation", () => {
 
     // Should have additional calls from the interval
     const thingsInvalidations = spy.mock.calls.filter(
-      (call) =>
-        JSON.stringify(call[0]?.queryKey) === JSON.stringify(["things"]),
+      (call) => JSON.stringify(call[0]?.queryKey) === JSON.stringify(["items"]),
     );
     expect(thingsInvalidations.length).toBeGreaterThanOrEqual(2);
   });
@@ -325,8 +324,7 @@ describe("useNirvanaImport running invalidation", () => {
 
     // Record the number of things invalidations after completion
     const afterFirst = spy.mock.calls.filter(
-      (call) =>
-        JSON.stringify(call[0]?.queryKey) === JSON.stringify(["things"]),
+      (call) => JSON.stringify(call[0]?.queryKey) === JSON.stringify(["items"]),
     ).length;
     expect(afterFirst).toBeGreaterThanOrEqual(1);
 
@@ -336,8 +334,7 @@ describe("useNirvanaImport running invalidation", () => {
     });
 
     const afterSecond = spy.mock.calls.filter(
-      (call) =>
-        JSON.stringify(call[0]?.queryKey) === JSON.stringify(["things"]),
+      (call) => JSON.stringify(call[0]?.queryKey) === JSON.stringify(["items"]),
     ).length;
 
     // No additional things invalidation beyond the first

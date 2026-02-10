@@ -29,11 +29,11 @@ Push to main
 
 ### What triggers a deployment
 
-| Change | Effect |
-|--------|--------|
-| Application code (frontend/ or backend/) | CI rebuilds images → new pods roll out |
-| Kubernetes manifests (infra/k8s/overlays/production/) | Flux applies updated resources |
-| Both in same commit | Images built first, then Flux reconciles |
+| Change                                                | Effect                                   |
+| ----------------------------------------------------- | ---------------------------------------- |
+| Application code (frontend/ or backend/)              | CI rebuilds images → new pods roll out   |
+| Kubernetes manifests (infra/k8s/overlays/production/) | Flux applies updated resources           |
+| Both in same commit                                   | Images built first, then Flux reconciles |
 
 ### CI/CD Configuration
 
@@ -79,21 +79,21 @@ All application resources are declared in `infra/k8s/` using a Kustomize base/ov
 
 ### Resources managed by the team (in `infra/k8s/`)
 
-| Resource | Type | Notes |
-|----------|------|-------|
-| frontend | Deployment + Service | Nginx serving SPA, proxying `/api/*` to backend |
-| backend | Deployment + Service | FastAPI with init containers for DB readiness + migration |
-| postgres | StatefulSet + Service | PostgreSQL 16 with 10Gi persistent volume |
-| backend-files | PVC (5Gi) | File storage mounted at `/data/storage` |
-| app-config | ConfigMap | Non-sensitive configuration (CORS, logging, feature flags) |
+| Resource      | Type                  | Notes                                                      |
+| ------------- | --------------------- | ---------------------------------------------------------- |
+| frontend      | Deployment + Service  | Nginx serving SPA, proxying `/api/*` to backend            |
+| backend       | Deployment + Service  | FastAPI with init containers for DB readiness + migration  |
+| postgres      | StatefulSet + Service | PostgreSQL 16 with 10Gi persistent volume                  |
+| backend-files | PVC (5Gi)             | File storage mounted at `/data/storage`                    |
+| app-config    | ConfigMap             | Non-sensitive configuration (CORS, logging, feature flags) |
 
 ### Resources managed by ops (not in version control)
 
-| Resource | Purpose |
-|----------|---------|
-| Namespace | Pre-created by ops |
-| Secret | Application secrets (database password, JWT secret, etc.) |
-| Ingress | Routes external traffic to the frontend service |
+| Resource  | Purpose                                                   |
+| --------- | --------------------------------------------------------- |
+| Namespace | Pre-created by ops                                        |
+| Secret    | Application secrets (database password, JWT secret, etc.) |
+| Ingress   | Routes external traffic to the frontend service           |
 
 This separation ensures secrets never appear in version control.
 
@@ -110,12 +110,12 @@ This runs on every pod start, which is safe because the schema is fully idempote
 
 The cluster namespace has a resource quota. Current allocation:
 
-| Component | CPU request | Memory request | CPU limit | Memory limit |
-|-----------|-------------|----------------|-----------|--------------|
-| Frontend | 50m | 128Mi | 200m | 256Mi |
-| Backend | 200m | 512Mi | 1000m | 2Gi |
-| PostgreSQL | 200m | 256Mi | 500m | 1Gi |
-| **Total** | **450m** | **896Mi** | **1700m** | **3.25Gi** |
+| Component  | CPU request | Memory request | CPU limit | Memory limit |
+| ---------- | ----------- | -------------- | --------- | ------------ |
+| Frontend   | 50m         | 128Mi          | 200m      | 256Mi        |
+| Backend    | 200m        | 512Mi          | 1000m     | 2Gi          |
+| PostgreSQL | 200m        | 256Mi          | 500m      | 1Gi          |
+| **Total**  | **450m**    | **896Mi**      | **1700m** | **3.25Gi**   |
 
 Contact ops if the quota needs to be increased.
 

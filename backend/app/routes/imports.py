@@ -14,6 +14,8 @@ from ..deps import get_current_org, get_current_user
 from ..models import (
     ImportJobResponse,
     ImportJobStatus,
+    NativeImportFromFileRequest,
+    NativeImportInspectRequest,
     NirvanaImportFromFileRequest,
     NirvanaImportInspectRequest,
     NirvanaImportRequest,
@@ -314,7 +316,7 @@ def _normalize_state_bucket_map(state_bucket_map: dict | None) -> dict[int, str]
     return normalized
 
 
-def _build_nirvana_thing(
+def _build_nirvana_item(
     item: dict,
     *,
     state_map: dict[int, str],
@@ -356,7 +358,7 @@ def _build_nirvana_thing(
     ports = _build_ports(item.get("energy"), item.get("etime"))
     bucket = _derive_bucket(state_value, state_map, default_bucket)
 
-    # A completed item cannot be an inbox Thing (inbox items have no endTime).
+    # A completed item cannot stay in inbox (inbox items have no endTime).
     # Redirect to "next" so it goes through the Action code path which preserves endTime.
     if completed_dt and bucket == "inbox":
         bucket = "next"
@@ -393,7 +395,7 @@ def _build_nirvana_thing(
         elif item.get("deleted") or item.get("cancelled"):
             project_status = "archived"
         desired_outcome = notes or ""
-        thing = _build_base_entity(
+        item_data = _build_base_entity(
             canonical_id=canonical_id,
             name=title,
             description=notes,
@@ -404,10 +406,10 @@ def _build_nirvana_thing(
             ports=ports,
             source_metadata=source_metadata,
         )
-        thing["@type"] = _TYPE_MAP["project"]
-        thing["endTime"] = completed_dt.isoformat() if completed_dt else None
-        thing["hasPart"] = [{"@id": aid} for aid in action_ids]
-        thing["additionalProperty"].extend(
+        item_data["@type"] = _TYPE_MAP["project"]
+        item_data["endTime"] = completed_dt.isoformat() if completed_dt else None
+        item_data["hasPart"] = [{"@id": aid} for aid in action_ids]
+        item_data["additionalProperty"].extend(
             [
                 _pv("app:bucket", "project"),
                 _pv("app:desiredOutcome", desired_outcome),
@@ -416,11 +418,11 @@ def _build_nirvana_thing(
                 _pv("app:reviewDate", None),
             ]
         )
-        return canonical_id, thing, "project", created_dt, updated_dt, completed_dt
+        return canonical_id, item_data, "project", created_dt, updated_dt, completed_dt
 
     if bucket == "inbox":
         canonical_id = _canonical_id("inbox", raw_id)
-        thing = _build_base_entity(
+        item_data = _build_base_entity(
             canonical_id=canonical_id,
             name=title,
             description=notes,
@@ -431,10 +433,10 @@ def _build_nirvana_thing(
             ports=ports,
             source_metadata=source_metadata,
         )
-        thing["@type"] = _TYPE_MAP["inbox"]
-        thing["startTime"] = None
-        thing["endTime"] = completed_dt.isoformat() if completed_dt else None
-        thing["additionalProperty"].extend(
+        item_data["@type"] = _TYPE_MAP["inbox"]
+        item_data["startTime"] = None
+        item_data["endTime"] = completed_dt.isoformat() if completed_dt else None
+        item_data["additionalProperty"].extend(
             [
                 _pv("app:bucket", "inbox"),
                 _pv("app:rawCapture", notes or title),
@@ -442,11 +444,11 @@ def _build_nirvana_thing(
                 _pv("app:isFocused", False),
             ]
         )
-        return canonical_id, thing, "inbox", created_dt, updated_dt, completed_dt
+        return canonical_id, item_data, "inbox", created_dt, updated_dt, completed_dt
 
     if bucket == "reference":
         canonical_id = _canonical_id("reference", raw_id)
-        thing = _build_base_entity(
+        item_data = _build_base_entity(
             canonical_id=canonical_id,
             name=title,
             description=notes,
@@ -457,16 +459,16 @@ def _build_nirvana_thing(
             ports=ports,
             source_metadata=source_metadata,
         )
-        thing["@type"] = _TYPE_MAP["reference"]
-        thing["url"] = None
-        thing["encodingFormat"] = None
-        thing["additionalProperty"].extend(
+        item_data["@type"] = _TYPE_MAP["reference"]
+        item_data["url"] = None
+        item_data["encodingFormat"] = None
+        item_data["additionalProperty"].extend(
             [
                 _pv("app:bucket", "reference"),
                 _pv("app:origin", "captured"),
             ]
         )
-        return canonical_id, thing, "reference", created_dt, updated_dt, completed_dt
+        return canonical_id, item_data, "reference", created_dt, updated_dt, completed_dt
 
     canonical_id = _canonical_id("action", raw_id)
     project_id = str(item.get("parentid") or "").strip() or None
@@ -502,7 +504,7 @@ def _build_nirvana_thing(
 
     delegated_to = str(item.get("waitingfor") or "").strip() or None
 
-    thing = _build_base_entity(
+    item_data = _build_base_entity(
         canonical_id=canonical_id,
         name=title,
         description=notes,
@@ -513,12 +515,12 @@ def _build_nirvana_thing(
         ports=ports,
         source_metadata=source_metadata,
     )
-    thing["@type"] = _TYPE_MAP["action"]
-    thing["startTime"] = start_date
-    thing["endTime"] = completed_dt.isoformat() if completed_dt else None
+    item_data["@type"] = _TYPE_MAP["action"]
+    item_data["startTime"] = start_date
+    item_data["endTime"] = completed_dt.isoformat() if completed_dt else None
     if project_id:
-        thing["isPartOf"] = {"@id": project_id}
-    thing["additionalProperty"].extend(
+        item_data["isPartOf"] = {"@id": project_id}
+    item_data["additionalProperty"].extend(
         [
             _pv("app:bucket", bucket),
             _pv("app:contexts", []),
@@ -532,7 +534,7 @@ def _build_nirvana_thing(
         ]
     )
 
-    return canonical_id, thing, bucket, created_dt, updated_dt, completed_dt
+    return canonical_id, item_data, bucket, created_dt, updated_dt, completed_dt
 
 
 def _load_items_from_file(file_row: dict) -> list[dict]:
@@ -562,6 +564,221 @@ def _load_items_from_file(file_row: dict) -> list[dict]:
             detail="JSON export must be a list of items",
         )
     return data
+
+
+# ---------------------------------------------------------------------------
+# Native (TerminAndoYo) import
+# ---------------------------------------------------------------------------
+
+
+def _extract_bucket(jsonld: dict) -> str:
+    """Extract ``app:bucket`` from additionalProperty."""
+    for pv in jsonld.get("additionalProperty", []):
+        if isinstance(pv, dict) and pv.get("propertyID") == "app:bucket":
+            return pv.get("value", "inbox")
+    return "inbox"
+
+
+def _is_completed(jsonld: dict) -> bool:
+    """Check if item has endTime (completed)."""
+    return bool(jsonld.get("endTime"))
+
+
+def _parse_iso(value: str | None) -> datetime | None:
+    """Parse ISO-8601 string to datetime, returning None on failure."""
+    if not value:
+        return None
+    try:
+        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=UTC)
+        return dt
+    except (TypeError, ValueError):
+        return None
+
+
+def run_native_import(
+    items: list[dict],
+    *,
+    org_id: str,
+    user_id: str,
+    source: str,
+    dry_run: bool,
+    update_existing: bool,
+    include_completed: bool,
+    emit_events: bool,
+) -> NirvanaImportSummary:
+    """Import items from a TerminAndoYo JSON export (``/items/export``).
+
+    Each element is an ``ItemResponse`` dict with ``item`` (or legacy
+    ``thing``) containing fully-formed JSON-LD.  No transformation is
+    needed — the payload is upserted directly.
+    """
+    if not isinstance(items, list):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="items must be a list",
+        )
+
+    totals: Counter[str] = Counter()
+    bucket_counts: Counter[str] = Counter()
+    completed_counts: Counter[str] = Counter()
+    sample_errors: list[str] = []
+
+    with db_conn() as conn:
+        if not dry_run:
+            conn.autocommit = True
+        with conn.cursor() as cur:
+            for index, record in enumerate(items):
+                try:
+                    canonical_id = record.get("canonical_id")
+                    if not canonical_id:
+                        raise ValueError("missing canonical_id")  # noqa: TRY301
+
+                    # Backward compat: new exports use "item", old exports use "thing"
+                    jsonld = record.get("item") or record.get("thing")
+                    if not jsonld or not isinstance(jsonld, dict):
+                        raise ValueError("missing item/thing JSON-LD payload")  # noqa: TRY301
+
+                    bucket = _extract_bucket(jsonld)
+                    completed = _is_completed(jsonld)
+
+                    if completed and not include_completed:
+                        totals["skipped"] += 1
+                        continue
+
+                    content_hash = _hash_payload(jsonld)
+                    item_source = record.get("source", source)
+                    created_dt = _parse_iso(record.get("created_at")) or datetime.now(UTC)
+                    updated_dt = _parse_iso(record.get("updated_at")) or datetime.now(UTC)
+
+                except Exception as exc:  # noqa: BLE001
+                    totals["errors"] += 1
+                    if len(sample_errors) < 5:
+                        sample_errors.append(f"item[{index}] {exc}")
+                    continue
+
+                if dry_run:
+                    cur.execute(
+                        """
+                        SELECT 1
+                        FROM items
+                        WHERE org_id = %s AND canonical_id = %s
+                        """,
+                        (org_id, canonical_id),
+                    )
+                    exists = cur.fetchone() is not None
+                    if exists and not update_existing:
+                        totals["skipped"] += 1
+                        continue
+                    if exists:
+                        totals["updated"] += 1
+                    else:
+                        totals["created"] += 1
+                    bucket_counts[bucket] += 1
+                    if completed:
+                        completed_counts[bucket] += 1
+                    continue
+
+                if update_existing:
+                    cur.execute(
+                        """
+                        INSERT INTO items (
+                            org_id,
+                            created_by_user_id,
+                            canonical_id,
+                            schema_jsonld,
+                            source,
+                            content_hash,
+                            created_at,
+                            updated_at
+                        )
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (org_id, canonical_id) DO UPDATE
+                        SET schema_jsonld = EXCLUDED.schema_jsonld,
+                            source = EXCLUDED.source,
+                            content_hash = EXCLUDED.content_hash,
+                            updated_at = EXCLUDED.updated_at
+                        WHERE items.content_hash IS DISTINCT FROM EXCLUDED.content_hash
+                        RETURNING item_id, (xmax = 0) AS inserted
+                        """,
+                        (
+                            org_id,
+                            user_id,
+                            canonical_id,
+                            jsonb(jsonld),
+                            item_source,
+                            content_hash,
+                            created_dt,
+                            updated_dt,
+                        ),
+                    )
+                    row = cur.fetchone()
+                    if row is None:
+                        totals["unchanged"] += 1
+                        continue
+                    inserted = bool(row.get("inserted"))
+                    if inserted:
+                        totals["created"] += 1
+                    else:
+                        totals["updated"] += 1
+                    bucket_counts[bucket] += 1
+                    if completed:
+                        completed_counts[bucket] += 1
+                else:
+                    cur.execute(
+                        """
+                        INSERT INTO items (
+                            org_id,
+                            created_by_user_id,
+                            canonical_id,
+                            schema_jsonld,
+                            source,
+                            content_hash,
+                            created_at,
+                            updated_at
+                        )
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (org_id, canonical_id) DO NOTHING
+                        RETURNING item_id
+                        """,
+                        (
+                            org_id,
+                            user_id,
+                            canonical_id,
+                            jsonb(jsonld),
+                            item_source,
+                            content_hash,
+                            created_dt,
+                            updated_dt,
+                        ),
+                    )
+                    row = cur.fetchone()
+                    if row is None:
+                        totals["skipped"] += 1
+                        continue
+                    totals["created"] += 1
+                    bucket_counts[bucket] += 1
+                    if completed:
+                        completed_counts[bucket] += 1
+
+                if emit_events and row:
+                    enqueue_event(
+                        "item_upserted",
+                        {"item_id": str(row["item_id"]), "org_id": org_id},
+                    )
+
+    return NirvanaImportSummary(
+        total=len(items),
+        created=totals["created"],
+        updated=totals["updated"],
+        unchanged=totals["unchanged"],
+        skipped=totals["skipped"],
+        errors=totals["errors"],
+        bucket_counts=dict(bucket_counts),
+        completed_counts=dict(completed_counts),
+        sample_errors=sample_errors,
+    )
 
 
 def run_nirvana_import(
@@ -616,7 +833,7 @@ def run_nirvana_import(
             conn.autocommit = True
         with conn.cursor() as cur:
             for index, item in enumerate(items):
-                # Skip trashed items early (before building the thing).
+                # Skip trashed items early (before building the item).
                 try:
                     raw_state = int(item.get("state", 0))
                 except (TypeError, ValueError):
@@ -626,8 +843,8 @@ def run_nirvana_import(
                     continue
 
                 try:
-                    canonical_id, thing, bucket, created_dt, updated_dt, completed_dt = (
-                        _build_nirvana_thing(
+                    canonical_id, item_data, bucket, created_dt, updated_dt, completed_dt = (
+                        _build_nirvana_item(
                             item,
                             state_map=state_map,
                             default_bucket=default_bucket,
@@ -645,13 +862,13 @@ def run_nirvana_import(
                     totals["skipped"] += 1
                     continue
 
-                content_hash = _hash_payload(thing)
+                content_hash = _hash_payload(item_data)
 
                 if dry_run:
                     cur.execute(
                         """
                         SELECT 1
-                        FROM things
+                        FROM items
                         WHERE org_id = %s AND canonical_id = %s
                         """,
                         (org_id, canonical_id),
@@ -672,7 +889,7 @@ def run_nirvana_import(
                 if update_existing:
                     cur.execute(
                         """
-                        INSERT INTO things (
+                        INSERT INTO items (
                             org_id,
                             created_by_user_id,
                             canonical_id,
@@ -688,14 +905,14 @@ def run_nirvana_import(
                             source = EXCLUDED.source,
                             content_hash = EXCLUDED.content_hash,
                             updated_at = EXCLUDED.updated_at
-                        WHERE things.content_hash IS DISTINCT FROM EXCLUDED.content_hash
-                        RETURNING thing_id, (xmax = 0) AS inserted
+                        WHERE items.content_hash IS DISTINCT FROM EXCLUDED.content_hash
+                        RETURNING item_id, (xmax = 0) AS inserted
                         """,
                         (
                             org_id,
                             user_id,
                             canonical_id,
-                            jsonb(thing),
+                            jsonb(item_data),
                             source,
                             content_hash,
                             created_dt,
@@ -717,7 +934,7 @@ def run_nirvana_import(
                 else:
                     cur.execute(
                         """
-                        INSERT INTO things (
+                        INSERT INTO items (
                             org_id,
                             created_by_user_id,
                             canonical_id,
@@ -729,13 +946,13 @@ def run_nirvana_import(
                         )
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (org_id, canonical_id) DO NOTHING
-                        RETURNING thing_id
+                        RETURNING item_id
                         """,
                         (
                             org_id,
                             user_id,
                             canonical_id,
-                            jsonb(thing),
+                            jsonb(item_data),
                             source,
                             content_hash,
                             created_dt,
@@ -753,8 +970,8 @@ def run_nirvana_import(
 
                 if emit_events and row:
                     enqueue_event(
-                        "thing_upserted",
-                        {"thing_id": str(row["thing_id"]), "org_id": org_id},
+                        "item_upserted",
+                        {"item_id": str(row["item_id"]), "org_id": org_id},
                     )
 
     return NirvanaImportSummary(
@@ -892,7 +1109,7 @@ def _fail_stale_queued_jobs(
     description=(
         "Accepts a NirvanaHQ JSON export payload and upserts items into the GTD store. "
         "Use dry_run=true for validate-only imports and custom state-to-bucket mappings "
-        "for client-side tuning. Imported things also include `thing.sourceMetadata` "
+        "for client-side tuning. Imported items also include `item.sourceMetadata` "
         "with raw Nirvana payload fields for high-fidelity round-tripping."
     ),
 )
@@ -1249,6 +1466,176 @@ def import_nirvana_from_file(
         )
         enqueue_event(
             "nirvana_import_job",
+            {"job_id": str(row["job_id"]), "org_id": org_id},
+        )
+    else:
+        logger.info(
+            "import_job.reused_active",
+            job_id=str(row["job_id"]),
+            org_id=org_id,
+            file_id=str(row["file_id"]),
+            source=row["source"],
+            status=row["status"],
+        )
+
+    response = _build_job_response(row)
+    return JSONResponse(
+        content=response.model_dump(mode="json"),
+        status_code=status.HTTP_202_ACCEPTED,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Native (TerminAndoYo) import endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/native/inspect",
+    response_model=NirvanaImportSummary,
+    summary="Validate native TAY import file",
+    description="Parses an uploaded TerminAndoYo JSON export and returns a dry-run import summary.",
+)
+def inspect_native(
+    payload: NativeImportInspectRequest = Body(...),
+    current_user=Depends(get_current_user),
+    current_org=Depends(get_current_org),
+):
+    file_row = _get_file_row(payload.file_id, current_org["org_id"])
+    items = _load_items_from_file(file_row)
+    summary = run_native_import(
+        items,
+        org_id=current_org["org_id"],
+        user_id=current_user["id"],
+        source=payload.source,
+        dry_run=True,
+        update_existing=payload.update_existing,
+        include_completed=payload.include_completed,
+        emit_events=False,
+    )
+    return JSONResponse(content=summary.model_dump())
+
+
+@router.post(
+    "/native/from-file",
+    response_model=ImportJobResponse,
+    summary="Queue native TAY import job from file",
+    description="Queues an async import job for a previously uploaded TerminAndoYo JSON export.",
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def import_native_from_file(
+    payload: NativeImportFromFileRequest = Body(...),
+    current_user=Depends(get_current_user),
+    current_org=Depends(get_current_org),
+):
+    org_id = current_org["org_id"]
+    file_row = _get_file_row(payload.file_id, org_id)
+
+    options = {
+        "update_existing": payload.update_existing,
+        "include_completed": payload.include_completed,
+        "emit_events": payload.emit_events,
+    }
+
+    lock_token = (
+        f"native-import:{org_id}:{file_row['file_id']}:{payload.source}:{_hash_payload(options)}"
+    )
+    enqueue_import = False
+
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (lock_token,))
+            _fail_stale_queued_jobs(
+                org_id=org_id,
+                conn=conn,
+                file_id=str(file_row["file_id"]),
+                source=payload.source,
+                options=options,
+            )
+
+            cur.execute(
+                """
+                SELECT
+                    job_id,
+                    file_id,
+                    source,
+                    status,
+                    created_at,
+                    updated_at,
+                    started_at,
+                    finished_at,
+                    summary,
+                    error
+                FROM import_jobs
+                WHERE org_id = %s
+                  AND file_id = %s
+                  AND source = %s
+                  AND options = %s
+                  AND status IN ('queued', 'running')
+                ORDER BY created_at ASC
+                LIMIT 1
+                """,
+                (
+                    org_id,
+                    file_row["file_id"],
+                    payload.source,
+                    jsonb(options),
+                ),
+            )
+            row = cur.fetchone()
+
+            if row is None:
+                cur.execute(
+                    """
+                    INSERT INTO import_jobs (
+                        org_id,
+                        owner_id,
+                        file_id,
+                        source,
+                        status,
+                        options,
+                        created_at,
+                        updated_at
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING
+                        job_id,
+                        file_id,
+                        source,
+                        status,
+                        created_at,
+                        updated_at,
+                        started_at,
+                        finished_at,
+                        summary,
+                        error
+                    """,
+                    (
+                        org_id,
+                        current_user["id"],
+                        file_row["file_id"],
+                        payload.source,
+                        "queued",
+                        jsonb(options),
+                        datetime.now(UTC),
+                        datetime.now(UTC),
+                    ),
+                )
+                row = cur.fetchone()
+                enqueue_import = True
+
+        conn.commit()
+
+    if enqueue_import:
+        logger.info(
+            "import_job.queued",
+            job_id=str(row["job_id"]),
+            org_id=org_id,
+            file_id=str(row["file_id"]),
+            source=row["source"],
+        )
+        enqueue_event(
+            "native_import_job",
             {"job_id": str(row["job_id"]), "org_id": org_id},
         )
     else:
