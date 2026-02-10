@@ -144,12 +144,15 @@ export function ActionRow({
     if (isEditingTitle) {
       // EditableTitle calls this on Enter/Escape/blur — exit editing
       setIsEditingTitle(false);
-    } else if (isExpanded) {
-      // Expanded but not editing — enter title editing
-      setIsEditingTitle(true);
     } else {
-      // Collapsed — expand
+      // Toggle expand/collapse
       onToggleExpand?.();
+    }
+  };
+
+  const handleTitleDoubleClick = () => {
+    if (!isEditingTitle && isExpanded) {
+      setIsEditingTitle(true);
     }
   };
 
@@ -229,6 +232,7 @@ export function ActionRow({
                 : undefined
             }
             onToggleEdit={handleTitleClick}
+            onDoubleClick={handleTitleDoubleClick}
             completed={isCompleted}
             ariaExpanded={onToggleExpand ? isExpanded : undefined}
           />

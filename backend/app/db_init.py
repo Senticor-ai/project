@@ -5,7 +5,8 @@ import psycopg
 
 from .db import run_sql_file
 
-MAX_RETRIES = 5
+MAX_RETRIES = 30
+RETRY_INTERVAL = 2  # seconds
 
 
 def main() -> None:
@@ -18,9 +19,11 @@ def main() -> None:
         except psycopg.OperationalError:
             if attempt == MAX_RETRIES - 1:
                 raise
-            wait = 2**attempt
-            print(f"DB not ready, retrying in {wait}s (attempt {attempt + 1}/{MAX_RETRIES})")
-            time.sleep(wait)
+            print(
+                f"DB not ready, retrying in {RETRY_INTERVAL}s"
+                f" (attempt {attempt + 1}/{MAX_RETRIES})"
+            )
+            time.sleep(RETRY_INTERVAL)
 
 
 if __name__ == "__main__":

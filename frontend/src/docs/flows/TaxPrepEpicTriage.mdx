@@ -1,0 +1,68 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Flows/Tax Prep/Epic: Triage & Label" />
+
+# Epic: Triage & Label
+
+**Status:** Not started
+**Priority:** Current
+
+---
+
+## Context
+
+After importing tax PDFs, each document sits in the inbox. The user needs to
+identify the IRS form type, tag it with the relevant schedule, and move it to
+the reference library. InboxTriage already routes items to the reference bucket,
+and the `keywords` array exists in the model — but there is no tag picker UI
+in the triage flow and no IRS form type vocabulary.
+
+---
+
+## User Story
+
+> "For each document in my inbox, I want to identify the form type, tag it with
+> the relevant IRS schedule, and move it to references."
+
+---
+
+## Flow
+
+1. First inbox item auto-expands with triage action bar
+2. User identifies document type (e.g., "1099-INT from Schwab")
+3. Tags with IRS schedule: `1099-int`, `schedule-b`
+4. Taps "Reference" bucket button → item moves to reference library
+5. Repeat for each document
+
+---
+
+## IRS Schedule Mapping
+
+| Tag          | IRS Schedule             | Document types              |
+| ------------ | ------------------------ | --------------------------- |
+| `w2`         | Form 1040 (line 1)       | W-2                         |
+| `1099-int`   | Schedule B               | 1099-INT                    |
+| `1099-div`   | Schedule B               | 1099-DIV                    |
+| `1099-b`     | Schedule D / Form 8949   | 1099-B                      |
+| `1098`       | Schedule A (line 8a)     | 1098 (mortgage interest)    |
+| `charitable` | Schedule A (lines 11-14) | Donation receipts           |
+| `medical`    | Schedule A (lines 1-4)   | Medical expense receipts    |
+| `business`   | Schedule C               | 1099-NEC, business receipts |
+| `k-1`        | Schedule E               | K-1 (partnership/S-corp)    |
+
+---
+
+## Capability Assessment
+
+| Capability               | Status      | Notes                                                  |
+| ------------------------ | ----------- | ------------------------------------------------------ |
+| Triage inbox → reference | Works       | InboxTriage routes to reference bucket                 |
+| Keyword tagging          | Model ready | `keywords` array exists but no tag picker UI in triage |
+| Category vocabulary      | **Gap**     | No IRS form type vocabulary; just free-text tags       |
+
+---
+
+## Schema.org Fit
+
+`keywords` is a standard schema.org property. Tags like `1099-int` and
+`schedule-b` are valid keyword values. No special modeling needed.

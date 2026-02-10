@@ -1,0 +1,63 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Flows/Tax Prep/Epic: Import" />
+
+# Epic: Import What You Have
+
+**Status:** Not started
+**Priority:** Current
+
+---
+
+## Context
+
+Users collect tax PDFs throughout the year — W-2, 1099-INT, 1099-DIV, 1099-B,
+1098, 1095-A, K-1, charitable receipts, property tax statements, medical expense
+records. They need to drag-drop these into TAY one by one, then process each.
+
+Currently InboxCapture is text-only. FilePreviewCard exists but only in
+NirvanaImportDialog. The chunked upload API works, but there is no FK between
+files and Things (no `app:fileRefs` property).
+
+---
+
+## User Story
+
+> "I have a folder of tax PDFs I've been collecting all year.
+> I want to drag-drop them into TAY one by one, then process each."
+
+---
+
+## Flow
+
+1. User drops a PDF into the inbox area
+2. Each becomes a `Thing` with `captureSource: { kind: "import" }`
+3. File is uploaded via chunked upload API
+4. Item appears in inbox with file thumbnail and filename
+
+---
+
+## Capability Assessment
+
+| Capability              | Status  | Notes                                                                             |
+| ----------------------- | ------- | --------------------------------------------------------------------------------- |
+| Text capture to inbox   | Works   | `rawCapture` field via InboxCapture                                               |
+| PDF drag-drop to inbox  | **Gap** | InboxCapture is text-only; FilePreviewCard exists but only in NirvanaImportDialog |
+| Chunked file upload API | Works   | `FilesApi.initiate()` + `uploadChunk()` + `complete()`                            |
+| File→Thing linking      | **Gap** | No FK between files and Things; no `app:fileRefs` property                        |
+
+---
+
+## Schema.org Fit
+
+Each imported file should become a `CreativeWork` with
+`encodingFormat: "application/pdf"` and `url` pointing to the uploaded file's
+storage path. The schema supports this; the wiring is missing.
+
+---
+
+## Tay Automation Potential
+
+When a PDF is dropped, Tay uses **Docling** (already in backend dependencies) to
+parse the document, identify the IRS form type, and auto-populate the name and
+tags.

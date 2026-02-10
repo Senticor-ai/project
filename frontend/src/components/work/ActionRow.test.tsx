@@ -464,7 +464,7 @@ describe("ActionRow title collapse", () => {
     expect(screen.queryByDisplayValue("Task")).not.toBeInTheDocument();
   });
 
-  it("clicking title when expanded enters title editing", async () => {
+  it("double-clicking title when expanded enters title editing", async () => {
     const user = userEvent.setup();
     renderRow({
       thing: createActionItem({ name: "Task" }),
@@ -473,8 +473,22 @@ describe("ActionRow title collapse", () => {
       onEdit: vi.fn(),
       onUpdateTitle: vi.fn(),
     });
-    await user.click(screen.getByRole("button", { name: "Task" }));
+    await user.dblClick(screen.getByRole("button", { name: "Task" }));
     expect(screen.getByDisplayValue("Task")).toBeInTheDocument();
+  });
+
+  it("clicking title when expanded collapses the row", async () => {
+    const user = userEvent.setup();
+    const onToggleExpand = vi.fn();
+    renderRow({
+      thing: createActionItem({ name: "Task" }),
+      isExpanded: true,
+      onToggleExpand,
+      onEdit: vi.fn(),
+      onUpdateTitle: vi.fn(),
+    });
+    await user.click(screen.getByRole("button", { name: "Task" }));
+    expect(onToggleExpand).toHaveBeenCalled();
   });
 
   it("clicking collapse button when expanded calls onToggleExpand", async () => {
@@ -550,8 +564,8 @@ describe("ActionRow title editing", () => {
       onUpdateTitle,
     });
 
-    // Click title to enter editing mode
-    await user.click(screen.getByRole("button", { name: "Old title" }));
+    // Double-click title to enter editing mode
+    await user.dblClick(screen.getByRole("button", { name: "Old title" }));
     const textarea = screen.getByDisplayValue("Old title");
     await user.clear(textarea);
     await user.type(textarea, "New title{Enter}");
@@ -567,8 +581,8 @@ describe("ActionRow title editing", () => {
       onToggleExpand: vi.fn(),
       onUpdateTitle: vi.fn(),
     });
-    // Click title to enter editing mode
-    await user.click(screen.getByRole("button", { name: "Blur test" }));
+    // Double-click title to enter editing mode
+    await user.dblClick(screen.getByRole("button", { name: "Blur test" }));
     expect(screen.getByDisplayValue("Blur test")).toBeInTheDocument();
     // Blur by tabbing away
     await user.tab();
@@ -590,8 +604,8 @@ describe("ActionRow title editing", () => {
       onUpdateTitle,
     });
 
-    // Click title to enter editing mode
-    await user.click(screen.getByRole("button", { name: "Original" }));
+    // Double-click title to enter editing mode
+    await user.dblClick(screen.getByRole("button", { name: "Original" }));
     const textarea = screen.getByDisplayValue("Original");
     await user.clear(textarea);
     await user.type(textarea, "Changed{Escape}");

@@ -10,7 +10,7 @@ cd frontend && npm install && npm run storybook   # Storybook at http://localhos
 cd frontend && npm run dev                         # Vite dev server
 
 # Backend
-cd backend && uv sync && uv run uvicorn app.main:app --reload  # API at http://localhost:8000
+cd backend && uv sync && uv run uvicorn app.main:app --reload
 ```
 
 ## Documentation

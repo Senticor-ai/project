@@ -644,8 +644,8 @@ describe("ActionList", () => {
     renderActionList({ bucket: "next", items, onUpdateTitle: vi.fn() });
     // Click title expands the row
     await user.click(screen.getByText("Expandable item"));
-    // Click title again to enter title editing
-    await user.click(screen.getByText("Expandable item"));
+    // Double-click title to enter title editing
+    await user.dblClick(screen.getByText("Expandable item"));
     expect(screen.getByDisplayValue("Expandable item")).toBeInTheDocument();
   });
 
@@ -654,9 +654,9 @@ describe("ActionList", () => {
     const items = [createActionItem({ name: "Edit me", bucket: "next" })];
     const onUpdateTitle = vi.fn();
     renderActionList({ bucket: "next", items, onUpdateTitle });
-    // Click title to expand, then click title again to enter editing
+    // Click title to expand, then double-click to enter editing
     await user.click(screen.getByText("Edit me"));
-    await user.click(screen.getByText("Edit me"));
+    await user.dblClick(screen.getByText("Edit me"));
     const input = screen.getByDisplayValue("Edit me");
     await user.clear(input);
     await user.type(input, "Edited title");
@@ -670,9 +670,9 @@ describe("ActionList", () => {
     const items = [createActionItem({ name: "Keep me", bucket: "next" })];
     const onUpdateTitle = vi.fn();
     renderActionList({ bucket: "next", items, onUpdateTitle });
-    // Click title to expand, then click title again to enter editing
+    // Click title to expand, then double-click to enter editing
     await user.click(screen.getByText("Keep me"));
-    await user.click(screen.getByText("Keep me"));
+    await user.dblClick(screen.getByText("Keep me"));
     const input = screen.getByDisplayValue("Keep me");
     await user.clear(input);
     await user.type(input, "Changed");

@@ -1,0 +1,44 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Flows/Tax Prep/Epic: Missing Docs" />
+
+# Epic: Identify Missing Documents
+
+**Status:** Not started
+**Priority:** Future
+
+---
+
+## Context
+
+After triaging existing documents, the user realizes some are missing — a
+1099-INT from a savings account, a K-1 from a partnership. These become GTD
+actions: next actions (things the user must download) or waiting-for items
+(delegated to a third party). This flow already works with the existing GTD
+capture → triage pipeline.
+
+---
+
+## User Story
+
+> "After processing what I have, I realize I'm missing the 1099-INT from my
+> savings account and the K-1 from the partnership."
+
+---
+
+## Flow
+
+1. User captures: "Download 1099-INT from Ally Bank"
+2. Triages to Next Actions with context `@computer`
+3. Captures: "Request K-1 from XYZ Partners"
+4. Triages to Waiting (delegated to partnership)
+
+---
+
+## Capability Assessment
+
+| Capability                           | Status      | Notes                                            |
+| ------------------------------------ | ----------- | ------------------------------------------------ |
+| Capture text → triage to next action | Works       | Standard GTD flow                                |
+| Waiting with delegation              | Works       | `delegatedTo` property + waiting bucket          |
+| Context assignment                   | Model ready | `contexts` field exists but no context picker UI |

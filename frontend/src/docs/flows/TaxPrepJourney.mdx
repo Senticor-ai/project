@@ -1,7 +1,7 @@
 import { Meta } from "@storybook/addon-docs/blocks";
 import { Mermaid } from "../../components/docs/Mermaid";
 
-<Meta title="Flows/Tax Prep Journey" />
+<Meta title="Flows/Tax Prep/Overview" />
 
 # Flow: Tax Prep → CPA Handoff
 
@@ -32,93 +32,17 @@ and Tay AI agent potential.
 
 ---
 
-## Phase 1: Import What You Have
+## Phases at a Glance
 
-**User story**: "I have a folder of tax PDFs I've been collecting all year.
-I want to drag-drop them into TAY one by one, then process each."
-
-**Documents**: W-2, 1099-INT, 1099-DIV, 1099-B, 1098, 1095-A, K-1, charitable
-receipts, property tax statements, medical expense records.
-
-**Flow**:
-
-1. User drops a PDF into the inbox area
-2. Each becomes a `Thing` with `captureSource: { kind: "import" }`
-3. File is uploaded via chunked upload API
-4. Item appears in inbox with file thumbnail and filename
-
-| Capability              | Status  | Notes                                                                             |
-| ----------------------- | ------- | --------------------------------------------------------------------------------- |
-| Text capture to inbox   | Works   | `rawCapture` field via InboxCapture                                               |
-| PDF drag-drop to inbox  | **Gap** | InboxCapture is text-only; FilePreviewCard exists but only in NirvanaImportDialog |
-| Chunked file upload API | Works   | `FilesApi.initiate()` + `uploadChunk()` + `complete()`                            |
-| File→Thing linking      | **Gap** | No FK between files and Things; no `app:fileRefs` property                        |
-
-**Schema.org fit**: Each imported file should become a `CreativeWork` with
-`encodingFormat: "application/pdf"` and `url` pointing to the uploaded file's
-storage path. The schema supports this; the wiring is missing.
-
-**What Tay could do**: When a PDF is dropped, Tay uses **Docling** (already in
-backend dependencies) to parse the document, identify the IRS form type,
-and auto-populate the name and tags.
-
----
-
-## Phase 2: Triage & Label
-
-**User story**: "For each document in my inbox, I want to identify the form
-type, tag it with the relevant IRS schedule, and move it to references."
-
-**Flow**:
-
-1. First inbox item auto-expands with triage action bar
-2. User identifies document type (e.g., "1099-INT from Schwab")
-3. Tags with IRS schedule: `1099-int`, `schedule-b`
-4. Taps "Reference" bucket button → item moves to reference library
-5. Repeat for each document
-
-**IRS schedule mapping**:
-
-| Tag          | IRS Schedule             | Document types              |
-| ------------ | ------------------------ | --------------------------- |
-| `w2`         | Form 1040 (line 1)       | W-2                         |
-| `1099-int`   | Schedule B               | 1099-INT                    |
-| `1099-div`   | Schedule B               | 1099-DIV                    |
-| `1099-b`     | Schedule D / Form 8949   | 1099-B                      |
-| `1098`       | Schedule A (line 8a)     | 1098 (mortgage interest)    |
-| `charitable` | Schedule A (lines 11-14) | Donation receipts           |
-| `medical`    | Schedule A (lines 1-4)   | Medical expense receipts    |
-| `business`   | Schedule C               | 1099-NEC, business receipts |
-| `k-1`        | Schedule E               | K-1 (partnership/S-corp)    |
-
-| Capability               | Status      | Notes                                                  |
-| ------------------------ | ----------- | ------------------------------------------------------ |
-| Triage inbox → reference | Works       | InboxTriage routes to reference bucket                 |
-| Keyword tagging          | Model ready | `keywords` array exists but no tag picker UI in triage |
-| Category vocabulary      | **Gap**     | No IRS form type vocabulary; just free-text tags       |
-
-**Schema.org fit**: `keywords` is a standard schema.org property. Tags like
-`1099-int` and `schedule-b` are valid keyword values. No special modeling needed.
-
----
-
-## Phase 3: Identify Missing Documents
-
-**User story**: "After processing what I have, I realize I'm missing the
-1099-INT from my savings account and the K-1 from the partnership."
-
-**Flow**:
-
-1. User captures: "Download 1099-INT from Ally Bank"
-2. Triages to Next Actions with context `@computer`
-3. Captures: "Request K-1 from XYZ Partners"
-4. Triages to Waiting (delegated to partnership)
-
-| Capability                           | Status      | Notes                                            |
-| ------------------------------------ | ----------- | ------------------------------------------------ |
-| Capture text → triage to next action | Works       | Standard GTD flow                                |
-| Waiting with delegation              | Works       | `delegatedTo` property + waiting bucket          |
-| Context assignment                   | Model ready | `contexts` field exists but no context picker UI |
+| # | Phase                    | Epic                                                              | Status      |
+| - | ------------------------ | ----------------------------------------------------------------- | ----------- |
+| 1 | Import What You Have     | [Epic →](?path=/docs/flows-tax-prep-epic-import--docs)            | **Gap**     |
+| 2 | Triage & Label           | [Epic →](?path=/docs/flows-tax-prep-epic-triage-label--docs)      | Partial     |
+| 3 | Identify Missing Docs    | [Epic →](?path=/docs/flows-tax-prep-epic-missing-docs--docs)      | Works       |
+| 4 | Download & Attach        | _(below)_                                                         | **Gap**     |
+| 5 | Extract Key Details      | _(below)_                                                         | **Gap**     |
+| 6 | Tax Organizer            | _(below)_                                                         | **Gap**     |
+| 7 | Export & Handoff to CPA  | _(below)_                                                         | **Gap**     |
 
 ---
 

@@ -240,6 +240,19 @@ backend-e2e:
   before_script:
     - cd backend && uv sync --quiet --all-groups --all-extras
   script:
+    - |
+      echo "Waiting for postgres..."
+      for i in $(seq 1 30); do
+        if uv run python -c "import psycopg; psycopg.connect('$DATABASE_URL').close()" 2>/dev/null; then
+          echo "Postgres is ready"
+          break
+        fi
+        if [ "$i" -eq 30 ]; then
+          echo "Postgres failed to become ready"
+          exit 1
+        fi
+        sleep 2
+      done
     - uv run python -m app.db_init
     - uv run pytest -q tests/test_flow_playwright.py
 
