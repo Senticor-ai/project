@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./App";
 
 // ---------------------------------------------------------------------------
@@ -68,8 +69,17 @@ vi.mock("./hooks/use-import-jobs", () => ({
   }),
 }));
 
+vi.mock("./hooks/use-import-job-toasts", () => ({
+  useImportJobToasts: () => {},
+}));
+
+let queryClient: QueryClient;
+
 beforeEach(() => {
   vi.clearAllMocks();
+  queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   // Reset URL to default before each test
   window.history.replaceState({}, "", "/workspace/inbox");
 });
@@ -77,6 +87,14 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+function renderApp() {
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <App />
+    </QueryClientProvider>,
+  );
+}
 
 function renderAuthenticated() {
   mockUseAuth.mockReturnValue({
@@ -86,7 +104,7 @@ function renderAuthenticated() {
     register: mockRegister,
     logout: mockLogout,
   });
-  return render(<App />);
+  return renderApp();
 }
 
 // ---------------------------------------------------------------------------
@@ -103,7 +121,7 @@ describe("App", () => {
       logout: mockLogout,
     });
 
-    render(<App />);
+    renderApp();
     expect(screen.getByText("progress_activity")).toBeInTheDocument();
   });
 
@@ -116,7 +134,7 @@ describe("App", () => {
       logout: mockLogout,
     });
 
-    render(<App />);
+    renderApp();
     expect(
       screen.queryByTestId("connected-bucket-view"),
     ).not.toBeInTheDocument();
@@ -145,7 +163,7 @@ describe("App", () => {
     await user.click(screen.getByRole("button", { name: "Main menu" }));
     await user.click(screen.getByText("Settings"));
 
-    expect(screen.getByTestId("settings-screen")).toBeInTheDocument();
+    expect(await screen.findByTestId("settings-screen")).toBeInTheDocument();
     expect(
       screen.queryByTestId("connected-bucket-view"),
     ).not.toBeInTheDocument();
@@ -219,7 +237,10 @@ describe("App", () => {
       logout: mockLogout,
     });
 
-    const { rerender } = render(<App />);
+    const Wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    const { rerender } = render(<App />, { wrapper: Wrapper });
     // URL preserved while showing login
     expect(window.location.pathname).toBe("/settings/preferences");
 

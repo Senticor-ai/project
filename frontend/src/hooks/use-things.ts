@@ -52,15 +52,32 @@ export function useCompletedThings(enabled: boolean) {
 }
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+type AdditionalProp = { propertyID: string; value: unknown };
+
+/** Extract app:bucket from a ThingRecord's additionalProperty array. */
+function getBucketFromRecord(r: ThingRecord): string | undefined {
+  const props = r.thing.additionalProperty as AdditionalProp[] | undefined;
+  return props?.find((p) => p.propertyID === "app:bucket")?.value as
+    | string
+    | undefined;
+}
+
+// ---------------------------------------------------------------------------
 // Derived hooks: filter + deserialize
 // ---------------------------------------------------------------------------
 
 function deserializeThings(records: ThingRecord[] | undefined): Thing[] {
   return (
     records
-      ?.filter(
-        (r) => r.thing["@type"] === "Thing" || r.thing["@type"] === "Action",
-      )
+      ?.filter((r) => {
+        const type = r.thing["@type"] as string;
+        if (type === "Action") return true;
+        // Include any @type that sits in the inbox bucket (file/URL captures)
+        return getBucketFromRecord(r) === "inbox";
+      })
       .map((r) => {
         const item = fromJsonLd(r);
         return isThing(item) ? item : undefined;
@@ -126,7 +143,11 @@ export function useReferences() {
   const items = useMemo<ReferenceMaterial[]>(
     () =>
       query.data
-        ?.filter((r) => r.thing["@type"] === "CreativeWork")
+        ?.filter(
+          (r) =>
+            r.thing["@type"] === "CreativeWork" &&
+            getBucketFromRecord(r) !== "inbox",
+        )
         .map((r) => fromJsonLd(r) as ReferenceMaterial) ?? [],
     [query.data],
   );

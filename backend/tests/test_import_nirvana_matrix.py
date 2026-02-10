@@ -143,7 +143,7 @@ _ITEM_EXPECTATIONS = [
     (
         "TASK-MATRIX-INBOX",
         "urn:app:inbox:TASK-MATRIX-INBOX",
-        "Thing",
+        "Action",
         "inbox",
         False,
         {"app:rawCapture": "Remember to review this note"},
@@ -543,11 +543,11 @@ _SPOT_CHECK_EXPECTATIONS = [
         True,
         {},
     ),
-    # 2. state=0, active → inbox Thing
+    # 2. state=0, active → inbox Action
     (
         "019c1aba-bdfa-74d6-aed9-02baae3491f1",
         "urn:app:inbox:019c1aba-bdfa-74d6-aed9-02baae3491f1",
-        "Thing",
+        "Action",
         "inbox",
         False,
         {},

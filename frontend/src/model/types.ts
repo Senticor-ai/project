@@ -21,7 +21,9 @@ export type CaptureSource =
   | { kind: "email"; subject?: string; from?: string }
   | { kind: "meeting"; title?: string; date?: string }
   | { kind: "voice"; transcript?: string }
-  | { kind: "import"; source: string };
+  | { kind: "import"; source: string }
+  | { kind: "file"; fileName: string; mimeType: string }
+  | { kind: "url"; url: string };
 
 // ---------------------------------------------------------------------------
 // Provenance (append-only, no-delete policy)

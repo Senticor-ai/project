@@ -34,7 +34,7 @@ describe("InboxItem", () => {
     expect(item.name).toBe("Anruf bei Frau Müller");
     expect(item.rawCapture).toBe("Anruf bei Frau Müller");
     expect(item.needsEnrichment).toBe(true);
-    expect(item.confidence).toBe("low");
+    expect(item.confidence).toBe("medium");
     expect(item.id).toMatch(/^urn:app:inbox:/);
   });
 

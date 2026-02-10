@@ -25,8 +25,10 @@ def _create_action(auth_client, *, name: str, bucket: str, end_time: str | None 
 def _create_inbox(auth_client, *, name: str):
     thing = {
         "@id": f"urn:app:inbox:{name.replace(' ', '-').lower()}",
-        "@type": "Thing",
+        "@type": "Action",
         "name": name,
+        "startTime": None,
+        "endTime": None,
         "additionalProperty": [
             _pv("app:bucket", "inbox"),
             _pv("app:rawCapture", name),

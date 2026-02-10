@@ -16,6 +16,7 @@ vi.mock("./api-client", () => ({
   refreshCsrfToken: vi.fn(),
   setUserContext: vi.fn(),
   setCsrfToken: vi.fn(),
+  setSessionExpiredHandler: vi.fn(),
 }));
 
 const mockedAuth = vi.mocked(AuthApi);

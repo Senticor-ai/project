@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { AuthApi, refreshCsrfToken } from "./api-client";
+import {
+  AuthApi,
+  refreshCsrfToken,
+  setSessionExpiredHandler,
+} from "./api-client";
 import type { AuthUser } from "./api-client";
 import { AuthContext } from "./auth-types";
 
@@ -28,6 +32,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       controller.abort();
     };
+  }, []);
+
+  // Register session-expired handler for automatic 401 recovery
+  useEffect(() => {
+    setSessionExpiredHandler(() => setUser(null));
+    return () => setSessionExpiredHandler(null);
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {

@@ -9,6 +9,7 @@ import type {
   FileRecord,
   FileInitiateResponse,
 } from "@/lib/api-client";
+import { ToastProvider } from "@/components/ui/ToastProvider";
 import { NirvanaImportDialog } from "./NirvanaImportDialog";
 
 vi.mock("@/lib/api-client", () => ({
@@ -83,7 +84,9 @@ function renderDialog(
     onClose,
     ...render(
       <QueryClientProvider client={qc}>
-        <NirvanaImportDialog open onClose={onClose} {...props} />
+        <ToastProvider>
+          <NirvanaImportDialog open onClose={onClose} {...props} />
+        </ToastProvider>
       </QueryClientProvider>,
     ),
   };
@@ -114,10 +117,15 @@ describe("NirvanaImportDialog", () => {
     const qc = new QueryClient();
     const { container } = render(
       <QueryClientProvider client={qc}>
-        <NirvanaImportDialog open={false} onClose={vi.fn()} />
+        <ToastProvider>
+          <NirvanaImportDialog open={false} onClose={vi.fn()} />
+        </ToastProvider>
       </QueryClientProvider>,
     );
-    expect(container.textContent).toBe("");
+    // ToastProvider renders empty toast container, dialog renders nothing
+    expect(
+      container.querySelector("[data-testid='nirvana-file-input']"),
+    ).not.toBeInTheDocument();
   });
 
   it("shows preview after file upload", async () => {
@@ -135,7 +143,9 @@ describe("NirvanaImportDialog", () => {
     await user.upload(fileInput, file);
 
     await waitFor(() => {
-      expect(screen.getByText(/100 items/i)).toBeInTheDocument();
+      expect(
+        screen.getByText("100 items found", { exact: true }),
+      ).toBeInTheDocument();
     });
 
     expect(mockedImports.inspectNirvana).toHaveBeenCalledWith(
@@ -176,7 +186,9 @@ describe("NirvanaImportDialog", () => {
 
       // Wait for preview
       await waitFor(() => {
-        expect(screen.getByText(/100 items/i)).toBeInTheDocument();
+        expect(
+          screen.getByText("100 items found", { exact: true }),
+        ).toBeInTheDocument();
       });
 
       // Click import
@@ -275,7 +287,9 @@ describe("NirvanaImportDialog", () => {
     await user.upload(fileInput, file);
 
     await waitFor(() => {
-      expect(screen.getByText(/100 items/i)).toBeInTheDocument();
+      expect(
+        screen.getByText("100 items found", { exact: true }),
+      ).toBeInTheDocument();
     });
 
     // Click import — should fail and return to preview
@@ -283,7 +297,9 @@ describe("NirvanaImportDialog", () => {
 
     await waitFor(() => {
       // Preview is still shown (import button should reappear)
-      expect(screen.getByText(/100 items/i)).toBeInTheDocument();
+      expect(
+        screen.getByText("100 items found", { exact: true }),
+      ).toBeInTheDocument();
     });
   });
 
@@ -304,7 +320,9 @@ describe("NirvanaImportDialog", () => {
     await user.upload(fileInput, file);
 
     await waitFor(() => {
-      expect(screen.getByText(/100 items/i)).toBeInTheDocument();
+      expect(
+        screen.getByText("100 items found", { exact: true }),
+      ).toBeInTheDocument();
     });
 
     await user.click(screen.getByRole("button", { name: /import/i }));
@@ -354,7 +372,9 @@ describe("NirvanaImportDialog", () => {
     await user.upload(fileInput, file);
 
     await waitFor(() => {
-      expect(screen.getByText(/100 items/i)).toBeInTheDocument();
+      expect(
+        screen.getByText("100 items found", { exact: true }),
+      ).toBeInTheDocument();
     });
 
     // Import
@@ -380,5 +400,41 @@ describe("NirvanaImportDialog", () => {
     // Should still be on the select step
     expect(screen.getByText("Drop Nirvana export here")).toBeInTheDocument();
     expect(mockedFiles.initiate).not.toHaveBeenCalled();
+  });
+
+  it("shows info toast after file analysis", async () => {
+    const user = userEvent.setup();
+    renderDialog();
+
+    const fileInput = screen.getByTestId("nirvana-file-input");
+    const file = new File(["[]"], "export.json", { type: "application/json" });
+    await user.upload(fileInput, file);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/File analyzed — 100 items found/),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("shows info toast when import starts", async () => {
+    const user = userEvent.setup();
+    renderDialog();
+
+    const fileInput = screen.getByTestId("nirvana-file-input");
+    const file = new File(["[]"], "export.json", { type: "application/json" });
+    await user.upload(fileInput, file);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("100 items found", { exact: true }),
+      ).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: /import/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Import started/)).toBeInTheDocument();
+    });
   });
 });

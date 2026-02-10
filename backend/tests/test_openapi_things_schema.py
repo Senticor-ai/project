@@ -4,19 +4,17 @@ def test_openapi_things_uses_typed_oneof_models(client):
     spec = response.json()
     schemas = spec["components"]["schemas"]
 
-    # ThingCreateRequest.thing — 5 oneOf variants (Thing, Action, Project, CreativeWork, Event)
+    # ThingCreateRequest.thing — 4 oneOf variants (Action, Project, CreativeWork, Event)
     create_thing = schemas["ThingCreateRequest"]["properties"]["thing"]
-    assert len(create_thing["oneOf"]) == 5
+    assert len(create_thing["oneOf"]) == 4
 
-    # ThingResponse.thing — same 5 variants
+    # ThingResponse.thing — same 4 variants
     response_thing = schemas["ThingResponse"]["properties"]["thing"]
-    assert len(response_thing["oneOf"]) == 5
+    assert len(response_thing["oneOf"]) == 4
 
     # ActionThingJsonLd has action-specific schema.org properties
     action_name = (
-        "ActionThingJsonLd-Output"
-        if "ActionThingJsonLd-Output" in schemas
-        else "ActionThingJsonLd"
+        "ActionThingJsonLd-Output" if "ActionThingJsonLd-Output" in schemas else "ActionThingJsonLd"
     )
     action_output = schemas[action_name]["properties"]
     assert "@type" in action_output
@@ -27,9 +25,7 @@ def test_openapi_things_uses_typed_oneof_models(client):
 
     # EventThingJsonLd has event-specific schema.org properties
     event_name = (
-        "EventThingJsonLd-Output"
-        if "EventThingJsonLd-Output" in schemas
-        else "EventThingJsonLd"
+        "EventThingJsonLd-Output" if "EventThingJsonLd-Output" in schemas else "EventThingJsonLd"
     )
     event_output = schemas[event_name]["properties"]
     assert "@type" in event_output

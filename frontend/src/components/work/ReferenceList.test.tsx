@@ -162,10 +162,10 @@ describe("ReferenceList", () => {
   });
 
   // -----------------------------------------------------------------------
-  // Show archived toggle
+  // Collapsible Archived section
   // -----------------------------------------------------------------------
 
-  it("does not show archived toggle when no archived items", () => {
+  it("does not show Archived section when no archived items", () => {
     const refs = [createReferenceMaterial({ name: "Active ref" })];
     render(
       <ReferenceList
@@ -175,10 +175,12 @@ describe("ReferenceList", () => {
         onSelect={noop}
       />,
     );
-    expect(screen.queryByLabelText("Show archived")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Archived/ }),
+    ).not.toBeInTheDocument();
   });
 
-  it("shows archived toggle when archived items exist", () => {
+  it("shows collapsed Archived section when archived items exist", () => {
     const refs = [
       createReferenceMaterial({ name: "Active ref" }),
       createReferenceMaterial({
@@ -199,10 +201,12 @@ describe("ReferenceList", () => {
         onSelect={noop}
       />,
     );
-    expect(screen.getByLabelText("Show archived")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Expand Archived" }),
+    ).toBeInTheDocument();
   });
 
-  it("shows archived items after clicking toggle", async () => {
+  it("shows archived items after expanding Archived section", async () => {
     const user = userEvent.setup();
     const refs = [
       createReferenceMaterial({ name: "Active ref" }),
@@ -237,20 +241,18 @@ describe("ReferenceList", () => {
     expect(screen.queryByText("Archived A")).not.toBeInTheDocument();
     expect(screen.queryByText("Archived B")).not.toBeInTheDocument();
 
-    await user.click(screen.getByLabelText("Show archived"));
+    await user.click(screen.getByRole("button", { name: "Expand Archived" }));
 
     expect(screen.getByText("Archived A")).toBeInTheDocument();
     expect(screen.getByText("Archived B")).toBeInTheDocument();
-    expect(screen.getByText("2 archived")).toBeInTheDocument();
-    expect(screen.getByText("(+2 archived)")).toBeInTheDocument();
   });
 
-  it("hides archived items after toggling off", async () => {
+  it("collapses Archived section on second click", async () => {
     const user = userEvent.setup();
     const refs = [
       createReferenceMaterial({ name: "Active" }),
       createReferenceMaterial({
-        name: "Archived",
+        name: "Archived item",
         provenance: {
           createdAt: "2025-01-01T10:00:00Z",
           updatedAt: "2025-01-02T10:00:00Z",
@@ -268,11 +270,11 @@ describe("ReferenceList", () => {
       />,
     );
 
-    await user.click(screen.getByLabelText("Show archived"));
-    expect(screen.getByText("Archived")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Expand Archived" }));
+    expect(screen.getByText("Archived item")).toBeInTheDocument();
 
-    await user.click(screen.getByLabelText("Hide archived"));
-    expect(screen.queryByText("Archived")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Collapse Archived" }));
+    expect(screen.queryByText("Archived item")).not.toBeInTheDocument();
   });
 
   it("sorts items newest first", () => {

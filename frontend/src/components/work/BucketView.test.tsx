@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { BucketView } from "./BucketView";
 import {
@@ -14,20 +14,27 @@ vi.mock("@/hooks/use-things", () => ({
   useAllCompletedThings: () => ({ data: [], isFetching: false }),
 }));
 
-// Mock @dnd-kit/core — capture onDragEnd for testing drag handler
+// Mock @dnd-kit/core — capture onDragStart/onDragEnd for testing drag handler
 let capturedOnDragEnd: ((event: unknown) => void) | undefined;
+let capturedOnDragStart: ((event: unknown) => void) | undefined;
 
 vi.mock("@dnd-kit/core", () => ({
   DndContext: ({
     children,
     onDragEnd,
+    onDragStart,
   }: {
     children: React.ReactNode;
     onDragEnd?: (event: unknown) => void;
+    onDragStart?: (event: unknown) => void;
   }) => {
     capturedOnDragEnd = onDragEnd;
+    capturedOnDragStart = onDragStart;
     return <>{children}</>;
   },
+  DragOverlay: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="drag-overlay">{children}</div>
+  ),
   useDroppable: () => ({ setNodeRef: vi.fn(), isOver: false }),
   useDraggable: () => ({
     attributes: {},
@@ -311,5 +318,49 @@ describe("BucketView drag and drop", () => {
       over: { data: { current: {} } },
     });
     expect(onMoveThing).not.toHaveBeenCalled();
+  });
+
+  it("shows drag overlay with item name during drag", () => {
+    const thing = createAction({ name: "Drag me", bucket: "next" });
+    render(
+      <BucketView {...baseProps} things={[thing]} activeBucket="next" />,
+    );
+
+    const overlay = screen.getByTestId("drag-overlay");
+    // Before drag starts, overlay should be empty
+    expect(overlay).toBeEmptyDOMElement();
+
+    // Simulate drag start — state update needs act()
+    act(() => {
+      capturedOnDragStart?.({
+        active: { id: thing.id, data: { current: { type: "thing", thing } } },
+      });
+    });
+
+    // Re-render picks up state — overlay now contains item name
+    expect(overlay).toHaveTextContent("Drag me");
+  });
+
+  it("clears drag overlay when drag ends", () => {
+    const thing = createAction({ name: "Drag me", bucket: "next" });
+    render(
+      <BucketView {...baseProps} things={[thing]} activeBucket="next" />,
+    );
+
+    act(() => {
+      capturedOnDragStart?.({
+        active: { id: thing.id, data: { current: { type: "thing", thing } } },
+      });
+    });
+    const overlay = screen.getByTestId("drag-overlay");
+    expect(overlay).toHaveTextContent("Drag me");
+
+    act(() => {
+      capturedOnDragEnd?.({
+        active: { id: thing.id },
+        over: null,
+      });
+    });
+    expect(overlay).toBeEmptyDOMElement();
   });
 });

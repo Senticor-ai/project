@@ -11,7 +11,6 @@ from fastapi.responses import JSONResponse
 from ..models import (
     ActionThingJsonLd,
     EventThingJsonLd,
-    InboxThingJsonLd,
     ProjectThingJsonLd,
     PropertyValueModel,
     ReferenceThingJsonLd,
@@ -21,7 +20,7 @@ from ..models import (
 router = APIRouter(prefix="/schemas", tags=["schemas"])
 
 _REGISTRY: dict[str, type] = {
-    "inbox-thing": InboxThingJsonLd,
+    "inbox-thing": ActionThingJsonLd,  # deprecated alias — inbox uses Action
     "action-thing": ActionThingJsonLd,
     "project-thing": ProjectThingJsonLd,
     "reference-thing": ReferenceThingJsonLd,

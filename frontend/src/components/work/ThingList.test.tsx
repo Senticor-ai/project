@@ -162,17 +162,36 @@ describe("ThingList", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Completed items (lazy-loaded via useAllCompletedThings hook)
+  // Collapsible Done section (completed items)
   // -------------------------------------------------------------------------
 
-  it("always shows completed toggle button", () => {
+  it("does not show Done section when no completed items", () => {
     const things = [createThing({ name: "Active", bucket: "next" })];
     renderThingList({ bucket: "next", things });
-    expect(screen.getByLabelText("Show completed")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Done/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows collapsed Done section when completed items exist", () => {
+    _completedData = [
+      createThing({
+        name: "Done task A",
+        bucket: "next",
+        completedAt: "2026-01-20T10:00:00Z",
+      }),
+    ];
+    const things = [createThing({ name: "Active task", bucket: "next" })];
+    renderThingList({ bucket: "next", things });
+
+    expect(
+      screen.getByRole("button", { name: "Expand Done" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Done task A")).not.toBeInTheDocument();
   });
 
   it(
-    "shows completed items after toggle click",
+    "expands Done section to show completed items",
     { timeout: 15_000 },
     async () => {
       const user = userEvent.setup();
@@ -191,21 +210,18 @@ describe("ThingList", () => {
       const things = [createThing({ name: "Active task", bucket: "next" })];
       renderThingList({ bucket: "next", things });
 
-      expect(screen.queryByText("Done task A")).not.toBeInTheDocument();
-      await user.click(screen.getByLabelText("Show completed"));
+      await user.click(screen.getByRole("button", { name: "Expand Done" }));
 
       expect(screen.getByText("Done task A")).toBeInTheDocument();
       expect(screen.getByText("Done task B")).toBeInTheDocument();
-      expect(screen.getByText("2 completed")).toBeInTheDocument();
-      expect(screen.getByText("(+2 done)")).toBeInTheDocument();
     },
   );
 
-  it("hides completed items after toggling off", async () => {
+  it("collapses Done section on second click", async () => {
     const user = userEvent.setup();
     _completedData = [
       createThing({
-        name: "Done",
+        name: "Done item",
         bucket: "next",
         completedAt: "2026-01-20T10:00:00Z",
       }),
@@ -213,14 +229,14 @@ describe("ThingList", () => {
     const things = [createThing({ name: "Active", bucket: "next" })];
     renderThingList({ bucket: "next", things });
 
-    await user.click(screen.getByLabelText("Show completed"));
-    expect(screen.getByText("Done")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Expand Done" }));
+    expect(screen.getByText("Done item")).toBeInTheDocument();
 
-    await user.click(screen.getByLabelText("Hide completed"));
-    expect(screen.queryByText("Done")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Collapse Done" }));
+    expect(screen.queryByText("Done item")).not.toBeInTheDocument();
   });
 
-  it("completed section appears below active items", async () => {
+  it("Done section appears below active items", async () => {
     const user = userEvent.setup();
     _completedData = [
       createThing({
@@ -232,7 +248,7 @@ describe("ThingList", () => {
     const things = [createThing({ name: "Active item", bucket: "next" })];
     renderThingList({ bucket: "next", things });
 
-    await user.click(screen.getByLabelText("Show completed"));
+    await user.click(screen.getByRole("button", { name: "Expand Done" }));
 
     const active = screen.getByText("Active item");
     const done = screen.getByText("Done item");

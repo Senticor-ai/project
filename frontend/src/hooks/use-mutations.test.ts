@@ -88,8 +88,10 @@ const INBOX_RECORD = makeRecord({
   thing_id: "tid-inbox-1",
   canonical_id: "urn:app:inbox:1",
   thing: {
-    "@type": "Thing",
+    "@type": "Action",
     "@id": "urn:app:inbox:1",
+    startTime: null,
+    endTime: null,
     additionalProperty: [
       pv("app:bucket", "inbox"),
       pv("app:rawCapture", "Inbox thought"),
@@ -140,7 +142,7 @@ describe("useCaptureInbox", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(mocked.create).toHaveBeenCalledTimes(1);
     const [jsonLd, source] = mocked.create.mock.calls[0];
-    expect(jsonLd).toHaveProperty("@type", "Thing");
+    expect(jsonLd).toHaveProperty("@type", "Action");
     expect(jsonLd).not.toHaveProperty("name");
     const props = jsonLd.additionalProperty as Array<{
       propertyID: string;
@@ -298,7 +300,7 @@ describe("useMoveAction", () => {
     expect(patch["@type"]).toBeUndefined();
   });
 
-  it("promotes @type from Thing to Action when moving inbox item", async () => {
+  it("does not promote @type when moving inbox Action to action bucket", async () => {
     mocked.update.mockResolvedValue(ACTION_RECORD);
 
     const { result } = renderHook(() => useMoveAction(), {
@@ -314,7 +316,7 @@ describe("useMoveAction", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     const [, patch] = mocked.update.mock.calls[0];
-    expect(patch["@type"]).toBe("Action");
+    expect(patch["@type"]).toBeUndefined();
     expect(patch.additionalProperty).toEqual([
       { "@type": "PropertyValue", propertyID: "app:bucket", value: "next" },
     ]);

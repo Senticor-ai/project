@@ -93,7 +93,7 @@ export function createInboxItem(overrides: ThingOverrides): Thing {
     bucket: "inbox",
     rawCapture: overrides.rawCapture ?? overrides.name,
     needsEnrichment: overrides.needsEnrichment ?? true,
-    confidence: overrides.confidence ?? "low",
+    confidence: overrides.confidence ?? "medium",
   });
 }
 

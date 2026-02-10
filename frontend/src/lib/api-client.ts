@@ -35,6 +35,12 @@ async function parseJson(response: Response) {
 
 let currentUserId: string | null = null;
 let csrfToken: string | null = null;
+let onSessionExpired: (() => void) | null = null;
+let refreshPromise: Promise<SessionRefreshResponse> | null = null;
+
+export function setSessionExpiredHandler(handler: (() => void) | null) {
+  onSessionExpired = handler;
+}
 
 export function setUserContext(user: AuthUser | null) {
   currentUserId = user?.id ?? null;
@@ -57,7 +63,11 @@ function createRequestId(): string {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(
+  path: string,
+  init?: RequestInit,
+  _isRetry = false,
+): Promise<T> {
   const headers = new Headers(init?.headers ?? {});
   const method = (init?.method ?? "GET").toUpperCase();
   const hasBody = typeof init?.body !== "undefined";
@@ -92,6 +102,25 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   if (!response.ok) {
+    // Attempt session refresh on 401 (once, and not for /auth/* paths)
+    if (response.status === 401 && !_isRetry && !path.startsWith("/auth/")) {
+      try {
+        if (!refreshPromise) {
+          refreshPromise = AuthApi.refresh();
+        }
+        await refreshPromise;
+        return request<T>(path, init, true);
+      } catch {
+        onSessionExpired?.();
+        throw new ApiError({
+          message: "Session expired",
+          status: 401,
+        });
+      } finally {
+        refreshPromise = null;
+      }
+    }
+
     const details = await parseJson(response);
     throw new ApiError({
       message: details?.detail ?? "Request failed",

@@ -8,6 +8,8 @@ import {
   buildNewActionJsonLd,
   buildNewReferenceJsonLd,
   buildNewProjectJsonLd,
+  buildNewFileInboxJsonLd,
+  buildNewUrlInboxJsonLd,
 } from "./thing-serializer";
 import {
   createInboxItem,
@@ -85,12 +87,12 @@ function expectPropertyValue(
 describe("toJsonLd", () => {
   beforeEach(() => resetFactoryCounter());
 
-  describe("InboxItem → schema:Thing", () => {
-    it("uses @type Thing and _schemaVersion 2", () => {
+  describe("InboxItem → schema:Action", () => {
+    it("uses @type Action and _schemaVersion 2", () => {
       const item = createInboxItem({ name: "Buy milk" });
       const ld = toJsonLd(item);
 
-      expect(ld["@type"]).toBe("Thing");
+      expect(ld["@type"]).toBe("Action");
       expect(ld._schemaVersion).toBe(2);
     });
 
@@ -154,7 +156,7 @@ describe("toJsonLd", () => {
       const item = createInboxItem({ name: "Buy milk" });
       const ld = toJsonLd(item);
 
-      expectPropertyValue(ld, "app:confidence", "low");
+      expectPropertyValue(ld, "app:confidence", "medium");
     });
 
     it("stores captureSource as additionalProperty", () => {
@@ -419,13 +421,15 @@ describe("toJsonLd", () => {
 // ---------------------------------------------------------------------------
 
 describe("fromJsonLd", () => {
-  describe("schema:Thing → InboxItem", () => {
-    it("deserializes a Thing with additionalProperty", () => {
+  describe("schema:Action (inbox) → InboxItem", () => {
+    it("deserializes an Action in inbox with additionalProperty", () => {
       const record = wrapAsThingRecord({
         "@id": "urn:app:inbox:abc-123",
-        "@type": "Thing",
+        "@type": "Action",
         _schemaVersion: 2,
         name: "Buy milk",
+        startTime: null,
+        endTime: null,
         dateCreated: "2025-01-01T00:00:00Z",
         dateModified: "2025-01-01T00:00:00Z",
         keywords: [],
@@ -448,7 +452,7 @@ describe("fromJsonLd", () => {
           {
             "@type": "PropertyValue",
             propertyID: "app:confidence",
-            value: "low",
+            value: "medium",
           },
           {
             "@type": "PropertyValue",
@@ -476,7 +480,7 @@ describe("fromJsonLd", () => {
       expect(item.name).toBe("Buy milk");
       expect(item.rawCapture).toBe("Buy milk");
       expect(item.needsEnrichment).toBe(true);
-      expect(item.confidence).toBe("low");
+      expect(item.confidence).toBe("medium");
       expect(item.tags).toEqual([]);
       expect(item.provenance.createdAt).toBe("2025-01-01T00:00:00Z");
       expect(item.provenance.history).toHaveLength(1);
@@ -550,54 +554,6 @@ describe("fromJsonLd", () => {
       expect(action.scheduledDate).toBe("2026-03-01");
       expect(action.projectIds).toEqual(["urn:app:project:p-1"]);
       expect(action.tags).toEqual(["health"]);
-    });
-
-    it("backward compat: reads legacy isPartOf into projectIds[]", () => {
-      const record = wrapAsThingRecord({
-        "@id": "urn:app:action:legacy-1",
-        "@type": "Action",
-        _schemaVersion: 2,
-        name: "Legacy task",
-        startTime: null,
-        endTime: null,
-        isPartOf: { "@id": "urn:app:project:p-legacy" },
-        keywords: [],
-        dateCreated: "2025-01-01T00:00:00Z",
-        dateModified: "2025-01-01T00:00:00Z",
-        additionalProperty: [
-          { "@type": "PropertyValue", propertyID: "app:bucket", value: "next" },
-          {
-            "@type": "PropertyValue",
-            propertyID: "app:needsEnrichment",
-            value: false,
-          },
-          {
-            "@type": "PropertyValue",
-            propertyID: "app:confidence",
-            value: "high",
-          },
-          {
-            "@type": "PropertyValue",
-            propertyID: "app:captureSource",
-            value: { kind: "import", source: "nirvana" },
-          },
-          { "@type": "PropertyValue", propertyID: "app:contexts", value: [] },
-          { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
-          {
-            "@type": "PropertyValue",
-            propertyID: "app:typedReferences",
-            value: [],
-          },
-          {
-            "@type": "PropertyValue",
-            propertyID: "app:provenanceHistory",
-            value: [],
-          },
-        ],
-      });
-
-      const action = fromJsonLd(record) as Thing;
-      expect(action.projectIds).toEqual(["urn:app:project:p-legacy"]);
     });
   });
 
@@ -911,7 +867,7 @@ describe("fromJsonLd", () => {
       expect(restored.bucket).toBe("inbox");
       expect(restored.rawCapture).toBe(original.rawCapture);
       expect(restored.needsEnrichment).toBe(true);
-      expect(restored.confidence).toBe("low");
+      expect(restored.confidence).toBe("medium");
     });
 
     it("preserves action data with all fields", () => {
@@ -1113,11 +1069,13 @@ describe("buildItemEditPatch", () => {
 // ---------------------------------------------------------------------------
 
 describe("buildNewInboxJsonLd", () => {
-  it("creates a schema:Thing with _schemaVersion 2", () => {
+  it("creates a schema:Action with _schemaVersion 2", () => {
     const ld = buildNewInboxJsonLd("Call the plumber");
 
-    expect(ld["@type"]).toBe("Thing");
+    expect(ld["@type"]).toBe("Action");
     expect(ld._schemaVersion).toBe(2);
+    expect(ld.startTime).toBeNull();
+    expect(ld.endTime).toBeNull();
   });
 
   it("omits name (raw capture goes into additionalProperty only)", () => {
@@ -1140,7 +1098,7 @@ describe("buildNewInboxJsonLd", () => {
     expectPropertyValue(ld, "app:bucket", "inbox");
     expectPropertyValue(ld, "app:rawCapture", "Call the plumber");
     expectPropertyValue(ld, "app:needsEnrichment", true);
-    expectPropertyValue(ld, "app:confidence", "low");
+    expectPropertyValue(ld, "app:confidence", "medium");
   });
 
   it("generates unique @id with urn:app: prefix", () => {
@@ -1149,6 +1107,306 @@ describe("buildNewInboxJsonLd", () => {
 
     expect(ld1["@id"]).not.toBe(ld2["@id"]);
     expect((ld1["@id"] as string).startsWith("urn:app:inbox:")).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildNewFileInboxJsonLd — file capture
+// ---------------------------------------------------------------------------
+
+describe("buildNewFileInboxJsonLd", () => {
+  it("creates a DigitalDocument for a PDF file", () => {
+    const ld = buildNewFileInboxJsonLd(
+      {
+        schemaType: "DigitalDocument",
+        confidence: "medium",
+        captureSource: {
+          kind: "file",
+          fileName: "report.pdf",
+          mimeType: "application/pdf",
+        },
+        encodingFormat: "application/pdf",
+      },
+      "report.pdf",
+    );
+
+    expect(ld["@type"]).toBe("DigitalDocument");
+    expect(ld.name).toBe("report.pdf");
+    expect(ld.encodingFormat).toBe("application/pdf");
+    expectPropertyValue(ld, "app:bucket", "inbox");
+    expectPropertyValue(ld, "app:needsEnrichment", true);
+    expectPropertyValue(ld, "app:confidence", "medium");
+    expectPropertyValue(ld, "app:captureSource", {
+      kind: "file",
+      fileName: "report.pdf",
+      mimeType: "application/pdf",
+    });
+  });
+
+  it("creates an EmailMessage for .eml with extractable entities", () => {
+    const ld = buildNewFileInboxJsonLd(
+      {
+        schemaType: "EmailMessage",
+        confidence: "medium",
+        captureSource: {
+          kind: "file",
+          fileName: "message.eml",
+          mimeType: "message/rfc822",
+        },
+        encodingFormat: "message/rfc822",
+        extractableEntities: ["Person", "Organization"],
+      },
+      "message.eml",
+    );
+
+    expect(ld["@type"]).toBe("EmailMessage");
+    expectPropertyValue(ld, "app:extractableEntities", [
+      "Person",
+      "Organization",
+    ]);
+  });
+
+  it("omits extractableEntities when not present", () => {
+    const ld = buildNewFileInboxJsonLd(
+      {
+        schemaType: "DigitalDocument",
+        confidence: "medium",
+        captureSource: {
+          kind: "file",
+          fileName: "photo.jpg",
+          mimeType: "image/jpeg",
+        },
+        encodingFormat: "image/jpeg",
+      },
+      "photo.jpg",
+    );
+
+    const props = ld.additionalProperty as Array<{
+      propertyID: string;
+      value: unknown;
+    }>;
+    expect(
+      props.find((p) => p.propertyID === "app:extractableEntities"),
+    ).toBeUndefined();
+  });
+
+  it("generates unique @id with urn:app:inbox: prefix", () => {
+    const ld = buildNewFileInboxJsonLd(
+      {
+        schemaType: "DigitalDocument",
+        confidence: "medium",
+        captureSource: {
+          kind: "file",
+          fileName: "doc.pdf",
+          mimeType: "application/pdf",
+        },
+      },
+      "doc.pdf",
+    );
+    expect((ld["@id"] as string).startsWith("urn:app:inbox:")).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildNewUrlInboxJsonLd — URL capture
+// ---------------------------------------------------------------------------
+
+describe("buildNewUrlInboxJsonLd", () => {
+  it("creates a CreativeWork with URL in inbox", () => {
+    const ld = buildNewUrlInboxJsonLd("https://example.com/article");
+
+    expect(ld["@type"]).toBe("CreativeWork");
+    expect(ld.url).toBe("https://example.com/article");
+    expectPropertyValue(ld, "app:bucket", "inbox");
+    expectPropertyValue(ld, "app:needsEnrichment", true);
+    expectPropertyValue(ld, "app:confidence", "medium");
+    expectPropertyValue(ld, "app:captureSource", {
+      kind: "url",
+      url: "https://example.com/article",
+    });
+  });
+
+  it("generates unique @id with urn:app:inbox: prefix", () => {
+    const ld1 = buildNewUrlInboxJsonLd("https://a.com");
+    const ld2 = buildNewUrlInboxJsonLd("https://b.com");
+    expect(ld1["@id"]).not.toBe(ld2["@id"]);
+    expect((ld1["@id"] as string).startsWith("urn:app:inbox:")).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fromJsonLd — Action-in-inbox and CreativeWork-in-inbox
+// ---------------------------------------------------------------------------
+
+describe("fromJsonLd — intake classification types in inbox", () => {
+  it("deserializes Action with bucket inbox as a Thing", () => {
+    const record = wrapAsThingRecord({
+      "@id": "urn:app:inbox:test-1",
+      "@type": "Action",
+      _schemaVersion: 2,
+      description: null,
+      keywords: [],
+      dateCreated: "2025-01-01T00:00:00.000Z",
+      dateModified: "2025-01-01T00:00:00.000Z",
+      startTime: null,
+      endTime: null,
+      additionalProperty: [
+        { "@type": "PropertyValue", propertyID: "app:bucket", value: "inbox" },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:rawCapture",
+          value: "Call the plumber",
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:needsEnrichment",
+          value: true,
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:confidence",
+          value: "medium",
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:captureSource",
+          value: { kind: "thought" },
+        },
+        { "@type": "PropertyValue", propertyID: "app:contexts", value: [] },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:isFocused",
+          value: false,
+        },
+        { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:typedReferences",
+          value: [],
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:provenanceHistory",
+          value: [],
+        },
+      ],
+    });
+
+    const item = fromJsonLd(record);
+    expect(item.bucket).toBe("inbox");
+    expect("rawCapture" in item && item.rawCapture).toBe("Call the plumber");
+    expect(item.confidence).toBe("medium");
+    expect(item.needsEnrichment).toBe(true);
+  });
+
+  it("deserializes CreativeWork with bucket inbox as a Thing (URL capture)", () => {
+    const record = wrapAsThingRecord({
+      "@id": "urn:app:inbox:test-2",
+      "@type": "CreativeWork",
+      _schemaVersion: 2,
+      url: "https://example.com",
+      description: null,
+      keywords: [],
+      dateCreated: "2025-01-01T00:00:00.000Z",
+      dateModified: "2025-01-01T00:00:00.000Z",
+      additionalProperty: [
+        { "@type": "PropertyValue", propertyID: "app:bucket", value: "inbox" },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:needsEnrichment",
+          value: true,
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:confidence",
+          value: "medium",
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:captureSource",
+          value: { kind: "url", url: "https://example.com" },
+        },
+        { "@type": "PropertyValue", propertyID: "app:contexts", value: [] },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:isFocused",
+          value: false,
+        },
+        { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:typedReferences",
+          value: [],
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:provenanceHistory",
+          value: [],
+        },
+      ],
+    });
+
+    const item = fromJsonLd(record);
+    expect(item.bucket).toBe("inbox");
+    expect(item.needsEnrichment).toBe(true);
+  });
+
+  it("deserializes DigitalDocument (unknown @type) as inbox fallback", () => {
+    const record = wrapAsThingRecord({
+      "@id": "urn:app:inbox:test-3",
+      "@type": "DigitalDocument",
+      _schemaVersion: 2,
+      name: "report.pdf",
+      description: null,
+      keywords: [],
+      encodingFormat: "application/pdf",
+      dateCreated: "2025-01-01T00:00:00.000Z",
+      dateModified: "2025-01-01T00:00:00.000Z",
+      additionalProperty: [
+        { "@type": "PropertyValue", propertyID: "app:bucket", value: "inbox" },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:needsEnrichment",
+          value: true,
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:confidence",
+          value: "medium",
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:captureSource",
+          value: {
+            kind: "file",
+            fileName: "report.pdf",
+            mimeType: "application/pdf",
+          },
+        },
+        { "@type": "PropertyValue", propertyID: "app:contexts", value: [] },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:isFocused",
+          value: false,
+        },
+        { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:typedReferences",
+          value: [],
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:provenanceHistory",
+          value: [],
+        },
+      ],
+    });
+
+    const item = fromJsonLd(record);
+    expect(item.bucket).toBe("inbox");
+    expect(item.name).toBe("report.pdf");
+    expect(item.needsEnrichment).toBe(true);
   });
 });
 
@@ -1311,7 +1569,7 @@ describe("fromJsonLd name normalization", () => {
   it("normalizes name: null to undefined", () => {
     const record = wrapAsThingRecord({
       "@id": "urn:app:inbox:n1",
-      "@type": "Thing",
+      "@type": "Action",
       _schemaVersion: 2,
       name: null,
       keywords: [],
@@ -1361,7 +1619,7 @@ describe("fromJsonLd name normalization", () => {
   it("normalizes missing name to undefined", () => {
     const record = wrapAsThingRecord({
       "@id": "urn:app:inbox:n2",
-      "@type": "Thing",
+      "@type": "Action",
       _schemaVersion: 2,
       keywords: [],
       dateCreated: "2025-01-01T00:00:00Z",
@@ -1409,7 +1667,7 @@ describe("fromJsonLd name normalization", () => {
   it("normalizes empty string name to undefined", () => {
     const record = wrapAsThingRecord({
       "@id": "urn:app:inbox:n3",
-      "@type": "Thing",
+      "@type": "Action",
       _schemaVersion: 2,
       name: "",
       keywords: [],
@@ -1458,7 +1716,7 @@ describe("fromJsonLd name normalization", () => {
   it("normalizes whitespace-only name to undefined", () => {
     const record = wrapAsThingRecord({
       "@id": "urn:app:inbox:n4",
-      "@type": "Thing",
+      "@type": "Action",
       _schemaVersion: 2,
       name: "   ",
       keywords: [],
@@ -1507,7 +1765,7 @@ describe("fromJsonLd name normalization", () => {
   it("preserves actual name when set", () => {
     const record = wrapAsThingRecord({
       "@id": "urn:app:inbox:n5",
-      "@type": "Thing",
+      "@type": "Action",
       _schemaVersion: 2,
       name: "Weekly Groceries",
       keywords: [],
@@ -1621,11 +1879,13 @@ describe("JSON Schema contract validation", () => {
   beforeEach(() => resetFactoryCounter());
 
   describe("build* functions produce schema-valid payloads", () => {
-    it("buildNewInboxJsonLd → inbox-thing schema", ({ skip }) => {
+    it("buildNewInboxJsonLd → action-thing schema (text capture defaults to Action)", ({
+      skip,
+    }) => {
       if (!backendUp) skip();
       const ld = buildNewInboxJsonLd("Anruf bei Frau Müller");
-      const valid = validators.validateInboxThing(ld);
-      expect(valid, formatErrors(validators.validateInboxThing)).toBe(true);
+      const valid = validators.validateActionThing(ld);
+      expect(valid, formatErrors(validators.validateActionThing)).toBe(true);
     });
 
     it("buildNewActionJsonLd → action-thing schema", ({ skip }) => {
@@ -1655,12 +1915,12 @@ describe("JSON Schema contract validation", () => {
   });
 
   describe("toJsonLd produces schema-valid payloads", () => {
-    it("inbox item → inbox-thing schema", ({ skip }) => {
+    it("inbox item → action-thing schema", ({ skip }) => {
       if (!backendUp) skip();
       const item = createInboxItem({ rawCapture: "Buy milk" });
       const ld = toJsonLd(item);
-      const valid = validators.validateInboxThing(ld);
-      expect(valid, formatErrors(validators.validateInboxThing)).toBe(true);
+      const valid = validators.validateActionThing(ld);
+      expect(valid, formatErrors(validators.validateActionThing)).toBe(true);
     });
 
     it("action → action-thing schema", ({ skip }) => {

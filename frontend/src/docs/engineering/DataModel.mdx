@@ -34,45 +34,103 @@ Only use `additionalProperty` when schema.org genuinely has no equivalent.
 
 ---
 
-## Everything is a Thing
+## Intake Classification
 
-Every item that is loaded, entered, or created starts as a `schema:Thing` — the most
-generic type in schema.org. As the user or the system adds attributes, the `@type`
-**specializes** to a more specific schema.org type:
+Items are classified at capture time using heuristics (Layer 1 + 2). All items land in
+`bucket: "inbox"` with `needsEnrichment: true` and `confidence: "medium"`. The user
+confirms or overrides the type during triage.
+
+**Implementation:** `frontend/src/lib/intake-classifier.ts` — pure-function classifier
+with MIME-to-type lookup table and extension fallback.
+
+### Heuristic rules
+
+| Capture method             | `@type`           | `captureSource.kind` | Notes                                       |
+| -------------------------- | ----------------- | -------------------- | ------------------------------------------- |
+| Typed text                 | `Action`          | `thought`            | Default — user is expressing intent to do   |
+| URL paste (full URL input) | `CreativeWork`    | `url`                | Detected when entire input is `https://...` |
+| File drop (PDF, DOCX, ...) | `DigitalDocument` | `file`               | MIME-based with extension fallback          |
+| File drop (.eml, .msg)     | `EmailMessage`    | `file`               | Extractable: Person, Organization           |
+| File drop (.vcf)           | `DigitalDocument` | `file`               | Extractable: Person, Organization           |
+| File drop (.ics)           | `DigitalDocument` | `file`               | Extractable: Event, Person                  |
+| Unknown file type          | `DigitalDocument` | `file`               | Fallback for unrecognized MIME/extension    |
+
+### Extractable entities
+
+Structured files carry an `extractableEntities` hint in `additionalProperty` for
+downstream enrichment that can create linked entities from a single file capture:
+
+| File type      | `extractableEntities`        | Example                                             |
+| -------------- | ---------------------------- | --------------------------------------------------- |
+| `.eml`, `.msg` | `["Person", "Organization"]` | Sender, receiver, their organizations               |
+| `.vcf`         | `["Person", "Organization"]` | Contact person + their org, may create two entities |
+| `.ics`         | `["Event", "Person"]`        | Calendar event + attendees                          |
+
+### CaptureSource variants
+
+**File:** `frontend/src/model/types.ts`
+
+```typescript
+type CaptureSource =
+  | { kind: "thought" } // typed text
+  | { kind: "email"; subject?: string; from?: string } // email integration
+  | { kind: "meeting"; title?: string; date?: string } // meeting note
+  | { kind: "voice"; transcript?: string } // voice capture
+  | { kind: "import"; source: string } // bulk import
+  | { kind: "file"; fileName: string; mimeType: string } // file drop/upload
+  | { kind: "url"; url: string }; // URL paste
+```
+
+### Serialization functions
+
+| Function                  | Input                         | `@type`            | Use case                            |
+| ------------------------- | ----------------------------- | ------------------ | ----------------------------------- |
+| `buildNewInboxJsonLd`     | raw text                      | `Action`           | Text capture (default)              |
+| `buildNewUrlInboxJsonLd`  | URL string                    | `CreativeWork`     | URL paste detected in text          |
+| `buildNewFileInboxJsonLd` | `IntakeClassification` + name | per classification | File drop/upload                    |
+| `buildNewActionJsonLd`    | text + bucket                 | `Action`           | Direct action creation (skip inbox) |
+
+---
+
+## Entity Types and Buckets
+
+### Type hierarchy
 
 ```
-Thing (base)
-  → Action     (when it gets contexts, due dates, delegation, etc.)
-  → Project    (when it gets a desired outcome and child actions)
-  → CreativeWork  (when it gets a URL, file, or content type)
-  → Event      (when it gets a date/time and duration)
+schema:Action          (text capture, actionable items)
+schema:Project         (desired outcome + child actions)
+schema:CreativeWork    (URL paste, reference material after triage)
+schema:DigitalDocument (file drop — PDF, DOCX, images, vCard, calendar)
+schema:EmailMessage    (email file drop — .eml, .msg)
+schema:Event           (calendar entry with date/time/duration)
 ```
-
-Type detection can happen at any point:
-
-- **At capture:** A user pastes a URL → the system can immediately set `@type: "CreativeWork"` with a `url` property. No triage needed.
-- **During triage:** The user decides "this is something I need to do" → `@type` becomes `"Action"`.
-- **Through enrichment:** An AI or the user adds attributes that make a more specific type appropriate.
 
 ### Inbox is a view, not a type
 
-The **inbox** is a logical filter — it shows Things that have not yet been enriched beyond
-the minimum text the user entered. There is no `InboxItem` type. Inbox items are simply
-Things where `app:bucket = "inbox"` and typically `needsEnrichment = true`.
+The **inbox** is a logical filter — it shows items that have not yet been triaged.
+There is no `InboxItem` type. Inbox items are entities of any `@type` where
+`app:bucket = "inbox"` and typically `needsEnrichment = true`.
 
-A Thing in the inbox might already have a specific `@type` if the system can detect it.
-For example, dropping a PDF file creates a `CreativeWork` that still sits in the inbox
-bucket until the user decides where it belongs.
+Items in the inbox already have a heuristic `@type` from capture. For example,
+typed text creates an `Action` in the inbox; dropping a PDF creates a `DigitalDocument`
+in the inbox. Both sit there until the user triages them to their final bucket.
 
 ### Type specialization summary
 
-| `@type`        | When it applies                                           | Bucket(s)                                   |
-| -------------- | --------------------------------------------------------- | ------------------------------------------- |
-| `Thing`        | Default — not yet enriched, or genuinely generic          | `inbox` (typically)                         |
-| `Action`       | Has actionable attributes (context, schedule, delegation) | `next` / `waiting` / `calendar` / `someday` |
-| `Project`      | Has a desired outcome and contains child actions          | `project`                                   |
-| `CreativeWork` | Has a URL, file, or content type                          | `reference` (or `inbox` before triage)      |
-| `Event`        | Has a specific date/time and duration                     | `calendar`                                  |
+| `@type`           | When it applies                                       | Bucket(s)                                             |
+| ----------------- | ----------------------------------------------------- | ----------------------------------------------------- |
+| `Action`          | Typed text capture, or actionable attributes assigned | `inbox` / `next` / `waiting` / `calendar` / `someday` |
+| `DigitalDocument` | File drop (PDF, DOCX, images, vCard, calendar)        | `inbox` (before triage)                               |
+| `EmailMessage`    | Email file drop (.eml, .msg)                          | `inbox` (before triage)                               |
+| `CreativeWork`    | URL paste, or has content type after triage           | `inbox` / `reference`                                 |
+| `Project`         | Has a desired outcome and contains child actions      | `project`                                             |
+| `Event`           | Has a specific date/time and duration                 | `calendar`                                            |
+
+### Type detection flow
+
+1. **At capture (heuristic):** Typed text → `Action`. URL paste → `CreativeWork`. File drop → `DigitalDocument` / `EmailMessage` (MIME-based). All land in `bucket: "inbox"`.
+2. **During triage:** The user confirms or changes the type. An `Action` in inbox might become a `Project`; a `DigitalDocument` might be triaged to `reference` as a `CreativeWork`.
+3. **Through enrichment:** Structured files (`.vcf`, `.ics`, `.eml`) can extract linked entities (Person, Organization, Event) while preserving the original file as a reference.
 
 ---
 
@@ -119,8 +177,8 @@ These map 1:1 to schema.org and appear as flat fields on the JSON-LD object:
 | `provenance.updatedAt` | `dateModified`    | [dateModified](https://schema.org/dateModified)     | ISO 8601                                                                    |
 | `scheduledDate`        | `startTime`       | [startTime](https://schema.org/startTime)           | Actions (schema.org Action property)                                        |
 | `completedAt`          | `endTime`         | [endTime](https://schema.org/endTime)               | Completed Actions and Projects                                              |
-| `url`                  | `url`             | [url](https://schema.org/url)                       | CreativeWork                                                                |
-| `encodingFormat`       | `encodingFormat`  | [encodingFormat](https://schema.org/encodingFormat) | MIME type                                                                   |
+| `url`                  | `url`             | [url](https://schema.org/url)                       | CreativeWork, URL inbox captures                                            |
+| `encodingFormat`       | `encodingFormat`  | [encodingFormat](https://schema.org/encodingFormat) | MIME type for files and references                                          |
 | `date`                 | `startDate`       | [startDate](https://schema.org/startDate)           | Event start (ISO 8601)                                                      |
 | (end)                  | `endDate`         | [endDate](https://schema.org/endDate)               | Event end (ISO 8601)                                                        |
 | `duration`             | `duration`        | [duration](https://schema.org/duration)             | Event duration (minutes or ISO 8601 duration)                               |
@@ -131,31 +189,33 @@ These map 1:1 to schema.org and appear as flat fields on the JSON-LD object:
 
 These have no schema.org equivalent and are stored as `PropertyValue` objects:
 
-| Frontend field      | `propertyID`            | Value type                                                             |
-| ------------------- | ----------------------- | ---------------------------------------------------------------------- |
-| `bucket`            | `app:bucket`            | `"inbox"` \| `"next"` \| `"waiting"` \| `"calendar"` \| `"someday"`    |
-| `rawCapture`        | `app:rawCapture`        | string                                                                 |
-| `isFocused`         | `app:isFocused`         | boolean                                                                |
-| `confidence`        | `app:confidence`        | `"low"` \| `"medium"` \| `"high"`                                      |
-| `needsEnrichment`   | `app:needsEnrichment`   | boolean                                                                |
-| `energyLevel`       | `app:energyLevel`       | `"low"` \| `"medium"` \| `"high"`                                      |
-| `sequenceOrder`     | `app:sequenceOrder`     | number                                                                 |
-| `delegatedTo`       | `app:delegatedTo`       | string                                                                 |
-| `contexts`          | `app:contexts`          | CanonicalId[]                                                          |
-| `captureSource`     | `app:captureSource`     | structured object                                                      |
-| `origin`            | `app:origin`            | `"triaged"` \| `"captured"` \| `"file"`                                |
-| `dueDate`           | `app:dueDate`           | ISO date string                                                        |
-| `startDate`         | `app:startDate`         | ISO date string                                                        |
-| `scheduledTime`     | `app:scheduledTime`     | HH:MM string                                                           |
-| `desiredOutcome`    | `app:desiredOutcome`    | string                                                                 |
-| `status` (project)  | `app:projectStatus`     | `"active"` \| `"completed"` \| `"on-hold"` \| `"archived"`             |
-| `projectIds`        | `app:projectRefs`       | CanonicalId[] (many-to-many)                                           |
-| `reviewDate`        | `app:reviewDate`        | ISO date string                                                        |
-| `ports`             | `app:ports`             | Port[]                                                                 |
-| `typedReferences`   | `app:typedReferences`   | TypedReference[]                                                       |
-| `archivedAt`        | `app:archivedAt`        | ISO timestamp                                                          |
-| `provenanceHistory` | `app:provenanceHistory` | ProvenanceEntry[]                                                      |
-| (server-managed)    | `app:nameProvenance`    | `{ setBy: "user" \| "ai" \| "system", setAt: string, source: string }` |
+| Frontend field        | `propertyID`              | Value type                                                             |
+| --------------------- | ------------------------- | ---------------------------------------------------------------------- |
+| `bucket`              | `app:bucket`              | `"inbox"` \| `"next"` \| `"waiting"` \| `"calendar"` \| `"someday"`    |
+| `rawCapture`          | `app:rawCapture`          | string                                                                 |
+| `isFocused`           | `app:isFocused`           | boolean                                                                |
+| `confidence`          | `app:confidence`          | `"low"` \| `"medium"` \| `"high"`                                      |
+| `needsEnrichment`     | `app:needsEnrichment`     | boolean                                                                |
+| `energyLevel`         | `app:energyLevel`         | `"low"` \| `"medium"` \| `"high"`                                      |
+| `sequenceOrder`       | `app:sequenceOrder`       | number                                                                 |
+| `delegatedTo`         | `app:delegatedTo`         | string                                                                 |
+| `contexts`            | `app:contexts`            | CanonicalId[]                                                          |
+| `captureSource`       | `app:captureSource`       | CaptureSource object (see above)                                       |
+| `origin`              | `app:origin`              | `"triaged"` \| `"captured"` \| `"file"`                                |
+| `dueDate`             | `app:dueDate`             | ISO date string                                                        |
+| `startDate`           | `app:startDate`           | ISO date string                                                        |
+| `scheduledTime`       | `app:scheduledTime`       | HH:MM string                                                           |
+| `desiredOutcome`      | `app:desiredOutcome`      | string                                                                 |
+| `status` (project)    | `app:projectStatus`       | `"active"` \| `"completed"` \| `"on-hold"` \| `"archived"`             |
+| `projectIds`          | `app:projectRefs`         | CanonicalId[] (many-to-many)                                           |
+| `reviewDate`          | `app:reviewDate`          | ISO date string                                                        |
+| `ports`               | `app:ports`               | Port[]                                                                 |
+| `typedReferences`     | `app:typedReferences`     | TypedReference[]                                                       |
+| `archivedAt`          | `app:archivedAt`          | ISO timestamp                                                          |
+| `provenanceHistory`   | `app:provenanceHistory`   | ProvenanceEntry[]                                                      |
+| `extractableEntities` | `app:extractableEntities` | string[] (e.g. `["Person", "Organization"]`) — file captures only      |
+| (server-managed)      | `app:nameProvenance`      | `{ setBy: "user" \| "ai" \| "system", setAt: string, source: string }` |
+| `recurrence`          | `app:recurrence`          | RecurrencePattern object                                               |
 
 ---
 
@@ -180,33 +240,37 @@ All entities share these fields:
 
 ### Entity Types
 
-| `@type`        | TypeScript type     | Bucket(s)                                   | Key additional fields                                                 |
-| -------------- | ------------------- | ------------------------------------------- | --------------------------------------------------------------------- |
-| `Thing`        | `Thing`             | `inbox` (or any, if not yet triaged)        | `rawCapture`                                                          |
-| `Action`       | `Thing`             | `next` / `waiting` / `calendar` / `someday` | `contexts`, `isFocused`, `delegatedTo`, `recurrence`, `sequenceOrder` |
-| `Project`      | `Project`           | `project`                                   | `desiredOutcome`, `status`                                            |
-| `CreativeWork` | `ReferenceMaterial` | `reference` (or `inbox` before triage)      | `url`, `encodingFormat`                                               |
-| `Event`        | `CalendarEntry`     | `calendar`                                  | `date`, `time`, `duration`, `isAllDay`                                |
+| `@type`           | TypeScript type                | Bucket(s)                                             | Key additional fields                                                 |
+| ----------------- | ------------------------------ | ----------------------------------------------------- | --------------------------------------------------------------------- |
+| `Action`          | `Thing`                        | `inbox` / `next` / `waiting` / `calendar` / `someday` | `contexts`, `isFocused`, `delegatedTo`, `recurrence`, `sequenceOrder` |
+| `DigitalDocument` | `Thing`                        | `inbox` (before triage)                               | `rawCapture` (set to `name` by `fromJsonLd` fallback)                 |
+| `EmailMessage`    | `Thing`                        | `inbox` (before triage)                               | `rawCapture`, `extractableEntities` via additionalProperty            |
+| `CreativeWork`    | `Thing` or `ReferenceMaterial` | `inbox` or `reference`                                | `url`, `encodingFormat`                                               |
+| `Project`         | `Project`                      | `project`                                             | `desiredOutcome`, `status`                                            |
+| `Event`           | `CalendarEntry`                | `calendar`                                            | `date`, `time`, `duration`, `isAllDay`                                |
 
-Note: The TypeScript types are frontend ergonomic wrappers. The `@type` is what appears
-in JSON-LD and determines schema.org compatibility.
+Note: `DigitalDocument` and `EmailMessage` are deserialized by `fromJsonLd`'s fallback branch
+as `Thing` with `bucket: "inbox"`. `CreativeWork` in inbox is also deserialized as `Thing`.
+After triage to `reference` bucket, `CreativeWork` becomes `ReferenceMaterial`.
 
 ---
 
 ## JSON-LD Examples
 
-### Raw text capture — `Thing` in inbox
+### Text capture — `Action` in inbox
 
-The minimum: user typed a string. `@type` is `Thing` because we don't know what it is yet.
-Note: `name` is **not set** — the raw input lives in `app:rawCapture`.
+User typed a string. The heuristic sets `@type: "Action"` because the user is expressing
+intent to do something. `name` is **not set** — the raw input lives in `app:rawCapture`.
 
 ```json
 {
   "@id": "urn:app:inbox:def-456",
-  "@type": "Thing",
+  "@type": "Action",
   "_schemaVersion": 2,
   "dateCreated": "2026-02-07T08:00:00Z",
   "dateModified": "2026-02-07T08:00:00Z",
+  "startTime": null,
+  "endTime": null,
   "additionalProperty": [
     { "@type": "PropertyValue", "propertyID": "app:bucket", "value": "inbox" },
     {
@@ -214,41 +278,6 @@ Note: `name` is **not set** — the raw input lives in `app:rawCapture`.
       "propertyID": "app:rawCapture",
       "value": "Fahrkosten Müller prüfen"
     },
-    {
-      "@type": "PropertyValue",
-      "propertyID": "app:needsEnrichment",
-      "value": true
-    },
-    {
-      "@type": "PropertyValue",
-      "propertyID": "app:confidence",
-      "value": "low"
-    },
-    {
-      "@type": "PropertyValue",
-      "propertyID": "app:captureSource",
-      "value": { "kind": "thought" }
-    }
-  ]
-}
-```
-
-### URL capture — `CreativeWork` in inbox
-
-User pasted a URL. The system detects it's a reference and sets `@type: "CreativeWork"`
-immediately, but it's still in the inbox bucket until the user triages it.
-
-```json
-{
-  "@id": "urn:app:inbox:url-789",
-  "@type": "CreativeWork",
-  "_schemaVersion": 2,
-  "name": "SGB III § 159 - Ruhen bei Sperrzeit",
-  "url": "https://www.gesetze-im-internet.de/sgb_3/__159.html",
-  "dateCreated": "2026-02-07T08:05:00Z",
-  "dateModified": "2026-02-07T08:05:00Z",
-  "additionalProperty": [
-    { "@type": "PropertyValue", "propertyID": "app:bucket", "value": "inbox" },
     {
       "@type": "PropertyValue",
       "propertyID": "app:needsEnrichment",
@@ -268,10 +297,128 @@ immediately, but it's still in the inbox bucket until the user triages it.
 }
 ```
 
-### Action (`Action`)
+### URL capture — `CreativeWork` in inbox
 
-`name` is omitted — the raw capture text lives in `app:rawCapture`. If the user later
-renames this action, `name` would appear as a top-level property.
+User pasted a URL. The classifier detects it and sets `@type: "CreativeWork"` with
+`captureSource.kind: "url"`. Still in inbox until triaged.
+
+```json
+{
+  "@id": "urn:app:inbox:url-789",
+  "@type": "CreativeWork",
+  "_schemaVersion": 2,
+  "url": "https://www.gesetze-im-internet.de/sgb_3/__159.html",
+  "dateCreated": "2026-02-07T08:05:00Z",
+  "dateModified": "2026-02-07T08:05:00Z",
+  "additionalProperty": [
+    { "@type": "PropertyValue", "propertyID": "app:bucket", "value": "inbox" },
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:needsEnrichment",
+      "value": true
+    },
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:confidence",
+      "value": "medium"
+    },
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:captureSource",
+      "value": {
+        "kind": "url",
+        "url": "https://www.gesetze-im-internet.de/sgb_3/__159.html"
+      }
+    }
+  ]
+}
+```
+
+### File capture — `DigitalDocument` in inbox
+
+User dropped a PDF. The classifier detects the MIME type and sets `@type: "DigitalDocument"`.
+
+```json
+{
+  "@id": "urn:app:inbox:file-101",
+  "@type": "DigitalDocument",
+  "_schemaVersion": 2,
+  "name": "Reisekostenabrechnung_Q1.pdf",
+  "encodingFormat": "application/pdf",
+  "dateCreated": "2026-02-07T08:10:00Z",
+  "dateModified": "2026-02-07T08:10:00Z",
+  "additionalProperty": [
+    { "@type": "PropertyValue", "propertyID": "app:bucket", "value": "inbox" },
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:needsEnrichment",
+      "value": true
+    },
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:confidence",
+      "value": "medium"
+    },
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:captureSource",
+      "value": {
+        "kind": "file",
+        "fileName": "Reisekostenabrechnung_Q1.pdf",
+        "mimeType": "application/pdf"
+      }
+    }
+  ]
+}
+```
+
+### Email file capture — `EmailMessage` in inbox with extractable entities
+
+User dropped a `.eml` file. The classifier flags extractable Person/Organization entities.
+
+```json
+{
+  "@id": "urn:app:inbox:file-102",
+  "@type": "EmailMessage",
+  "_schemaVersion": 2,
+  "name": "Re_Fahrkosten_Mueller.eml",
+  "encodingFormat": "message/rfc822",
+  "dateCreated": "2026-02-07T08:15:00Z",
+  "dateModified": "2026-02-07T08:15:00Z",
+  "additionalProperty": [
+    { "@type": "PropertyValue", "propertyID": "app:bucket", "value": "inbox" },
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:needsEnrichment",
+      "value": true
+    },
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:confidence",
+      "value": "medium"
+    },
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:captureSource",
+      "value": {
+        "kind": "file",
+        "fileName": "Re_Fahrkosten_Mueller.eml",
+        "mimeType": "message/rfc822"
+      }
+    },
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:extractableEntities",
+      "value": ["Person", "Organization"]
+    }
+  ]
+}
+```
+
+### Action (`Action`) — triaged
+
+After triage from inbox, `confidence` is `"high"`, `needsEnrichment` is `false`,
+and `bucket` has moved to an action bucket.
 
 ```json
 {
@@ -453,8 +600,14 @@ renames this action, `name` would appear as a top-level property.
 | `needsEnrichment` | `boolean`                 | Flagged for review/clarification |
 | `confidence`      | `high` / `medium` / `low` | How well-defined the item is     |
 
-**Workflow**: Items enter as `confidence: "low"`, `needsEnrichment: true`.
-Clarification moves them to `confidence: "high"`, `needsEnrichment: false`.
+**Confidence lifecycle:**
+
+| Stage      | `confidence` | `needsEnrichment` | Trigger                                        |
+| ---------- | ------------ | ----------------- | ---------------------------------------------- |
+| Capture    | `medium`     | `true`            | Heuristic classification at intake             |
+| Triage     | `high`       | `false`           | User confirms type and assigns bucket          |
+| Direct add | `high`       | `false`           | User creates action directly in a bucket       |
+| Legacy     | `low`        | `true`            | Old items created before intake classification |
 
 ---
 
@@ -472,6 +625,8 @@ only set when the user (or AI, with provenance) explicitly renames an item.
 | Project           | **required**                | n/a          |
 | ReferenceMaterial | **required**                | n/a          |
 | Context           | **required**                | n/a          |
+
+File captures set `name` to the file name. URL captures do not set `name`.
 
 ### Display logic
 
@@ -530,15 +685,15 @@ The serializer contract tests in `thing-serializer.test.ts` fetch these schemas,
 AJV validators, and verify that every `build*` and `toJsonLd` output conforms. Tests skip
 gracefully when the backend is unreachable.
 
-| Schema name       | Pydantic model         | Purpose               |
-| ----------------- | ---------------------- | --------------------- |
-| `inbox-thing`     | `InboxThingJsonLd`     | Inbox capture payload |
-| `action-thing`    | `ActionThingJsonLd`    | Action payload        |
-| `project-thing`   | `ProjectThingJsonLd`   | Project payload       |
-| `reference-thing` | `ReferenceThingJsonLd` | Reference payload     |
-| `event-thing`     | `EventThingJsonLd`     | Event payload         |
-| `thing-patch`     | `ThingPatchModel`      | PATCH payload         |
-| `property-value`  | `PropertyValueModel`   | PropertyValue shape   |
+| Schema name       | Pydantic model         | Purpose                                                 |
+| ----------------- | ---------------------- | ------------------------------------------------------- |
+| `inbox-thing`     | `InboxThingJsonLd`     | Inbox capture payload (deprecated — use `action-thing`) |
+| `action-thing`    | `ActionThingJsonLd`    | Action payload (inbox captures + triaged actions)       |
+| `project-thing`   | `ProjectThingJsonLd`   | Project payload                                         |
+| `reference-thing` | `ReferenceThingJsonLd` | Reference payload                                       |
+| `event-thing`     | `EventThingJsonLd`     | Event payload                                           |
+| `thing-patch`     | `ThingPatchModel`      | PATCH payload                                           |
+| `property-value`  | `PropertyValueModel`   | PropertyValue shape                                     |
 
 See [Schema Contract Validation](?path=/docs/engineering-ontology-schema-contract-validation--docs)
 for the full pipeline documentation, and
@@ -546,11 +701,11 @@ for the full pipeline documentation, and
 
 ---
 
-## Schema.org Conformance Notes
+## Known Deviations from schema.org Hierarchy
 
-The app uses schema.org as its primary vocabulary but **intentionally extends** several
-property domains beyond their strict schema.org definitions. These deviations are documented
-here so consumers of the JSON-LD data understand what is standard and what is app-specific.
+The app uses schema.org as its primary vocabulary but **intentionally deviates** from the
+strict schema.org type hierarchy in several ways. These are documented here so consumers
+of the JSON-LD data understand what is standard and what is app-specific.
 
 ### Correct schema.org usage
 
@@ -560,35 +715,72 @@ here so consumers of the JSON-LD data understand what is standard and what is ap
 | `startTime`, `endTime`                  | Action          | Correct temporal properties for Action |
 | `encodingFormat`                        | CreativeWork    | MIME type for reference material       |
 | `PropertyValue` (`propertyID`, `value`) | PropertyValue   | Standard extension point               |
+| `DigitalDocument`                       | CreativeWork    | Subtype — correct for files            |
+| `EmailMessage`                          | CreativeWork    | Subtype — correct for .eml/.msg        |
 
-### Intentional extensions beyond schema.org domains
+### Property domain extensions
 
-| Property                      | Standard domain(s)                | Our usage          | Rationale                                                                                                                                                                                                                                                                                                         |
-| ----------------------------- | --------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `additionalProperty`          | Product, Place, Offer             | All entity types   | Universal extension mechanism for `app:*` properties. Schema.org validators are lenient about domain.                                                                                                                                                                                                             |
-| `keywords`                    | CreativeWork, Event, Organization | Thing, Action      | Tags apply to all entities, not just creative works. Widely used outside strict domain in practice.                                                                                                                                                                                                               |
-| `dateCreated`, `dateModified` | CreativeWork, DataFeedItem        | All entity types   | Timestamps are universal. These are the most natural schema.org properties for creation/modification tracking.                                                                                                                                                                                                    |
-| `app:projectRefs`             | n/a (custom)                      | Thing → Project(s) | Many-to-many project membership via `additionalProperty`. Replaces the former `isPartOf`/`hasPart` bidirectional mapping which was semantically wrong (both properties have domain `CreativeWork`, not `Action`/`Organization`). Legacy `isPartOf` data is read via backward-compatible fallback in `fromJsonLd`. |
+| Property                      | Standard domain(s)                | Our usage           | Rationale                                                                                                                                                                                                                        |
+| ----------------------------- | --------------------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `additionalProperty`          | Product, Place, Offer             | All entity types    | Universal extension mechanism for `app:*` properties. Schema.org validators are lenient about domain.                                                                                                                            |
+| `keywords`                    | CreativeWork, Event, Organization | Thing, Action       | Tags apply to all entities, not just creative works. Widely used outside strict domain in practice.                                                                                                                              |
+| `dateCreated`, `dateModified` | CreativeWork, DataFeedItem        | All entity types    | Timestamps are universal. These are the most natural schema.org properties for creation/modification tracking.                                                                                                                   |
+| `app:projectRefs`             | n/a (custom)                      | Action → Project(s) | Many-to-many project membership via `additionalProperty`. Replaces the former `isPartOf`/`hasPart` bidirectional mapping which was semantically wrong (both properties have domain `CreativeWork`, not `Action`/`Organization`). |
 
-### Project type and Organization hierarchy
+### Type hierarchy deviations
 
-`schema:Project` is a **pending** schema.org type that inherits from `Organization`, not
-CreativeWork. This aligns with the app's backend architecture:
+| Deviation                         | schema.org says                                    | We do                                                       | Rationale                                                                                                                                                                                                          |
+| --------------------------------- | -------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Action` in inbox                 | `Action` implies an active item                    | `Action` with `bucket: "inbox"` and `needsEnrichment: true` | Text captures default to Action because the user expresses intent to do. The item sits in inbox until triaged. schema.org has no concept of "unprocessed" state.                                                   |
+| `DigitalDocument` as generic file | Subtype of `CreativeWork`                          | Used for any file drop (images, CSV, vCard, calendar)       | We don't distinguish `ImageObject` vs `DigitalDocument` at capture time. The MIME type is stored in `encodingFormat` for downstream specialization.                                                                |
+| `Project` as pending type         | `Project` extends `Organization` (pending)         | Used as a top-level GTD type                                | `schema:Project` is a pending type not yet formally in the schema.org hierarchy. We use it because it directly expresses the GTD concept. The Organization relationship is enforced at the API layer via `org_id`. |
+| `CreativeWork` in inbox           | `CreativeWork` typically represents finished works | `CreativeWork` with `bucket: "inbox"` for URL captures      | A pasted URL is a reference to a creative work. It sits in inbox until triaged to `reference` bucket.                                                                                                              |
 
-- Every user gets a default **Organization** on registration (`"{username}'s Workspace"`)
-- All things (including projects) are scoped to an Organization via `org_id`
-- Projects live within the user's Organization — the database enforces this relationship
-- Users can belong to multiple Organizations (multi-tenancy ready)
+### Organization hierarchy
 
-The JSON-LD `@type: "Project"` is an intentional choice despite its pending status because
-it directly expresses the domain concept. The Organization relationship is enforced at the
-API/database layer (not in JSON-LD) via `org_id` scoping.
+Every user gets a default **Organization** on registration (`"{username}'s Workspace"`).
+All things (including projects) are scoped to an Organization via `org_id`.
+Projects live within the user's Organization — the database enforces this relationship.
+Users can belong to multiple Organizations (multi-tenancy ready).
+
+---
+
+## Future Work
+
+### Layer 3 — Triage UI enhancements
+
+- Show the heuristic `@type` prominently on inbox items (icon + label)
+- "Change type" affordance — user can override the heuristic classification
+- For files with `extractableEntities`: offer extraction actions in triage
+  (e.g. "Extract contacts from this vCard?" → creates linked Person/Organization entities)
+- Entity extraction creates linked entities via `refers_to` typed references
+  while preserving the original file as a `DigitalDocument`
+
+### Layer 4 — LLM-assisted classification
+
+- Lightweight model to suggest `@type` for ambiguous text (e.g. "call Mueller" → Action vs. event?)
+- Content-based file classification beyond MIME (e.g. extract title from PDF metadata)
+- Confidence scoring: LLM-classified items could get `confidence: "medium"` vs heuristic `"medium"`,
+  with a `classificationSource` field to distinguish
+
+### Backend schema alignment
+
+- Deprecate `inbox-thing` schema — inbox items now use `action-thing` (`@type: "Action"`)
+- Add `DigitalDocument`, `EmailMessage` schema variants for file capture payloads
+- Add `app:extractableEntities` to the backend `PropertyValue` allowlist
+
+### Additional intake heuristics
+
+- Detect text patterns for Events (dates, times, "meeting", "appointment")
+- Detect multi-step outcomes for Project suggestions
+- Support `text/x-vcard` MIME variant (already in MIME map, untested with real browsers)
 
 ---
 
 ## Type Guards
 
 ```typescript
+isThing(item); // bucket in [inbox, next, waiting, calendar, someday]
 isInboxItem(item); // item.bucket === "inbox"
 isAction(item); // bucket in [next, waiting, calendar, someday]
 isProject(item); // item.bucket === "project"
@@ -603,13 +795,14 @@ isReferenceMaterial(item); // item.bucket === "reference"
 
 ```typescript
 // Capture-first entities — rawCapture is primary, name is optional
-createThing({ rawCapture: "Anruf bei Frau Müller", bucket: "inbox" });
+createInboxItem({ rawCapture: "Anruf bei Frau Müller" });
+// → bucket: "inbox", confidence: "medium", needsEnrichment: true
+
 createThing({ rawCapture: "Deploy", bucket: "next", isFocused: true });
-createThing({
-  name: "Weekly Groceries",
-  rawCapture: "buy bananas",
-  bucket: "next",
-});
+// → confidence: "high", needsEnrichment: false
+
+createAction({ rawCapture: "Follow up", bucket: "waiting" });
+// → bucket: "waiting", confidence: "high", needsEnrichment: false
 
 // Non-capture entities — name is required
 createProject({ name: "Relaunch", desiredOutcome: "Site live" });

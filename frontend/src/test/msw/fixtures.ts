@@ -55,13 +55,11 @@ export function createThingRecord(
   const bucket = overrides.bucket ?? "inbox";
   const type =
     overrides.type ??
-    (bucket === "inbox"
-      ? "Thing"
-      : bucket === "project"
-        ? "Project"
-        : bucket === "reference"
-          ? "CreativeWork"
-          : "Action");
+    (bucket === "project"
+      ? "Project"
+      : bucket === "reference"
+        ? "CreativeWork"
+        : "Action");
   const isEvent = type === "Event";
   const canonicalId =
     overrides.canonical_id ??
@@ -80,27 +78,14 @@ export function createThingRecord(
     dateModified: now,
   };
 
-  if (type === "Thing") {
-    base.additionalProperty = [
-      pv("app:bucket", "inbox"),
-      pv("app:rawCapture", overrides.rawCapture ?? displayName),
-      pv("app:needsEnrichment", true),
-      pv("app:confidence", "low"),
-      pv("app:captureSource", { kind: "thought" }),
-      pv("app:contexts", []),
-      pv("app:isFocused", overrides.isFocused ?? false),
-      pv("app:ports", []),
-      pv("app:typedReferences", []),
-      pv("app:provenanceHistory", [{ timestamp: now, action: "created" }]),
-    ];
-  } else if (type === "Action") {
+  if (type === "Action") {
     base.startTime = null;
     base.endTime = overrides.completedAt ?? null;
     base.additionalProperty = [
       pv("app:bucket", bucket),
       pv("app:rawCapture", overrides.rawCapture ?? displayName),
-      pv("app:needsEnrichment", false),
-      pv("app:confidence", "high"),
+      pv("app:needsEnrichment", bucket === "inbox"),
+      pv("app:confidence", bucket === "inbox" ? "medium" : "high"),
       pv("app:captureSource", { kind: "thought" }),
       pv("app:contexts", []),
       pv("app:isFocused", overrides.isFocused ?? false),

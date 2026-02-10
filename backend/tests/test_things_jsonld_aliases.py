@@ -12,8 +12,10 @@ JSONLD_KEYS = {"@id", "@type", "_schemaVersion"}
 PYTHON_KEYS = {"id", "type", "schemaVersion"}
 
 INBOX_THING = {
-    "@type": "Thing",
+    "@type": "Action",
     "_schemaVersion": 2,
+    "startTime": None,
+    "endTime": None,
     "additionalProperty": [
         {"@type": "PropertyValue", "propertyID": "app:bucket", "value": "inbox"},
         {"@type": "PropertyValue", "propertyID": "app:rawCapture", "value": "alias test"},

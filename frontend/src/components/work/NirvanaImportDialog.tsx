@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import { Icon } from "@/components/ui/Icon";
+import { useToast } from "@/lib/use-toast";
 import { useNirvanaImport } from "@/hooks/use-nirvana-import";
 import {
   DuplicateImportWarning,
@@ -33,6 +34,7 @@ function NirvanaImportDialogContent({
   checkDuplicate,
 }: Omit<NirvanaImportDialogProps, "open">) {
   const { upload, inspect, startImport, job, setJobId } = useNirvanaImport();
+  const { toast } = useToast();
   const [step, setStep] = useState<Step>("select");
   const [fileId, setFileId] = useState<string | null>(null);
   const [includeCompleted, setIncludeCompleted] = useState(true);
@@ -55,16 +57,17 @@ function NirvanaImportDialogContent({
           if (dup) setDuplicateInfo(dup);
         }
 
-        await inspect.mutateAsync({
+        const result = await inspect.mutateAsync({
           fileId: record.file_id,
           includeCompleted,
         });
         setStep("preview");
+        toast(`File analyzed — ${result.total} items found`, "info");
       } catch {
         setStep("select");
       }
     },
-    [upload, inspect, includeCompleted, checkDuplicate],
+    [upload, inspect, includeCompleted, checkDuplicate, toast],
   );
 
   const handleFileInput = useCallback(
@@ -95,10 +98,14 @@ function NirvanaImportDialogContent({
       });
       setJobId(jobResponse.job_id);
       setStep("results");
+      toast(
+        `Import started — processing ${inspect.data?.total ?? 0} items`,
+        "info",
+      );
     } catch {
       setStep("preview");
     }
-  }, [fileId, includeCompleted, startImport, setJobId]);
+  }, [fileId, includeCompleted, startImport, setJobId, inspect.data, toast]);
 
   const preview = inspect.data;
   const jobData = job.data;

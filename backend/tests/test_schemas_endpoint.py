@@ -17,6 +17,7 @@ def test_list_schemas(client):
 
 
 def test_get_schema_inbox_thing(client):
+    """inbox-thing is a deprecated alias that now returns the Action schema."""
     response = client.get("/schemas/inbox-thing")
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/schema+json"
@@ -26,7 +27,7 @@ def test_get_schema_inbox_thing(client):
     props = schema["properties"]
     assert "@id" in props
     assert "@type" in props
-    assert props["@type"]["const"] == "Thing"
+    assert set(props["@type"]["enum"]) == {"Action", "Thing"}
 
 
 def test_get_schema_action_thing(client):
@@ -34,7 +35,7 @@ def test_get_schema_action_thing(client):
     assert response.status_code == 200
     schema = response.json()
     props = schema["properties"]
-    assert props["@type"]["const"] == "Action"
+    assert set(props["@type"]["enum"]) == {"Action", "Thing"}
     assert "startTime" in props
     assert "endTime" in props
 

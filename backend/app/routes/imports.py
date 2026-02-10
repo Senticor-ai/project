@@ -33,7 +33,7 @@ logger = get_logger("imports")
 _SCHEMA_VERSION = 2
 _SOURCE_METADATA_SCHEMA_VERSION = 1
 _TYPE_MAP = {
-    "inbox": "Thing",
+    "inbox": "Action",
     "action": "Action",
     "project": "Project",
     "reference": "CreativeWork",
@@ -432,6 +432,8 @@ def _build_nirvana_thing(
             source_metadata=source_metadata,
         )
         thing["@type"] = _TYPE_MAP["inbox"]
+        thing["startTime"] = None
+        thing["endTime"] = completed_dt.isoformat() if completed_dt else None
         thing["additionalProperty"].extend(
             [
                 _pv("app:bucket", "inbox"),

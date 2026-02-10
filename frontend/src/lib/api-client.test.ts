@@ -8,6 +8,7 @@ import {
   setUserContext,
   setCsrfToken,
   refreshCsrfToken,
+  setSessionExpiredHandler,
 } from "./api-client";
 
 // ---------------------------------------------------------------------------
@@ -48,6 +49,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  setSessionExpiredHandler(null);
   vi.restoreAllMocks();
 });
 
@@ -411,5 +413,80 @@ describe("ImportsApi", () => {
 
     const [url] = fetchSpy.mock.calls[0] as [string];
     expect(url).toContain("/imports/jobs/j-1");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 401 session recovery
+// ---------------------------------------------------------------------------
+
+const REFRESH_RESPONSE = {
+  user: MOCK_USER,
+  expires_at: "2026-01-01T01:00:00Z",
+  refresh_expires_at: "2026-01-02T00:00:00Z",
+};
+
+describe("401 session recovery", () => {
+  it("retries original request after successful refresh on 401", async () => {
+    // First call: 401, then refresh succeeds, then retry succeeds
+    fetchSpy
+      .mockResolvedValueOnce(errorResponse("Unauthorized", 401)) // GET /things
+      .mockResolvedValueOnce(jsonResponse(REFRESH_RESPONSE)) // POST /auth/refresh
+      .mockResolvedValueOnce(jsonResponse({ csrf_token: "new" })) // GET /auth/csrf
+      .mockResolvedValueOnce(jsonResponse([])); // retry GET /things
+
+    const result = await ThingsApi.list();
+    expect(result).toEqual([]);
+    expect(fetchSpy).toHaveBeenCalledTimes(4);
+
+    // Verify the retry went to the same URL
+    const [firstUrl] = fetchSpy.mock.calls[0] as [string];
+    const [retryUrl] = fetchSpy.mock.calls[3] as [string];
+    expect(retryUrl).toBe(firstUrl);
+  });
+
+  it("calls onSessionExpired and throws when refresh fails", async () => {
+    const expiredHandler = vi.fn();
+    setSessionExpiredHandler(expiredHandler);
+
+    // First call: 401, then refresh also fails
+    fetchSpy
+      .mockResolvedValueOnce(errorResponse("Unauthorized", 401)) // GET /things
+      .mockResolvedValueOnce(errorResponse("Refresh failed", 401)); // POST /auth/refresh
+
+    await expect(ThingsApi.list()).rejects.toThrow(ApiError);
+    expect(expiredHandler).toHaveBeenCalledOnce();
+  });
+
+  it("deduplicates concurrent refresh calls", async () => {
+    // Two requests both get 401, but only one refresh should happen
+    fetchSpy
+      .mockResolvedValueOnce(errorResponse("Unauthorized", 401)) // GET /things (1)
+      .mockResolvedValueOnce(errorResponse("Unauthorized", 401)) // GET /things (2)
+      .mockResolvedValueOnce(jsonResponse(REFRESH_RESPONSE)) // POST /auth/refresh (shared)
+      .mockResolvedValueOnce(jsonResponse({ csrf_token: "new" })) // GET /auth/csrf
+      .mockResolvedValueOnce(jsonResponse([])) // retry (1)
+      .mockResolvedValueOnce(jsonResponse([])); // retry (2)
+
+    const [r1, r2] = await Promise.all([
+      ThingsApi.list(),
+      ThingsApi.list(10, 0),
+    ]);
+    expect(r1).toEqual([]);
+    expect(r2).toEqual([]);
+
+    // Count how many calls went to /auth/refresh
+    const refreshCalls = fetchSpy.mock.calls.filter(([url]: unknown[]) =>
+      (url as string).includes("/auth/refresh"),
+    );
+    expect(refreshCalls).toHaveLength(1);
+  });
+
+  it("skips refresh attempt for /auth/* paths", async () => {
+    fetchSpy.mockResolvedValueOnce(errorResponse("Unauthorized", 401));
+
+    await expect(AuthApi.me()).rejects.toThrow(ApiError);
+    // Only 1 call (no refresh attempt)
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 });

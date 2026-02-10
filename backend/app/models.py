@@ -278,20 +278,12 @@ class ThingJsonLdBase(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
 
-class InboxThingJsonLd(ThingJsonLdBase):
-    """schema:Thing — unclarified inbox capture."""
-
-    type: Literal["Thing"] = Field(
-        ...,
-        alias="@type",
-        description="schema.org Thing (inbox item).",
-    )
-
-
 class ActionThingJsonLd(ThingJsonLdBase):
-    """schema:Action — next/waiting/calendar/someday action."""
+    """schema:Action — all action-type items (inbox, next, waiting, calendar, someday)."""
 
-    type: Literal["Action"] = Field(..., alias="@type", description="schema.org Action.")
+    type: Literal["Action", "Thing"] = Field(
+        ..., alias="@type", description="schema.org Action (also accepts legacy 'Thing').",
+    )
     startTime: str | None = Field(
         default=None,
         description="Scheduled date/time (schema.org startTime).",
@@ -352,22 +344,19 @@ class EventThingJsonLd(ThingJsonLdBase):
 def _resolve_thing_type(v: Any) -> str:
     """Custom discriminator for ThingJsonLd union — maps @type to tag."""
     raw_type = str(
-        v.get("@type", v.get("type", ""))
-        if isinstance(v, dict)
-        else getattr(v, "type", "")
+        v.get("@type", v.get("type", "")) if isinstance(v, dict) else getattr(v, "type", "")
     )
     return {
-        "Thing": "thing",
+        "Thing": "action",
         "Action": "action",
         "Project": "project",
         "CreativeWork": "creative_work",
         "Event": "event",
-    }.get(raw_type, "thing")
+    }.get(raw_type, "action")
 
 
 ThingJsonLd = Annotated[
-    Annotated[InboxThingJsonLd, Tag("thing")]
-    | Annotated[ActionThingJsonLd, Tag("action")]
+    Annotated[ActionThingJsonLd, Tag("action")]
     | Annotated[ProjectThingJsonLd, Tag("project")]
     | Annotated[ReferenceThingJsonLd, Tag("creative_work")]
     | Annotated[EventThingJsonLd, Tag("event")],

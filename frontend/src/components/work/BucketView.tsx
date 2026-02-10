@@ -1,6 +1,14 @@
-import { useCallback } from "react";
-import { DndContext, type DragEndEvent } from "@dnd-kit/core";
+import { useCallback, useState } from "react";
+import {
+  DndContext,
+  DragOverlay,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
+import { Icon } from "@/components/ui/Icon";
+import { BucketBadge } from "@/components/paperclip/BucketBadge";
+import { getDisplayName } from "@/model/types";
 import { BucketNav } from "./BucketNav";
 import { ThingList } from "./ThingList";
 import { ReferenceList } from "./ReferenceList";
@@ -70,8 +78,16 @@ export function BucketView({
   onSelectReference,
   className,
 }: BucketViewProps) {
+  const [activeThing, setActiveThing] = useState<Thing | null>(null);
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const thing = event.active.data.current?.thing as Thing | undefined;
+    setActiveThing(thing ?? null);
+  }, []);
+
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
+      setActiveThing(null);
       const { active, over } = event;
       if (!over) return;
       const targetBucket = over.data.current?.bucket as ThingBucket | undefined;
@@ -97,7 +113,7 @@ export function BucketView({
   };
 
   return (
-    <DndContext onDragEnd={handleDragEnd}>
+    <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className={cn("flex gap-6", className)}>
         <BucketNav
           activeBucket={activeBucket}
@@ -147,6 +163,19 @@ export function BucketView({
           ) : null}
         </main>
       </div>
+      <DragOverlay dropAnimation={{ duration: 200, easing: "ease" }}>
+        {activeThing ? (
+          <div className="flex items-center gap-2 rounded-[var(--radius-md)] border border-border bg-surface-raised px-3 py-2 shadow-[var(--shadow-sheet)]">
+            <Icon
+              name="drag_indicator"
+              size={14}
+              className="text-text-subtle"
+            />
+            <span className="text-sm">{getDisplayName(activeThing)}</span>
+            <BucketBadge bucket={activeThing.bucket} className="ml-auto" />
+          </div>
+        ) : null}
+      </DragOverlay>
     </DndContext>
   );
 }

@@ -15,6 +15,7 @@ import type {
 } from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
 import { createCanonicalId } from "@/model/canonical-id";
+import type { IntakeClassification } from "./intake-classifier";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -24,7 +25,6 @@ const SCHEMA_VERSION = 2;
 
 /** schema.org @type values keyed by our internal bucket concept. */
 const TYPE_MAP = {
-  inbox: "Thing",
   action: "Action",
   project: "Project",
   reference: "CreativeWork",
@@ -114,11 +114,8 @@ export function toJsonLd(
     base.name = item.name;
   }
 
-  if (item.bucket === "inbox") {
-    const thing = item as Thing;
-    base["@type"] = TYPE_MAP.inbox;
-    base.additionalProperty = serializeThingAdditionalProps(thing);
-  } else if (
+  if (
+    item.bucket === "inbox" ||
     item.bucket === "next" ||
     item.bucket === "waiting" ||
     item.bucket === "calendar" ||
@@ -126,7 +123,6 @@ export function toJsonLd(
   ) {
     const thing = item as Thing;
     base["@type"] = TYPE_MAP.action;
-    // schema.org direct mappings
     base.startTime = thing.scheduledDate ?? null;
     base.endTime = thing.completedAt ?? null;
     base.additionalProperty = serializeThingAdditionalProps(thing);
@@ -221,8 +217,7 @@ export function fromJsonLd(record: ThingRecord): AppItem {
     contexts:
       (getAdditionalProperty(props, "app:contexts") as CanonicalId[]) ?? [],
     projectIds:
-      (getAdditionalProperty(props, "app:projectRefs") as CanonicalId[]) ??
-      extractLegacyProjectIds(t),
+      (getAdditionalProperty(props, "app:projectRefs") as CanonicalId[]) ?? [],
     delegatedTo:
       (getAdditionalProperty(props, "app:delegatedTo") as string) || undefined,
     scheduledDate:
@@ -248,28 +243,16 @@ export function fromJsonLd(record: ThingRecord): AppItem {
       undefined,
   };
 
-  if (type === TYPE_MAP.inbox || type === "Thing") {
-    return {
-      ...base,
-      ...thingFields,
-      bucket: "inbox" as const,
-      rawCapture:
-        (getAdditionalProperty(props, "app:rawCapture") as string) ?? base.name,
-    };
-  }
-
   if (type === TYPE_MAP.action || type === "Action") {
     const bucket =
-      (getAdditionalProperty(props, "app:bucket") as Exclude<
-        ThingBucket,
-        "inbox"
-      >) ?? "next";
+      (getAdditionalProperty(props, "app:bucket") as ThingBucket) ?? "next";
     return {
       ...base,
       ...thingFields,
       bucket,
       rawCapture:
-        (getAdditionalProperty(props, "app:rawCapture") as string) || undefined,
+        (getAdditionalProperty(props, "app:rawCapture") as string) ||
+        (bucket === "inbox" ? base.name : undefined),
     };
   }
 
@@ -293,6 +276,17 @@ export function fromJsonLd(record: ThingRecord): AppItem {
   }
 
   if (type === TYPE_MAP.reference || type === "CreativeWork") {
+    const bucket = getAdditionalProperty(props, "app:bucket") as string;
+    if (bucket === "inbox") {
+      return {
+        ...base,
+        ...thingFields,
+        bucket: "inbox" as const,
+        rawCapture:
+          (getAdditionalProperty(props, "app:rawCapture") as string) ||
+          base.name,
+      };
+    }
     return {
       ...base,
       bucket: "reference" as const,
@@ -328,15 +322,6 @@ export function fromJsonLd(record: ThingRecord): AppItem {
     rawCapture:
       (getAdditionalProperty(props, "app:rawCapture") as string) ?? base.name,
   };
-}
-
-/** Backward compat: extract projectIds from legacy isPartOf reference. */
-function extractLegacyProjectIds(t: Record<string, unknown>): CanonicalId[] {
-  const isPartOf = t.isPartOf as { "@id": string } | undefined;
-  if (isPartOf?.["@id"]) {
-    return [isPartOf["@id"] as CanonicalId];
-  }
-  return [];
 }
 
 // ---------------------------------------------------------------------------
@@ -435,17 +420,19 @@ export function buildNewInboxJsonLd(rawText: string): Record<string, unknown> {
 
   return {
     "@id": id,
-    "@type": TYPE_MAP.inbox,
+    "@type": TYPE_MAP.action,
     _schemaVersion: SCHEMA_VERSION,
     description: null,
     keywords: [],
     dateCreated: now,
     dateModified: now,
+    startTime: null,
+    endTime: null,
     additionalProperty: [
       pv("app:bucket", "inbox"),
       pv("app:rawCapture", rawText),
       pv("app:needsEnrichment", true),
-      pv("app:confidence", "low"),
+      pv("app:confidence", "medium"),
       pv("app:captureSource", { kind: "thought" }),
       pv("app:contexts", []),
       pv("app:isFocused", false),
@@ -490,6 +477,80 @@ export function buildNewActionJsonLd(
       pv("app:typedReferences", []),
       pv("app:provenanceHistory", [{ timestamp: now, action: "created" }]),
       pv("app:projectRefs", opts?.projectId ? [opts.projectId] : []),
+    ],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// buildNewFileInboxJsonLd — file drop → full JSON-LD for POST /things
+// ---------------------------------------------------------------------------
+
+export function buildNewFileInboxJsonLd(
+  classification: IntakeClassification,
+  fileName: string,
+): Record<string, unknown> {
+  const id = createCanonicalId("inbox", crypto.randomUUID());
+  const now = new Date().toISOString();
+
+  const additionalProps = [
+    pv("app:bucket", "inbox"),
+    pv("app:needsEnrichment", true),
+    pv("app:confidence", "medium"),
+    pv("app:captureSource", classification.captureSource),
+    pv("app:contexts", []),
+    pv("app:isFocused", false),
+    pv("app:ports", []),
+    pv("app:typedReferences", []),
+    pv("app:provenanceHistory", [{ timestamp: now, action: "created" }]),
+  ];
+
+  if (classification.extractableEntities) {
+    additionalProps.push(
+      pv("app:extractableEntities", classification.extractableEntities),
+    );
+  }
+
+  return {
+    "@id": id,
+    "@type": classification.schemaType,
+    _schemaVersion: SCHEMA_VERSION,
+    name: fileName,
+    description: null,
+    keywords: [],
+    encodingFormat: classification.encodingFormat ?? null,
+    dateCreated: now,
+    dateModified: now,
+    additionalProperty: additionalProps,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// buildNewUrlInboxJsonLd — URL paste → full JSON-LD for POST /things
+// ---------------------------------------------------------------------------
+
+export function buildNewUrlInboxJsonLd(url: string): Record<string, unknown> {
+  const id = createCanonicalId("inbox", crypto.randomUUID());
+  const now = new Date().toISOString();
+
+  return {
+    "@id": id,
+    "@type": "CreativeWork",
+    _schemaVersion: SCHEMA_VERSION,
+    url,
+    description: null,
+    keywords: [],
+    dateCreated: now,
+    dateModified: now,
+    additionalProperty: [
+      pv("app:bucket", "inbox"),
+      pv("app:needsEnrichment", true),
+      pv("app:confidence", "medium"),
+      pv("app:captureSource", { kind: "url" as const, url }),
+      pv("app:contexts", []),
+      pv("app:isFocused", false),
+      pv("app:ports", []),
+      pv("app:typedReferences", []),
+      pv("app:provenanceHistory", [{ timestamp: now, action: "created" }]),
     ],
   };
 }

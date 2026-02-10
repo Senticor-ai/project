@@ -12,7 +12,10 @@ import {
   buildNewProjectJsonLd,
   buildTriagePatch,
   buildNewActionJsonLd,
+  buildNewFileInboxJsonLd,
+  buildNewUrlInboxJsonLd,
 } from "@/lib/thing-serializer";
+import { classifyText, classifyFile } from "@/lib/intake-classifier";
 import type { Thing, ThingBucket, TriageResult } from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
 import { THINGS_QUERY_KEY } from "./use-things";
@@ -52,10 +55,22 @@ function findRecord(
   return completed?.find((r) => r.canonical_id === canonicalId);
 }
 
-/** Check if a record's @type is "Thing" (inbox item that needs promotion on move). */
-function isThingType(qc: QueryClient, canonicalId: CanonicalId): boolean {
+/**
+ * Check if a record's @type needs promotion when moving to a target bucket.
+ * Compares the current @type against the expected type for the target bucket.
+ * E.g. Action → reference needs promotion (to CreativeWork),
+ * but Action → next does not.
+ */
+function needsTypePromotion(
+  qc: QueryClient,
+  canonicalId: CanonicalId,
+  targetBucket: string,
+): boolean {
   const record = findRecord(qc, canonicalId);
-  return record?.thing["@type"] === "Thing";
+  if (!record) return false;
+  const currentType = record.thing["@type"] as string;
+  const expectedType = targetTypeForBucket(targetBucket);
+  return currentType !== expectedType;
 }
 
 // ---------------------------------------------------------------------------
@@ -70,6 +85,32 @@ async function snapshotActive(qc: QueryClient) {
   return qc.getQueryData<ThingRecord[]>(ACTIVE_KEY);
 }
 
+/** Cancel in-flight queries and snapshot both caches for rollback. */
+async function snapshotBoth(qc: QueryClient) {
+  await qc.cancelQueries({ queryKey: ACTIVE_KEY });
+  await qc.cancelQueries({ queryKey: COMPLETED_KEY });
+  return {
+    prevActive: qc.getQueryData<ThingRecord[]>(ACTIVE_KEY),
+    prevCompleted: qc.getQueryData<ThingRecord[]>(COMPLETED_KEY),
+  };
+}
+
+/** Remove a record from the completed cache by canonical ID. */
+function removeFromCompleted(qc: QueryClient, canonicalId: CanonicalId) {
+  qc.setQueryData<ThingRecord[]>(COMPLETED_KEY, (old) =>
+    old?.filter((r) => r.canonical_id !== canonicalId),
+  );
+}
+
+/** Add a record to a cache partition. */
+function addToCache(
+  qc: QueryClient,
+  key: readonly unknown[],
+  record: ThingRecord,
+) {
+  qc.setQueryData<ThingRecord[]>(key, (old) => [...(old ?? []), record]);
+}
+
 /** Remove a record from the active cache by canonical ID. */
 function removeFromCache(qc: QueryClient, canonicalId: CanonicalId) {
   qc.setQueryData<ThingRecord[]>(ACTIVE_KEY, (old) =>
@@ -82,7 +123,7 @@ function targetTypeForBucket(bucket: string): string {
   return bucket === "reference" ? "CreativeWork" : "Action";
 }
 
-/** Promote @type from "Thing" to the appropriate type in the active cache. */
+/** Promote @type to the appropriate type in the active cache. */
 function promoteTypeInCache(
   qc: QueryClient,
   canonicalId: CanonicalId,
@@ -131,18 +172,68 @@ export function useCaptureInbox() {
 
   return useMutation({
     mutationFn: async (rawText: string) => {
-      const jsonLd = buildNewInboxJsonLd(rawText);
+      const classification = classifyText(rawText);
+      const jsonLd =
+        classification.captureSource.kind === "url"
+          ? buildNewUrlInboxJsonLd(classification.captureSource.url)
+          : buildNewInboxJsonLd(rawText);
       return ThingsApi.create(jsonLd, "manual");
     },
     onMutate: async (rawText) => {
       const prev = await snapshotActive(qc);
+      const classification = classifyText(rawText);
+      const tempId = `urn:app:inbox:temp-${Date.now()}`;
+      const now = new Date().toISOString();
+      const thing =
+        classification.captureSource.kind === "url"
+          ? buildNewUrlInboxJsonLd(classification.captureSource.url)
+          : buildNewInboxJsonLd(rawText);
+      const optimistic: ThingRecord = {
+        thing_id: `temp-${Date.now()}`,
+        canonical_id: tempId,
+        source: "manual",
+        thing,
+        created_at: now,
+        updated_at: now,
+      };
+      qc.setQueryData<ThingRecord[]>(ACTIVE_KEY, (old) => [
+        ...(old ?? []),
+        optimistic,
+      ]);
+      return { prev };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.prev) qc.setQueryData(ACTIVE_KEY, context.prev);
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: THINGS_QUERY_KEY });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Capture file → inbox item with detected type
+// ---------------------------------------------------------------------------
+
+export function useCaptureFile() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const classification = classifyFile(file);
+      const jsonLd = buildNewFileInboxJsonLd(classification, file.name);
+      return ThingsApi.create(jsonLd, "manual");
+    },
+    onMutate: async (file) => {
+      const prev = await snapshotActive(qc);
+      const classification = classifyFile(file);
       const tempId = `urn:app:inbox:temp-${Date.now()}`;
       const now = new Date().toISOString();
       const optimistic: ThingRecord = {
         thing_id: `temp-${Date.now()}`,
         canonical_id: tempId,
         source: "manual",
-        thing: buildNewInboxJsonLd(rawText),
+        thing: buildNewFileInboxJsonLd(classification, file.name),
         created_at: now,
         updated_at: now,
       };
@@ -191,27 +282,41 @@ export function useTriageItem() {
       const thingId = findThingId(qc, item.id);
       if (thingId) savedIds.current.set(item.id, thingId);
 
-      const prev = await snapshotActive(qc);
       if (result.targetBucket === "archive") {
+        const record = findRecord(qc, item.id);
+        const { prevActive, prevCompleted } = await snapshotBoth(qc);
         removeFromCache(qc, item.id);
-      } else {
-        updateBucketInCache(qc, item.id, result.targetBucket);
-        if (isThingType(qc, item.id)) {
-          promoteTypeInCache(
-            qc,
-            item.id,
-            targetTypeForBucket(result.targetBucket),
-          );
+        // Optimistically show in Done section
+        if (record) {
+          addToCache(qc, COMPLETED_KEY, {
+            ...record,
+            thing: { ...record.thing, endTime: new Date().toISOString() },
+          });
         }
+        return { prevActive, prevCompleted };
       }
-      return { prev };
+
+      const prev = await snapshotActive(qc);
+      updateBucketInCache(qc, item.id, result.targetBucket);
+      if (needsTypePromotion(qc, item.id, result.targetBucket)) {
+        promoteTypeInCache(
+          qc,
+          item.id,
+          targetTypeForBucket(result.targetBucket),
+        );
+      }
+      return { prevActive: prev };
     },
     onError: (_err, _vars, context) => {
-      if (context?.prev) qc.setQueryData(ACTIVE_KEY, context.prev);
+      if (context?.prevActive) qc.setQueryData(ACTIVE_KEY, context.prevActive);
+      if (context?.prevCompleted)
+        qc.setQueryData(COMPLETED_KEY, context.prevCompleted);
     },
     onSettled: (_data, _err, { item }) => {
       savedIds.current.delete(item.id);
-      qc.invalidateQueries({ queryKey: THINGS_QUERY_KEY });
+      // Only invalidate active partition — triage doesn't affect completed items,
+      // and archive optimistically adds to COMPLETED_KEY which we want to preserve.
+      qc.invalidateQueries({ queryKey: ACTIVE_KEY });
     },
   });
 }
@@ -239,12 +344,33 @@ export function useCompleteAction() {
       const record = findRecord(qc, canonicalId);
       if (record) savedRecords.current.set(canonicalId, record);
 
-      const prev = await snapshotActive(qc);
-      removeFromCache(qc, canonicalId);
-      return { prev };
+      const { prevActive, prevCompleted } = await snapshotBoth(qc);
+      const isCompleted = !!record?.thing.endTime;
+
+      if (isCompleted && record) {
+        // Un-completing: move from COMPLETED → ACTIVE (clear endTime)
+        removeFromCompleted(qc, canonicalId);
+        addToCache(qc, ACTIVE_KEY, {
+          ...record,
+          thing: { ...record.thing, endTime: undefined },
+        });
+      } else {
+        // Completing: move from ACTIVE → COMPLETED (set endTime)
+        removeFromCache(qc, canonicalId);
+        if (record) {
+          addToCache(qc, COMPLETED_KEY, {
+            ...record,
+            thing: { ...record.thing, endTime: new Date().toISOString() },
+          });
+        }
+      }
+
+      return { prevActive, prevCompleted };
     },
     onError: (_err, _vars, context) => {
-      if (context?.prev) qc.setQueryData(ACTIVE_KEY, context.prev);
+      if (context?.prevActive) qc.setQueryData(ACTIVE_KEY, context.prevActive);
+      if (context?.prevCompleted)
+        qc.setQueryData(COMPLETED_KEY, context.prevCompleted);
     },
     onSettled: (_data, _err, canonicalId) => {
       savedRecords.current.delete(canonicalId);
@@ -341,7 +467,7 @@ export function useMoveAction() {
       if (!thingId) throw new Error(`Thing not found: ${canonicalId}`);
 
       const needsPromotion =
-        meta?.needsPromotion ?? isThingType(qc, canonicalId);
+        meta?.needsPromotion ?? needsTypePromotion(qc, canonicalId, bucket);
 
       const patch: Record<string, unknown> = {
         additionalProperty: [
@@ -359,7 +485,7 @@ export function useMoveAction() {
     },
     onMutate: async ({ canonicalId, bucket }) => {
       const thingId = findThingId(qc, canonicalId);
-      const needsPromotion = isThingType(qc, canonicalId);
+      const needsPromotion = needsTypePromotion(qc, canonicalId, bucket);
       if (thingId)
         savedMeta.current.set(canonicalId, { thingId, needsPromotion });
 
@@ -610,16 +736,28 @@ export function useArchiveReference() {
       const thingId = findThingId(qc, canonicalId);
       if (thingId) savedIds.current.set(canonicalId, thingId);
 
-      const prev = await snapshotActive(qc);
+      const record = findRecord(qc, canonicalId);
+      const { prevActive, prevCompleted } = await snapshotBoth(qc);
       removeFromCache(qc, canonicalId);
-      return { prev };
+      // Optimistically show in Archived section
+      if (record) {
+        addToCache(qc, COMPLETED_KEY, {
+          ...record,
+          thing: { ...record.thing, endTime: new Date().toISOString() },
+        });
+      }
+      return { prevActive, prevCompleted };
     },
     onError: (_err, _vars, context) => {
-      if (context?.prev) qc.setQueryData(ACTIVE_KEY, context.prev);
+      if (context?.prevActive) qc.setQueryData(ACTIVE_KEY, context.prevActive);
+      if (context?.prevCompleted)
+        qc.setQueryData(COMPLETED_KEY, context.prevCompleted);
     },
     onSettled: (_data, _err, canonicalId) => {
       savedIds.current.delete(canonicalId);
-      qc.invalidateQueries({ queryKey: THINGS_QUERY_KEY });
+      // Only invalidate active partition — archive optimistically adds to
+      // COMPLETED_KEY which we want to preserve until next completed refresh.
+      qc.invalidateQueries({ queryKey: ACTIVE_KEY });
     },
   });
 }

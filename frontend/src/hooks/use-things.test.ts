@@ -93,18 +93,20 @@ const ACTION_RECORD = makeRecord({
 
 const INBOX_RECORD = makeRecord({
   thing: {
-    "@type": "Thing",
+    "@type": "Action",
     "@id": "urn:app:inbox:1",
     _schemaVersion: 2,
     name: "Random thought",
     keywords: [],
     dateCreated: "2026-01-01T00:00:00Z",
     dateModified: "2026-01-01T00:00:00Z",
+    startTime: null,
+    endTime: null,
     additionalProperty: [
       pvFixture("app:bucket", "inbox"),
       pvFixture("app:rawCapture", "Random thought"),
       pvFixture("app:needsEnrichment", true),
-      pvFixture("app:confidence", "low"),
+      pvFixture("app:confidence", "medium"),
       pvFixture("app:captureSource", { kind: "thought" }),
       pvFixture("app:contexts", []),
       pvFixture("app:isFocused", false),
