@@ -608,7 +608,7 @@ def run_native_import(
     update_existing: bool,
     include_completed: bool,
     emit_events: bool,
-    on_progress: Callable[[int], None] | None = None,
+    on_progress: Callable[[int, dict[str, int]], None] | None = None,
 ) -> NirvanaImportSummary:
     """Import items from a TerminAndoYo JSON export (``/items/export``).
 
