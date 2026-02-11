@@ -5,15 +5,16 @@ A **ontology-native task management system** bringing schema.org into a modern, 
 ## Quick Start
 
 ```bash
-npm run dev   # starts backend + worker + frontend + storybook
+npm run dev   # starts backend + worker + agents + frontend + storybook
 ```
 
-One command from the repo root starts all four processes via `concurrently`:
+One command from the repo root starts all five processes via `concurrently`:
 
 | Process   | URL                          |
 | --------- | ---------------------------- |
 | Backend   | http://localhost:8000/docs   |
 | Worker    | (background, no UI)          |
+| Agents    | http://localhost:8002/health |
 | Frontend  | http://localhost:5173        |
 | Storybook | http://localhost:6006        |
 
@@ -27,6 +28,7 @@ cd frontend && npm install && npm run storybook   # Storybook at http://localhos
 cd frontend && npm run dev                         # Vite dev server
 cd backend && uv sync && uv run uvicorn app.main:app --reload  # API server
 cd backend && uv run python -m app.worker --loop               # Worker
+cd agents && uv sync && uv run uvicorn app:app --reload --port 8002  # Tay agents
 ```
 </details>
 
@@ -51,7 +53,8 @@ cd frontend && npm run storybook   # http://localhost:6006
 | Layer         | Technologies                                                                    |
 | ------------- | ------------------------------------------------------------------------------- |
 | Frontend      | React 19, Vite, TypeScript, Tailwind v4, shadcn/ui, Framer Motion, Storybook 10 |
-| Backend       | Python, FastAPI, Haystack, PostgreSQL, Apache Jena Fuseki, Qdrant               |
+| Backend       | Python, FastAPI, PostgreSQL, Apache Jena Fuseki, Qdrant                          |
+| Agents        | Python, Haystack, OpenRouter (separate service for Tay AI copilot)               |
 | Observability | OpenTelemetry, Grafana LGTM (Loki, Grafana, Tempo, Mimir)                       |
 | Auth          | Local JWT with HTTP-only cookies                                                |
 
@@ -63,6 +66,7 @@ See [CLAUDE.md](CLAUDE.md) for development practices, coding conventions, and pr
 # Run tests
 cd frontend && CI=1 npx vitest run --project=unit   # Frontend unit tests
 cd backend && uv run python -m pytest               # Backend tests
+cd agents && uv run python -m pytest tests/          # Agents tests
 
 # Pre-commit checks (frontend)
 cd frontend && npx tsc -b --noEmit && npx eslint src/ && npx prettier --check src/

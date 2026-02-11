@@ -4,7 +4,7 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 # Epic: Tay Copilot V1 — Chat + Item Creation
 
-**Status:** In progress (Storybook)
+**Status:** V1 complete (frontend + backend + agents)
 **Priority:** Current
 
 ## Context
@@ -144,31 +144,37 @@ Tay: "Projekt 'Geburtstagsfeier planen' erstellt mit
 
 ## What's done
 
-- [ ] Types: `chat-types.ts` with message variants and tool definitions
-- [ ] Types: `CaptureSource` `tay` variant in `types.ts`
-- [ ] Component: `ChatInput` (wraps `AutoGrowTextarea`)
-- [ ] Component: `UserMessageBubble` + `TayMessageBubble`
-- [ ] Component: `TayThinkingIndicator`
-- [ ] Component: `ChatMessageList` (auto-scroll)
-- [ ] Component: `TaySuggestionCard` (accept/dismiss/edit lifecycle)
-- [ ] Component: `TayConfirmation` (item chips)
-- [ ] Component: `TayChatPanel` (side panel shell)
-- [ ] Component: `TayChatToggle` (header button)
-- [ ] Hook: `useChatState` (local conversation state)
-- [ ] Hook: `useTayApi` (MSW-mocked chat endpoint)
-- [ ] Hook: `useTayActions` (orchestrates item creation via existing mutations)
-- [ ] MSW: chat handlers and fixtures
-- [ ] Integration: `AppHeader` toggle + `App.tsx` panel rendering
-- [ ] Stories: all components with interactive play functions
-- [ ] Tests: unit tests for all components and hooks
-- [ ] Docs: `TayChatFlow.mdx`, `DetachableAttachments.mdx`
+### Frontend
 
-## What's next (backend — V1 scope)
+- [x] Types: `chat-types.ts` with message variants and tool definitions
+- [x] Types: `CaptureSource` `tay` variant in `types.ts`
+- [x] Component: `ChatInput` (wraps `AutoGrowTextarea`)
+- [x] Component: `UserMessageBubble` + `TayMessageBubble`
+- [x] Component: `TayThinkingIndicator`
+- [x] Component: `ChatMessageList` (auto-scroll)
+- [x] Component: `TaySuggestionCard` (accept/dismiss/edit lifecycle)
+- [x] Component: `TayConfirmation` (item chips)
+- [x] Component: `TayChatPanel` (side panel shell)
+- [x] Component: `TayChatToggle` (header button)
+- [x] Hook: `useChatState` (local conversation state)
+- [x] Hook: `useTayApi` (MSW-mocked chat endpoint)
+- [x] Hook: `useTayActions` (orchestrates item creation via existing mutations)
+- [x] MSW: chat handlers and fixtures
+- [x] Integration: `AppHeader` toggle + `App.tsx` panel rendering
+- [x] Stories: all components with interactive play functions
+- [x] Tests: unit tests for all components and hooks
+- [x] Docs: `TayChatFlow.mdx`, `DetachableAttachments.mdx`
 
-- [ ] `POST /chat/completions` — single-message proxy → Haystack agent → OpenRouter
-- [ ] 3 tool definitions matching frontend tool types (`create_project_with_actions`, `create_action`, `create_reference`)
-- [ ] German system prompt
-- [ ] Graceful error handling (503/502 from OpenRouter → user-friendly error message)
+### Backend + Agents
+
+- [x] `POST /chat/completions` — backend proxy to agents service (7 tests)
+- [x] Agents service (`agents/`) — separate FastAPI on port 8002 (4 tests)
+- [x] Haystack Agent with OpenRouter via `OpenAIChatGenerator`
+- [x] 3 no-op tool definitions (`create_project_with_actions`, `create_action`, `create_reference`)
+- [x] German system prompt with GTD bucket guidance
+- [x] Graceful error handling (503 no agents, 502 unreachable, 504 timeout)
+- [x] `AGENTS_URL` config in backend Settings
+- [x] `npm run dev` starts all 5 services (backend, worker, agents, frontend, storybook)
 
 **Deferred to V2+:** Conversation history, user items in prompt context, streaming (SSE), model fallback, K8s agent manifests, CI pipeline jobs, DB persistence for conversations. See [Tay Copilot V2+](?path=/docs/product-epics-tay-copilot-v2---docs).
 
@@ -176,7 +182,7 @@ Tay: "Projekt 'Geburtstagsfeier planen' erstellt mit
 
 ## Files
 
-**New:**
+### Frontend (new)
 
 | File | Purpose |
 | --- | --- |
@@ -190,7 +196,7 @@ Tay: "Projekt 'Geburtstagsfeier planen' erstellt mit
 | `src/components/chat/TaySuggestionCard.tsx` | Suggestion preview card |
 | Each component: `.stories.tsx` + `.test.tsx` | Stories and tests |
 
-**Modified:**
+### Frontend (modified)
 
 | File | Change |
 | --- | --- |
@@ -199,6 +205,26 @@ Tay: "Projekt 'Geburtstagsfeier planen' erstellt mit
 | `src/App.tsx` | Add panel state and rendering |
 | `src/test/msw/handlers.ts` | Add chat handlers |
 | `src/test/msw/fixtures.ts` | Add chat fixtures |
+
+### Agents service (new — `agents/`)
+
+| File | Purpose |
+| --- | --- |
+| `agents/pyproject.toml` | Dependencies: haystack-ai, fastapi, uvicorn |
+| `agents/app.py` | FastAPI app with `/chat/completions` + `/health` |
+| `agents/tay.py` | Haystack Agent, system prompt, 3 tool definitions |
+| `agents/tests/test_app.py` | 4 tests (health, text, tool calls, error) |
+
+### Backend (new/modified)
+
+| File | Purpose |
+| --- | --- |
+| `backend/app/chat/__init__.py` | Package init |
+| `backend/app/chat/routes.py` | Proxy endpoint to agents service |
+| `backend/tests/test_chat_routes.py` | 7 tests (auth, 503, 422, proxy, timeout, 502) |
+| `backend/app/config.py` | Added `agents_url: str \| None` |
+| `backend/app/main.py` | Registered chat router |
+| `scripts/start_agents.sh` | Dev startup script for agents |
 
 ---
 

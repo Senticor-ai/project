@@ -255,3 +255,38 @@ graph LR
   style MH fill:#f5f5f5,stroke:#999
   style IR fill:#f5f5f5,stroke:#999
 `} />
+
+---
+
+## Backend Architecture
+
+The chat API spans two services. The backend acts as an authenticated proxy; the agents service runs the Haystack AI pipeline.
+
+<Mermaid chart={`
+graph LR
+  FE["<b>Frontend</b><br/>useTayApi"]
+  BP["<b>Backend Proxy</b><br/>app/chat/routes.py"]
+  AS["<b>Agents Service</b><br/>agents/app.py :8002"]
+  HA["<b>Haystack Agent</b><br/>agents/tay.py"]
+  OR["<b>OpenRouter API</b>"]
+
+  FE -->|"POST /chat/completions"| BP
+  BP -->|"httpx proxy"| AS
+  AS -->|"run_async()"| HA
+  HA -->|"chat completion"| OR
+  OR -->|"text + tool_calls"| HA
+  HA --> AS --> BP --> FE
+
+  style FE fill:#e3f2fd,stroke:#1976d2
+  style BP fill:#fff3e0,stroke:#ef6c00
+  style AS fill:#e8f5e9,stroke:#2e7d32
+  style HA fill:#f3e5f5,stroke:#7b1fa2
+  style OR fill:#fce4ec,stroke:#c62828
+`} />
+
+**Key design decisions:**
+
+- **Separate service** — agents run independently; the app works fully without AI (backend returns 503)
+- **No-op tools** — the agent's 3 tools return their arguments as JSON. Item creation happens client-side after user approval.
+- **Tool execution on frontend** — `useTayActions` maps tool calls to existing mutation hooks (`useCreateProject`, etc.)
+- **German system prompt** — Tay speaks German, follows GTD methodology, suggests but never executes

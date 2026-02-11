@@ -1,6 +1,6 @@
 """Agents service — FastAPI app for the Tay GTD copilot.
 
-Runs as a separate service (default port 8001). The backend proxies
+Runs as a separate service (default port 8002). The backend proxies
 requests to this service at /chat/completions.
 """
 
@@ -33,7 +33,7 @@ _agent = create_agent()
 
 class ChatCompletionRequest(BaseModel):
     message: str
-    conversationId: str
+    conversationId: str  # V1: accepted but unused. V2: pass message history for context.
 
 
 class ChatToolCallResponse(BaseModel):

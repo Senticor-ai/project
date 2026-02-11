@@ -52,21 +52,50 @@ variables:
     - key:
         files: [frontend/package-lock.json]
       paths: [.npm-cache/]
+      policy: pull-push
+
+.frontend-cache-readonly:
+  cache:
+    - key:
+        files: [frontend/package-lock.json]
+      paths: [.npm-cache/]
+      policy: pull
 
 .backend-cache:
   cache:
     - key:
         files: [backend/uv.lock]
       paths: [backend/.venv/]
+      policy: pull-push
+
+.backend-cache-readonly:
+  cache:
+    - key:
+        files: [backend/uv.lock]
+      paths: [backend/.venv/]
+      policy: pull
 
 .fullstack-cache:
   cache:
     - key:
         files: [frontend/package-lock.json]
       paths: [.npm-cache/]
+      policy: pull-push
     - key:
         files: [backend/uv.lock]
       paths: [backend/.venv/]
+      policy: pull-push
+
+.fullstack-cache-readonly:
+  cache:
+    - key:
+        files: [frontend/package-lock.json]
+      paths: [.npm-cache/]
+      policy: pull
+    - key:
+        files: [backend/uv.lock]
+      paths: [backend/.venv/]
+      policy: pull
 
 # ==================== CI IMAGE (on-demand only: run with BUILD_CI_IMAGE=true) ====================
 
@@ -137,7 +166,7 @@ frontend-unit:
   needs: [frontend-typecheck]
   allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
-  extends: [.default-rules, .large-runner, .failure-issue, .frontend-cache]
+  extends: [.default-rules, .large-runner, .failure-issue, .frontend-cache-readonly]
   before_script:
     - cd frontend && npm ci --ignore-scripts --silent
   script:
@@ -157,7 +186,7 @@ backend-unit:
   needs: [backend-typecheck]
   allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
-  extends: [.default-rules, .large-runner, .backend-postgres, .failure-issue, .backend-cache]
+  extends: [.default-rules, .large-runner, .backend-postgres, .failure-issue, .backend-cache-readonly]
   before_script:
     - cd backend && uv sync --quiet --all-groups --all-extras
   script:
@@ -177,7 +206,7 @@ backend-integration:
   needs: [backend-typecheck]
   allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
-  extends: [.default-rules, .large-runner, .backend-postgres, .failure-issue, .backend-cache]
+  extends: [.default-rules, .large-runner, .backend-postgres, .failure-issue, .backend-cache-readonly]
   before_script:
     - cd backend && uv sync --quiet --all-groups --all-extras
   script:
@@ -197,7 +226,7 @@ frontend-integration:
   needs: [frontend-typecheck, backend-typecheck]
   allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
-  extends: [.default-rules, .large-runner, .backend-postgres, .failure-issue, .fullstack-cache]
+  extends: [.default-rules, .large-runner, .backend-postgres, .failure-issue, .fullstack-cache-readonly]
   before_script:
     - cd $CI_PROJECT_DIR/backend && uv sync --quiet --all-groups --all-extras
     - cd $CI_PROJECT_DIR/frontend && npm ci --ignore-scripts --silent
@@ -225,7 +254,7 @@ frontend-storybook:
   needs: [frontend-typecheck]
   allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
-  extends: [.default-rules, .large-runner, .failure-issue, .frontend-cache]
+  extends: [.default-rules, .large-runner, .failure-issue, .frontend-cache-readonly]
   before_script:
     - cd frontend && npm ci --silent
   script:
@@ -236,7 +265,7 @@ backend-e2e:
   needs: [backend-typecheck]
   allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
-  extends: [.default-rules, .large-runner, .backend-postgres, .failure-issue, .backend-cache]
+  extends: [.default-rules, .large-runner, .backend-postgres, .failure-issue, .backend-cache-readonly]
   before_script:
     - cd backend && uv sync --quiet --all-groups --all-extras
   script:
@@ -261,7 +290,7 @@ frontend-e2e:
   needs: [frontend-typecheck, backend-typecheck]
   allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
-  extends: [.default-rules, .large-runner, .backend-postgres, .failure-issue, .fullstack-cache]
+  extends: [.default-rules, .large-runner, .backend-postgres, .failure-issue, .fullstack-cache-readonly]
   before_script:
     - cd $CI_PROJECT_DIR/backend && uv sync --quiet --all-groups --all-extras
     - cd $CI_PROJECT_DIR/frontend && npm ci --ignore-scripts --silent

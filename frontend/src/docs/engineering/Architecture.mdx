@@ -55,7 +55,8 @@ C4Container
   System_Boundary(tay, "TerminAndoYo") {
     Container(spa, "Frontend SPA", "React 19, Vite, Tailwind v4", "Single-page app with offline-first sync, bucket navigation, inline triage")
     Container(storybook, "Storybook", "Storybook 10, MDX", "Living documentation hub — product specs, design system, component demos, architecture docs")
-    Container(api, "Backend API", "Python, FastAPI", "REST API for items, files, imports, email, auth, search, push notifications")
+    Container(api, "Backend API", "Python, FastAPI", "REST API for items, files, imports, email, auth, search, push notifications, chat proxy")
+    Container(agents, "Agents Service", "Python, Haystack, FastAPI", "Tay AI copilot — chat completions with tool calling via OpenRouter (port 8002)")
     Container(worker, "Projection Worker", "Python", "Outbox consumer: search indexing, RDF projection, email sync, import jobs")
     Container(pushworker, "Push Worker", "Python", "Web Push notification delivery via VAPID")
 
@@ -78,7 +79,8 @@ C4Container
   Rel(worker, fuseki, "Upserts RDF", "HTTP Graph Store")
   Rel(worker, gmail, "IMAP sync", "IMAP + OAuth")
   Rel(pushworker, pg, "Polls push_outbox", "SQL")
-  Rel(api, openrouter, "Chat completions", "HTTPS")
+  Rel(api, agents, "Proxies chat requests", "HTTP")
+  Rel(agents, openrouter, "Chat completions", "HTTPS")
 
   UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
 `} />
@@ -99,6 +101,7 @@ C4Component
     Component(email, "Email Module", "FastAPI Router", "Gmail OAuth flow, connection management, manual sync trigger. Encrypted token storage.")
     Component(search, "Search API", "FastAPI Router", "Proxies full-text queries to Meilisearch. Items + file content indices.")
     Component(push, "Push API", "FastAPI Router", "Web Push subscription management via VAPID keys.")
+    Component(chat, "Chat Proxy", "FastAPI Router", "Proxies chat completions to agents service. Auth required. Returns text + optional tool calls.")
     Component(schemas, "Schemas API", "FastAPI Router", "Canonical JSON-LD schema definitions for all entity types.")
     Component(metrics, "Observability", "Middleware", "Prometheus metrics, OpenTelemetry tracing, structured logging with trace correlation.")
   }
@@ -107,7 +110,7 @@ C4Component
   ContainerDb(meili, "Meilisearch", "", "Full-text search index")
   ContainerDb(storage, "File Storage", "", "Uploaded PDFs, docs")
   System_Ext(gmail, "Gmail", "OAuth + IMAP")
-  System_Ext(openrouter, "OpenRouter", "LLM")
+  Container_Ext(agents, "Agents Service", "Haystack + OpenRouter")
 
   Rel(auth, pg, "Sessions, users")
   Rel(items, pg, "Items, outbox events")
@@ -118,6 +121,7 @@ C4Component
   Rel(email, gmail, "OAuth + IMAP")
   Rel(search, meili, "Query indices")
   Rel(push, pg, "Subscriptions, outbox")
+  Rel(chat, agents, "Proxy chat requests")
 
   UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
 `} />

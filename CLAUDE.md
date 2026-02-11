@@ -59,7 +59,8 @@ Fallback markers (only when placeholder patterns aren't possible):
 
 ## Architecture
 
-- **Backend**: FastAPI + Haystack + Qdrant + PostgreSQL
+- **Backend**: FastAPI + PostgreSQL (REST API, auth, proxy to agents)
+- **Agents**: Haystack + OpenRouter (separate FastAPI service on port 8002, Tay copilot)
 - **Frontend**: React 19 + Vite + Tailwind v4 + shadcn/ui + Framer Motion
 - **LLM**: OpenRouter (model configurable via env)
 - **Observability**: OpenTelemetry -> Grafana (docker-otel-lgtm)
@@ -103,6 +104,13 @@ cd backend
 uv run ruff check .                    # Linting (security, style, bugs)
 uv run ruff format --check .           # Format check (no modifications)
 uv run mypy app/                       # Type checking
+
+# Agents checks (run from agents/)
+cd agents
+uv run ruff check .                    # Linting
+uv run ruff format --check .           # Format check
+uv run mypy .                          # Type checking
+uv run python -m pytest tests/         # Tests (4 tests)
 
 # Frontend checks (run from frontend/)
 cd frontend
@@ -155,6 +163,9 @@ cd frontend && npm run test:e2e
 
 # Backend tests
 cd backend && uv run python -m pytest
+
+# Agents tests
+cd agents && uv run python -m pytest tests/
 ```
 
 Always use `CI=1 npx vitest run` (not `npx vitest` which starts watch mode).
