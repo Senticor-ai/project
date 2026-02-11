@@ -14,8 +14,11 @@ const NIRVANA_EXPORT_PATH = path.resolve(
 const fixtureExists = fs.existsSync(NIRVANA_EXPORT_PATH);
 
 test.describe("Nirvana Import", () => {
-  // Skip the entire suite when the large export fixture is not present (e.g. CI)
-  test.skip(!fixtureExists, "Nirvana export fixture not found — skipping");
+  // Skip in CI (hardware-dependent, large file) or when fixture is absent
+  test.skip(
+    !!process.env.CI || !fixtureExists,
+    "Large-file import test — local only",
+  );
 
   test("uploads file, previews, imports, and shows results", async ({
     authenticatedPage: page,
