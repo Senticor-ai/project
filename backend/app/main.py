@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse, Response
 
+from .chat import router as chat_router
 from .config import settings
 from .csrf import should_validate_csrf, validate_csrf_request
 from .db import db_conn
@@ -203,6 +204,7 @@ app.include_router(orgs.router)
 app.include_router(push.router)
 app.include_router(schemas.router)
 app.include_router(search.router)
+app.include_router(chat_router)
 app.include_router(email_routes.router)
 app.include_router(dev.router)
 

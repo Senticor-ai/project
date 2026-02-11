@@ -1,4 +1,4 @@
-"""Gmail OAuth 2.0 helpers for IMAP access via XOAUTH2.
+"""Gmail OAuth 2.0 helpers — token exchange, refresh, and validation.
 
 Ported from Procedere's gmail_service.py, adapted to TAY's db_conn() pattern.
 """
@@ -21,9 +21,6 @@ logger = logging.getLogger(__name__)
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_GMAIL_PROFILE_URL = "https://gmail.googleapis.com/gmail/v1/users/me/profile"
-
-GMAIL_IMAP_HOST = "imap.gmail.com"
-GMAIL_IMAP_PORT = 993
 
 
 def build_gmail_auth_url(state: str) -> str:

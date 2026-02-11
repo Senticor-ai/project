@@ -4,10 +4,25 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime, timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
+
+import pytest
 
 from app.db import db_conn, jsonb
 from app.email.sync import enqueue_due_syncs, mark_email_read
+
+
+@pytest.fixture(autouse=True)
+def _cleanup_test_connections():
+    """Deactivate test email connections after each test to prevent worker pickup."""
+    yield
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE email_connections SET is_active = false "
+                "WHERE email_address = 'test@gmail.com'"
+            )
+        conn.commit()
 
 
 def _create_email_connection(
@@ -47,8 +62,8 @@ def _create_email_connection(
             )
             cur.execute(
                 """
-                INSERT INTO email_sync_state (connection_id, folder_name, last_seen_uid)
-                VALUES (%s, 'INBOX', 0)
+                INSERT INTO email_sync_state (connection_id, folder_name, last_history_id)
+                VALUES (%s, 'INBOX', 10000)
                 """,
                 (conn_id,),
             )
@@ -60,7 +75,7 @@ def _create_gmail_item(
     org_id: str,
     user_id: str,
     *,
-    imap_uid: str = "101",
+    gmail_message_id: str = "msg_101",
     sender_email: str = "sender@example.de",
 ) -> str:
     """Insert a gmail-sourced item and return its item_id."""
@@ -80,7 +95,7 @@ def _create_gmail_item(
             "rawState": 0,
             "raw": {
                 "messageId": "<test@example.com>",
-                "uid": imap_uid,
+                "gmailMessageId": gmail_message_id,
                 "from": sender_email,
             },
         },
@@ -119,6 +134,20 @@ def _deactivate_all_connections():
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("UPDATE email_connections SET is_active = false")
+        conn.commit()
+
+
+def _drain_outbox():
+    """Mark all unprocessed outbox events as processed to isolate worker tests."""
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE outbox_events
+                SET processed_at = NOW()
+                WHERE processed_at IS NULL
+                """
+            )
         conn.commit()
 
 
@@ -230,25 +259,23 @@ class TestEnqueueDueSyncs:
 
 
 class TestMarkEmailRead:
-    @patch("app.email.sync.ImapClient")
+    @patch("app.email.sync.gmail_api")
     @patch("app.email.sync.get_valid_gmail_token")
-    def test_marks_email_read_in_gmail(
+    def test_marks_email_read_via_gmail_api(
         self,
         mock_get_token,
-        mock_imap_cls,
+        mock_gmail_api,
         auth_client,
     ):
-        """mark_email_read creates IMAP client and calls mark_read."""
+        """mark_email_read uses Gmail API message_modify to remove UNREAD label."""
         org_id = auth_client.headers["X-Org-Id"]
         me = auth_client.get("/auth/me")
         user_id = me.json()["id"]
 
         _create_email_connection(org_id, user_id)
-        item_id = _create_gmail_item(org_id, user_id, imap_uid="501")
+        item_id = _create_gmail_item(org_id, user_id, gmail_message_id="msg_501")
 
         mock_get_token.return_value = "fake-access-token"
-        mock_imap = MagicMock()
-        mock_imap_cls.return_value = mock_imap
 
         # Load the item row
         with db_conn() as conn:
@@ -261,24 +288,28 @@ class TestMarkEmailRead:
 
         mark_email_read(item_row, org_id)
 
-        mock_imap.mark_read.assert_called_once_with("INBOX", [501])
+        mock_gmail_api.message_modify.assert_called_once_with(
+            "fake-access-token",
+            "msg_501",
+            remove_label_ids=["UNREAD"],
+        )
 
-    @patch("app.email.sync.ImapClient")
+    @patch("app.email.sync.gmail_api")
     @patch("app.email.sync.get_valid_gmail_token")
-    def test_skips_when_no_uid_in_metadata(
+    def test_skips_when_no_gmail_message_id(
         self,
         mock_get_token,
-        mock_imap_cls,
+        mock_gmail_api,
         auth_client,
     ):
-        """mark_email_read does nothing when UID is missing from sourceMetadata."""
+        """mark_email_read does nothing when gmailMessageId is missing."""
         org_id = auth_client.headers["X-Org-Id"]
         me = auth_client.get("/auth/me")
         user_id = me.json()["id"]
 
         _create_email_connection(org_id, user_id)
 
-        # Item with no uid in sourceMetadata
+        # Item with no gmailMessageId in sourceMetadata
         item_row = {
             "item_id": str(uuid.uuid4()),
             "org_id": org_id,
@@ -291,14 +322,14 @@ class TestMarkEmailRead:
 
         # Should not raise, just silently skip
         mark_email_read(item_row, org_id)
-        mock_imap_cls.assert_not_called()
+        mock_gmail_api.message_modify.assert_not_called()
 
-    @patch("app.email.sync.ImapClient")
+    @patch("app.email.sync.gmail_api")
     @patch("app.email.sync.get_valid_gmail_token")
     def test_skips_when_no_active_connection(
         self,
         mock_get_token,
-        mock_imap_cls,
+        mock_gmail_api,
         auth_client,
     ):
         """mark_email_read does nothing when no active connection exists."""
@@ -312,35 +343,33 @@ class TestMarkEmailRead:
             "org_id": org_id,
             "source": "gmail",
             "schema_jsonld": {
-                "sourceMetadata": {"raw": {"uid": "501", "from": "sender@example.de"}},
+                "sourceMetadata": {"raw": {"gmailMessageId": "msg_501"}},
             },
             "created_by_user_id": user_id,
         }
 
         # Should not raise
         mark_email_read(item_row, org_id)
-        mock_imap_cls.assert_not_called()
+        mock_gmail_api.message_modify.assert_not_called()
 
-    @patch("app.email.sync.ImapClient")
+    @patch("app.email.sync.gmail_api")
     @patch("app.email.sync.get_valid_gmail_token")
-    def test_handles_imap_error_gracefully(
+    def test_handles_api_error_gracefully(
         self,
         mock_get_token,
-        mock_imap_cls,
+        mock_gmail_api,
         auth_client,
     ):
-        """mark_email_read logs but doesn't raise on IMAP errors."""
+        """mark_email_read logs but doesn't raise on Gmail API errors."""
         org_id = auth_client.headers["X-Org-Id"]
         me = auth_client.get("/auth/me")
         user_id = me.json()["id"]
 
         _create_email_connection(org_id, user_id)
-        item_id = _create_gmail_item(org_id, user_id, imap_uid="502")
+        item_id = _create_gmail_item(org_id, user_id, gmail_message_id="msg_502")
 
         mock_get_token.return_value = "fake-access-token"
-        mock_imap = MagicMock()
-        mock_imap.mark_read.side_effect = RuntimeError("IMAP error")
-        mock_imap_cls.return_value = mock_imap
+        mock_gmail_api.message_modify.side_effect = RuntimeError("API error")
 
         with db_conn() as conn:
             with conn.cursor() as cur:
@@ -355,17 +384,18 @@ class TestMarkEmailRead:
 
 
 class TestWorkerEmailSyncJob:
-    @patch("app.email.sync.ImapClient")
+    @patch("app.email.sync.gmail_api")
     @patch("app.email.sync.get_valid_gmail_token")
     def test_process_batch_handles_email_sync_job(
         self,
         mock_get_token,
-        mock_imap_cls,
+        mock_gmail_api,
         auth_client,
     ):
         """process_batch processes email_sync_job events."""
         from app.worker import process_batch
 
+        _drain_outbox()
         org_id = auth_client.headers["X-Org-Id"]
         me = auth_client.get("/auth/me")
         user_id = me.json()["id"]
@@ -373,9 +403,10 @@ class TestWorkerEmailSyncJob:
         conn_id = _create_email_connection(org_id, user_id)
 
         mock_get_token.return_value = "fake-access-token"
-        mock_imap = MagicMock()
-        mock_imap.fetch_since_uid.return_value = []
-        mock_imap_cls.return_value = mock_imap
+        mock_gmail_api.history_list.return_value = {
+            "history": [],
+            "historyId": "10000",
+        }
 
         # Manually enqueue an email_sync_job event
         with db_conn() as conn:
@@ -424,12 +455,13 @@ class TestWorkerEmailSyncJob:
         """item_archived events for gmail items trigger mark_email_read."""
         from app.worker import process_batch
 
+        _drain_outbox()
         org_id = auth_client.headers["X-Org-Id"]
         me = auth_client.get("/auth/me")
         user_id = me.json()["id"]
 
         _create_email_connection(org_id, user_id)
-        item_id = _create_gmail_item(org_id, user_id, imap_uid="601")
+        item_id = _create_gmail_item(org_id, user_id, gmail_message_id="msg_601")
 
         # Enqueue item_archived event
         with db_conn() as conn:
@@ -462,6 +494,8 @@ class TestWorkerEmailSyncJob:
     ):
         """item_archived events for non-gmail items skip mark_email_read."""
         from app.worker import process_batch
+
+        _drain_outbox()
 
         org_id = auth_client.headers["X-Org-Id"]
         me = auth_client.get("/auth/me")

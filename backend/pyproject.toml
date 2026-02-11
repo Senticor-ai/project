@@ -19,9 +19,10 @@ dependencies = [
   "opentelemetry-instrumentation-fastapi",
   "pytest",
   "httpx",
-  "imapclient>=3.0.0",
+  "google-auth>=2.29.0",
   "cryptography>=42.0.0",
   "PyJWT[crypto]>=2.9.0",
+  "imapclient>=3.0.0",
   # Pin to CPU-only wheels (transitive from docling, declared here so
   # [tool.uv.sources] can redirect them to the pytorch-cpu index).
   "torch",
@@ -64,6 +65,7 @@ select = ["E", "F", "I", "UP", "B"]
 "app/imports/**/routes.py" = ["B008"]
 "app/imports/router.py" = ["B008"]
 "app/email/*.py" = ["B008"]
+"app/chat/*.py" = ["B008"]
 
 [tool.ruff.format]
 quote-style = "double"

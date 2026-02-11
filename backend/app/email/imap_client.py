@@ -1,6 +1,9 @@
 """IMAP client for fetching emails — OAuth2-only (Gmail).
 
 Ported from Procedere's imap_service.py, stripped of password auth and save_draft.
+Kept for future non-Gmail IMAP providers; currently unused (Gmail uses REST API).
+
+Requires optional dependency: ``pip install imapclient>=3.0.0``
 """
 
 from __future__ import annotations
@@ -9,38 +12,13 @@ import email as email_mod
 import email.policy
 import logging
 import ssl
-from dataclasses import dataclass, field
-from datetime import datetime
 from email.utils import parsedate_to_datetime
 
 from imapclient import IMAPClient
 
+from .transform import EmailAttachment, EmailMessage
+
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class EmailAttachment:
-    """Represents an email attachment."""
-
-    filename: str
-    content_type: str
-    size: int
-
-
-@dataclass
-class EmailMessage:
-    """Represents a fetched email message."""
-
-    uid: str
-    message_id: str | None
-    subject: str | None
-    sender_email: str
-    sender_name: str | None
-    recipients: list[dict[str, str]] = field(default_factory=list)
-    received_at: datetime | None = None
-    body_text: str | None = None
-    body_html: str | None = None
-    attachments: list[EmailAttachment] = field(default_factory=list)
 
 
 class ImapClient:

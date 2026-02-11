@@ -98,6 +98,8 @@ class Settings:
     csp_policy: str | None
     cors_methods: list[str]
     cors_headers: list[str]
+    # Agents service (Tay copilot)
+    agents_url: str | None
     # Email integration (Gmail OAuth)
     encryption_key: str | None
     gmail_client_id: str
@@ -106,6 +108,15 @@ class Settings:
     gmail_scopes: str
     gmail_state_secret: str
     frontend_base_url: str
+    # Gmail Watch + Pub/Sub
+    gmail_watch_enabled: bool
+    gmail_pubsub_project_id: str
+    gmail_pubsub_topic: str
+    gmail_pubsub_subscription: str
+    gmail_pubsub_credentials_file: str
+    gmail_watch_renew_buffer_hours: int
+    gmail_watch_worker_poll_seconds: float
+    gmail_watch_worker_health_port: int
 
 
 def _build_database_url() -> str:
@@ -244,6 +255,7 @@ def load_settings() -> Settings:
             ).split(",")
             if h.strip()
         ],
+        agents_url=_get_env("AGENTS_URL"),
         encryption_key=_get_env("ENCRYPTION_KEY"),
         gmail_client_id=_get_env("GMAIL_CLIENT_ID", "") or "",
         gmail_client_secret=_get_env("GMAIL_CLIENT_SECRET", "") or "",
@@ -257,6 +269,21 @@ def load_settings() -> Settings:
         gmail_state_secret=_get_env("GMAIL_STATE_SECRET", "") or "",
         frontend_base_url=_get_env("FRONTEND_BASE_URL", "http://localhost:5173")
         or "http://localhost:5173",
+        # Gmail Watch + Pub/Sub
+        gmail_watch_enabled=_get_bool_env("GMAIL_WATCH_ENABLED", False),
+        gmail_pubsub_project_id=_get_env("GMAIL_PUBSUB_PROJECT_ID", "") or "",
+        gmail_pubsub_topic=_get_env("GMAIL_PUBSUB_TOPIC", "") or "",
+        gmail_pubsub_subscription=_get_env("GMAIL_PUBSUB_SUBSCRIPTION", "") or "",
+        gmail_pubsub_credentials_file=_get_env("GMAIL_PUBSUB_CREDENTIALS_FILE", "") or "",
+        gmail_watch_renew_buffer_hours=int(
+            _get_env("GMAIL_WATCH_RENEW_BUFFER_HOURS", "12") or "12"
+        ),
+        gmail_watch_worker_poll_seconds=float(
+            _get_env("GMAIL_WATCH_WORKER_POLL_SECONDS", "5.0") or "5.0"
+        ),
+        gmail_watch_worker_health_port=int(
+            _get_env("GMAIL_WATCH_WORKER_HEALTH_PORT", "9092") or "9092"
+        ),
     )
 
 

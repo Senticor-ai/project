@@ -4,7 +4,12 @@ from datetime import UTC, datetime
 
 from .config import settings
 from .db import db_conn, jsonb
-from .email.sync import mark_email_read, run_email_sync
+from .email.sync import (
+    enqueue_due_syncs,
+    mark_email_read,
+    register_watch,
+    run_email_sync,
+)
 from .metrics import APP_IMPORTS_COMPLETED_TOTAL, APP_IMPORTS_FAILED_TOTAL
 from .observability import configure_logging, get_logger
 from .projection.fuseki import is_enabled as fuseki_enabled
@@ -522,6 +527,16 @@ def process_batch(limit: int = 25) -> int:
                         synced=result.synced,
                         created=result.created,
                     )
+                elif event_type == "email_watch_renew":
+                    renew_conn_id = payload.get("connection_id")
+                    renew_org_id = payload.get("org_id")
+                    if not renew_conn_id or not renew_org_id:
+                        raise ValueError("email_watch_renew missing required fields")
+                    register_watch(renew_conn_id, renew_org_id)
+                    logger.info(
+                        "email_watch.renewed",
+                        connection_id=renew_conn_id,
+                    )
 
                 _mark_processed(conn, event_id)
                 processed += 1
@@ -628,6 +643,10 @@ def main() -> None:
     )
     start_health_server(health_state, settings.worker_health_port)
 
+    # Periodic email sync reconciliation (every 5 min)
+    email_sync_interval = 300.0  # 5 minutes
+    last_email_sync_check = 0.0
+
     logger.info("outbox.loop_started", batch_size=batch_size, interval_seconds=interval)
     try:
         while True:
@@ -642,6 +661,18 @@ def main() -> None:
 
             if count:
                 logger.info("outbox.processed", count=count, batch_size=batch_size)
+
+            # Periodic email sync reconciliation
+            now = time.monotonic()
+            if now - last_email_sync_check >= email_sync_interval:
+                try:
+                    enqueued = enqueue_due_syncs()
+                    if enqueued:
+                        logger.info("email.enqueue_due_syncs", count=enqueued)
+                except Exception:
+                    logger.warning("email.enqueue_due_syncs_failed", exc_info=True)
+                last_email_sync_check = now
+
             # If we did not fill a full batch, pause briefly before polling again.
             if count < batch_size:
                 time.sleep(interval)

@@ -4,9 +4,10 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 # Email Integration (Gmail)
 
-TerminAndoYo can ingest emails from Gmail as inbox items via IMAP (XOAUTH2).
+TerminAndoYo can ingest emails from Gmail as inbox items via the Gmail API.
 Users connect their Gmail account in **Settings > Email**, and the system
-periodically syncs new messages into the inbox for triage.
+syncs new messages into the inbox for triage — near-instantly via Pub/Sub
+push notifications, with periodic polling as a reconciliation fallback.
 
 ---
 
@@ -38,39 +39,58 @@ to the email settings tab.
 
 ## Sync Strategy
 
-### Current: Periodic IMAP Polling (default 15 min)
+### Primary: Gmail API Watch + Pub/Sub Pull (~5-10s latency)
 
-New connections default to a **15-minute sync interval**. Users can change this
-in the connection settings (5 min, 15 min, 30 min, 1 hour, or manual).
+Gmail's `users.watch()` API registers push notifications for a user's mailbox.
+When a change occurs, Google publishes to a Cloud Pub/Sub topic. A dedicated
+**watch worker** process pulls from the subscription and enqueues sync jobs.
 
-The outbox worker polls `email_connections` for accounts where
-`sync_interval_minutes > 0` and `last_sync_at + interval < now()`. Each sync:
+```
+Gmail mailbox change
+  → Google publishes to Pub/Sub topic
+  → Watch worker pulls from subscription (every 5s)
+  → Enqueues email_sync_job outbox event
+  → Projection worker picks up event (within 1s)
+  → run_email_sync() uses Gmail API
+  → history.list → messages.get → transform → upsert items
+```
 
-1. Refreshes OAuth token if expired (via `refresh_gmail_token`)
-2. Connects to Gmail IMAP with XOAUTH2 authentication
-3. Fetches unseen messages since `last_synced_at` (tracks UID position)
-4. Creates inbox items with `@type: "EmailMessage"` and `captureSource.kind: "email"`
-5. Optionally marks fetched messages as read in Gmail (`sync_mark_read` setting)
+The watch worker (`python -m app.email.watch_worker --loop`) runs as a
+separate process alongside the projection worker. It groups notifications by
+email address, deduplicates, and enqueues one `email_sync_job` per account.
 
-### Future: IMAP IDLE (real-time)
+Gmail watches expire after ~7 days. The watch worker periodically checks for
+expiring watches (within 12 hours of expiry) and renews them automatically.
 
-Gmail supports **IMAP IDLE** (RFC 2177) with XOAUTH2, which provides instant
-push notifications without polling. This is the recommended upgrade path:
+### Fallback: Periodic Polling (every 5 min)
 
-- Maintains a persistent IMAP connection per account
-- Server pushes `EXISTS` notifications when new mail arrives
-- No public domain or webhook infrastructure required
-- Must send NOOP every ~15 min and re-enter IDLE (30 min server timeout)
-- Needs connection management, reconnection logic, and graceful shutdown
+As a reconciliation safety net, the projection worker calls `enqueue_due_syncs()`
+every 5 minutes. This catches cases where a Pub/Sub notification was missed
+or the watch worker was temporarily down.
 
-### Not viable: Gmail API Push (Pub/Sub)
+### Sync Process
 
-Gmail's `users.watch()` API sends notifications via Google Cloud Pub/Sub.
-This is **not practical for self-hosted deployments** because:
+Each `email_sync_job` triggers `run_email_sync()`:
 
-- Push subscriptions require a publicly addressable HTTPS endpoint
-- The domain must be verified in Google Search Console (not possible with nip.io)
-- Pull subscriptions add GCP dependency without significant benefit over IMAP IDLE
+1. Load connection + refresh OAuth token if expired
+2. Incremental sync via `gmail_api.history_list(start_history_id)` — fetches
+   only changes since the last checkpoint
+3. For each new message: `gmail_api.message_get()` → parse headers/body →
+   `build_email_item()` → upsert as `@type: "EmailMessage"`
+4. Update `last_history_id` checkpoint in `email_sync_state`
+5. Optionally mark fetched messages as read via
+   `gmail_api.message_modify(remove_label_ids=["UNREAD"])`
+
+If the history ID has expired (Gmail returns 404), the sync falls back to
+`gmail_api.messages_list(query="in:inbox newer_than:7d")` and resets the
+history checkpoint.
+
+### Mark-as-Read on Archive
+
+When a gmail-sourced item is archived (triaged out of inbox), the projection
+worker calls `mark_email_read()` which uses `gmail_api.message_modify()` to
+remove the `UNREAD` label in Gmail. The `gmailMessageId` is stored in
+`sourceMetadata.raw` during sync for this purpose.
 
 ---
 
@@ -95,7 +115,32 @@ This is **not practical for self-hosted deployments** because:
 
 5. Save and note the **Client ID** and **Client Secret**.
 
-### 2. Generate Encryption Keys
+### 2. Set Up Pub/Sub (for real-time notifications)
+
+> This step is optional. Without Pub/Sub, email sync falls back to periodic
+> polling every 5 minutes.
+
+1. Enable **Gmail API** and **Cloud Pub/Sub API** in GCP Console
+2. Create a Pub/Sub topic:
+   ```bash
+   gcloud pubsub topics create gmail-notifications
+   ```
+3. Grant Gmail permission to publish to the topic:
+   ```bash
+   gcloud pubsub topics add-iam-policy-binding gmail-notifications \
+     --member="serviceAccount:gmail-api-push@system.gserviceaccount.com" \
+     --role="roles/pubsub.publisher"
+   ```
+4. Create a pull subscription:
+   ```bash
+   gcloud pubsub subscriptions create gmail-notifications-pull \
+     --topic=gmail-notifications --ack-deadline=60
+   ```
+5. Create a service account with **Pub/Sub Subscriber** role and download
+   the JSON key file
+6. Set `GMAIL_WATCH_ENABLED=true` and the `GMAIL_PUBSUB_*` env vars (see below)
+
+### 3. Generate Encryption Keys
 
 The backend encrypts OAuth tokens at rest using Fernet symmetric encryption,
 and signs OAuth state parameters with a separate secret.
@@ -108,7 +153,7 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
 
-### 3. Environment Variables
+### 4. Environment Variables
 
 #### Local Development (`.env`)
 
@@ -124,6 +169,13 @@ ENCRYPTION_KEY=<generated-fernet-key>
 
 # Frontend URL (OAuth callback redirects here after success)
 FRONTEND_BASE_URL=http://localhost:5173
+
+# Gmail Watch + Pub/Sub (optional — enables real-time sync)
+GMAIL_WATCH_ENABLED=false
+GMAIL_PUBSUB_PROJECT_ID=<your-gcp-project-id>
+GMAIL_PUBSUB_TOPIC=gmail-notifications
+GMAIL_PUBSUB_SUBSCRIPTION=gmail-notifications-pull
+GMAIL_PUBSUB_CREDENTIALS_FILE=/path/to/service-account.json
 ```
 
 #### Kubernetes Production
@@ -133,6 +185,11 @@ Non-secret values go in the **ConfigMap** (`infra/k8s/overlays/production/config
 ```yaml
 GMAIL_REDIRECT_URI: "https://<your-domain>/api/email/oauth/gmail/callback"
 FRONTEND_BASE_URL: "https://<your-domain>"
+GMAIL_WATCH_ENABLED: "true"
+GMAIL_PUBSUB_PROJECT_ID: "<your-gcp-project-id>"
+GMAIL_PUBSUB_TOPIC: "gmail-notifications"
+GMAIL_PUBSUB_SUBSCRIPTION: "gmail-notifications-pull"
+GMAIL_PUBSUB_CREDENTIALS_FILE: "/etc/secrets/pubsub/credentials.json"
 ```
 
 Secret values go in the **`app-secrets` Secret** (managed by ops, not in version control):
@@ -151,16 +208,16 @@ kubectl -n <namespace> patch secret app-secrets --type merge -p '{
 Then restart the backend deployment to pick up the new values:
 
 ```bash
-kubectl -n <namespace> rollout restart deployment/backend deployment/worker
+kubectl -n <namespace> rollout restart deployment/backend deployment/worker deployment/watch-worker
 ```
 
 ---
 
 ## Scopes
 
-The integration requests the `https://mail.google.com/` scope (full IMAP
-access). This is required for XOAUTH2 IMAP authentication. The scope can be
-customized via the `GMAIL_SCOPES` environment variable.
+The integration requests the `https://mail.google.com/` scope which covers
+both Gmail API access and IMAP (legacy fallback). The scope can be customized
+via the `GMAIL_SCOPES` environment variable.
 
 ---
 
@@ -172,8 +229,13 @@ customized via the `GMAIL_SCOPES` environment variable.
 |--------|---------|
 | `app/email/routes.py` | OAuth endpoints (`/authorize`, `/callback`) + connection CRUD + sync trigger |
 | `app/email/gmail_oauth.py` | Google OAuth helpers (auth URL, code exchange, token refresh) |
-| `app/email/gmail_sync.py` | IMAP sync logic (fetch headers, store as inbox items) |
-| `app/email/crypto.py` | Fernet encryption/decryption for OAuth tokens at rest |
+| `app/email/gmail_api.py` | Gmail REST API v1 client (history, messages, watch, modify) |
+| `app/email/sync.py` | Sync orchestrator (Gmail API history → parse → upsert) + watch lifecycle |
+| `app/email/transform.py` | EmailMessage dataclass + `build_email_item()` JSON-LD transform |
+| `app/email/pubsub.py` | Pub/Sub pull client (service account auth, message parsing) |
+| `app/email/watch_worker.py` | Dedicated Pub/Sub pull loop process |
+| `app/email/imap_client.py` | IMAP client (kept for future non-Gmail IMAP providers; currently unused) |
+| `app/crypto.py` | Fernet encryption/decryption for OAuth tokens at rest |
 
 ### Frontend Components
 

@@ -318,3 +318,14 @@ CREATE TABLE IF NOT EXISTS email_sync_state (
 ALTER TABLE email_connections ALTER COLUMN sync_interval_minutes SET DEFAULT 15;
 UPDATE email_connections SET sync_interval_minutes = 15
   WHERE sync_interval_minutes = 0 AND is_active = true;
+
+-- Migration: Gmail API Watch + Pub/Sub (replace IMAP UID tracking with history ID)
+ALTER TABLE email_sync_state ADD COLUMN IF NOT EXISTS last_history_id BIGINT;
+ALTER TABLE email_sync_state DROP COLUMN IF EXISTS last_seen_uid;
+ALTER TABLE email_sync_state DROP COLUMN IF EXISTS uidvalidity;
+
+ALTER TABLE email_connections ADD COLUMN IF NOT EXISTS watch_expiration TIMESTAMPTZ;
+ALTER TABLE email_connections ADD COLUMN IF NOT EXISTS watch_history_id BIGINT;
+
+CREATE INDEX IF NOT EXISTS idx_email_connections_watch_expiration
+  ON email_connections (watch_expiration) WHERE is_active = true AND watch_expiration IS NOT NULL;

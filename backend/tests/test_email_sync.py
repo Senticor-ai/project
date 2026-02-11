@@ -1,49 +1,182 @@
-"""Tests for email/sync.py — sync orchestrator with mocked IMAP."""
+"""Tests for email/sync.py — sync orchestrator with mocked Gmail API."""
 
 from __future__ import annotations
 
+import base64
 import uuid
 from datetime import UTC, datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
+import httpx
 import pytest
 
 from app.db import db_conn
-from app.email.imap_client import EmailMessage
-from app.email.sync import SyncResult, run_email_sync
+from app.email.sync import (
+    SyncResult,
+    _parse_address,
+    _parse_recipients,
+    gmail_api_to_email_message,
+    run_email_sync,
+)
+
+# ---------------------------------------------------------------------------
+# Gmail API message fixtures
+# ---------------------------------------------------------------------------
 
 
-def _make_email_msg(
-    uid: str = "101",
-    message_id: str = "<sync-test@example.com>",
+def _make_gmail_message(
+    msg_id: str = "msg_101",
+    message_id_header: str = "<sync-test@example.com>",
     subject: str = "Testbetreff",
-    sender_email: str = "sender@example.de",
-) -> EmailMessage:
-    return EmailMessage(
-        uid=uid,
-        message_id=message_id,
-        subject=subject,
-        sender_email=sender_email,
-        sender_name="Test Sender",
-        recipients=[{"email": "to@example.de", "name": "Recipient", "type": "to"}],
-        received_at=datetime(2026, 2, 10, 9, 0, 0, tzinfo=UTC),
-        body_text="Testinhalt der E-Mail.",
-        body_html=None,
-        attachments=[],
-    )
+    sender: str = "Test Sender <sender@example.de>",
+    to: str = "Recipient <to@example.de>",
+    body_text: str = "Testinhalt der E-Mail.",
+    internal_date: str = "1707559200000",  # 2024-02-10T10:00:00Z
+    history_id: str = "12345",
+) -> dict:
+    """Build a Gmail API messages.get response."""
+    return {
+        "id": msg_id,
+        "threadId": f"thread_{msg_id}",
+        "labelIds": ["INBOX", "UNREAD"],
+        "historyId": history_id,
+        "internalDate": internal_date,
+        "payload": {
+            "mimeType": "multipart/alternative",
+            "headers": [
+                {"name": "Subject", "value": subject},
+                {"name": "From", "value": sender},
+                {"name": "To", "value": to},
+                {"name": "Message-ID", "value": message_id_header},
+            ],
+            "parts": [
+                {
+                    "mimeType": "text/plain",
+                    "body": {
+                        "data": base64.urlsafe_b64encode(body_text.encode()).decode(),
+                    },
+                },
+            ],
+        },
+    }
+
+
+def _make_history_response(
+    message_ids: list[str],
+    history_id: str = "12345",
+) -> dict:
+    """Build a Gmail API history.list response."""
+    history = []
+    for i, mid in enumerate(message_ids):
+        history.append({
+            "id": str(10000 + i),
+            "messagesAdded": [
+                {
+                    "message": {
+                        "id": mid,
+                        "labelIds": ["INBOX", "UNREAD"],
+                    },
+                },
+            ],
+        })
+    return {"history": history, "historyId": history_id}
+
+
+# ---------------------------------------------------------------------------
+# gmail_api_to_email_message unit tests
+# ---------------------------------------------------------------------------
+
+
+class TestGmailApiToEmailMessage:
+    def test_parses_basic_message(self):
+        gmail_msg = _make_gmail_message()
+        result = gmail_api_to_email_message(gmail_msg)
+
+        assert result.uid == "msg_101"
+        assert result.message_id == "<sync-test@example.com>"
+        assert result.subject == "Testbetreff"
+        assert result.sender_email == "sender@example.de"
+        assert result.sender_name == "Test Sender"
+        assert result.body_text == "Testinhalt der E-Mail."
+        assert result.received_at is not None
+        assert len(result.recipients) == 1
+        assert result.recipients[0]["email"] == "to@example.de"
+        assert result.recipients[0]["type"] == "to"
+
+    def test_parses_bare_email_sender(self):
+        gmail_msg = _make_gmail_message(sender="bare@example.com")
+        result = gmail_api_to_email_message(gmail_msg)
+        assert result.sender_email == "bare@example.com"
+        assert result.sender_name is None
+
+    def test_parses_cc_recipients(self):
+        gmail_msg = _make_gmail_message()
+        gmail_msg["payload"]["headers"].append(
+            {"name": "Cc", "value": "CC User <cc@example.de>"}
+        )
+        result = gmail_api_to_email_message(gmail_msg)
+        cc = [r for r in result.recipients if r["type"] == "cc"]
+        assert len(cc) == 1
+        assert cc[0]["email"] == "cc@example.de"
+
+    def test_handles_missing_body(self):
+        gmail_msg = _make_gmail_message()
+        gmail_msg["payload"]["parts"] = []
+        result = gmail_api_to_email_message(gmail_msg)
+        assert result.body_text is None
+        assert result.body_html is None
+
+    def test_handles_missing_internal_date(self):
+        gmail_msg = _make_gmail_message()
+        del gmail_msg["internalDate"]
+        result = gmail_api_to_email_message(gmail_msg)
+        assert result.received_at is None
+
+
+class TestParseAddress:
+    def test_name_and_email(self):
+        name, email = _parse_address("John Doe <john@example.com>")
+        assert name == "John Doe"
+        assert email == "john@example.com"
+
+    def test_bare_email(self):
+        name, email = _parse_address("john@example.com")
+        assert name is None
+        assert email == "john@example.com"
+
+    def test_quoted_name(self):
+        name, email = _parse_address('"Doe, John" <john@example.com>')
+        assert name == "Doe, John"
+        assert email == "john@example.com"
+
+
+class TestParseRecipients:
+    def test_multiple_to(self):
+        result = _parse_recipients("a@x.com, B <b@x.com>", None)
+        assert len(result) == 2
+        assert result[0]["email"] == "a@x.com"
+        assert result[0]["type"] == "to"
+        assert result[1]["email"] == "b@x.com"
+        assert result[1]["name"] == "B"
+
+    def test_cc_only(self):
+        result = _parse_recipients(None, "cc@x.com")
+        assert len(result) == 1
+        assert result[0]["type"] == "cc"
+
+
+# ---------------------------------------------------------------------------
+# Integration tests (DB-backed)
+# ---------------------------------------------------------------------------
 
 
 @pytest.fixture()
 def email_connection(auth_client):
     """Create a real email_connections row and return (connection_id, org_id, user_id)."""
-    # Extract org_id from auth_client headers
     org_id = auth_client.headers["X-Org-Id"]
-
-    # Get user_id from /auth/me
     me = auth_client.get("/auth/me")
     assert me.status_code == 200
     user_id = me.json()["id"]
-
     conn_id = str(uuid.uuid4())
 
     with db_conn() as conn:
@@ -67,37 +200,47 @@ def email_connection(auth_client):
                     datetime(2026, 12, 31, tzinfo=UTC),
                 ),
             )
-            # Create sync state row
+            # Create sync state row with a history ID
             cur.execute(
                 """
-                INSERT INTO email_sync_state (connection_id, folder_name, last_seen_uid)
-                VALUES (%s, 'INBOX', 0)
+                INSERT INTO email_sync_state (connection_id, folder_name, last_history_id)
+                VALUES (%s, 'INBOX', 10000)
                 """,
                 (conn_id,),
             )
         conn.commit()
 
-    return conn_id, org_id, user_id
+    yield conn_id, org_id, user_id
+
+    # Cleanup: deactivate to prevent enqueue_due_syncs() picking up fake tokens
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE email_connections SET is_active = false WHERE connection_id = %s",
+                (conn_id,),
+            )
+        conn.commit()
 
 
 class TestRunEmailSync:
-    @patch("app.email.sync.ImapClient")
+    @patch("app.email.sync.gmail_api")
     @patch("app.email.sync.get_valid_gmail_token")
     def test_sync_creates_new_items(
         self,
         mock_get_token,
-        mock_imap_cls,
+        mock_gmail_api,
         email_connection,
     ):
         conn_id, org_id, user_id = email_connection
         mock_get_token.return_value = "fake-access-token"
 
-        mock_imap = MagicMock()
-        mock_imap.fetch_since_uid.return_value = [
-            _make_email_msg(uid="101", message_id="<msg-1@example.com>"),
-            _make_email_msg(uid="102", message_id="<msg-2@example.com>"),
+        mock_gmail_api.history_list.return_value = _make_history_response(
+            ["msg_1", "msg_2"], history_id="10002"
+        )
+        mock_gmail_api.message_get.side_effect = [
+            _make_gmail_message(msg_id="msg_1", message_id_header="<msg-1@example.com>"),
+            _make_gmail_message(msg_id="msg_2", message_id_header="<msg-2@example.com>"),
         ]
-        mock_imap_cls.return_value = mock_imap
 
         result = run_email_sync(connection_id=conn_id, org_id=org_id, user_id=user_id)
 
@@ -118,47 +261,57 @@ class TestRunEmailSync:
                 assert row is not None
                 assert row["cnt"] == 2
 
-    @patch("app.email.sync.ImapClient")
+    @patch("app.email.sync.gmail_api")
     @patch("app.email.sync.get_valid_gmail_token")
     def test_sync_deduplicates_existing_items(
         self,
         mock_get_token,
-        mock_imap_cls,
+        mock_gmail_api,
         email_connection,
     ):
         conn_id, org_id, user_id = email_connection
         mock_get_token.return_value = "fake-access-token"
 
-        msg = _make_email_msg(uid="201", message_id="<dedup-test@example.com>")
-        mock_imap = MagicMock()
-        mock_imap.fetch_since_uid.return_value = [msg]
-        mock_imap_cls.return_value = mock_imap
+        gmail_msg = _make_gmail_message(
+            msg_id="msg_dedup",
+            message_id_header="<dedup-test@example.com>",
+            history_id="10001",
+        )
+        mock_gmail_api.history_list.return_value = _make_history_response(
+            ["msg_dedup"], history_id="10001"
+        )
+        mock_gmail_api.message_get.return_value = gmail_msg
 
         # First sync — should create
         result1 = run_email_sync(connection_id=conn_id, org_id=org_id, user_id=user_id)
         assert result1.created == 1
 
         # Second sync with same message — should skip
+        mock_gmail_api.history_list.return_value = _make_history_response(
+            ["msg_dedup"], history_id="10002"
+        )
         result2 = run_email_sync(connection_id=conn_id, org_id=org_id, user_id=user_id)
         assert result2.skipped == 1
         assert result2.created == 0
 
-    @patch("app.email.sync.ImapClient")
+    @patch("app.email.sync.gmail_api")
     @patch("app.email.sync.get_valid_gmail_token")
     def test_sync_updates_sync_state(
         self,
         mock_get_token,
-        mock_imap_cls,
+        mock_gmail_api,
         email_connection,
     ):
         conn_id, org_id, user_id = email_connection
         mock_get_token.return_value = "fake-access-token"
 
-        mock_imap = MagicMock()
-        mock_imap.fetch_since_uid.return_value = [
-            _make_email_msg(uid="500", message_id="<state-test@example.com>"),
-        ]
-        mock_imap_cls.return_value = mock_imap
+        mock_gmail_api.history_list.return_value = _make_history_response(
+            ["msg_state"], history_id="50000"
+        )
+        mock_gmail_api.message_get.return_value = _make_gmail_message(
+            msg_id="msg_state",
+            message_id_header="<state-test@example.com>",
+        )
 
         run_email_sync(connection_id=conn_id, org_id=org_id, user_id=user_id)
 
@@ -166,51 +319,54 @@ class TestRunEmailSync:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT last_seen_uid FROM email_sync_state
+                    SELECT last_history_id FROM email_sync_state
                     WHERE connection_id = %s AND folder_name = 'INBOX'
                     """,
                     (conn_id,),
                 )
                 row = cur.fetchone()
                 assert row is not None
-                assert row["last_seen_uid"] == 500
+                assert row["last_history_id"] == 50000
 
-    @patch("app.email.sync.ImapClient")
+    @patch("app.email.sync.gmail_api")
     @patch("app.email.sync.get_valid_gmail_token")
     def test_sync_no_messages_returns_zero(
         self,
         mock_get_token,
-        mock_imap_cls,
+        mock_gmail_api,
         email_connection,
     ):
         conn_id, org_id, user_id = email_connection
         mock_get_token.return_value = "fake-access-token"
 
-        mock_imap = MagicMock()
-        mock_imap.fetch_since_uid.return_value = []
-        mock_imap_cls.return_value = mock_imap
+        mock_gmail_api.history_list.return_value = {
+            "history": [],
+            "historyId": "10000",
+        }
 
         result = run_email_sync(connection_id=conn_id, org_id=org_id, user_id=user_id)
 
         assert result.synced == 0
         assert result.created == 0
 
-    @patch("app.email.sync.ImapClient")
+    @patch("app.email.sync.gmail_api")
     @patch("app.email.sync.get_valid_gmail_token")
     def test_sync_updates_connection_metadata(
         self,
         mock_get_token,
-        mock_imap_cls,
+        mock_gmail_api,
         email_connection,
     ):
         conn_id, org_id, user_id = email_connection
         mock_get_token.return_value = "fake-access-token"
 
-        mock_imap = MagicMock()
-        mock_imap.fetch_since_uid.return_value = [
-            _make_email_msg(uid="301", message_id="<meta-test@example.com>"),
-        ]
-        mock_imap_cls.return_value = mock_imap
+        mock_gmail_api.history_list.return_value = _make_history_response(
+            ["msg_meta"], history_id="10001"
+        )
+        mock_gmail_api.message_get.return_value = _make_gmail_message(
+            msg_id="msg_meta",
+            message_id_header="<meta-test@example.com>",
+        )
 
         run_email_sync(connection_id=conn_id, org_id=org_id, user_id=user_id)
 
@@ -235,22 +391,20 @@ class TestRunEmailSync:
                 user_id=str(uuid.uuid4()),
             )
 
-    @patch("app.email.sync.ImapClient")
+    @patch("app.email.sync.gmail_api")
     @patch("app.email.sync.get_valid_gmail_token")
     def test_sync_records_error_on_failure(
         self,
         mock_get_token,
-        mock_imap_cls,
+        mock_gmail_api,
         email_connection,
     ):
         conn_id, org_id, user_id = email_connection
         mock_get_token.return_value = "fake-access-token"
 
-        mock_imap = MagicMock()
-        mock_imap.fetch_since_uid.side_effect = RuntimeError("IMAP connect failed")
-        mock_imap_cls.return_value = mock_imap
+        mock_gmail_api.history_list.side_effect = RuntimeError("Gmail API error")
 
-        with pytest.raises(RuntimeError, match="IMAP connect failed"):
+        with pytest.raises(RuntimeError, match="Gmail API error"):
             run_email_sync(connection_id=conn_id, org_id=org_id, user_id=user_id)
 
         with db_conn() as conn:
@@ -261,14 +415,14 @@ class TestRunEmailSync:
                 )
                 row = cur.fetchone()
                 assert row is not None
-                assert "IMAP connect failed" in (row["last_sync_error"] or "")
+                assert "Gmail API error" in (row["last_sync_error"] or "")
 
-    @patch("app.email.sync.ImapClient")
+    @patch("app.email.sync.gmail_api")
     @patch("app.email.sync.get_valid_gmail_token")
     def test_sync_marks_read_when_configured(
         self,
         mock_get_token,
-        mock_imap_cls,
+        mock_gmail_api,
         email_connection,
     ):
         conn_id, org_id, user_id = email_connection
@@ -283,36 +437,41 @@ class TestRunEmailSync:
                 )
             conn.commit()
 
-        mock_imap = MagicMock()
-        mock_imap.fetch_since_uid.return_value = [
-            _make_email_msg(uid="401", message_id="<mark-read@example.com>"),
-        ]
-        mock_imap_cls.return_value = mock_imap
+        mock_gmail_api.history_list.return_value = _make_history_response(
+            ["msg_read"], history_id="10001"
+        )
+        mock_gmail_api.message_get.return_value = _make_gmail_message(
+            msg_id="msg_read",
+            message_id_header="<mark-read@example.com>",
+        )
 
         run_email_sync(connection_id=conn_id, org_id=org_id, user_id=user_id)
 
-        mock_imap.mark_read.assert_called_once_with("INBOX", [401])
+        mock_gmail_api.message_modify.assert_called_once_with(
+            "fake-access-token",
+            "msg_read",
+            remove_label_ids=["UNREAD"],
+        )
 
-    @patch("app.email.sync.ImapClient")
+    @patch("app.email.sync.gmail_api")
     @patch("app.email.sync.get_valid_gmail_token")
     def test_sync_item_has_correct_jsonld_type(
         self,
         mock_get_token,
-        mock_imap_cls,
+        mock_gmail_api,
         email_connection,
     ):
         conn_id, org_id, user_id = email_connection
         mock_get_token.return_value = "fake-access-token"
 
-        mock_imap = MagicMock()
-        mock_imap.fetch_since_uid.return_value = [
-            _make_email_msg(
-                uid="601",
-                message_id="<jsonld-test@example.com>",
-                subject="Prüfung des Antrags",
-            ),
-        ]
-        mock_imap_cls.return_value = mock_imap
+        mock_gmail_api.history_list.return_value = _make_history_response(
+            ["msg_jsonld"], history_id="10001"
+        )
+        mock_gmail_api.message_get.return_value = _make_gmail_message(
+            msg_id="msg_jsonld",
+            message_id_header="<jsonld-test@example.com>",
+            subject="Prüfung des Antrags",
+        )
 
         run_email_sync(connection_id=conn_id, org_id=org_id, user_id=user_id)
 
@@ -332,3 +491,75 @@ class TestRunEmailSync:
                 assert entity["@type"] == "EmailMessage"
                 assert entity["name"] == "Prüfung des Antrags"
                 assert entity["@id"].startswith("urn:app:email:")
+
+    @patch("app.email.sync.gmail_api")
+    @patch("app.email.sync.get_valid_gmail_token")
+    def test_sync_history_expired_falls_back_to_messages_list(
+        self,
+        mock_get_token,
+        mock_gmail_api,
+        email_connection,
+    ):
+        conn_id, org_id, user_id = email_connection
+        mock_get_token.return_value = "fake-access-token"
+
+        # history_list returns 404 → fallback to messages_list
+        mock_gmail_api.history_list.side_effect = httpx.HTTPStatusError(
+            "Not Found",
+            request=httpx.Request("GET", "https://example.com"),
+            response=httpx.Response(404),
+        )
+        mock_gmail_api.messages_list.return_value = [
+            {"id": "msg_fallback", "threadId": "thread_1"},
+        ]
+        mock_gmail_api.message_get.return_value = _make_gmail_message(
+            msg_id="msg_fallback",
+            message_id_header="<fallback@example.com>",
+            history_id="20000",
+        )
+
+        result = run_email_sync(connection_id=conn_id, org_id=org_id, user_id=user_id)
+
+        assert result.synced == 1
+        assert result.created == 1
+        mock_gmail_api.messages_list.assert_called_once_with(
+            "fake-access-token",
+            query="in:inbox newer_than:7d",
+            max_results=100,
+        )
+
+    @patch("app.email.sync.gmail_api")
+    @patch("app.email.sync.get_valid_gmail_token")
+    def test_sync_stores_gmail_message_id_in_source_metadata(
+        self,
+        mock_get_token,
+        mock_gmail_api,
+        email_connection,
+    ):
+        conn_id, org_id, user_id = email_connection
+        mock_get_token.return_value = "fake-access-token"
+
+        mock_gmail_api.history_list.return_value = _make_history_response(
+            ["msg_meta_id"], history_id="10001"
+        )
+        mock_gmail_api.message_get.return_value = _make_gmail_message(
+            msg_id="msg_meta_id",
+            message_id_header="<meta-id@example.com>",
+        )
+
+        run_email_sync(connection_id=conn_id, org_id=org_id, user_id=user_id)
+
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT schema_jsonld FROM items
+                    WHERE org_id = %s AND source = 'gmail'
+                    ORDER BY created_at DESC LIMIT 1
+                    """,
+                    (org_id,),
+                )
+                row = cur.fetchone()
+                assert row is not None
+                raw = row["schema_jsonld"]["sourceMetadata"]["raw"]
+                assert raw["gmailMessageId"] == "msg_meta_id"

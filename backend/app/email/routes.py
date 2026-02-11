@@ -9,12 +9,11 @@ import logging
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
-from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import httpx
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import RedirectResponse
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from app.config import settings
@@ -26,7 +25,7 @@ from app.email.gmail_oauth import (
     exchange_gmail_code,
     get_gmail_user_email,
 )
-from app.email.sync import run_email_sync
+from app.email.sync import register_watch, run_email_sync, stop_watch_for_connection
 
 router = APIRouter(prefix="/email", tags=["email"])
 logger = logging.getLogger(__name__)
@@ -136,6 +135,13 @@ def _format_google_error(exc: httpx.HTTPStatusError) -> str:
     return detail
 
 
+def _js_string(s: str) -> str:
+    """Escape a Python string for safe embedding in a JS string literal."""
+    import json
+
+    return json.dumps(s)
+
+
 def _row_to_response(row: dict) -> EmailConnectionResponse:
     return EmailConnectionResponse(
         connection_id=str(row["connection_id"]),
@@ -178,8 +184,8 @@ def gmail_authorize(
 @router.get(
     "/oauth/gmail/callback",
     summary="Gmail OAuth callback",
-    response_class=RedirectResponse,
-    responses={302: {"description": "Redirect to frontend after successful authorization"}},
+    response_class=HTMLResponse,
+    responses={200: {"description": "Self-closing popup page after successful authorization"}},
 )
 def gmail_callback(
     code: str,
@@ -300,12 +306,30 @@ def gmail_callback(
                     )
         conn.commit()
 
-    # Redirect back to frontend
-    parsed = urlparse(return_url)
-    query = dict(parse_qsl(parsed.query))
-    query["gmail"] = "connected"
-    redirect_url = urlunparse(parsed._replace(query=urlencode(query)))
-    return RedirectResponse(redirect_url)
+    # Register Gmail Watch for push notifications (best-effort)
+    connection_id = str(existing["connection_id"]) if existing else str(new_row["connection_id"])
+    try:
+        register_watch(connection_id, str(org_id))
+    except Exception:
+        logger.warning("Failed to register watch for %s", connection_id, exc_info=True)
+
+    # Return a self-closing HTML page that signals the parent window via
+    # localStorage and closes the popup.  Falls back to a redirect if the
+    # popup was blocked and this is a full-page navigation.
+    fallback_url = return_url + ("&" if "?" in return_url else "?") + "gmail=connected"
+    return HTMLResponse(
+        f"""<!DOCTYPE html>
+<html><head><title>Connecting…</title></head>
+<body>
+<p>Gmail connected. You can close this window.</p>
+<script>
+  try {{ localStorage.setItem("gmail-connected", String(Date.now())); }} catch(_) {{}}
+  window.close();
+  // If window.close() was blocked (full-page redirect, not a popup), redirect.
+  window.location.href = {_js_string(fallback_url)};
+</script>
+</body></html>"""
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -415,6 +439,12 @@ def disconnect(
     current_user=Depends(get_current_user),
     org=Depends(get_current_org),
 ):
+    # Stop Gmail Watch before deactivating (best-effort)
+    try:
+        stop_watch_for_connection(connection_id, org["org_id"])
+    except Exception:
+        logger.warning("Failed to stop watch for %s", connection_id, exc_info=True)
+
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -424,6 +454,8 @@ def disconnect(
                     encrypted_access_token = NULL,
                     encrypted_refresh_token = NULL,
                     token_expires_at = NULL,
+                    watch_expiration = NULL,
+                    watch_history_id = NULL,
                     archived_at = now(),
                     updated_at = now()
                 WHERE connection_id = %s AND user_id = %s AND org_id = %s AND is_active = true

@@ -163,13 +163,14 @@ Tay: "Projekt 'Geburtstagsfeier planen' erstellt mit
 - [ ] Tests: unit tests for all components and hooks
 - [ ] Docs: `TayChatFlow.mdx`, `DetachableAttachments.mdx`
 
-## What's next (backend)
+## What's next (backend — V1 scope)
 
-- [ ] `POST /chat/completions` endpoint
-- [ ] Conversation persistence (PostgreSQL table)
-- [ ] OpenRouter LLM integration with function calling
-- [ ] Streaming responses (Server-Sent Events)
-- [ ] Conversation context (include user's items for better suggestions)
+- [ ] `POST /chat/completions` — single-message proxy → Haystack agent → OpenRouter
+- [ ] 3 tool definitions matching frontend tool types (`create_project_with_actions`, `create_action`, `create_reference`)
+- [ ] German system prompt
+- [ ] Graceful error handling (503/502 from OpenRouter → user-friendly error message)
+
+**Deferred to V2+:** Conversation history, user items in prompt context, streaming (SSE), model fallback, K8s agent manifests, CI pipeline jobs, DB persistence for conversations. See [Tay Copilot V2+](?path=/docs/product-epics-tay-copilot-v2---docs).
 
 ---
 

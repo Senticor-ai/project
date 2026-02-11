@@ -1,4 +1,4 @@
-"""Transform IMAP EmailMessage dataclass → TAY JSON-LD EmailMessage entity.
+"""Transform EmailMessage dataclass → TAY JSON-LD EmailMessage entity.
 
 Follows the same pattern as imports/nirvana/transform.py, using shared helpers
 from imports/shared.py for canonical IDs and property values.
@@ -7,6 +7,7 @@ from imports/shared.py for canonical IDs and property values.
 from __future__ import annotations
 
 import hashlib
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from ..imports.shared import (
@@ -15,7 +16,31 @@ from ..imports.shared import (
     _canonical_id,
     _pv,
 )
-from .imap_client import EmailMessage
+
+
+@dataclass
+class EmailAttachment:
+    """Represents an email attachment."""
+
+    filename: str
+    content_type: str
+    size: int
+
+
+@dataclass
+class EmailMessage:
+    """Represents a fetched email message (source-agnostic)."""
+
+    uid: str
+    message_id: str | None
+    subject: str | None
+    sender_email: str
+    sender_name: str | None
+    recipients: list[dict[str, str]] = field(default_factory=list)
+    received_at: datetime | None = None
+    body_text: str | None = None
+    body_html: str | None = None
+    attachments: list[EmailAttachment] = field(default_factory=list)
 
 
 def _email_canonical_id(message_id: str) -> str:
