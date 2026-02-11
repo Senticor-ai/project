@@ -801,8 +801,8 @@ describe("fromJsonLd", () => {
     });
   });
 
-  describe("unknown @type fallback", () => {
-    it("falls back to inbox for unknown @type", () => {
+  describe("unknown @type", () => {
+    it("throws for unknown @type", () => {
       const record = wrapAsItemRecord({
         "@id": "urn:app:inbox:unknown-1",
         "@type": "SomeFutureType",
@@ -817,39 +817,12 @@ describe("fromJsonLd", () => {
             propertyID: "app:bucket",
             value: "inbox",
           },
-          {
-            "@type": "PropertyValue",
-            propertyID: "app:needsEnrichment",
-            value: true,
-          },
-          {
-            "@type": "PropertyValue",
-            propertyID: "app:confidence",
-            value: "low",
-          },
-          {
-            "@type": "PropertyValue",
-            propertyID: "app:captureSource",
-            value: { kind: "thought" },
-          },
-          { "@type": "PropertyValue", propertyID: "app:contexts", value: [] },
-          { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
-          {
-            "@type": "PropertyValue",
-            propertyID: "app:typedReferences",
-            value: [],
-          },
-          {
-            "@type": "PropertyValue",
-            propertyID: "app:provenanceHistory",
-            value: [],
-          },
         ],
       });
 
-      const item = fromJsonLd(record);
-      expect(item.bucket).toBe("inbox");
-      expect(item.name).toBe("Unknown thing");
+      expect(() => fromJsonLd(record)).toThrow(
+        'Unsupported @type "SomeFutureType"',
+      );
     });
   });
 
@@ -1224,6 +1197,7 @@ describe("buildNewUrlInboxJsonLd", () => {
       kind: "url",
       url: "https://example.com/article",
     });
+    expectPropertyValue(ld, "app:rawCapture", "https://example.com/article");
   });
 
   it("generates unique @id with urn:app:inbox: prefix", () => {
@@ -1407,6 +1381,142 @@ describe("fromJsonLd — intake classification types in inbox", () => {
     expect(item.bucket).toBe("inbox");
     expect(item.name).toBe("report.pdf");
     expect(item.needsEnrichment).toBe(true);
+  });
+
+  it("deserializes EmailMessage as inbox ActionItem with email captureSource", () => {
+    const record = wrapAsItemRecord({
+      "@id": "urn:app:email:abc123",
+      "@type": "EmailMessage",
+      _schemaVersion: 2,
+      name: "Re: Antrag auf Verlangerung",
+      description: "Sehr geehrte Frau Muller...",
+      keywords: [],
+      dateCreated: "2026-02-11T09:30:00Z",
+      dateModified: "2026-02-11T09:30:00Z",
+      sender: {
+        "@type": "Person",
+        name: "Hans Schmidt",
+        email: "hans.schmidt@example.de",
+      },
+      additionalProperty: [
+        { "@type": "PropertyValue", propertyID: "app:bucket", value: "inbox" },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:rawCapture",
+          value: "Sehr geehrte Frau Muller...",
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:needsEnrichment",
+          value: true,
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:confidence",
+          value: "medium",
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:captureSource",
+          value: {
+            kind: "email",
+            subject: "Re: Antrag auf Verlangerung",
+            from: "hans.schmidt@example.de",
+          },
+        },
+        { "@type": "PropertyValue", propertyID: "app:contexts", value: [] },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:isFocused",
+          value: false,
+        },
+        { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:typedReferences",
+          value: [],
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:provenanceHistory",
+          value: [],
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:emailBody",
+          value: "<p>Sehr geehrte Frau Muller...</p>",
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:emailSourceUrl",
+          value: "https://mail.google.com/mail/u/0/#inbox/abc123",
+        },
+      ],
+    });
+
+    const item = fromJsonLd(record);
+    expect(item.bucket).toBe("inbox");
+    expect(item.name).toBe("Re: Antrag auf Verlangerung");
+    expect(item.needsEnrichment).toBe(true);
+    expect(item.confidence).toBe("medium");
+
+    // Verify email captureSource is preserved
+    expect(item.captureSource).toEqual({
+      kind: "email",
+      subject: "Re: Antrag auf Verlangerung",
+      from: "hans.schmidt@example.de",
+    });
+
+    // Verify rawCapture (snippet)
+    expect("rawCapture" in item && item.rawCapture).toBe(
+      "Sehr geehrte Frau Muller...",
+    );
+  });
+
+  it("deserializes EmailMessage without captureSource using sender fallback", () => {
+    const record = wrapAsItemRecord({
+      "@id": "urn:app:email:def456",
+      "@type": "EmailMessage",
+      _schemaVersion: 2,
+      name: "Meeting notes",
+      description: null,
+      keywords: [],
+      dateCreated: "2026-02-11T09:30:00Z",
+      dateModified: "2026-02-11T09:30:00Z",
+      sender: {
+        "@type": "Person",
+        email: "colleague@example.de",
+      },
+      additionalProperty: [
+        { "@type": "PropertyValue", propertyID: "app:bucket", value: "inbox" },
+        { "@type": "PropertyValue", propertyID: "app:contexts", value: [] },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:isFocused",
+          value: false,
+        },
+        { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:typedReferences",
+          value: [],
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:provenanceHistory",
+          value: [],
+        },
+      ],
+    });
+
+    const item = fromJsonLd(record);
+    expect(item.bucket).toBe("inbox");
+    // Should fall back to email captureSource derived from sender
+    expect(item.captureSource).toEqual({
+      kind: "email",
+      subject: "Meeting notes",
+      from: "colleague@example.de",
+    });
   });
 });
 
@@ -1979,5 +2089,133 @@ describe("JSON Schema contract validation", () => {
       const valid = validators.validateItemPatch(patch);
       expect(valid, formatErrors(validators.validateItemPatch)).toBe(true);
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fileId / downloadUrl round-trip
+// ---------------------------------------------------------------------------
+
+describe("fromJsonLd extracts fileId and downloadUrl", () => {
+  it("extracts app:fileId and app:downloadUrl from action item", () => {
+    const record = wrapAsItemRecord({
+      "@id": "urn:app:inbox:f1",
+      "@type": "DigitalDocument",
+      _schemaVersion: 2,
+      name: "report.pdf",
+      keywords: [],
+      encodingFormat: "application/pdf",
+      dateCreated: "2026-01-01T00:00:00Z",
+      dateModified: "2026-01-01T00:00:00Z",
+      additionalProperty: [
+        { "@type": "PropertyValue", propertyID: "app:bucket", value: "inbox" },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:captureSource",
+          value: {
+            kind: "file",
+            fileName: "report.pdf",
+            mimeType: "application/pdf",
+          },
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:fileId",
+          value: "file-uuid-123",
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:downloadUrl",
+          value: "/files/file-uuid-123",
+        },
+      ],
+    });
+    const item = fromJsonLd(record);
+    expect(item.fileId).toBe("file-uuid-123");
+    expect(item.downloadUrl).toBe("/files/file-uuid-123");
+  });
+
+  it("extracts file fields from reference material", () => {
+    const record = wrapAsItemRecord({
+      "@id": "urn:app:reference:f2",
+      "@type": "CreativeWork",
+      _schemaVersion: 2,
+      name: "style-guide.pdf",
+      keywords: [],
+      encodingFormat: "application/pdf",
+      dateCreated: "2026-01-01T00:00:00Z",
+      dateModified: "2026-01-01T00:00:00Z",
+      additionalProperty: [
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:bucket",
+          value: "reference",
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:fileId",
+          value: "file-uuid-456",
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:downloadUrl",
+          value: "/files/file-uuid-456",
+        },
+      ],
+    });
+    const item = fromJsonLd(record);
+    expect(item.fileId).toBe("file-uuid-456");
+    expect(item.downloadUrl).toBe("/files/file-uuid-456");
+  });
+
+  it("returns undefined when file fields are absent", () => {
+    const record = wrapAsItemRecord({
+      "@id": "urn:app:inbox:f3",
+      "@type": "Action",
+      _schemaVersion: 2,
+      keywords: [],
+      dateCreated: "2026-01-01T00:00:00Z",
+      dateModified: "2026-01-01T00:00:00Z",
+      additionalProperty: [
+        { "@type": "PropertyValue", propertyID: "app:bucket", value: "inbox" },
+      ],
+    });
+    const item = fromJsonLd(record);
+    expect(item.fileId).toBeUndefined();
+    expect(item.downloadUrl).toBeUndefined();
+  });
+});
+
+describe("toJsonLd serializes fileId and downloadUrl", () => {
+  beforeEach(() => resetFactoryCounter());
+
+  it("includes file fields for action item with fileId", () => {
+    const action = createAction({
+      name: "Uploaded doc",
+      bucket: "next",
+      fileId: "file-uuid-789",
+      downloadUrl: "/files/file-uuid-789",
+    });
+    const ld = toJsonLd(action);
+    expectPropertyValue(ld, "app:fileId", "file-uuid-789");
+    expectPropertyValue(ld, "app:downloadUrl", "/files/file-uuid-789");
+  });
+
+  it("omits file fields when absent", () => {
+    const action = createAction({ name: "Plain action", bucket: "next" });
+    const ld = toJsonLd(action);
+    expect(getProp(ld, "app:fileId")).toBeUndefined();
+    expect(getProp(ld, "app:downloadUrl")).toBeUndefined();
+  });
+
+  it("includes file fields for reference material with fileId", () => {
+    const ref = createReferenceMaterial({
+      name: "Ref with file",
+      fileId: "file-uuid-ref",
+      downloadUrl: "/files/file-uuid-ref",
+    });
+    const ld = toJsonLd(ref);
+    expectPropertyValue(ld, "app:fileId", "file-uuid-ref");
+    expectPropertyValue(ld, "app:downloadUrl", "/files/file-uuid-ref");
   });
 });

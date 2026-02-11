@@ -1,4 +1,5 @@
 import { Meta } from "@storybook/addon-docs/blocks";
+import { Mermaid } from "../../components/docs/Mermaid";
 
 <Meta title="Engineering/Architecture" />
 
@@ -7,6 +8,153 @@ import { Meta } from "@storybook/addon-docs/blocks";
 This document defines the technology stack, architectural principles, and core patterns
 for the system. For the data model that sits on top of this architecture, see
 [Data Model](?path=/docs/engineering-ontology--docs).
+
+---
+
+## C4 Architecture Model
+
+Architecture diagrams following the [C4 model](https://c4model.com/) — hierarchical
+abstractions from system context down to components.
+
+### Level 1: System Context
+
+Who uses TAY and what external systems does it interact with?
+
+<Mermaid chart={`
+C4Context
+  title System Context — TerminAndoYo (TAY)
+
+  Person(user, "Bundesbeamter", "Federal clerk managing tasks, documents, and workflows")
+  Person(cpa, "CPA / Advisor", "Receives exported document packages")
+
+  System(tay, "TerminAndoYo", "Structured task management with AI-assisted triage, Schema.org data model, append-only audit trail")
+
+  System_Ext(gmail, "Gmail", "IMAP email sync via OAuth 2.0")
+  System_Ext(openrouter, "OpenRouter", "LLM access for Tay AI agent")
+  System_Ext(grafana, "Grafana LGTM", "Logs, traces, metrics via OpenTelemetry")
+
+  Rel_D(user, tay, "Captures tasks, triages inbox, manages projects", "HTTPS")
+  Rel_D(cpa, tay, "Receives exported document packages", "CSV/PDF/ZIP")
+  Rel_D(tay, gmail, "Syncs email to inbox", "IMAP + OAuth")
+  Rel_D(tay, openrouter, "AI-assisted triage and planning", "HTTPS/REST")
+  Rel_D(tay, grafana, "Exports telemetry", "OTLP")
+
+  UpdateLayoutConfig($c4ShapeInRow="2", $c4BoundaryInRow="1")
+`} />
+
+### Level 2: Container Diagram
+
+What are the running processes, data stores, and how do they communicate?
+
+<Mermaid chart={`
+C4Container
+  title Container Diagram — TerminAndoYo
+
+  Person(user, "User", "Federal clerk")
+
+  System_Boundary(tay, "TerminAndoYo") {
+    Container(spa, "Frontend SPA", "React 19, Vite, Tailwind v4", "Single-page app with offline-first sync, bucket navigation, inline triage")
+    Container(storybook, "Storybook", "Storybook 10, MDX", "Living documentation hub — product specs, design system, component demos, architecture docs")
+    Container(api, "Backend API", "Python, FastAPI", "REST API for items, files, imports, email, auth, search, push notifications")
+    Container(worker, "Projection Worker", "Python", "Outbox consumer: search indexing, RDF projection, email sync, import jobs")
+    Container(pushworker, "Push Worker", "Python", "Web Push notification delivery via VAPID")
+
+    ContainerDb(pg, "PostgreSQL 16", "Relational DB", "Source of truth: items (JSON-LD), files, assertions, outbox events, sessions, email connections")
+    ContainerDb(meili, "Meilisearch", "Search engine", "Full-text index for items and file content (optional)")
+    ContainerDb(fuseki, "Apache Jena Fuseki", "RDF/SPARQL", "Relationship graph projection for FRBR/LexCEL queries (optional)")
+    ContainerDb(files, "File Storage", "PVC / filesystem", "Uploaded files (SHA256 content-addressed)")
+  }
+
+  System_Ext(gmail, "Gmail", "IMAP email provider")
+  System_Ext(openrouter, "OpenRouter", "LLM provider")
+
+  Rel(user, spa, "Uses", "HTTPS")
+  Rel(user, storybook, "Reads docs", "HTTPS")
+  Rel(spa, api, "JSON API calls", "HTTPS /api/*")
+  Rel(api, pg, "Reads/writes", "SQL")
+  Rel(api, files, "Stores/retrieves files", "filesystem")
+  Rel(worker, pg, "Polls outbox_events", "SQL")
+  Rel(worker, meili, "Indexes items", "REST")
+  Rel(worker, fuseki, "Upserts RDF", "HTTP Graph Store")
+  Rel(worker, gmail, "IMAP sync", "IMAP + OAuth")
+  Rel(pushworker, pg, "Polls push_outbox", "SQL")
+  Rel(api, openrouter, "Chat completions", "HTTPS")
+
+  UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
+`} />
+
+### Level 3: Components — Backend API
+
+What modules make up the FastAPI backend?
+
+<Mermaid chart={`
+C4Component
+  title Component Diagram — Backend API (FastAPI)
+
+  Container_Boundary(api, "Backend API") {
+    Component(auth, "Auth Module", "FastAPI Router", "Register, login, logout, session refresh, CSRF tokens. HTTP-only cookie sessions stored in PostgreSQL.")
+    Component(items, "Items API", "FastAPI Router", "CRUD for JSON-LD items. Cursor-based sync, idempotent writes, soft-delete archive. Outbox event on every write.")
+    Component(filesapi, "Files API", "FastAPI Router", "Chunked upload (initiate → chunks → complete). SHA256 dedup. Content-addressed storage.")
+    Component(imports, "Imports API", "FastAPI Router", "Nirvana + Native importers. Inspect preview, async job execution, progress polling.")
+    Component(email, "Email Module", "FastAPI Router", "Gmail OAuth flow, connection management, manual sync trigger. Encrypted token storage.")
+    Component(search, "Search API", "FastAPI Router", "Proxies full-text queries to Meilisearch. Items + file content indices.")
+    Component(push, "Push API", "FastAPI Router", "Web Push subscription management via VAPID keys.")
+    Component(schemas, "Schemas API", "FastAPI Router", "Canonical JSON-LD schema definitions for all entity types.")
+    Component(metrics, "Observability", "Middleware", "Prometheus metrics, OpenTelemetry tracing, structured logging with trace correlation.")
+  }
+
+  ContainerDb(pg, "PostgreSQL", "", "Items, sessions, outbox, email credentials")
+  ContainerDb(meili, "Meilisearch", "", "Full-text search index")
+  ContainerDb(storage, "File Storage", "", "Uploaded PDFs, docs")
+  System_Ext(gmail, "Gmail", "OAuth + IMAP")
+  System_Ext(openrouter, "OpenRouter", "LLM")
+
+  Rel(auth, pg, "Sessions, users")
+  Rel(items, pg, "Items, outbox events")
+  Rel(filesapi, storage, "Store/retrieve files")
+  Rel(filesapi, pg, "File metadata")
+  Rel(imports, pg, "Import jobs, items")
+  Rel(email, pg, "Connections, tokens")
+  Rel(email, gmail, "OAuth + IMAP")
+  Rel(search, meili, "Query indices")
+  Rel(push, pg, "Subscriptions, outbox")
+
+  UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
+`} />
+
+### Level 3: Components — Projection Worker
+
+What does the outbox worker process?
+
+<Mermaid chart={`
+C4Component
+  title Component Diagram — Projection Worker
+
+  Container_Boundary(worker, "Projection Worker") {
+    Component(poller, "Outbox Poller", "Python", "Polls outbox_events table. Batch processing with configurable interval and batch size.")
+    Component(searchidx, "Search Indexer", "Python", "Indexes items and file content in Meilisearch. Handles OCR for PDFs.")
+    Component(rdfproj, "RDF Projector", "Python", "Converts JSON-LD items to RDF triples. Validates via SHACL. Upserts to Fuseki graph store.")
+    Component(importer, "Import Processor", "Python", "Runs Nirvana and Native import jobs. Transform → dedup → batch upsert.")
+    Component(emailsync, "Email Sync", "Python", "IMAP sync via Gmail. Fetches new messages, transforms to inbox items.")
+    Component(pushemit, "Push Emitter", "Python", "Enqueues Web Push notifications in push_outbox on item events.")
+    Component(deadletter, "Dead Letter Handler", "Python", "After max retries, moves failed events to dead letter state for manual review.")
+  }
+
+  ContainerDb(pg, "PostgreSQL", "", "Outbox events, items, import jobs")
+  ContainerDb(meili, "Meilisearch", "", "Search indices")
+  ContainerDb(fuseki, "Fuseki", "", "RDF graph")
+  System_Ext(gmail, "Gmail", "IMAP")
+
+  Rel(poller, pg, "Polls + marks processed")
+  Rel(searchidx, meili, "Index documents")
+  Rel(rdfproj, fuseki, "Upsert RDF triples")
+  Rel(importer, pg, "Batch upsert items")
+  Rel(emailsync, gmail, "IMAP fetch")
+  Rel(emailsync, pg, "Create inbox items")
+  Rel(deadletter, pg, "Dead letter events")
+
+  UpdateLayoutConfig($c4ShapeInRow="4", $c4BoundaryInRow="1")
+`} />
 
 ---
 

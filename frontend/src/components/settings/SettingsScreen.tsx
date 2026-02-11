@@ -2,6 +2,7 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Tabs, type TabItem } from "@/components/ui/Tabs";
 import { DeveloperPanel } from "./DeveloperPanel";
+import { EmailPanel } from "./EmailPanel";
 import { ImportExportPanel } from "./ImportExportPanel";
 import { LabelsPanel } from "./LabelsPanel";
 import { PreferencesPanel } from "./PreferencesPanel";
@@ -9,16 +10,19 @@ import {
   DEFAULT_PREFERENCES,
   type ExportOptions,
 } from "@/model/settings-types";
+import type { EmailConnectionResponse } from "@/lib/api-client";
 import type { ImportJobData } from "./ImportJobRow";
 
 export type SettingsTab =
   | "import-export"
+  | "email"
   | "labels"
   | "preferences"
   | "developer";
 
 const settingsTabs: TabItem[] = [
   { id: "import-export", label: "Import / Export", icon: "swap_horiz" },
+  { id: "email", label: "Email", icon: "mail" },
   { id: "labels", label: "Labels & Contexts", icon: "label" },
   { id: "preferences", label: "Preferences", icon: "tune" },
   { id: "developer", label: "Developer", icon: "code" },
@@ -39,6 +43,14 @@ export interface SettingsScreenProps {
   onRetryJob?: (jobId: string) => void;
   onArchiveJob?: (jobId: string) => void;
   retryingJobId?: string | null;
+  emailConnections?: EmailConnectionResponse[];
+  emailLoading?: boolean;
+  onConnectGmail?: () => void;
+  onEmailSync?: (connectionId: string) => void;
+  onEmailDisconnect?: (connectionId: string) => void;
+  onEmailUpdateSyncInterval?: (connectionId: string, minutes: number) => void;
+  onEmailUpdateMarkRead?: (connectionId: string, markRead: boolean) => void;
+  emailSyncingConnectionId?: string | null;
   className?: string;
 }
 
@@ -54,6 +66,14 @@ export function SettingsScreen({
   onRetryJob,
   onArchiveJob,
   retryingJobId,
+  emailConnections,
+  emailLoading,
+  onConnectGmail,
+  onEmailSync,
+  onEmailDisconnect,
+  onEmailUpdateSyncInterval,
+  onEmailUpdateMarkRead,
+  emailSyncingConnectionId,
   className,
 }: SettingsScreenProps) {
   const [internalTab, setInternalTab] = useState<SettingsTab>(initialTab);
@@ -95,6 +115,18 @@ export function SettingsScreen({
               onRetryJob={onRetryJob}
               onArchiveJob={onArchiveJob}
               retryingJobId={retryingJobId}
+            />
+          )}
+          {activeTab === "email" && (
+            <EmailPanel
+              connections={emailConnections}
+              isLoading={emailLoading}
+              onConnectGmail={onConnectGmail}
+              onSync={onEmailSync}
+              onDisconnect={onEmailDisconnect}
+              onUpdateSyncInterval={onEmailUpdateSyncInterval}
+              onUpdateMarkRead={onEmailUpdateMarkRead}
+              syncingConnectionId={emailSyncingConnectionId}
             />
           )}
           {activeTab === "labels" && (

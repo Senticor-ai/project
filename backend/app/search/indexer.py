@@ -164,9 +164,9 @@ def _build_ocr_options(ocr_config: OcrConfig):
         options = factory.create_options("auto")
 
     if ocr_config.languages and ocr_config.engine != "auto":
-        options.lang = list(ocr_config.languages)  # type: ignore[attr-defined]
-    options.force_full_page_ocr = ocr_config.force_full_page_ocr  # type: ignore[attr-defined]
-    options.bitmap_area_threshold = ocr_config.bitmap_area_threshold  # type: ignore[attr-defined]
+        options.lang = list(ocr_config.languages)
+    options.force_full_page_ocr = ocr_config.force_full_page_ocr
+    options.bitmap_area_threshold = ocr_config.bitmap_area_threshold
     return options
 
 

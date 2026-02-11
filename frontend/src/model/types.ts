@@ -23,7 +23,8 @@ export type CaptureSource =
   | { kind: "voice"; transcript?: string }
   | { kind: "import"; source: string }
   | { kind: "file"; fileName: string; mimeType: string }
-  | { kind: "url"; url: string };
+  | { kind: "url"; url: string }
+  | { kind: "tay"; conversationId: string };
 
 // ---------------------------------------------------------------------------
 // Provenance (append-only, no-delete policy)
@@ -179,6 +180,10 @@ export interface BaseEntity extends Enrichable {
   captureSource: CaptureSource;
   provenance: Provenance;
   ports: Port[];
+  /** Backend file_id (UUID) — set after binary upload completes. */
+  fileId?: string;
+  /** Backend-provided download URL for the uploaded file. */
+  downloadUrl?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -206,6 +211,10 @@ export interface ActionItem extends BaseEntity {
   recurrence?: RecurrencePattern;
   completedAt?: string;
   sequenceOrder?: number;
+  /** Full email body (HTML or plain text) — present only for EmailMessage items. */
+  emailBody?: string;
+  /** Link to open the original email in Gmail web. */
+  emailSourceUrl?: string;
 }
 
 // ---------------------------------------------------------------------------

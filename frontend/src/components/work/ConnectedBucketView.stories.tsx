@@ -3,7 +3,12 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { http, HttpResponse } from "msw";
 import { expect, fn, waitFor, within } from "storybook/test";
 import { ConnectedBucketView } from "./ConnectedBucketView";
-import { store, seedMixedBuckets } from "@/test/msw/fixtures";
+import {
+  store,
+  seedMixedBuckets,
+  seedMixedBucketsWithEmail,
+  seedMixedBucketsWithFiles,
+} from "@/test/msw/fixtures";
 import type { Bucket } from "@/model/types";
 
 // ---------------------------------------------------------------------------
@@ -336,6 +341,95 @@ export const SomedayBucket: Story = {
       await waitFor(() => {
         expect(canvas.getByText("Learn Rust")).toBeInTheDocument();
       }, WAIT);
+    });
+  },
+};
+
+// ---------------------------------------------------------------------------
+// InboxFileDrop — file drop zone appears on file drag (invisible at rest)
+// ---------------------------------------------------------------------------
+
+export const InboxFileDrop: Story = {
+  args: { activeBucket: "inbox", onBucketChange: fn() },
+  render: () => <ConnectedBucketViewDemo />,
+  play: async ({ canvas, step }) => {
+    await step("Verify inbox loads (drop zone hidden at rest)", async () => {
+      await waitFor(() => {
+        expect(canvas.getByLabelText("Capture a thought")).toBeInTheDocument();
+      }, WAIT);
+      // FileDropZone is invisible at rest — appears only when files are dragged over
+      expect(canvas.queryByTestId("file-drop-zone")).not.toBeInTheDocument();
+    });
+  },
+};
+
+// ---------------------------------------------------------------------------
+// InboxWithFileCapture — DigitalDocument items from file drops appear in inbox
+// ---------------------------------------------------------------------------
+
+export const InboxWithFileCapture: Story = {
+  args: { activeBucket: "inbox", onBucketChange: fn() },
+  beforeEach: () => {
+    seedMixedBucketsWithFiles();
+  },
+  render: () => <ConnectedBucketViewDemo />,
+  play: async ({ canvas, step }) => {
+    await step("Verify regular inbox items appear", async () => {
+      await waitFor(() => {
+        expect(canvas.getByText("Unprocessed thought")).toBeInTheDocument();
+        expect(canvas.getByText("Another capture")).toBeInTheDocument();
+      }, WAIT);
+    });
+
+    await step(
+      "Verify file-captured DigitalDocument items appear in inbox",
+      async () => {
+        await waitFor(() => {
+          expect(canvas.getByText("Quarterly Report.pdf")).toBeInTheDocument();
+          expect(canvas.getByText("Meeting Notes.docx")).toBeInTheDocument();
+        }, WAIT);
+      },
+    );
+  },
+};
+
+// ---------------------------------------------------------------------------
+// InboxWithEmail — email items interleaved with regular items
+// ---------------------------------------------------------------------------
+
+export const InboxWithEmail: Story = {
+  args: { activeBucket: "inbox", onBucketChange: fn() },
+  beforeEach: () => {
+    seedMixedBucketsWithEmail();
+  },
+  render: () => <ConnectedBucketViewDemo />,
+  play: async ({ canvas, step }) => {
+    await step("Verify regular inbox items appear", async () => {
+      await waitFor(() => {
+        expect(canvas.getByText("Unprocessed thought")).toBeInTheDocument();
+        expect(canvas.getByText("Another capture")).toBeInTheDocument();
+      }, WAIT);
+    });
+
+    await step("Verify email items appear interleaved", async () => {
+      await waitFor(() => {
+        expect(
+          canvas.getByText("Re: Antrag auf Verlangerung"),
+        ).toBeInTheDocument();
+        expect(
+          canvas.getByText("Einladung: Projektbesprechung"),
+        ).toBeInTheDocument();
+      }, WAIT);
+    });
+
+    await step("Verify email sender is shown", async () => {
+      expect(canvas.getByText("h.schmidt@example.de")).toBeInTheDocument();
+      expect(canvas.getByText("sekretariat@bund.de")).toBeInTheDocument();
+    });
+
+    await step("Verify email mail icon is visible", async () => {
+      const mailIcons = canvas.getAllByText("mail");
+      expect(mailIcons.length).toBeGreaterThanOrEqual(2);
     });
   },
 };

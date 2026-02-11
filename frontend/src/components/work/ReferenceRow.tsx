@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useDraggable } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
 import { ItemEditor } from "./ItemEditor";
@@ -76,6 +77,11 @@ export function ReferenceRow({
   const [menuOpen, setMenuOpen] = useState(false);
   const origin = reference.origin ? originConfig[reference.origin] : null;
 
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: reference.id,
+    data: { type: "reference", thing: reference },
+  });
+
   const handleTitleClick = () => {
     if (onToggleExpand) {
       onToggleExpand();
@@ -94,9 +100,21 @@ export function ReferenceRow({
         "group flex items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5",
         "transition-colors duration-[var(--duration-fast)]",
         "hover:bg-paper-100",
+        isDragging && "opacity-50",
         className,
       )}
     >
+      {/* Drag handle */}
+      <span
+        ref={setNodeRef}
+        {...listeners}
+        {...attributes}
+        aria-label={`Drag ${reference.name ?? "Untitled"}`}
+        className="hidden cursor-grab text-text-subtle opacity-0 group-hover:opacity-100 focus-visible:opacity-100 md:inline"
+      >
+        <Icon name="drag_indicator" size={14} />
+      </span>
+
       {/* Title — clickable */}
       <button
         onClick={handleTitleClick}

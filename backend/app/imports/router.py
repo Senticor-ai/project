@@ -304,6 +304,13 @@ def retry_import_job(
                 row = cur.fetchone()
                 enqueue_import = True
 
+            if enqueue_import:
+                enqueue_event(
+                    f"{source}_import_job",
+                    {"job_id": str(row["job_id"]), "org_id": org_id},
+                    cur=cur,
+                )
+
         conn.commit()
 
     if enqueue_import:
@@ -314,10 +321,6 @@ def retry_import_job(
             org_id=org_id,
             file_id=file_id,
             source=source,
-        )
-        enqueue_event(
-            f"{source}_import_job",
-            {"job_id": str(row["job_id"]), "org_id": org_id},
         )
     else:
         logger.info(

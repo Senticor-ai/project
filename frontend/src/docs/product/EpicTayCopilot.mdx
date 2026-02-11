@@ -1,0 +1,212 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Product/Epics/Tay Copilot V1" />
+
+# Epic: Tay Copilot V1 — Chat + Item Creation
+
+**Status:** In progress (Storybook)
+**Priority:** Current
+
+## Context
+
+Tay is the AI assistant embedded in TerminAndoYo ([Product Vision](?path=/docs/product-vision--docs#tay--the-ai-assistant)). Until now, Tay existed only as a documented concept. This epic delivers V1: a conversational side panel where users chat with Tay and Tay can create items on the user's behalf — but **only after explicit approval**.
+
+**Design goal:** Tay suggests, the user decides. Suggestions appear as detachable preview cards in the chat. No data is committed until the user clicks Accept. This implements Paperclip principle #5: *AI is a contributor, not an authority*.
+
+---
+
+## Personality & Constraints
+
+| Attribute | Value |
+| --- | --- |
+| Avatar | `chat_bubble` Material Symbol |
+| Primary language | German (matching UI language policy) |
+| Tone | Helpful, concise, respectful of user authority |
+| Interaction model | Suggestions as detachable attachments — never auto-applied |
+| Provenance | Items created via Tay carry `CaptureSource: { kind: "tay" }` |
+
+---
+
+## V1 Scope
+
+### What Tay can do
+
+1. **Chat** — free-form text conversation
+2. **Create a project with actions** — suggest a project name, desired outcome, and a list of actions. Optionally include a DigitalDocument (e.g. invitation template).
+3. **Create a single action** — suggest an action for any bucket, optionally linked to an existing project.
+4. **Create a reference** — suggest a reference material (document, URL, note).
+
+### What Tay cannot do (V1)
+
+- Search or read existing items
+- Move, rename, or archive items
+- Access external services (email, calendar)
+- Stream responses (V1 uses complete responses)
+
+---
+
+## UI: Side Panel
+
+The chat lives in a **right side panel** — the first implementation of the planned [Sheet / Side Panel](?path=/docs/design-paperclip-principles--docs) widget.
+
+| Viewport | Behavior |
+| --- | --- |
+| Desktop | ~400px panel slides in from the right edge, overlaying workspace |
+| Mobile | Full-screen overlay with back button |
+
+**Toggle:** `chat_bubble` icon button in `AppHeader`, between the logo and the hamburger menu.
+
+**State:** `isChatOpen: boolean` in `AuthenticatedApp`. No routing changes — chat is ephemeral UI state.
+
+---
+
+## Message Types
+
+| Type | Alignment | Visual |
+| --- | --- | --- |
+| **User text** | Right | Solid paper-100 bubble |
+| **Tay text** | Left | `chat_bubble` avatar + paper surface |
+| **Tay thinking** | Left | Animated dots with avatar |
+| **Tay suggestion** | Left | ObjectCard-style with Accept / Dismiss / Edit |
+| **Tay confirmation** | Left | Success badge + clickable item chips |
+| **Tay error** | Left | Error styling |
+
+---
+
+## Tool Definitions (V1)
+
+### `create_project_with_actions`
+
+```json
+{
+  "project": { "name": "string", "desiredOutcome": "string" },
+  "actions": [{ "name": "string", "bucket": "next|inbox|waiting|calendar|someday" }],
+  "documents": [{ "name": "string", "description": "string?" }]
+}
+```
+
+### `create_action`
+
+```json
+{
+  "name": "string",
+  "bucket": "next|inbox|waiting|calendar|someday",
+  "projectId": "CanonicalId?"
+}
+```
+
+### `create_reference`
+
+```json
+{
+  "name": "string",
+  "description": "string?",
+  "url": "string?"
+}
+```
+
+All tools map to existing mutation hooks in `use-mutations.ts`: `useCreateProject`, `useAddProjectAction`, `useCaptureInbox`.
+
+---
+
+## Example Scenario
+
+```
+User: "Ich hab bald Geburtstag und muss einiges organisieren"
+
+Tay: "Klingt nach einem Projekt! Hier ist ein Vorschlag:"
+
+┌──────────────────────────────────────────────┐
+│ ✦ Projekt: Geburtstagsfeier planen           │
+│   Ergebnis: Erfolgreiche Geburtstagsfeier    │
+│                                              │
+│   Aktionen:                                  │
+│   ☐ Gästeliste erstellen                     │
+│   ☐ Einladungen versenden                    │
+│   ☐ Location buchen                          │
+│   ☐ Essen & Getränke organisieren            │
+│   ☐ Dekoration besorgen                      │
+│                                              │
+│   Dokument:                                  │
+│   📄 Einladungsvorlage                       │
+│                                              │
+│   [✓ Übernehmen]  [✗ Verwerfen]  [✎ Ändern] │
+└──────────────────────────────────────────────┘
+
+User clicks [Übernehmen]:
+
+Tay: "Projekt 'Geburtstagsfeier planen' erstellt mit
+      5 Aktionen und 1 Dokument."
+      [📋 Geburtstagsfeier planen →]
+```
+
+---
+
+## What's done
+
+- [ ] Types: `chat-types.ts` with message variants and tool definitions
+- [ ] Types: `CaptureSource` `tay` variant in `types.ts`
+- [ ] Component: `ChatInput` (wraps `AutoGrowTextarea`)
+- [ ] Component: `UserMessageBubble` + `TayMessageBubble`
+- [ ] Component: `TayThinkingIndicator`
+- [ ] Component: `ChatMessageList` (auto-scroll)
+- [ ] Component: `TaySuggestionCard` (accept/dismiss/edit lifecycle)
+- [ ] Component: `TayConfirmation` (item chips)
+- [ ] Component: `TayChatPanel` (side panel shell)
+- [ ] Component: `TayChatToggle` (header button)
+- [ ] Hook: `useChatState` (local conversation state)
+- [ ] Hook: `useTayApi` (MSW-mocked chat endpoint)
+- [ ] Hook: `useTayActions` (orchestrates item creation via existing mutations)
+- [ ] MSW: chat handlers and fixtures
+- [ ] Integration: `AppHeader` toggle + `App.tsx` panel rendering
+- [ ] Stories: all components with interactive play functions
+- [ ] Tests: unit tests for all components and hooks
+- [ ] Docs: `TayChatFlow.mdx`, `DetachableAttachments.mdx`
+
+## What's next (backend)
+
+- [ ] `POST /chat/completions` endpoint
+- [ ] Conversation persistence (PostgreSQL table)
+- [ ] OpenRouter LLM integration with function calling
+- [ ] Streaming responses (Server-Sent Events)
+- [ ] Conversation context (include user's items for better suggestions)
+
+---
+
+## Files
+
+**New:**
+
+| File | Purpose |
+| --- | --- |
+| `src/model/chat-types.ts` | Message and tool type definitions |
+| `src/hooks/use-chat-state.ts` | Conversation state management |
+| `src/hooks/use-tay-api.ts` | Chat API abstraction |
+| `src/hooks/use-tay-actions.ts` | Item creation orchestrator |
+| `src/components/chat/ChatInput.tsx` | Text input with send |
+| `src/components/chat/ChatMessageList.tsx` | Scrollable message list |
+| `src/components/chat/TayChatPanel.tsx` | Side panel container |
+| `src/components/chat/TaySuggestionCard.tsx` | Suggestion preview card |
+| Each component: `.stories.tsx` + `.test.tsx` | Stories and tests |
+
+**Modified:**
+
+| File | Change |
+| --- | --- |
+| `src/model/types.ts` | Add `CaptureSource` `tay` variant |
+| `src/components/shell/AppHeader.tsx` | Add chat toggle button |
+| `src/App.tsx` | Add panel state and rendering |
+| `src/test/msw/handlers.ts` | Add chat handlers |
+| `src/test/msw/fixtures.ts` | Add chat fixtures |
+
+---
+
+## Verification
+
+```bash
+cd frontend && npx tsc -b --noEmit
+cd frontend && CI=1 npx vitest run --project=unit
+cd frontend && npx storybook build
+cd frontend && npx eslint src/components/chat/ src/hooks/use-chat* src/hooks/use-tay*
+cd frontend && npx prettier --check src/components/chat/ src/hooks/use-chat* src/hooks/use-tay*
+```

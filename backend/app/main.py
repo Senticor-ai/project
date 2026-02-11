@@ -16,6 +16,7 @@ from .config import settings
 from .csrf import should_validate_csrf, validate_csrf_request
 from .db import db_conn
 from .deps import ORG_ID_HEADER
+from .email import routes as email_routes
 from .metrics import (
     dec_in_flight_requests,
     inc_in_flight_requests,
@@ -202,6 +203,7 @@ app.include_router(orgs.router)
 app.include_router(push.router)
 app.include_router(schemas.router)
 app.include_router(search.router)
+app.include_router(email_routes.router)
 app.include_router(dev.router)
 
 

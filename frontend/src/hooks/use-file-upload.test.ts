@@ -134,7 +134,7 @@ describe("useFileUpload", () => {
     );
   });
 
-  it("defaults content type to application/json for files without type", async () => {
+  it("defaults content type to application/octet-stream for files without type", async () => {
     const file = new File(["data"], "export.json");
 
     const { result } = renderHook(() => useFileUpload(), {
@@ -147,7 +147,7 @@ describe("useFileUpload", () => {
 
     expect(mockedFiles.initiate).toHaveBeenCalledWith(
       "export.json",
-      "application/json",
+      "application/octet-stream",
       4,
     );
   });

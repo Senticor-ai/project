@@ -19,6 +19,7 @@ import type {
   Bucket,
   ActionItem,
   ActionItemBucket,
+  AppItem,
   Project,
   ReferenceMaterial,
   ItemEditableFields,
@@ -62,6 +63,8 @@ export interface BucketViewProps {
   onAddProjectAction?: (projectId: CanonicalId, title: string) => void;
   onCreateProject?: (name: string, desiredOutcome: string) => void;
   onSelectReference?: (id: CanonicalId) => void;
+  /** Called when files are dropped onto the inbox area. */
+  onFileDrop?: (files: File[]) => void;
   className?: string;
 }
 
@@ -84,14 +87,19 @@ export function BucketView({
   onAddProjectAction,
   onCreateProject,
   onSelectReference,
+  onFileDrop,
   className,
 }: BucketViewProps) {
   const isMobile = useIsMobile();
-  const [activeItem, setActiveItem] = useState<ActionItem | null>(null);
+  const [activeItem, setActiveItem] = useState<
+    (ActionItem | ReferenceMaterial) | null
+  >(null);
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
-    const item = event.active.data.current?.thing as ActionItem | undefined;
-    setActiveItem(item ?? null);
+    const item = event.active.data.current?.thing as AppItem | undefined;
+    if (item && "bucket" in item) {
+      setActiveItem(item as ActionItem | ReferenceMaterial);
+    }
   }, []);
 
   const handleDragEnd = useCallback(
@@ -99,14 +107,18 @@ export function BucketView({
       setActiveItem(null);
       const { active, over } = event;
       if (!over) return;
-      const targetBucket = over.data.current?.bucket as
-        | ActionItemBucket
-        | undefined;
+      const targetBucket = over.data.current?.bucket as string | undefined;
       if (!targetBucket) return;
+
+      // Focus is a view filter, not a bucket — toggle the focus flag
+      if (targetBucket === "focus") {
+        onToggleFocus(active.id as CanonicalId);
+        return;
+      }
 
       onMoveActionItem(active.id as CanonicalId, targetBucket);
     },
-    [onMoveActionItem],
+    [onMoveActionItem, onToggleFocus],
   );
 
   const counts = computeBucketCounts(actionItems, referenceItems, projects);
@@ -143,6 +155,7 @@ export function BucketView({
               onArchive={onArchiveActionItem}
               onEdit={onEditActionItem}
               onUpdateTitle={onUpdateTitle}
+              onFileDrop={onFileDrop}
               projects={projects}
             />
           ) : activeBucket === "reference" ? (

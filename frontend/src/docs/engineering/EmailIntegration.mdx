@@ -1,0 +1,204 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Engineering/Email Integration" />
+
+# Email Integration (Gmail)
+
+TerminAndoYo can ingest emails from Gmail as inbox items via IMAP (XOAUTH2).
+Users connect their Gmail account in **Settings > Email**, and the system
+periodically syncs new messages into the inbox for triage.
+
+---
+
+## OAuth Flow
+
+The OAuth flow uses a **popup window** to avoid navigating the user away from
+the app. After Google consent completes, the popup posts a message back to the
+opener and closes itself.
+
+```
+User clicks "Mit Google verbinden" in Settings > Email
+  → Frontend opens popup: GET /email/oauth/gmail/authorize
+  → Backend returns Google consent URL (signed state JWT)
+  → Popup redirects to Google consent screen
+  → User grants access
+  → Google redirects to GMAIL_REDIRECT_URI (backend callback)
+  → Backend exchanges code for tokens, encrypts + stores them
+  → Backend redirects popup to FRONTEND_BASE_URL?gmail=connected
+  → Popup detects query param, posts message to opener, closes
+  → Parent window receives message, refetches connections,
+    navigates to Settings > Email tab
+```
+
+If the popup is blocked by the browser, the flow falls back to a full-page
+redirect. The parent window detects `?gmail=connected` on mount and navigates
+to the email settings tab.
+
+---
+
+## Sync Strategy
+
+### Current: Periodic IMAP Polling (default 15 min)
+
+New connections default to a **15-minute sync interval**. Users can change this
+in the connection settings (5 min, 15 min, 30 min, 1 hour, or manual).
+
+The outbox worker polls `email_connections` for accounts where
+`sync_interval_minutes > 0` and `last_sync_at + interval < now()`. Each sync:
+
+1. Refreshes OAuth token if expired (via `refresh_gmail_token`)
+2. Connects to Gmail IMAP with XOAUTH2 authentication
+3. Fetches unseen messages since `last_synced_at` (tracks UID position)
+4. Creates inbox items with `@type: "EmailMessage"` and `captureSource.kind: "email"`
+5. Optionally marks fetched messages as read in Gmail (`sync_mark_read` setting)
+
+### Future: IMAP IDLE (real-time)
+
+Gmail supports **IMAP IDLE** (RFC 2177) with XOAUTH2, which provides instant
+push notifications without polling. This is the recommended upgrade path:
+
+- Maintains a persistent IMAP connection per account
+- Server pushes `EXISTS` notifications when new mail arrives
+- No public domain or webhook infrastructure required
+- Must send NOOP every ~15 min and re-enter IDLE (30 min server timeout)
+- Needs connection management, reconnection logic, and graceful shutdown
+
+### Not viable: Gmail API Push (Pub/Sub)
+
+Gmail's `users.watch()` API sends notifications via Google Cloud Pub/Sub.
+This is **not practical for self-hosted deployments** because:
+
+- Push subscriptions require a publicly addressable HTTPS endpoint
+- The domain must be verified in Google Search Console (not possible with nip.io)
+- Pull subscriptions add GCP dependency without significant benefit over IMAP IDLE
+
+---
+
+## Setup
+
+### 1. Create Google Cloud OAuth Credentials
+
+1. Go to [Google Cloud Console > Credentials](https://console.cloud.google.com/apis/credentials)
+2. Click **Create Credentials > OAuth client ID**
+3. Application type: **Web application**
+4. Add **Authorized redirect URIs** for each environment:
+
+| Environment | Redirect URI |
+|-------------|-------------|
+| Local dev (bare metal) | `http://localhost:8000/email/oauth/gmail/callback` |
+| Local dev (K8s) | `http://localhost:8080/api/email/oauth/gmail/callback` |
+| Production | `https://<your-domain>/api/email/oauth/gmail/callback` |
+
+> In production the backend is behind an Nginx reverse proxy at `/api/`, so
+> the public redirect URI includes the `/api` prefix even though the backend
+> route is `/email/oauth/gmail/callback`.
+
+5. Save and note the **Client ID** and **Client Secret**.
+
+### 2. Generate Encryption Keys
+
+The backend encrypts OAuth tokens at rest using Fernet symmetric encryption,
+and signs OAuth state parameters with a separate secret.
+
+```bash
+# Gmail state secret (CSRF protection for OAuth flow)
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+
+# Fernet encryption key (token encryption at rest)
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+### 3. Environment Variables
+
+#### Local Development (`.env`)
+
+```bash
+# Gmail OAuth
+GMAIL_CLIENT_ID=<your-google-oauth-client-id>
+GMAIL_CLIENT_SECRET=<your-google-oauth-client-secret>
+GMAIL_REDIRECT_URI=http://localhost:8000/email/oauth/gmail/callback
+GMAIL_STATE_SECRET=<generated-state-secret>
+
+# Token encryption
+ENCRYPTION_KEY=<generated-fernet-key>
+
+# Frontend URL (OAuth callback redirects here after success)
+FRONTEND_BASE_URL=http://localhost:5173
+```
+
+#### Kubernetes Production
+
+Non-secret values go in the **ConfigMap** (`infra/k8s/overlays/production/configmap.yaml`):
+
+```yaml
+GMAIL_REDIRECT_URI: "https://<your-domain>/api/email/oauth/gmail/callback"
+FRONTEND_BASE_URL: "https://<your-domain>"
+```
+
+Secret values go in the **`app-secrets` Secret** (managed by ops, not in version control):
+
+```bash
+kubectl -n <namespace> patch secret app-secrets --type merge -p '{
+  "stringData": {
+    "GMAIL_CLIENT_ID": "<your-google-oauth-client-id>",
+    "GMAIL_CLIENT_SECRET": "<your-google-oauth-client-secret>",
+    "GMAIL_STATE_SECRET": "<generated-state-secret>",
+    "ENCRYPTION_KEY": "<generated-fernet-key>"
+  }
+}'
+```
+
+Then restart the backend deployment to pick up the new values:
+
+```bash
+kubectl -n <namespace> rollout restart deployment/backend deployment/worker
+```
+
+---
+
+## Scopes
+
+The integration requests the `https://mail.google.com/` scope (full IMAP
+access). This is required for XOAUTH2 IMAP authentication. The scope can be
+customized via the `GMAIL_SCOPES` environment variable.
+
+---
+
+## Architecture
+
+### Backend Components
+
+| Module | Purpose |
+|--------|---------|
+| `app/email/routes.py` | OAuth endpoints (`/authorize`, `/callback`) + connection CRUD + sync trigger |
+| `app/email/gmail_oauth.py` | Google OAuth helpers (auth URL, code exchange, token refresh) |
+| `app/email/gmail_sync.py` | IMAP sync logic (fetch headers, store as inbox items) |
+| `app/email/crypto.py` | Fernet encryption/decryption for OAuth tokens at rest |
+
+### Frontend Components
+
+| Component | Purpose |
+|-----------|---------|
+| `EmailPanel` | Settings tab — connect button, connection list, sync controls |
+| `EmailConnectionCard` | Individual connection display with sync/disconnect actions |
+| `EmailBodyViewer` | Inline email body display in ActionRow (sanitized HTML via DOMPurify) |
+
+---
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| "Gmail OAuth not configured" (HTTP 500) | `GMAIL_CLIENT_ID` or `GMAIL_CLIENT_SECRET` empty | Set credentials in `.env` or `app-secrets` |
+| "redirect_uri_mismatch" from Google | Redirect URI not registered in Cloud Console | Add the exact URI to Authorized redirect URIs |
+| Token exchange fails (HTTP 502) | Wrong `GMAIL_CLIENT_SECRET` or expired code | Verify credentials; re-initiate OAuth |
+| "Invalid state" (HTTP 400) | `GMAIL_STATE_SECRET` changed between authorize and callback | Ensure secret is stable across backend restarts |
+| Decryption errors on sync | `ENCRYPTION_KEY` changed after tokens were stored | Tokens must be re-authorized with new key |
+| "internal_failure" from Google | OAuth consent screen in "Testing" mode; user not in test list | Add your Google account to test users, or publish the app |
+
+---
+
+## Related Documentation
+
+- [Deployment](?path=/docs/engineering-deployment--docs) — GitOps pipeline, K8s secrets reference
+- [Backend Architecture](?path=/docs/engineering-backend-architecture--docs) — API structure, worker system

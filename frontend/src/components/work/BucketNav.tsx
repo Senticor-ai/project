@@ -6,6 +6,7 @@ import type { Bucket } from "@/model/types";
 
 // Drop targets: buckets where items can be dragged to
 const droppableBuckets = new Set<string>([
+  "focus",
   "next",
   "waiting",
   "calendar",

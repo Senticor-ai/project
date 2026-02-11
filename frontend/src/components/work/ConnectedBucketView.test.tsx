@@ -54,6 +54,7 @@ vi.mock("@/hooks/use-items", () => ({
 }));
 
 const mockCapture = { mutateAsync: vi.fn() };
+const mockCaptureFile = { mutate: vi.fn() };
 const mockAddAction = { mutateAsync: vi.fn() };
 const mockComplete = { mutate: vi.fn() };
 const mockFocus = { mutate: vi.fn() };
@@ -66,6 +67,7 @@ const mockCreateProject = { mutate: vi.fn() };
 
 vi.mock("@/hooks/use-mutations", () => ({
   useCaptureInbox: () => mockCapture,
+  useCaptureFile: () => mockCaptureFile,
   useAddAction: () => mockAddAction,
   useCompleteAction: () => mockComplete,
   useToggleFocus: () => mockFocus,
@@ -349,6 +351,16 @@ describe("ConnectedBucketView", () => {
         name: "New Project",
         desiredOutcome: "Ship it",
       });
+    });
+
+    it("onFileDrop calls captureFile mutation for each file", () => {
+      const onFileDrop = capturedProps.onFileDrop as (files: File[]) => void;
+      const file1 = new File(["a"], "report.pdf", { type: "application/pdf" });
+      const file2 = new File(["b"], "photo.png", { type: "image/png" });
+      onFileDrop([file1, file2]);
+      expect(mockCaptureFile.mutate).toHaveBeenCalledTimes(2);
+      expect(mockCaptureFile.mutate).toHaveBeenCalledWith(file1);
+      expect(mockCaptureFile.mutate).toHaveBeenCalledWith(file2);
     });
   });
 });

@@ -161,6 +161,13 @@ def import_native_from_file(
                 row = cur.fetchone()
                 enqueue_import = True
 
+            if enqueue_import:
+                enqueue_event(
+                    "native_import_job",
+                    {"job_id": str(row["job_id"]), "org_id": org_id},
+                    cur=cur,
+                )
+
         conn.commit()
 
     if enqueue_import:
@@ -170,10 +177,6 @@ def import_native_from_file(
             org_id=org_id,
             file_id=str(row["file_id"]),
             source=row["source"],
-        )
-        enqueue_event(
-            "native_import_job",
-            {"job_id": str(row["job_id"]), "org_id": org_id},
         )
     else:
         logger.info(

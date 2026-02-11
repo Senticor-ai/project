@@ -27,7 +27,7 @@ def test_get_schema_inbox_item(client):
     props = schema["properties"]
     assert "@id" in props
     assert "@type" in props
-    assert set(props["@type"]["enum"]) == {"Action", "Thing"}
+    assert set(props["@type"]["enum"]) == {"Action", "EmailMessage"}
 
 
 def test_get_schema_action_item(client):
@@ -35,7 +35,7 @@ def test_get_schema_action_item(client):
     assert response.status_code == 200
     schema = response.json()
     props = schema["properties"]
-    assert set(props["@type"]["enum"]) == {"Action", "Thing"}
+    assert set(props["@type"]["enum"]) == {"Action", "EmailMessage"}
     assert "startTime" in props
     assert "endTime" in props
 

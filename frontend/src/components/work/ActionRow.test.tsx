@@ -77,15 +77,46 @@ describe("ActionRow rendering", () => {
   it("shows source subtitle for non-thought sources", () => {
     const thing = createActionItem({
       name: "Follow-up",
-      captureSource: { kind: "email", subject: "Re: meeting" },
+      captureSource: { kind: "import", source: "nirvana" },
     });
     renderRow({ thing });
-    expect(screen.getByText("via email")).toBeInTheDocument();
+    expect(screen.getByText("via import")).toBeInTheDocument();
   });
 
   it("does not show subtitle for thought sources", () => {
     renderRow({ thing: createActionItem({ name: "Thought" }) });
     expect(screen.queryByText(/via /)).not.toBeInTheDocument();
+  });
+
+  it("shows sender address for email items with from", () => {
+    const thing = createActionItem({
+      name: "Re: Antrag auf Verlangerung",
+      captureSource: {
+        kind: "email",
+        subject: "Re: Antrag auf Verlangerung",
+        from: "h.schmidt@example.de",
+      },
+    });
+    renderRow({ thing });
+    expect(screen.getByText("h.schmidt@example.de")).toBeInTheDocument();
+  });
+
+  it("falls back to 'via email' when email has no from", () => {
+    const thing = createActionItem({
+      name: "Some email",
+      captureSource: { kind: "email", subject: "Hello" },
+    });
+    renderRow({ thing });
+    expect(screen.getByText("via email")).toBeInTheDocument();
+  });
+
+  it("shows mail icon for email items", () => {
+    const thing = createActionItem({
+      name: "Email item",
+      captureSource: { kind: "email", from: "test@example.com" },
+    });
+    renderRow({ thing });
+    expect(screen.getByText("mail")).toBeInTheDocument();
   });
 
   it("shows note indicator when expanded and notes exist", () => {
@@ -444,6 +475,73 @@ describe("ActionRow expanded", () => {
     });
     await user.click(screen.getByLabelText("Archive"));
     expect(props.onArchive).toHaveBeenCalledWith(props.thing.id);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Email body viewer
+// ---------------------------------------------------------------------------
+
+describe("ActionRow email body viewer", () => {
+  it("shows EmailBodyViewer when expanded and item has email body", () => {
+    const thing = createActionItem({
+      name: "Re: Antrag",
+      bucket: "next",
+      captureSource: { kind: "email", from: "h.schmidt@example.de" },
+      emailBody: "<p>Sehr geehrte Frau Müller</p>",
+      emailSourceUrl: "https://mail.google.com/mail/u/0/#inbox/123",
+    });
+    renderRow({
+      thing,
+      isExpanded: true,
+      onToggleExpand: vi.fn(),
+      onEdit: vi.fn(),
+    });
+    expect(
+      screen.getByRole("button", { name: /E-Mail anzeigen/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("hides EmailBodyViewer when item is not an email", () => {
+    renderRow({
+      thing: createActionItem({ name: "Task", bucket: "next" }),
+      isExpanded: true,
+      onToggleExpand: vi.fn(),
+      onEdit: vi.fn(),
+    });
+    expect(
+      screen.queryByRole("button", { name: /E-Mail anzeigen/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides EmailBodyViewer when collapsed", () => {
+    const thing = createActionItem({
+      name: "Email task",
+      captureSource: { kind: "email", from: "test@example.com" },
+      emailBody: "<p>Body</p>",
+    });
+    renderRow({ thing, isExpanded: false });
+    expect(
+      screen.queryByRole("button", { name: /E-Mail anzeigen/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows EmailBodyViewer for inbox email items (above triage)", () => {
+    const thing = createActionItem({
+      name: "Inbox email",
+      bucket: "inbox",
+      captureSource: { kind: "email", from: "sender@example.de" },
+      emailBody: "<p>Email content</p>",
+    });
+    renderRow({
+      thing,
+      isExpanded: true,
+      onToggleExpand: vi.fn(),
+      onEdit: vi.fn(),
+    });
+    expect(
+      screen.getByRole("button", { name: /E-Mail anzeigen/i }),
+    ).toBeInTheDocument();
   });
 });
 

@@ -72,3 +72,45 @@ export const SignOut: Story = {
     });
   },
 };
+
+// ---------------------------------------------------------------------------
+// WithChatToggle — chat toggle button visible (inactive)
+// ---------------------------------------------------------------------------
+
+export const WithChatToggle: Story = {
+  args: {
+    onToggleChat: fn(),
+    isChatOpen: false,
+  },
+  play: async ({ canvas, step }) => {
+    await step("Verify chat toggle button is present", async () => {
+      const btn = canvas.getByRole("button", { name: "Chat mit Tay" });
+      await expect(btn).toBeInTheDocument();
+      await expect(btn).toHaveAttribute("aria-pressed", "false");
+    });
+  },
+};
+
+// ---------------------------------------------------------------------------
+// ChatToggleActive — chat toggle button in active state
+// ---------------------------------------------------------------------------
+
+export const ChatToggleActive: Story = {
+  args: {
+    onToggleChat: fn(),
+    isChatOpen: true,
+  },
+  play: async ({ canvas, userEvent, step, args }) => {
+    await step("Verify active state", async () => {
+      const btn = canvas.getByRole("button", { name: "Chat schließen" });
+      await expect(btn).toBeInTheDocument();
+      await expect(btn).toHaveAttribute("aria-pressed", "true");
+    });
+
+    await step("Click calls onToggleChat", async () => {
+      const btn = canvas.getByRole("button", { name: "Chat schließen" });
+      await userEvent.click(btn);
+      await expect(args.onToggleChat).toHaveBeenCalled();
+    });
+  },
+};

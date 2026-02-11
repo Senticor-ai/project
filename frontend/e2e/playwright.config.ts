@@ -14,6 +14,7 @@ export default defineConfig({
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     actionTimeout: 10_000,
+    video: process.env.RECORD_VIDEO ? "on" : undefined,
   },
   projects: [
     {

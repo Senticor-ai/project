@@ -1,4 +1,5 @@
 import { Meta } from "@storybook/addon-docs/blocks";
+import { Mermaid } from "../../components/docs/Mermaid";
 
 <Meta title="Flows/Collect to Engage" />
 
@@ -12,24 +13,25 @@ moment it's acted upon.
 
 ## Overview
 
-```
-   ┌──────────┐     ┌──────────┐     ┌──────────┐
-   │ COLLECT  │────▶│ TRIAGE   │────▶│ ORGANIZE │
-   │          │     │          │     │          │
-   │ Inbox    │     │ Inline   │     │ Route to │
-   │ Capture  │     │ actions  │     │ bucket   │
-   └──────────┘     └──────────┘     └──────────┘
-                                          │
-                    ┌──────────┐           │
-                    │  ENGAGE  │◀──────────┤
-                    │          │           │
-                    │ Work from│     ┌──────────┐
-                    │ lists    │◀────│ REVIEW   │
-                    └──────────┘     │          │
-                                     │ Weekly + │
-                                     │ daily    │
-                                     └──────────┘
-```
+<Mermaid chart={`
+graph LR
+  C["<b>COLLECT</b><br/>Inbox Capture"]
+  T["<b>TRIAGE</b><br/>Inline actions"]
+  O["<b>ORGANIZE</b><br/>Route to bucket"]
+  R["<b>REVIEW</b><br/>Weekly + daily"]
+  E["<b>ENGAGE</b><br/>Work from lists"]
+
+  C --> T --> O
+  O --> R
+  R --> E
+  E -->|"next cycle"| R
+
+  style C fill:#fff3e0,stroke:#ef6c00
+  style T fill:#fce4ec,stroke:#c62828
+  style O fill:#e3f2fd,stroke:#1976d2
+  style R fill:#e8f5e9,stroke:#2e7d32
+  style E fill:#f3e5f5,stroke:#7b1fa2
+`} />
 
 ---
 
@@ -279,31 +281,38 @@ Enriched: confidence = "high",   needsEnrichment = false (details filled in)
 
 ## Component Interaction Map
 
-```
-InboxCapture ──creates──▶ InboxItem
-     │
-     ▼
-InboxList ──contains──▶ InboxTriage (inline on first item)
-     │                      │
-     │                      ├──bucket tap──▶ Action ──▶ ActionList
-     │                      │                   │
-     │                      │                   ├──▶ ProjectTree (if project assigned)
-     │                      │                   ├──▶ WaitingForList (if waiting)
-     │                      │                   └──▶ CalendarView (if calendar)
-     │                      │
-     │                      ├──reference───▶ ReferenceLibrary
-     │                      ├──someday─────▶ SomedayList
-     │                      └──archive─────▶ Archive
-     │
-     ▼
-BucketNav ──navigates──▶ [all bucket views]
-     │
-     ▼
-FocusList ──filters──▶ Action/Project (isFocused === true)
-     │
-     ▼
-ReviewDashboard ──iterates──▶ [all bucket views in sequence]
-     │
-     ▼
-GoalTracker ──links──▶ Projects + Actions (via refers_to)
-```
+<Mermaid chart={`
+graph TD
+  IC["InboxCapture"] -->|"creates"| II["InboxItem"]
+  IC --> IL["InboxList"]
+  IL -->|"contains"| IT["InboxTriage<br/><i>inline on first item</i>"]
+
+  IT -->|"bucket tap"| A["Action"]
+  A --> AL["ActionList"]
+  A -->|"if project"| PT["ProjectTree"]
+  A -->|"if waiting"| WFL["WaitingForList"]
+  A -->|"if calendar"| CV["CalendarView"]
+
+  IT -->|"reference"| RL["ReferenceLibrary"]
+  IT -->|"someday"| SL["SomedayList"]
+  IT -->|"archive"| AR["Archive"]
+
+  IL --> BN["BucketNav"]
+  BN -->|"navigates"| ABV["All bucket views"]
+
+  BN --> FL["FocusList"]
+  FL -->|"filters"| FI["Action / Project<br/><i>isFocused === true</i>"]
+
+  FL --> RD["ReviewDashboard"]
+  RD -->|"iterates"| ABV
+
+  RD --> GT["GoalTracker"]
+  GT -->|"links via refers_to"| PA["Projects + Actions"]
+
+  style IC fill:#fff3e0,stroke:#ef6c00
+  style IT fill:#fce4ec,stroke:#c62828
+  style A fill:#e3f2fd,stroke:#1976d2
+  style BN fill:#e8f5e9,stroke:#2e7d32
+  style FL fill:#f3e5f5,stroke:#7b1fa2
+  style RD fill:#e8f5e9,stroke:#2e7d32
+`} />

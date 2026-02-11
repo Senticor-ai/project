@@ -1,0 +1,134 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Product/Collateral" />
+
+# Product Collateral
+
+Export scripts for generating shareable product documentation and demo videos.
+All output goes to the `exports/` directory (gitignored).
+
+## Product Documentation (PDF)
+
+Generates a single PDF with all product MDX docs, embedded Storybook screenshots,
+table of contents, and professional styling with headers and page numbers.
+
+### Prerequisites
+
+- [pandoc](https://pandoc.org/) — `brew install pandoc`
+- Playwright browsers — `cd frontend && npx playwright install chromium`
+
+### Generate
+
+```bash
+# Full export: markdown + screenshots + PDF
+node scripts/export-product-docs.ts
+
+# Quick text-only (no Storybook needed)
+node scripts/export-product-docs.ts --no-screenshots --no-pdf
+
+# Markdown + PDF, skip screenshots
+node scripts/export-product-docs.ts --no-screenshots
+```
+
+The script auto-starts Storybook if not already running on `:6006`.
+If Storybook is already running, it reuses the existing instance.
+
+### Output
+
+| File | Description |
+| ---- | ----------- |
+| `exports/product-docs.md` | Combined markdown (all 10 product docs) |
+| `exports/product-docs.pdf` | Styled A4 PDF with TOC and screenshots |
+| `exports/product-docs.html` | Intermediate HTML (can be shared directly) |
+| `exports/screenshots/*.png` | Retina screenshots of key stories |
+
+### What's Included
+
+The PDF contains all product documentation in this order:
+
+1. **Product Vision** — What is TerminAndoYo, core workflow, design principles, knowledge architecture
+2. **Methodology** — Five-phase task management, inbox processing, smart lists
+3. **Feature Map** — Component catalog with status, specs, and implementation priority
+4. **Sales Battlecard** — Positioning, competitive comparison, differentiators
+5. **Epic: Editable Title** — Rename provenance tracking
+6. **Epic: Export** — Item export (JSON/CSV)
+7. **Epic: Schema Enrichment** — Schema.org type enrichment
+8. **Epic: PWA Readiness** — Progressive Web App phases
+9. **Epic: Release Process** — CI/CD and release hygiene
+10. **Epic: Rename to Procedere** — Future rebrand plan
+
+Screenshots are captured from these stories: ConnectedBucketView (inbox, capture, email),
+ActionRow (triage, focus), ActionList, BucketView (projects), FileDropZone, and Settings.
+
+## E2E Demo Videos
+
+Records all Playwright E2E tests as `.webm` video clips, then merges them
+into a single showcase video.
+
+### Prerequisites
+
+- [ffmpeg](https://ffmpeg.org/) — `brew install ffmpeg`
+- Running E2E stack (backend + frontend + database)
+
+### Generate
+
+```bash
+# Terminal 1: start the E2E stack
+bash scripts/e2e-stack.sh --no-test
+
+# Terminal 2: record all tests as individual clips
+node scripts/export-e2e-videos.ts
+
+# Merge into a single showcase video
+node scripts/merge-videos.ts
+
+# With title cards between sections
+node scripts/merge-videos.ts --with-titles
+```
+
+### Recording Options
+
+```bash
+# Record with visible browser (useful for review)
+node scripts/export-e2e-videos.ts --headed
+
+# Record only specific tests
+node scripts/export-e2e-videos.ts --grep "Full Cycle"
+node scripts/export-e2e-videos.ts --grep "capture|triage"
+```
+
+### Output
+
+| File | Description |
+| ---- | ----------- |
+| `exports/videos/*.webm` | Individual test recordings (one per test) |
+| `exports/e2e-showcase.webm` | Merged showcase video (all tests combined) |
+
+### Test Sections (in showcase order)
+
+| Section | Tests | What It Demonstrates |
+| ------- | ----- | -------------------- |
+| Authentication | 3 | Register, login, logout, error handling |
+| Inbox Capture | 5 | Thought capture, FIFO ordering, input validation |
+| Inbox Triage | 4 | Bucket routing, archiving, date + complexity |
+| Full Cycle | 1 | End-to-end: capture, triage, manage, complete |
+| Action Management | 3 | Edit, focus, move, complete actions |
+| Project Tree | 8 | Hierarchy, expand/collapse, sequential actions |
+| Context Filters | 5 | Context chips, OR logic, clear filters |
+| Rapid Entry | 4 | Bulk capture in different buckets |
+| Import & Export | 3 | JSON export, Nirvana import, duplicate detection |
+| Email Triage | 5 | Email items, sender display, triage to buckets |
+| Nirvana Import | 1 | Large file import flow |
+
+## Quick Reference
+
+```bash
+# Generate everything (requires Storybook + E2E stack)
+node scripts/export-product-docs.ts  # PDF with screenshots
+node scripts/export-e2e-videos.ts    # individual clips
+node scripts/merge-videos.ts         # combined video
+
+# Share with a colleague
+# → exports/product-docs.pdf       (product documentation)
+# → exports/e2e-showcase.webm      (demo video)
+```

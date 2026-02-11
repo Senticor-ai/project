@@ -1,4 +1,11 @@
-import { useState, useCallback, useMemo, lazy, Suspense } from "react";
+import {
+  useState,
+  useCallback,
+  useEffect,
+  useMemo,
+  lazy,
+  Suspense,
+} from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "./lib/use-auth";
 import { useLocationState } from "./hooks/use-location-state";
@@ -6,10 +13,18 @@ import { useImportJobs } from "./hooks/use-import-jobs";
 import { useImportJobToasts } from "./hooks/use-import-job-toasts";
 import { useIsMobile } from "./hooks/use-is-mobile";
 import { useAllItems, useProjects, useReferences } from "./hooks/use-items";
+import {
+  useEmailConnections,
+  useTriggerEmailSync,
+  useDisconnectEmail,
+  useUpdateEmailConnection,
+} from "./hooks/use-email-connections";
 import { computeBucketCounts } from "./lib/bucket-counts";
-import { DevApi, downloadExport } from "./lib/api-client";
+import { DevApi, EmailApi, downloadExport } from "./lib/api-client";
 import type { AuthUser } from "./lib/api-client";
 import { ConnectedBucketView } from "./components/work/ConnectedBucketView";
+import { TayChatPanel } from "./components/chat/TayChatPanel";
+import { useChatState } from "./hooks/use-chat-state";
 import { AppHeader } from "./components/shell/AppHeader";
 import type { MobileBucketNav } from "./components/shell/AppHeader";
 import { ErrorBoundary } from "./components/shell/ErrorBoundary";
@@ -86,6 +101,8 @@ function AuthenticatedApp({
   const { location, navigate } = useLocationState();
   const [showImport, setShowImport] = useState(false);
   const [showNativeImport, setShowNativeImport] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const chat = useChatState();
   const {
     jobs: importJobs,
     checkDuplicate,
@@ -97,6 +114,11 @@ function AuthenticatedApp({
   const { data: allItems = [] } = useAllItems();
   const { data: projects = [] } = useProjects();
   const { data: refs = [] } = useReferences();
+  const { data: emailConnections, isLoading: emailLoading } =
+    useEmailConnections();
+  const triggerEmailSync = useTriggerEmailSync();
+  const disconnectEmail = useDisconnectEmail();
+  const updateEmailConnection = useUpdateEmailConnection();
 
   const mobileBucketNav = useMemo<MobileBucketNav | undefined>(() => {
     if (!isMobile || location.view !== "workspace") return undefined;
@@ -115,6 +137,58 @@ function AuthenticatedApp({
     projects,
     navigate,
   ]);
+
+  const handleConnectGmail = useCallback(async () => {
+    try {
+      const { url } = await EmailApi.getGmailAuthUrl();
+      const w = 500;
+      const h = 600;
+      const left = window.screenX + (window.outerWidth - w) / 2;
+      const top = window.screenY + (window.outerHeight - h) / 2;
+      window.open(
+        url,
+        "gmail-oauth",
+        `width=${w},height=${h},left=${left},top=${top}`,
+      );
+    } catch (err) {
+      console.error("Failed to get Gmail auth URL", err);
+    }
+  }, []);
+
+  // Detect ?gmail=connected — signal parent via localStorage and close popup,
+  // or navigate directly if this is a full-page redirect (no popup).
+  // localStorage "storage" events only fire in *other* tabs/windows on the
+  // same origin, which is exactly what we need for popup→parent signalling.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("gmail") === "connected") {
+      // Signal the parent window via localStorage (works even after
+      // cross-origin redirects through Google which null out window.opener)
+      localStorage.setItem("gmail-connected", String(Date.now()));
+      window.close();
+      // If window.close() is ignored (full-page redirect, not a popup),
+      // fall back to in-page navigation.
+      navigate("settings", "email");
+      params.delete("gmail");
+      const clean =
+        window.location.pathname +
+        (params.size > 0 ? `?${params.toString()}` : "");
+      window.history.replaceState({}, "", clean);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- run once on mount
+
+  // Listen for localStorage signal from the OAuth popup
+  useEffect(() => {
+    function handleStorage(event: StorageEvent) {
+      if (event.key === "gmail-connected") {
+        localStorage.removeItem("gmail-connected");
+        queryClient.invalidateQueries({ queryKey: ["email-connections"] });
+        navigate("settings", "email");
+      }
+    }
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, [queryClient, navigate]);
 
   const handleFlush = useCallback(async () => {
     const result = await DevApi.flush();
@@ -157,6 +231,8 @@ function AuthenticatedApp({
           onNavigate={handleNavigate}
           onSignOut={onSignOut}
           onLogoClick={() => navigate("workspace", "inbox")}
+          onToggleChat={() => setIsChatOpen((prev) => !prev)}
+          isChatOpen={isChatOpen}
           mobileBucketNav={mobileBucketNav}
           appVersion="0.1.0"
           className="mb-6"
@@ -186,6 +262,28 @@ function AuthenticatedApp({
               retryingJobId={
                 retryJob.isPending ? (retryJob.variables ?? null) : null
               }
+              emailConnections={emailConnections}
+              emailLoading={emailLoading}
+              onConnectGmail={handleConnectGmail}
+              onEmailSync={(id) => triggerEmailSync.mutate(id)}
+              onEmailDisconnect={(id) => disconnectEmail.mutate(id)}
+              onEmailUpdateSyncInterval={(id, minutes) =>
+                updateEmailConnection.mutate({
+                  id,
+                  patch: { sync_interval_minutes: minutes },
+                })
+              }
+              onEmailUpdateMarkRead={(id, markRead) =>
+                updateEmailConnection.mutate({
+                  id,
+                  patch: { sync_mark_read: markRead },
+                })
+              }
+              emailSyncingConnectionId={
+                triggerEmailSync.isPending
+                  ? (triggerEmailSync.variables ?? null)
+                  : null
+              }
             />
           </Suspense>
         )}
@@ -208,6 +306,17 @@ function AuthenticatedApp({
           />
         </Suspense>
       </div>
+
+      {/* Tay Chat Panel */}
+      <TayChatPanel
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        messages={chat.messages}
+        isLoading={chat.isLoading}
+        onSend={chat.sendMessage}
+        onAcceptSuggestion={chat.acceptSuggestion}
+        onDismissSuggestion={chat.dismissSuggestion}
+      />
     </div>
   );
 }

@@ -5,16 +5,30 @@ A **ontology-native task management system** bringing schema.org into a modern, 
 ## Quick Start
 
 ```bash
-# Frontend
+npm run dev   # starts backend + worker + frontend + storybook
+```
+
+One command from the repo root starts all four processes via `concurrently`:
+
+| Process   | URL                          |
+| --------- | ---------------------------- |
+| Backend   | http://localhost:8000/docs   |
+| Worker    | (background, no UI)          |
+| Frontend  | http://localhost:5173        |
+| Storybook | http://localhost:6006        |
+
+Ctrl+C stops everything.
+
+<details>
+<summary>Manual startup (individual terminals)</summary>
+
+```bash
 cd frontend && npm install && npm run storybook   # Storybook at http://localhost:6006
 cd frontend && npm run dev                         # Vite dev server
-
-# Backend (API server)
-cd backend && uv sync && uv run uvicorn app.main:app --reload
-
-# Backend (worker — processes import jobs, search indexing, push notifications)
-cd backend && uv run python -m app.worker --loop
+cd backend && uv sync && uv run uvicorn app.main:app --reload  # API server
+cd backend && uv run python -m app.worker --loop               # Worker
 ```
+</details>
 
 ## Documentation
 

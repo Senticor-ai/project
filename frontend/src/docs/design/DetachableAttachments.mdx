@@ -1,0 +1,142 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Design/Detachable Attachments" />
+
+# Design Pattern: Detachable Attachments
+
+This document defines the **Detachable Attachment** pattern — the concrete implementation of Paperclip principle #5: *AI is a contributor, not an authority*.
+
+---
+
+## Core Principle
+
+When Tay (or any AI agent) suggests creating, modifying, or organizing items, the suggestion is presented as a **preview card** in the conversation. The preview:
+
+1. **Shows exactly what will happen** — item names, buckets, relationships
+2. **Is not committed data** — no API calls until the user clicks Accept
+3. **Can be edited** — the user can modify the suggestion before accepting
+4. **Can be dismissed** — no side effects, conversation continues
+
+This ensures the user always has full authority over what enters their system.
+
+---
+
+## Suggestion Card Lifecycle
+
+```
+         ┌─────────┐
+         │ PENDING  │ ← initial state
+         └────┬─────┘
+              │
+     ┌────────┼────────┐
+     │        │        │
+     ▼        ▼        ▼
+┌────────┐ ┌───────┐ ┌──────────┐
+│ACCEPTED│ │EDITING│ │DISMISSED │
+└────────┘ └───┬───┘ └──────────┘
+               │
+          ┌────┼────┐
+          ▼         ▼
+    ┌────────┐ ┌─────────┐
+    │ACCEPTED│ │ PENDING │ (cancel edit)
+    └────────┘ └─────────┘
+```
+
+| State | Visual | Actions Available |
+| --- | --- | --- |
+| `pending` | Full card with preview + action buttons | Accept, Edit, Dismiss |
+| `editing` | Card with editable fields, highlighted border | Save (Accept), Cancel |
+| `accepted` | Collapsed confirmation with item chips | Navigate to items |
+| `dismissed` | Single line: "Vorschlag verworfen" | None |
+
+---
+
+## Visual Treatment
+
+### Pending State
+
+The suggestion card uses the same visual language as `ObjectCard` from the [Paperclip design system](?path=/docs/design-paperclip-principles--docs):
+
+- **Surface**: `paper-50` background (lightest — indicates "proposed, not final")
+- **Border**: Dashed border to signal "preview" status
+- **Avatar**: `chat_bubble` icon (same as Tay's chat avatar)
+- **Project section**: Name + desired outcome
+- **Actions list**: Checkbox-style list (unchecked — they don't exist yet)
+- **Documents section**: Document icon + name (if present)
+- **Action bar**: Three buttons at bottom
+
+### Button Treatments
+
+| Button | Label (DE) | Style | Icon |
+| --- | --- | --- | --- |
+| Accept | Übernehmen | Primary (filled) | `check` |
+| Edit | Ändern | Ghost | `edit` |
+| Dismiss | Verwerfen | Ghost, muted | `close` |
+
+### Editing State
+
+- Editable fields gain a subtle underline (like `EditableTitle`)
+- Removable items show a small `close` icon on hover
+- Card border changes from dashed to solid, with accent color
+- Save button replaces Accept, Cancel button replaces Dismiss
+
+### Accepted State (Confirmation)
+
+- Card collapses to a compact confirmation message
+- Green `check_circle` icon + success text
+- Each created item rendered as an `AttachmentChip` (clickable, navigates to item)
+- AttachmentChips show item type icon + name
+
+### Dismissed State
+
+- Card collapses to a single muted line: "Vorschlag verworfen"
+- No interactive elements
+- Stays in chat history for context
+
+---
+
+## Provenance
+
+Items created via suggestion acceptance carry provenance:
+
+```typescript
+CaptureSource: { kind: "tay", conversationId: "conv-{uuid}" }
+```
+
+The provenance history entry uses action `"created"` with a source string:
+
+```typescript
+{ action: "created", source: "tay-suggestion", timestamp: "..." }
+```
+
+This enables:
+
+- Filtering items by creation method (manual vs. Tay)
+- Audit trail: which conversation led to which items
+- Future: linking back to the conversation from the item detail view
+
+---
+
+## Composition Rules
+
+### One suggestion per tool call
+
+Each tool call from Tay renders as one `TaySuggestionCard`. If Tay returns multiple tool calls in a single response, each gets its own card with an independent lifecycle.
+
+### Suggestions don't block conversation
+
+The user can continue chatting while a suggestion is in `pending` state. New messages appear below the suggestion card. The user can come back to accept or dismiss later.
+
+### Accepted items are real
+
+Once accepted, items follow the normal lifecycle — they appear in bucket views, can be triaged, edited, archived. There is no "undo suggestion accept" — the user uses the normal archive flow if they change their mind (no-delete policy).
+
+### Edit scope is limited to the preview
+
+In editing mode, the user can only modify what's visible in the card:
+- Project name and desired outcome
+- Action names
+- Remove individual actions
+- Document names
+
+They cannot add new items, change buckets, or modify other properties. For deeper changes, they should dismiss and ask Tay differently, or edit the items after creation.

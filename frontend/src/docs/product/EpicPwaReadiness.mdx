@@ -22,6 +22,38 @@ The remaining gaps before terminandoyo can become an installable, offline-capabl
 
 ---
 
+## Why TanStack Query, not Remix?
+
+The app is a lightweight SPA with [only two top-level views and one sub-selection each](?path=/docs/engineering-routing--docs) — a full routing or server framework would be over-engineering. The key trade-offs:
+
+- **Backend independence** — The backend is FastAPI (Python). Remix would add a Node.js server layer between the browser and the API with no benefit; TanStack Query talks directly to the REST API.
+- **Fine-grained cache control** — Mutations in `use-mutations.ts` use the `onMutate` snapshot → optimistic update → `onError` rollback pattern. This gives per-field control over cache partitions (active/completed) that Remix form actions cannot match.
+- **Built-in offline mode** — `networkMode: "offlineFirst"` on both queries and mutations provides cache-first reads and in-memory mutation queuing without a service worker. Remix has no equivalent — its loaders assume a live server.
+- **No routing overhead** — A custom `useLocationState` hook wrapping the History API (`pushState` / `popstate`) covers all navigation needs. Stories and tests work without any routing provider.
+
+Workbox / vite-plugin-pwa are not alternatives to TanStack Query — they solve a different layer (asset caching, background sync, install prompt). Phase 4 below adds them on top when mobile deployment becomes a priority.
+
+## What already works today
+
+TanStack Query's offline-first mode (configured in `main.tsx`) already covers the majority of offline scenarios without any service worker:
+
+| Capability | How | File |
+| --- | --- | --- |
+| Cache-first reads | `networkMode: "offlineFirst"` + `staleTime: 30_000` | `main.tsx` |
+| Mutation queuing | Mutations queue in memory, auto-retry on reconnect | `use-mutations.ts` |
+| Optimistic UI | `onMutate` snapshots cache partitions + rollback on error | `use-mutations.ts` |
+| Offline indicator | `OfflineBanner` via `useSyncExternalStore` on `navigator.onLine` | `OfflineBanner.tsx` |
+| Smart retry | 401 errors skip retry; network errors retry once | `main.tsx` |
+
+**What's missing (Phase 4 fills these gaps):**
+
+- **Persistent cache** — Currently lost on page reload; IndexedDB will survive it
+- **Static asset caching** — JS/CSS/fonts re-fetch every load; a service worker will cache them
+- **Mutations survive tab close** — In-memory queue is lost; Background Sync API will persist them
+- **Home screen install** — No `manifest.json` yet; required for the install prompt
+
+---
+
 ## Phase 1: Touch & Mobile Audit
 
 ### 1a. RED — Touch target audit

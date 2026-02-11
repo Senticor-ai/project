@@ -80,3 +80,31 @@ class TestJsonLdAliases:
         )
         assert resp.status_code == 200
         _assert_jsonld_aliases(resp.json()["item"], "PATCH /items/:id")
+
+    def test_create_digital_document(self, auth_client):
+        """DigitalDocument (file drop) items accepted via CreativeWork model."""
+        item = {
+            "@id": f"urn:app:inbox:{uuid.uuid4()}",
+            "@type": "DigitalDocument",
+            "_schemaVersion": 2,
+            "name": "Quarterly Report.pdf",
+            "encodingFormat": "application/pdf",
+            "additionalProperty": [
+                {"@type": "PropertyValue", "propertyID": "app:bucket", "value": "inbox"},
+                {
+                    "@type": "PropertyValue",
+                    "propertyID": "app:captureSource",
+                    "value": {
+                        "kind": "file",
+                        "fileName": "Quarterly Report.pdf",
+                        "mimeType": "application/pdf",
+                    },
+                },
+            ],
+        }
+        resp = auth_client.post("/items", json={"item": item, "source": "manual"})
+        assert resp.status_code == 201, f"Expected 201, got {resp.status_code}: {resp.text}"
+        data = resp.json()
+        assert data["item"]["@type"] == "DigitalDocument"
+        assert data["item"]["encodingFormat"] == "application/pdf"
+        _assert_jsonld_aliases(data["item"], "POST /items (DigitalDocument)")

@@ -3,6 +3,7 @@ import { BucketView } from "./BucketView";
 import { useAllItems, useProjects, useReferences } from "@/hooks/use-items";
 import {
   useCaptureInbox,
+  useCaptureFile,
   useAddAction,
   useCompleteAction,
   useToggleFocus,
@@ -36,6 +37,7 @@ export function ConnectedBucketView({
   const referencesQuery = useReferences();
 
   const captureMutation = useCaptureInbox();
+  const captureFileMutation = useCaptureFile();
   const addActionMutation = useAddAction();
   const completeMutation = useCompleteAction();
   const focusMutation = useToggleFocus();
@@ -138,6 +140,15 @@ export function ConnectedBucketView({
     [createProjectMutation],
   );
 
+  const handleFileDrop = useCallback(
+    (files: File[]) => {
+      for (const file of files) {
+        captureFileMutation.mutate(file);
+      }
+    },
+    [captureFileMutation],
+  );
+
   if (isLoading) {
     return (
       <div className={cn("flex items-center justify-center py-20", className)}>
@@ -195,6 +206,7 @@ export function ConnectedBucketView({
         onAddProjectAction={handleAddProjectAction}
         onCreateProject={handleCreateProject}
         onEditReference={handleEditItem}
+        onFileDrop={handleFileDrop}
       />
     </div>
   );

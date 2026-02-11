@@ -1,7 +1,8 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { ItemList } from "./ItemList";
 import { ActionRow } from "./ActionRow";
 import { ContextFilterBar } from "./ContextFilterBar";
+import { FileDropZone } from "./FileDropZone";
 import { useAllCompletedItems } from "@/hooks/use-items";
 import type { ActionItem, Project, ItemEditableFields } from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
@@ -60,6 +61,8 @@ export interface ActionListProps {
   onArchive: (id: CanonicalId) => void;
   onEdit?: (id: CanonicalId, fields: Partial<ItemEditableFields>) => void;
   onUpdateTitle?: (id: CanonicalId, newTitle: string) => void;
+  /** Called when files are dropped onto the inbox. Only active when bucket is "inbox". */
+  onFileDrop?: (files: File[]) => void;
   projects?: Pick<Project, "id" | "name">[];
   className?: string;
 }
@@ -78,6 +81,7 @@ export function ActionList({
   onArchive,
   onEdit,
   onUpdateTitle,
+  onFileDrop,
   projects,
   className,
 }: ActionListProps) {
@@ -93,6 +97,64 @@ export function ActionList({
     setPrevBucket(bucket);
     setExpandedId(null);
   }
+
+  // Detect file drags at document level — show drop zone only when active.
+  // Uses capture phase so events are seen before FileDropZone's stopPropagation.
+  // Debounces the "hide" transition to avoid flicker from DOM-layout-shift events.
+  const [isFileDragActive, setIsFileDragActive] = useState(false);
+  const fileDragCounter = useRef(0);
+  const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!isInbox || !onFileDrop) return;
+
+    const handleEnter = (e: DragEvent) => {
+      if (!e.dataTransfer?.types.includes("Files")) return;
+      fileDragCounter.current++;
+      if (hideTimeoutRef.current) {
+        clearTimeout(hideTimeoutRef.current);
+        hideTimeoutRef.current = null;
+      }
+      setIsFileDragActive(true);
+    };
+    const handleLeave = (e: DragEvent) => {
+      if (!e.dataTransfer?.types.includes("Files")) return;
+      fileDragCounter.current = Math.max(0, fileDragCounter.current - 1);
+      if (fileDragCounter.current === 0) {
+        hideTimeoutRef.current = setTimeout(() => {
+          setIsFileDragActive(false);
+          hideTimeoutRef.current = null;
+        }, 50);
+      }
+    };
+    // Prevent browser from opening dropped files (e.g. PDF in new tab)
+    const handleDragOver = (e: DragEvent) => {
+      if (e.dataTransfer?.types.includes("Files")) e.preventDefault();
+    };
+    const handleDrop = (e: DragEvent) => {
+      if (e.dataTransfer?.types.includes("Files")) e.preventDefault();
+      fileDragCounter.current = 0;
+      if (hideTimeoutRef.current) {
+        clearTimeout(hideTimeoutRef.current);
+        hideTimeoutRef.current = null;
+      }
+      setIsFileDragActive(false);
+    };
+
+    // Capture phase: fires before child stopPropagation can block bubbling
+    document.addEventListener("dragenter", handleEnter, true);
+    document.addEventListener("dragleave", handleLeave, true);
+    document.addEventListener("dragover", handleDragOver);
+    document.addEventListener("drop", handleDrop);
+    return () => {
+      document.removeEventListener("dragenter", handleEnter, true);
+      document.removeEventListener("dragleave", handleLeave, true);
+      document.removeEventListener("dragover", handleDragOver);
+      document.removeEventListener("drop", handleDrop);
+      if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
+      fileDragCounter.current = 0;
+    };
+  }, [isInbox, onFileDrop]);
 
   // Always fetch completed items (shown in collapsible Done section)
   const completedQuery = useAllCompletedItems(true);
@@ -247,21 +309,40 @@ export function ActionList({
           : undefined
       }
       beforeItems={
-        availableContexts.length > 0 ? (
-          <ContextFilterBar
-            contexts={availableContexts}
-            selectedContexts={selectedContexts}
-            actionCounts={contextCounts}
-            onToggleContext={(ctx) =>
-              setSelectedContexts((prev) =>
-                prev.includes(ctx)
-                  ? prev.filter((c) => c !== ctx)
-                  : [...prev, ctx],
-              )
-            }
-            onClearAll={() => setSelectedContexts([])}
-          />
-        ) : undefined
+        <>
+          {isInbox && onFileDrop && isFileDragActive && (
+            <FileDropZone
+              onFilesDropped={(files) => {
+                onFileDrop(files);
+                // Reset drag state — the document drop handler won't fire
+                // because FileDropZone calls stopPropagation().
+                fileDragCounter.current = 0;
+                if (hideTimeoutRef.current) {
+                  clearTimeout(hideTimeoutRef.current);
+                  hideTimeoutRef.current = null;
+                }
+                setIsFileDragActive(false);
+              }}
+              className="py-1"
+              maxSizeMb={25}
+            />
+          )}
+          {availableContexts.length > 0 && (
+            <ContextFilterBar
+              contexts={availableContexts}
+              selectedContexts={selectedContexts}
+              actionCounts={contextCounts}
+              onToggleContext={(ctx) =>
+                setSelectedContexts((prev) =>
+                  prev.includes(ctx)
+                    ? prev.filter((c) => c !== ctx)
+                    : [...prev, ctx],
+                )
+              }
+              onClearAll={() => setSelectedContexts([])}
+            />
+          )}
+        </>
       }
       expandedId={expandedId}
       onExpandedIdChange={setExpandedId}

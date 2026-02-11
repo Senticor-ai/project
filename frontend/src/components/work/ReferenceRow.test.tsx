@@ -7,6 +7,16 @@ import {
   resetFactoryCounter,
 } from "@/model/factories";
 
+vi.mock("@dnd-kit/core", () => ({
+  useDraggable: () => ({
+    attributes: {},
+    listeners: {},
+    setNodeRef: vi.fn(),
+    transform: null,
+    isDragging: false,
+  }),
+}));
+
 beforeEach(() => resetFactoryCounter());
 
 const baseRef = () =>
@@ -191,5 +201,15 @@ describe("ReferenceRow", () => {
     );
     expect(screen.queryByLabelText(/Complete/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Focus/)).not.toBeInTheDocument();
+  });
+
+  it("renders drag handle", () => {
+    const ref = baseRef();
+    render(
+      <ReferenceRow reference={ref} onArchive={vi.fn()} onSelect={vi.fn()} />,
+    );
+    expect(
+      screen.getByLabelText("Drag Company style guide"),
+    ).toBeInTheDocument();
   });
 });

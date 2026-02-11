@@ -98,6 +98,14 @@ class Settings:
     csp_policy: str | None
     cors_methods: list[str]
     cors_headers: list[str]
+    # Email integration (Gmail OAuth)
+    encryption_key: str | None
+    gmail_client_id: str
+    gmail_client_secret: str
+    gmail_redirect_uri: str
+    gmail_scopes: str
+    gmail_state_secret: str
+    frontend_base_url: str
 
 
 def _build_database_url() -> str:
@@ -236,6 +244,19 @@ def load_settings() -> Settings:
             ).split(",")
             if h.strip()
         ],
+        encryption_key=_get_env("ENCRYPTION_KEY"),
+        gmail_client_id=_get_env("GMAIL_CLIENT_ID", "") or "",
+        gmail_client_secret=_get_env("GMAIL_CLIENT_SECRET", "") or "",
+        gmail_redirect_uri=_get_env(
+            "GMAIL_REDIRECT_URI",
+            "http://localhost:8000/email/oauth/gmail/callback",
+        )
+        or "http://localhost:8000/email/oauth/gmail/callback",
+        gmail_scopes=_get_env("GMAIL_SCOPES", "https://mail.google.com/")
+        or "https://mail.google.com/",
+        gmail_state_secret=_get_env("GMAIL_STATE_SECRET", "") or "",
+        frontend_base_url=_get_env("FRONTEND_BASE_URL", "http://localhost:5173")
+        or "http://localhost:5173",
     )
 
 

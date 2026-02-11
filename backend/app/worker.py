@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 
 from .config import settings
 from .db import db_conn, jsonb
+from .email.sync import mark_email_read, run_email_sync
 from .metrics import APP_IMPORTS_COMPLETED_TOTAL, APP_IMPORTS_FAILED_TOTAL
 from .observability import configure_logging, get_logger
 from .projection.fuseki import is_enabled as fuseki_enabled
@@ -425,6 +426,27 @@ def process_batch(limit: int = 25) -> int:
                             reason="Search disabled",
                             action=action,
                         )
+                    # Mark email as read in Gmail if this was a gmail-sourced item
+                    with conn.cursor() as cur:
+                        cur.execute(
+                            """
+                            SELECT item_id, org_id, source, schema_jsonld,
+                                   created_by_user_id
+                            FROM items
+                            WHERE item_id = %s
+                            """,
+                            (entity_id,),
+                        )
+                        archived_row = cur.fetchone()
+                    if archived_row and archived_row.get("source") == "gmail":
+                        try:
+                            mark_email_read(archived_row, org_id)
+                        except Exception:
+                            logger.warning(
+                                "email.mark_read_failed",
+                                item_id=entity_id,
+                                exc_info=True,
+                            )
                 elif event_type == "file_uploaded":
                     entity_type = "file"
                     if not org_id:
@@ -483,6 +505,23 @@ def process_batch(limit: int = 25) -> int:
                     _process_import_job(payload)
                     source = "nirvana" if event_type == "nirvana_import_job" else "native"
                     APP_IMPORTS_COMPLETED_TOTAL.labels(source=source).inc()
+                elif event_type == "email_sync_job":
+                    sync_conn_id = payload.get("connection_id")
+                    sync_org_id = payload.get("org_id")
+                    sync_user_id = payload.get("user_id")
+                    if not sync_conn_id or not sync_org_id or not sync_user_id:
+                        raise ValueError("email_sync_job missing required fields")
+                    result = run_email_sync(
+                        connection_id=sync_conn_id,
+                        org_id=sync_org_id,
+                        user_id=sync_user_id,
+                    )
+                    logger.info(
+                        "email_sync.completed",
+                        connection_id=sync_conn_id,
+                        synced=result.synced,
+                        created=result.created,
+                    )
 
                 _mark_processed(conn, event_id)
                 processed += 1

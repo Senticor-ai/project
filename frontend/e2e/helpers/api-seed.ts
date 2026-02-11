@@ -135,6 +135,70 @@ export class ApiSeed {
     return id;
   }
 
+  /** Create an email inbox item via API (EmailMessage type). Returns the item_id. */
+  async createEmailInboxItem(
+    subject: string,
+    options?: {
+      from?: string;
+      fromName?: string;
+      htmlBody?: string;
+      sourceUrl?: string;
+    },
+  ): Promise<string> {
+    const id = `urn:app:email:${crypto.randomUUID()}`;
+    const now = new Date().toISOString();
+    const senderEmail = options?.from ?? "sender@example.de";
+    const senderName = options?.fromName ?? "Test Sender";
+    const htmlBody = options?.htmlBody ?? `<p>${subject}</p>`;
+
+    const response = await this.request.post("/api/items", {
+      data: {
+        source: "gmail",
+        item: {
+          "@id": id,
+          "@type": "EmailMessage",
+          _schemaVersion: 2,
+          name: subject,
+          description: null,
+          keywords: [],
+          dateCreated: now,
+          dateModified: now,
+          startTime: null,
+          endTime: null,
+          sender: {
+            "@type": "Person",
+            email: senderEmail,
+            name: senderName,
+          },
+          additionalProperty: [
+            pv("app:bucket", "inbox"),
+            pv("app:rawCapture", subject),
+            pv("app:needsEnrichment", true),
+            pv("app:confidence", "medium"),
+            pv("app:captureSource", {
+              kind: "email",
+              subject,
+              from: senderEmail,
+            }),
+            pv("app:emailBody", htmlBody),
+            ...(options?.sourceUrl
+              ? [pv("app:emailSourceUrl", options.sourceUrl)]
+              : []),
+            pv("app:contexts", []),
+            pv("app:isFocused", false),
+            pv("app:ports", []),
+            pv("app:typedReferences", []),
+            pv("app:provenanceHistory", [
+              { timestamp: now, action: "created" },
+            ]),
+          ],
+        },
+      },
+    });
+    const json = await response.json();
+    return json.item_id;
+  }
+
   /** Create multiple inbox items sequentially (ensures FIFO order by createdAt). */
   async createInboxItems(titles: string[]): Promise<string[]> {
     const ids: string[] = [];

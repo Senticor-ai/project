@@ -82,6 +82,10 @@ export function createActionItem(overrides: ActionItemOverrides): ActionItem {
     recurrence: overrides.recurrence,
     completedAt: overrides.completedAt,
     sequenceOrder: overrides.sequenceOrder,
+    fileId: overrides.fileId,
+    downloadUrl: overrides.downloadUrl,
+    emailBody: overrides.emailBody,
+    emailSourceUrl: overrides.emailSourceUrl,
   };
 }
 
@@ -164,6 +168,8 @@ export function createReferenceMaterial(
     encodingFormat: overrides.encodingFormat,
     url: overrides.url,
     origin: overrides.origin ?? "captured",
+    fileId: overrides.fileId,
+    downloadUrl: overrides.downloadUrl,
   };
 }
 

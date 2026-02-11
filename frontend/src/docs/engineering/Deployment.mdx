@@ -92,10 +92,25 @@ All application resources are declared in `infra/k8s/` using a Kustomize base/ov
 | Resource  | Purpose                                                   |
 | --------- | --------------------------------------------------------- |
 | Namespace | Pre-created by ops                                        |
-| Secret    | Application secrets (database password, JWT secret, etc.) |
+| Secret    | Application secrets (see [secrets reference](#application-secrets) below) |
 | Ingress   | Routes external traffic to the frontend service           |
 
 This separation ensures secrets never appear in version control.
+
+### Application Secrets
+
+The `app-secrets` Secret must include these keys:
+
+| Key | Description | How to generate |
+|-----|-------------|-----------------|
+| `POSTGRES_PASSWORD` | PostgreSQL password | &mdash; |
+| `JWT_SECRET` | Internal token signing | `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
+| `GMAIL_CLIENT_ID` | Google OAuth client ID | [Cloud Console](https://console.cloud.google.com/apis/credentials) |
+| `GMAIL_CLIENT_SECRET` | Google OAuth client secret | Same as above |
+| `GMAIL_STATE_SECRET` | OAuth CSRF state signing | `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
+| `ENCRYPTION_KEY` | Fernet key for token encryption | `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
+
+See [Email Integration](?path=/docs/engineering-email-integration--docs) for the full Gmail OAuth setup guide.
 
 ### Database Initialization
 
@@ -206,12 +221,21 @@ FastAPI routes are auto-instrumented — every inbound request creates a span wi
 
 ## Local Development
 
-For local Kubernetes development, use the local overlay (`infra/k8s/overlays/local/`) with Rancher Desktop. It shares the same base manifests as production but uses local image builds, dev-friendly ConfigMap values, and includes namespace/secret/ingress resources.
+Start the full dev stack from the repo root:
 
-Infrastructure services (PostgreSQL, Fuseki, Meilisearch) run via `infra/docker-compose.yml`.
+```bash
+npm run dev   # backend + worker + frontend + storybook
+```
+
+This uses `concurrently` to run all four processes with color-coded output. Ctrl+C stops everything. Individual startup scripts live in `scripts/start_*.sh`.
+
+Infrastructure services (PostgreSQL, Fuseki, Meilisearch) still need to be started separately via `infra/docker-compose.yml`.
+
+For local **Kubernetes** development, use the local overlay (`infra/k8s/overlays/local/`) with Rancher Desktop. It shares the same base manifests as production but uses local image builds, dev-friendly ConfigMap values, and includes namespace/secret/ingress resources.
 
 ---
 
 ## Related Documentation
 
 - [Architecture](?path=/docs/engineering-architecture--docs) — Technology stack, dual-store model, and architectural principles
+- [Email Integration](?path=/docs/engineering-email-integration--docs) — Gmail OAuth setup, environment variables, troubleshooting

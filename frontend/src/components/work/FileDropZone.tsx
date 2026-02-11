@@ -7,6 +7,8 @@ export interface FileDropZoneProps {
   allowedTypes?: string[];
   maxSizeMb?: number;
   multiple?: boolean;
+  /** "static" shows a permanent dashed border + hint. "overlay" is invisible at rest, shows a translucent overlay on file drag. */
+  variant?: "static" | "overlay";
   className?: string;
   children?: React.ReactNode;
 }
@@ -25,9 +27,11 @@ export function FileDropZone({
   allowedTypes,
   maxSizeMb = 25,
   multiple = true,
+  variant = "static",
   className,
   children,
 }: FileDropZoneProps) {
+  const isOverlay = variant === "overlay";
   const [isDragOver, setIsDragOver] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const dragCounter = useRef(0);
@@ -56,11 +60,11 @@ export function FileDropZone({
     (e: React.DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
+      // Only react to file drags — let dnd-kit own everything else
+      if (!e.dataTransfer.types.includes("Files")) return;
       dragCounter.current++;
-      if (e.dataTransfer.types.includes("Files")) {
-        setIsDragOver(true);
-        if (errors.length > 0) clearErrors();
-      }
+      setIsDragOver(true);
+      if (errors.length > 0) clearErrors();
     },
     [errors.length, clearErrors],
   );
@@ -131,36 +135,52 @@ export function FileDropZone({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       className={cn(
-        "relative rounded-[var(--radius-lg)] border-2 border-dashed p-4 transition-colors duration-[var(--duration-fast)]",
-        isDragOver
-          ? "border-blueprint-400 bg-blueprint-50/30"
-          : "border-border bg-transparent",
+        "relative",
+        !isOverlay &&
+          cn(
+            "rounded-[var(--radius-lg)] border-2 border-dashed p-4 transition-colors duration-[var(--duration-fast)]",
+            isDragOver
+              ? "border-blueprint-400 bg-blueprint-50/30"
+              : "border-border bg-transparent",
+          ),
         className,
       )}
     >
       {children}
 
-      {/* Drop hint */}
-      <div className="flex flex-col items-center gap-1 py-4 text-center">
-        <Icon
-          name={isDragOver ? "download" : "upload_file"}
-          size={24}
-          className={cn(
-            "transition-colors",
-            isDragOver ? "text-blueprint-500" : "text-text-subtle",
+      {/* Overlay variant: translucent overlay on drag-over */}
+      {isOverlay && isDragOver && (
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-1 rounded-[var(--radius-lg)] bg-blueprint-50/40 backdrop-blur-sm">
+          <Icon name="download" size={28} className="text-blueprint-500" />
+          <p className="text-sm font-medium text-blueprint-600">
+            Release to upload
+          </p>
+        </div>
+      )}
+
+      {/* Static variant: permanent hint */}
+      {!isOverlay && (
+        <div className="flex flex-col items-center gap-1 py-4 text-center">
+          <Icon
+            name={isDragOver ? "download" : "upload_file"}
+            size={24}
+            className={cn(
+              "transition-colors",
+              isDragOver ? "text-blueprint-500" : "text-text-subtle",
+            )}
+          />
+          <p className="text-sm text-text-muted">
+            {isDragOver ? "Release to upload" : "Drop files here"}
+          </p>
+          {maxSizeMb && (
+            <p className="text-xs text-text-subtle">Max {maxSizeMb} MB</p>
           )}
-        />
-        <p className="text-sm text-text-muted">
-          {isDragOver ? "Release to upload" : "Drop files here"}
-        </p>
-        {maxSizeMb && (
-          <p className="text-xs text-text-subtle">Max {maxSizeMb} MB</p>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Error messages */}
       {errors.length > 0 && (
-        <div className="mt-2 space-y-1">
+        <div className={cn("space-y-1", isOverlay ? "mt-1" : "mt-2")}>
           {errors.map((err) => (
             <p key={err} className="text-xs text-status-error">
               {err}

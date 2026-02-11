@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { AppMenu, type AppMenuSection } from "./AppMenu";
+import { Icon } from "@/components/ui/Icon";
 import type { AppView } from "@/lib/route-utils";
 import type { Bucket } from "@/model/types";
 import type { BucketNavItemConfig } from "@/components/work/bucket-nav-items";
@@ -20,6 +21,8 @@ export interface AppHeaderProps {
   onNavigate: (view: AppView) => void;
   onSignOut: () => void;
   onLogoClick: () => void;
+  onToggleChat?: () => void;
+  isChatOpen?: boolean;
   mobileBucketNav?: MobileBucketNav;
   appVersion?: string;
   className?: string;
@@ -31,6 +34,8 @@ export function AppHeader({
   onNavigate,
   onSignOut,
   onLogoClick,
+  onToggleChat,
+  isChatOpen,
   mobileBucketNav,
   appVersion,
   className,
@@ -104,6 +109,21 @@ export function AppHeader({
       {/* Mobile: hamburger left, logo right */}
       {/* Desktop: logo left, hamburger right */}
       <div className="flex items-center gap-3 md:order-2">
+        {onToggleChat && (
+          <button
+            onClick={onToggleChat}
+            aria-label={isChatOpen ? "Chat schließen" : "Chat mit Tay"}
+            aria-pressed={isChatOpen}
+            className={cn(
+              "flex h-8 w-8 items-center justify-center rounded-lg transition-colors",
+              isChatOpen
+                ? "bg-blueprint-100 text-blueprint-600"
+                : "text-text-muted hover:bg-paper-100",
+            )}
+          >
+            <Icon name="chat_bubble" size={20} />
+          </button>
+        )}
         <AppMenu sections={menuSections} />
       </div>
       <button

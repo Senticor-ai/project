@@ -131,6 +131,8 @@ uv run alembic upgrade head
 
 ## Run API
 
+> **Tip:** `npm run dev` from the repo root starts the backend, worker, frontend, and Storybook together. The commands below are for running services individually.
+
 ```
 cd backend
 uv run uvicorn app.main:app --reload --port 8000

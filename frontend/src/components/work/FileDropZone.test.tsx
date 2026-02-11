@@ -167,3 +167,111 @@ describe("FileDropZone", () => {
     expect(onFilesDropped).toHaveBeenCalledWith([file1, file2]);
   });
 });
+
+describe("FileDropZone variant='overlay'", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("does not show static hint text at rest", () => {
+    render(
+      <FileDropZone variant="overlay" onFilesDropped={vi.fn()}>
+        <p>Inbox content</p>
+      </FileDropZone>,
+    );
+    expect(screen.queryByText("Drop files here")).not.toBeInTheDocument();
+    expect(screen.getByText("Inbox content")).toBeInTheDocument();
+  });
+
+  it("does not have dashed border at rest", () => {
+    render(
+      <FileDropZone variant="overlay" onFilesDropped={vi.fn()}>
+        <p>Content</p>
+      </FileDropZone>,
+    );
+    const zone = screen.getByTestId("file-drop-zone");
+    expect(zone.className).not.toContain("border-dashed");
+  });
+
+  it("shows overlay on file drag-over", () => {
+    render(
+      <FileDropZone variant="overlay" onFilesDropped={vi.fn()}>
+        <p>Content</p>
+      </FileDropZone>,
+    );
+    const zone = screen.getByTestId("file-drop-zone");
+
+    fireEvent.dragEnter(zone, createDragEvent());
+
+    expect(screen.getByText("Release to upload")).toBeInTheDocument();
+  });
+
+  it("hides overlay on drag-leave", () => {
+    render(
+      <FileDropZone variant="overlay" onFilesDropped={vi.fn()}>
+        <p>Content</p>
+      </FileDropZone>,
+    );
+    const zone = screen.getByTestId("file-drop-zone");
+
+    fireEvent.dragEnter(zone, createDragEvent());
+    expect(screen.getByText("Release to upload")).toBeInTheDocument();
+
+    fireEvent.dragLeave(zone, createDragEvent());
+    expect(screen.queryByText("Release to upload")).not.toBeInTheDocument();
+  });
+
+  it("calls onFilesDropped on file drop", () => {
+    const onFilesDropped = vi.fn();
+    render(
+      <FileDropZone variant="overlay" onFilesDropped={onFilesDropped}>
+        <p>Content</p>
+      </FileDropZone>,
+    );
+    const zone = screen.getByTestId("file-drop-zone");
+
+    const file = createFile("test.pdf", 1024, "application/pdf");
+    fireEvent.drop(zone, createDropEvent([file]));
+
+    expect(onFilesDropped).toHaveBeenCalledWith([file]);
+  });
+
+  it("ignores non-file drags (no overlay shown)", () => {
+    render(
+      <FileDropZone variant="overlay" onFilesDropped={vi.fn()}>
+        <p>Content</p>
+      </FileDropZone>,
+    );
+    const zone = screen.getByTestId("file-drop-zone");
+
+    fireEvent.dragEnter(zone, {
+      dataTransfer: { types: ["text/plain"] },
+    });
+
+    expect(screen.queryByText("Release to upload")).not.toBeInTheDocument();
+  });
+
+  it("shows error messages on invalid file drop", () => {
+    const onFilesDropped = vi.fn();
+    render(
+      <FileDropZone
+        variant="overlay"
+        onFilesDropped={onFilesDropped}
+        maxSizeMb={1}
+      >
+        <p>Content</p>
+      </FileDropZone>,
+    );
+    const zone = screen.getByTestId("file-drop-zone");
+
+    const largeFile = createFile(
+      "huge.pdf",
+      2 * 1024 * 1024,
+      "application/pdf",
+    );
+    fireEvent.drop(zone, createDropEvent([largeFile]));
+
+    expect(onFilesDropped).not.toHaveBeenCalled();
+    expect(screen.getByText(/huge\.pdf.*too large/)).toBeInTheDocument();
+  });
+});

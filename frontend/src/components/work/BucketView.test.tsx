@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { act, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { BucketView } from "./BucketView";
 import {
@@ -287,6 +287,37 @@ describe("BucketView optional callbacks", () => {
     );
     expect(screen.getByText("My Project")).toBeInTheDocument();
   });
+
+  it("shows file drop zone when files are dragged into inbox", () => {
+    const onFileDrop = vi.fn();
+    render(
+      <BucketView
+        {...baseProps}
+        activeBucket="inbox"
+        onFileDrop={onFileDrop}
+      />,
+    );
+    // Hidden at rest
+    expect(screen.queryByTestId("file-drop-zone")).not.toBeInTheDocument();
+
+    // Appears on file drag
+    act(() => {
+      fireEvent.dragEnter(document, {
+        dataTransfer: { types: ["Files"] },
+      });
+    });
+    expect(screen.getByTestId("file-drop-zone")).toBeInTheDocument();
+  });
+
+  it("does not show file drop zone when onFileDrop is not provided", () => {
+    render(<BucketView {...baseProps} activeBucket="inbox" />);
+    act(() => {
+      fireEvent.dragEnter(document, {
+        dataTransfer: { types: ["Files"] },
+      });
+    });
+    expect(screen.queryByTestId("file-drop-zone")).not.toBeInTheDocument();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -373,5 +404,50 @@ describe("BucketView drag and drop", () => {
       });
     });
     expect(overlay).toBeEmptyDOMElement();
+  });
+
+  it("calls onToggleFocus when item is dropped on focus bucket", () => {
+    const onToggleFocus = vi.fn();
+    const onMoveActionItem = vi.fn();
+    const thing = createAction({ name: "Focus me", bucket: "next" });
+    render(
+      <BucketView
+        {...baseProps}
+        actionItems={[thing]}
+        onToggleFocus={onToggleFocus}
+        onMoveActionItem={onMoveActionItem}
+      />,
+    );
+    capturedOnDragEnd?.({
+      active: { id: thing.id },
+      over: { data: { current: { bucket: "focus" } } },
+    });
+    expect(onToggleFocus).toHaveBeenCalledWith(thing.id);
+    expect(onMoveActionItem).not.toHaveBeenCalled();
+  });
+
+  it("shows drag overlay for reference items", () => {
+    const ref = createReferenceMaterial({ name: "Tax docs" });
+    render(
+      <BucketView
+        {...baseProps}
+        activeBucket="reference"
+        referenceItems={[ref]}
+      />,
+    );
+
+    const overlay = screen.getByTestId("drag-overlay");
+    expect(overlay).toBeEmptyDOMElement();
+
+    act(() => {
+      capturedOnDragStart?.({
+        active: {
+          id: ref.id,
+          data: { current: { type: "reference", thing: ref } },
+        },
+      });
+    });
+
+    expect(overlay).toHaveTextContent("Tax docs");
   });
 });

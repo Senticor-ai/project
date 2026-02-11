@@ -277,3 +277,44 @@ CREATE INDEX IF NOT EXISTS idx_files_owner ON files (owner_id);
 CREATE INDEX IF NOT EXISTS idx_files_org ON files (org_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_search_index_jobs_entity ON search_index_jobs (org_id, entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_search_index_jobs_status ON search_index_jobs (org_id, status);
+
+-- Email integration tables
+CREATE TABLE IF NOT EXISTS email_connections (
+  connection_id   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id          UUID NOT NULL REFERENCES organizations(id),
+  user_id         UUID NOT NULL REFERENCES users(id),
+  email_address   TEXT NOT NULL,
+  display_name    TEXT,
+  auth_method     TEXT NOT NULL DEFAULT 'oauth2',
+  oauth_provider  TEXT DEFAULT 'gmail',
+  encrypted_access_token  TEXT,
+  encrypted_refresh_token TEXT,
+  token_expires_at        TIMESTAMPTZ,
+  sync_interval_minutes   INTEGER NOT NULL DEFAULT 15,
+  sync_mark_read          BOOLEAN NOT NULL DEFAULT false,
+  last_sync_at            TIMESTAMPTZ,
+  last_sync_error         TEXT,
+  last_sync_message_count INTEGER,
+  is_active               BOOLEAN NOT NULL DEFAULT true,
+  created_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
+  archived_at             TIMESTAMPTZ
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_email_connections_user_email
+  ON email_connections (org_id, user_id, email_address)
+  WHERE archived_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS email_sync_state (
+  sync_state_id  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  connection_id  UUID NOT NULL REFERENCES email_connections(connection_id),
+  folder_name    TEXT NOT NULL DEFAULT 'INBOX',
+  last_seen_uid  BIGINT NOT NULL DEFAULT 0,
+  uidvalidity    BIGINT,
+  UNIQUE (connection_id, folder_name)
+);
+
+-- Migration: change default sync interval from manual (0) to 15 minutes
+ALTER TABLE email_connections ALTER COLUMN sync_interval_minutes SET DEFAULT 15;
+UPDATE email_connections SET sync_interval_minutes = 15
+  WHERE sync_interval_minutes = 0 AND is_active = true;

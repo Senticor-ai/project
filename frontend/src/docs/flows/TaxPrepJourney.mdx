@@ -36,7 +36,7 @@ and Tay AI agent potential.
 
 | # | Phase                    | Epic                                                              | Status      |
 | - | ------------------------ | ----------------------------------------------------------------- | ----------- |
-| 1 | Import What You Have     | [Epic →](?path=/docs/flows-tax-prep-epic-import--docs)            | **Gap**     |
+| 1 | Import What You Have     | [Epic →](?path=/docs/flows-tax-prep-epic-import--docs)            | **Works**   |
 | 2 | Triage & Label           | [Epic →](?path=/docs/flows-tax-prep-epic-triage-label--docs)      | Partial     |
 | 3 | Identify Missing Docs    | [Epic →](?path=/docs/flows-tax-prep-epic-missing-docs--docs)      | Works       |
 | 4 | Download & Attach        | _(below)_                                                         | **Gap**     |
@@ -61,8 +61,9 @@ to attach it to the reference item I'll create from this action."
 | Capability                         | Status  | Notes                                                |
 | ---------------------------------- | ------- | ---------------------------------------------------- |
 | Next action list                   | Works   | ActionList component                                 |
-| File upload                        | Works   | Chunked upload API                                   |
-| Attach file to reference item      | **Gap** | No file→thing linking                                |
+| File upload                        | Works   | Chunked upload API + `uploadFile()` helper           |
+| File→Thing linking                 | Works   | `app:fileId` + `app:downloadUrl` on items            |
+| Attach file to reference item      | **Gap** | No UI to attach file to existing reference           |
 | Complete action → create reference | **Gap** | No `Action.result` linking to resulting CreativeWork |
 
 **Schema.org fit**: `Action.result` is a standard schema.org property that
@@ -224,17 +225,29 @@ You need **both versions** in the system:
 
 ### FRBR Models This Naturally
 
-```
-Work:         "1099-INT from Schwab for TY2025"  (the abstract document)
-  │
-  ├── Expression 1: Original (issued Jan 31, 2026)
-  │     └── Manifestation: PDF
-  │           └── Item: schwab-1099-int-original.pdf
-  │
-  └── Expression 2: Corrected (issued Mar 15, 2026)  ← CURRENT
-        └── Manifestation: PDF
-              └── Item: schwab-1099-int-corrected.pdf
-```
+<Mermaid chart={`
+graph TD
+  W["<b>Work</b><br/>1099-INT from Schwab for TY2025"]
+
+  E1["<b>Expression 1</b><br/>Original (issued Jan 31, 2026)"]
+  M1["Manifestation: PDF"]
+  I1["schwab-1099-int-original.pdf"]
+
+  E2["<b>Expression 2</b> ← CURRENT<br/>Corrected (issued Mar 15, 2026)"]
+  M2["Manifestation: PDF"]
+  I2["schwab-1099-int-corrected.pdf"]
+
+  W --> E1
+  W --> E2
+  E1 --> M1 --> I1
+  E2 --> M2 --> I2
+
+  style W fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+  style E1 fill:#f5f5f5,stroke:#999
+  style E2 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+  style I1 fill:#fff,stroke:#ccc
+  style I2 fill:#fff,stroke:#ccc
+`} />
 
 **Provenance tracks** when the correction arrived and which version the CPA
 should use. If the IRS questions a filing, you can show the full version
@@ -305,8 +318,8 @@ it needs the pipeline.
 
 Make documents flow from inbox to organized project.
 
-1. **File→Thing linking** — `app:fileRefs` PropertyValue + upload UI on items
-2. **PDF drag-drop to inbox** — extend InboxCapture to accept file drops
+1. ~~**File→Thing linking**~~ — Done. `app:fileId` + `app:downloadUrl` on BaseEntity
+2. ~~**PDF drag-drop to inbox**~~ — Done. FileDropZone + `useCaptureFile` uploads binary
 3. **Project-scoped filtering** — filter any bucket view by project
 
 ### Layer 2: Structured Data

@@ -15,6 +15,9 @@ data:
   CSRF_ENABLED: "true"
   FILE_STORAGE_PATH: /data/storage
   LOG_FORMAT: json
+  # Gmail OAuth (non-secret config — secrets go in app-secrets)
+  GMAIL_REDIRECT_URI: "https://terminandoyo.100-114-108-51.nip.io:30443/api/email/oauth/gmail/callback"
+  FRONTEND_BASE_URL: "https://terminandoyo.100-114-108-51.nip.io:30443"
   OTEL_SERVICE_NAME: terminandoyo-backend
   OTEL_EXPORTER_OTLP_ENDPOINT: "http://alloy.observability.svc.cluster.local:4318"
   OTEL_EXPORTER_OTLP_PROTOCOL: "http/protobuf"

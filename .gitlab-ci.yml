@@ -1,10 +1,6 @@
 include:
   - template: Jobs/SAST.gitlab-ci.yml
 
-default:
-  tags:
-    - large
-
 stages:
   - quality
   - test
@@ -40,6 +36,10 @@ variables:
     VITE_API_BASE_URL: "http://localhost:8000"
     FUSEKI_ENABLED: "false"
     MEILI_URL: ""
+
+.large-runner:
+  tags:
+    - large
 
 .failure-issue:
   after_script:
@@ -130,14 +130,14 @@ backend-typecheck:
   script:
     - uv run mypy app/
 
-# ==================== TEST (DAG: starts immediately, no wait for quality) ====================
+# ==================== TEST (starts after quality gates) ====================
 
 frontend-unit:
   stage: test
-  needs: []
+  needs: [frontend-typecheck]
   allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
-  extends: [.default-rules, .failure-issue, .frontend-cache]
+  extends: [.default-rules, .large-runner, .failure-issue, .frontend-cache]
   before_script:
     - cd frontend && npm ci --ignore-scripts --silent
   script:
@@ -154,10 +154,10 @@ frontend-unit:
 
 backend-unit:
   stage: test
-  needs: []
+  needs: [backend-typecheck]
   allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
-  extends: [.default-rules, .backend-postgres, .failure-issue, .backend-cache]
+  extends: [.default-rules, .large-runner, .backend-postgres, .failure-issue, .backend-cache]
   before_script:
     - cd backend && uv sync --quiet --all-groups --all-extras
   script:
@@ -174,10 +174,10 @@ backend-unit:
 
 backend-integration:
   stage: test
-  needs: []
+  needs: [backend-typecheck]
   allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
-  extends: [.default-rules, .backend-postgres, .failure-issue, .backend-cache]
+  extends: [.default-rules, .large-runner, .backend-postgres, .failure-issue, .backend-cache]
   before_script:
     - cd backend && uv sync --quiet --all-groups --all-extras
   script:
@@ -194,10 +194,10 @@ backend-integration:
 
 frontend-integration:
   stage: test
-  needs: []
+  needs: [frontend-typecheck, backend-typecheck]
   allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
-  extends: [.default-rules, .backend-postgres, .failure-issue, .fullstack-cache]
+  extends: [.default-rules, .large-runner, .backend-postgres, .failure-issue, .fullstack-cache]
   before_script:
     - cd $CI_PROJECT_DIR/backend && uv sync --quiet --all-groups --all-extras
     - cd $CI_PROJECT_DIR/frontend && npm ci --ignore-scripts --silent
@@ -222,10 +222,10 @@ frontend-integration:
 
 frontend-storybook:
   stage: test
-  needs: []
+  needs: [frontend-typecheck]
   allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
-  extends: [.default-rules, .failure-issue, .frontend-cache]
+  extends: [.default-rules, .large-runner, .failure-issue, .frontend-cache]
   before_script:
     - cd frontend && npm ci --silent
   script:
@@ -233,10 +233,10 @@ frontend-storybook:
 
 backend-e2e:
   stage: test
-  needs: []
+  needs: [backend-typecheck]
   allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
-  extends: [.default-rules, .backend-postgres, .failure-issue, .backend-cache]
+  extends: [.default-rules, .large-runner, .backend-postgres, .failure-issue, .backend-cache]
   before_script:
     - cd backend && uv sync --quiet --all-groups --all-extras
   script:
@@ -258,10 +258,10 @@ backend-e2e:
 
 frontend-e2e:
   stage: test
-  needs: []
+  needs: [frontend-typecheck, backend-typecheck]
   allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
-  extends: [.default-rules, .backend-postgres, .failure-issue, .fullstack-cache]
+  extends: [.default-rules, .large-runner, .backend-postgres, .failure-issue, .fullstack-cache]
   before_script:
     - cd $CI_PROJECT_DIR/backend && uv sync --quiet --all-groups --all-extras
     - cd $CI_PROJECT_DIR/frontend && npm ci --ignore-scripts --silent
@@ -311,7 +311,7 @@ frontend-e2e:
   image:
     name: gcr.io/kaniko-project/executor:v1.23.2-debug
     entrypoint: [""]
-  extends: .default-rules
+  extends: [.default-rules, .large-runner]
 
 build-frontend:
   extends: .build-base
@@ -347,6 +347,7 @@ build-storybook:
   image:
     name: gcr.io/kaniko-project/executor:v1.23.2-debug
     entrypoint: [""]
+  extends: .large-runner
   before_script:
     - mkdir -p /kaniko/.docker
     - AUTH_B64="$(printf '%s:%s' "$HARBOR_USER" "$HARBOR_PASSWORD" | base64 | tr -d '\n')"
@@ -382,6 +383,7 @@ push-storybook:
 
 update-manifests:
   stage: deploy
+  tags: [large]
   image: alpine:3.20
   needs: [push-frontend, push-backend, push-storybook]
   before_script:

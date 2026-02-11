@@ -21,6 +21,7 @@ import {
 import { ITEMS_QUERY_KEY } from "./use-items";
 import type { CanonicalId } from "@/model/canonical-id";
 import { createInboxItem } from "@/model/factories";
+import { uploadFile } from "@/lib/file-upload";
 
 vi.mock("@/lib/api-client", () => ({
   ItemsApi: {
@@ -33,7 +34,12 @@ vi.mock("@/lib/api-client", () => ({
   },
 }));
 
+vi.mock("@/lib/file-upload", () => ({
+  uploadFile: vi.fn(),
+}));
+
 const mocked = vi.mocked(ItemsApi);
+const mockedUploadFile = vi.mocked(uploadFile);
 
 function pv(propertyID: string, value: unknown) {
   return { "@type": "PropertyValue", propertyID, value };
@@ -161,8 +167,23 @@ describe("useCaptureInbox", () => {
 // ---------------------------------------------------------------------------
 
 describe("useCaptureFile", () => {
+  const FILE_RECORD_UPLOAD = {
+    file_id: "file-uuid-abc",
+    original_name: "report.pdf",
+    content_type: "application/pdf",
+    size_bytes: 7,
+    sha256: "abc123",
+    created_at: "2026-01-01T00:00:00Z",
+    download_url: "/files/file-uuid-abc",
+  };
+
+  beforeEach(() => {
+    mockedUploadFile.mockResolvedValue(FILE_RECORD_UPLOAD);
+  });
+
   it("classifies a PDF file as DigitalDocument", async () => {
-    mocked.create.mockResolvedValue(makeRecord({ item: {} }));
+    mocked.create.mockResolvedValue(makeRecord({ item_id: "srv-1", item: {} }));
+    mocked.update.mockResolvedValue(makeRecord({ item: {} }));
 
     const { result } = renderHook(() => useCaptureFile(), {
       wrapper: createWrapper(),
@@ -186,14 +207,17 @@ describe("useCaptureFile", () => {
     expect(props.find((p) => p.propertyID === "app:bucket")?.value).toBe(
       "inbox",
     );
-    expect(props.find((p) => p.propertyID === "app:captureSource")?.value).toMatchObject({
+    expect(
+      props.find((p) => p.propertyID === "app:captureSource")?.value,
+    ).toMatchObject({
       kind: "file",
       fileName: "report.pdf",
     });
   });
 
   it("classifies an .eml file as EmailMessage", async () => {
-    mocked.create.mockResolvedValue(makeRecord({ item: {} }));
+    mocked.create.mockResolvedValue(makeRecord({ item_id: "srv-1", item: {} }));
+    mocked.update.mockResolvedValue(makeRecord({ item: {} }));
 
     const { result } = renderHook(() => useCaptureFile(), {
       wrapper: createWrapper(),
@@ -217,7 +241,8 @@ describe("useCaptureFile", () => {
   });
 
   it("classifies a .vcf file as DigitalDocument with extractable entities", async () => {
-    mocked.create.mockResolvedValue(makeRecord({ item: {} }));
+    mocked.create.mockResolvedValue(makeRecord({ item_id: "srv-1", item: {} }));
+    mocked.update.mockResolvedValue(makeRecord({ item: {} }));
 
     const { result } = renderHook(() => useCaptureFile(), {
       wrapper: createWrapper(),
@@ -246,9 +271,13 @@ describe("useCaptureFile", () => {
         resolveApi = resolve;
       }),
     );
+    mocked.update.mockResolvedValue(makeRecord({ item: {} }));
 
     const qc = new QueryClient({
-      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
     });
     qc.setQueryData(ACTIVE_KEY, []);
     const qcWrapper = ({ children }: { children: React.ReactNode }) =>
@@ -279,7 +308,7 @@ describe("useCaptureFile", () => {
   });
 
   it("restores cache on API failure", async () => {
-    mocked.create.mockRejectedValue(new Error("Upload failed"));
+    mocked.create.mockRejectedValue(new Error("Create failed"));
 
     const wrapper = createWrapper([ACTION_RECORD]);
     const { result } = renderHook(() => useCaptureFile(), { wrapper });
@@ -289,6 +318,113 @@ describe("useCaptureFile", () => {
 
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(mocked.create).toHaveBeenCalled();
+    // Upload should NOT be attempted when create fails
+    expect(mockedUploadFile).not.toHaveBeenCalled();
+  });
+
+  it("uploads binary and PATCHes item with fileId on success", async () => {
+    const createdRecord = makeRecord({
+      item_id: "srv-item-1",
+      canonical_id: "urn:app:inbox:capture1",
+      item: { "@type": "DigitalDocument", "@id": "urn:app:inbox:capture1" },
+    });
+    const patchedRecord = makeRecord({
+      item_id: "srv-item-1",
+      canonical_id: "urn:app:inbox:capture1",
+      item: {
+        "@type": "DigitalDocument",
+        "@id": "urn:app:inbox:capture1",
+        additionalProperty: [
+          pv("app:fileId", "file-uuid-abc"),
+          pv("app:downloadUrl", "/files/file-uuid-abc"),
+        ],
+      },
+    });
+    mocked.create.mockResolvedValue(createdRecord);
+    mocked.update.mockResolvedValue(patchedRecord);
+
+    const { result } = renderHook(() => useCaptureFile(), {
+      wrapper: createWrapper(),
+    });
+
+    const file = new File(["content"], "report.pdf", {
+      type: "application/pdf",
+    });
+    act(() => result.current.mutate(file));
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    // 1. Item created
+    expect(mocked.create).toHaveBeenCalledTimes(1);
+    // 2. File uploaded
+    expect(mockedUploadFile).toHaveBeenCalledWith(file);
+    // 3. Item PATCHed with file link
+    expect(mocked.update).toHaveBeenCalledWith(
+      "srv-item-1",
+      expect.objectContaining({
+        additionalProperty: expect.arrayContaining([
+          expect.objectContaining({
+            propertyID: "app:fileId",
+            value: "file-uuid-abc",
+          }),
+          expect.objectContaining({
+            propertyID: "app:downloadUrl",
+            value: "/files/file-uuid-abc",
+          }),
+        ]),
+      }),
+    );
+  });
+
+  it("item still persists when upload fails", async () => {
+    const createdRecord = makeRecord({
+      item_id: "srv-item-2",
+      canonical_id: "urn:app:inbox:capture2",
+      item: { "@type": "DigitalDocument", "@id": "urn:app:inbox:capture2" },
+    });
+    mocked.create.mockResolvedValue(createdRecord);
+    mockedUploadFile.mockRejectedValue(new Error("Upload network error"));
+
+    const { result } = renderHook(() => useCaptureFile(), {
+      wrapper: createWrapper(),
+    });
+
+    const file = new File(["content"], "report.pdf", {
+      type: "application/pdf",
+    });
+    act(() => result.current.mutate(file));
+
+    // The mutation should still succeed — item was created, upload failure is tolerated
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(mocked.create).toHaveBeenCalledTimes(1);
+    expect(mockedUploadFile).toHaveBeenCalledTimes(1);
+    // PATCH should NOT be called since upload failed
+    expect(mocked.update).not.toHaveBeenCalled();
+  });
+
+  it("item persists when PATCH fails after upload", async () => {
+    const createdRecord = makeRecord({
+      item_id: "srv-item-3",
+      canonical_id: "urn:app:inbox:capture3",
+      item: { "@type": "DigitalDocument", "@id": "urn:app:inbox:capture3" },
+    });
+    mocked.create.mockResolvedValue(createdRecord);
+    mocked.update.mockRejectedValue(new Error("PATCH failed"));
+
+    const { result } = renderHook(() => useCaptureFile(), {
+      wrapper: createWrapper(),
+    });
+
+    const file = new File(["content"], "report.pdf", {
+      type: "application/pdf",
+    });
+    act(() => result.current.mutate(file));
+
+    // Should still succeed — PATCH failure is tolerated
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(mocked.create).toHaveBeenCalledTimes(1);
+    expect(mockedUploadFile).toHaveBeenCalledTimes(1);
+    expect(mocked.update).toHaveBeenCalledTimes(1);
   });
 });
 

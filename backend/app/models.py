@@ -281,10 +281,10 @@ class ItemJsonLdBase(BaseModel):
 class ActionItemJsonLd(ItemJsonLdBase):
     """schema:Action — all action-type items (inbox, next, waiting, calendar, someday)."""
 
-    type: Literal["Action", "Thing"] = Field(
+    type: Literal["Action", "EmailMessage"] = Field(
         ...,
         alias="@type",
-        description="schema.org Action (also accepts legacy 'Thing').",
+        description="schema.org Action (also accepts 'EmailMessage').",
     )
     startTime: str | None = Field(
         default=None,
@@ -303,12 +303,12 @@ class ProjectItemJsonLd(ItemJsonLdBase):
 
 
 class ReferenceItemJsonLd(ItemJsonLdBase):
-    """schema:CreativeWork — reference material."""
+    """schema:CreativeWork — reference material (includes DigitalDocument subtype)."""
 
-    type: Literal["CreativeWork"] = Field(
+    type: Literal["CreativeWork", "DigitalDocument"] = Field(
         ...,
         alias="@type",
-        description="schema.org CreativeWork.",
+        description="schema.org CreativeWork or DigitalDocument.",
     )
     url: str | None = Field(default=None, description="External URL.")
     encodingFormat: str | None = Field(
@@ -349,10 +349,11 @@ def _resolve_item_type(v: Any) -> str:
         v.get("@type", v.get("type", "")) if isinstance(v, dict) else getattr(v, "type", "")
     )
     return {
-        "Thing": "action",
         "Action": "action",
+        "EmailMessage": "action",
         "Project": "project",
         "CreativeWork": "creative_work",
+        "DigitalDocument": "creative_work",
         "Event": "event",
     }.get(raw_type, "action")
 
@@ -370,7 +371,13 @@ class ItemPatchModel(BaseModel):
     """Partial JSON-LD for PATCH deep-merge (v2 schema.org format)."""
 
     id: str | None = Field(default=None, alias="@id", description="Canonical id (immutable).")
-    type: Literal["Thing", "Action", "Project", "CreativeWork", "Event"] | None = Field(
+    type: (
+        Literal[
+            "Action", "Project", "CreativeWork",
+            "DigitalDocument", "Event", "EmailMessage",
+        ]
+        | None
+    ) = Field(
         default=None,
         alias="@type",
         description="Schema.org type override.",
@@ -629,8 +636,6 @@ class ImportSummary(BaseModel):
             ]
         }
     )
-
-
 
 
 class NirvanaImportInspectRequest(BaseModel):

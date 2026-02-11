@@ -5,6 +5,7 @@ import { Icon } from "@/components/ui/Icon";
 import { BucketBadge } from "@/components/paperclip/BucketBadge";
 import { EditableTitle } from "./EditableTitle";
 import { ItemEditor } from "./ItemEditor";
+import { EmailBodyViewer } from "./EmailBodyViewer";
 import { getDisplayName } from "@/model/types";
 import type { ActionItem, Project, ItemEditableFields } from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
@@ -131,10 +132,17 @@ export function ActionRow({
   const dueDateInfo = thing.dueDate ? formatDueDate(thing.dueDate) : null;
   const isInbox = thing.bucket === "inbox";
 
-  const subtitle =
-    thing.captureSource.kind !== "thought"
-      ? `via ${thing.captureSource.kind}`
-      : undefined;
+  const { captureSource } = thing;
+  const isEmail = captureSource.kind === "email";
+  const subtitle = (() => {
+    if (captureSource.kind === "email") {
+      return captureSource.from ?? "via email";
+    }
+    if (captureSource.kind !== "thought") {
+      return `via ${captureSource.kind}`;
+    }
+    return undefined;
+  })();
 
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: thing.id,
@@ -251,7 +259,10 @@ export function ActionRow({
 
         {/* Subtitle for non-thought sources */}
         {subtitle && (
-          <span className="shrink-0 text-xs text-text-muted">{subtitle}</span>
+          <span className="flex shrink-0 items-center gap-1 text-xs text-text-muted">
+            {isEmail && <Icon name="mail" size={12} />}
+            {subtitle}
+          </span>
         )}
 
         {/* Note indicator — only when expanded (collapsed shows text preview instead) */}
@@ -342,6 +353,18 @@ export function ActionRow({
       {/* Expanded content */}
       {isExpanded && (
         <div className="mt-1 ml-8">
+          {/* Email body viewer */}
+          {isEmail && thing.emailBody && (
+            <EmailBodyViewer
+              htmlBody={thing.emailBody}
+              senderName={
+                captureSource.kind === "email" ? captureSource.from : undefined
+              }
+              sourceUrl={thing.emailSourceUrl}
+              className="mb-3"
+            />
+          )}
+
           {/* Triage quick-buttons for inbox items */}
           {isInbox && (
             <>

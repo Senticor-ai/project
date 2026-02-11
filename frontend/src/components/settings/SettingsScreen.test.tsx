@@ -18,9 +18,10 @@ describe("SettingsScreen", () => {
     expect(tab).toHaveAttribute("aria-selected", "true");
   });
 
-  it("renders all three tab labels", () => {
+  it("renders all tab labels", () => {
     render(<SettingsScreen />);
     expect(screen.getByText("Import / Export")).toBeInTheDocument();
+    expect(screen.getByText("Email")).toBeInTheDocument();
     expect(screen.getByText("Labels & Contexts")).toBeInTheDocument();
     expect(screen.getByText("Preferences")).toBeInTheDocument();
   });
@@ -79,12 +80,25 @@ describe("SettingsScreen", () => {
     expect(onTabChange).toHaveBeenCalledWith("developer");
   });
 
-  it("renders all four tab labels including Developer", () => {
+  it("renders all five tab labels including Email and Developer", () => {
     render(<SettingsScreen />);
     expect(screen.getByText("Import / Export")).toBeInTheDocument();
+    expect(screen.getByText("Email")).toBeInTheDocument();
     expect(screen.getByText("Labels & Contexts")).toBeInTheDocument();
     expect(screen.getByText("Preferences")).toBeInTheDocument();
     expect(screen.getByText("Developer")).toBeInTheDocument();
+  });
+
+  it("switches to Email tab when clicked", async () => {
+    const user = userEvent.setup();
+    render(<SettingsScreen />);
+    await user.click(screen.getByText("Email"));
+
+    const emailTab = screen.getByText("Email").closest("button")!;
+    expect(emailTab).toHaveAttribute("aria-selected", "true");
+    expect(
+      screen.getByText("Keine E-Mail-Verbindung eingerichtet"),
+    ).toBeInTheDocument();
   });
 
   it("can add and remove contexts in the Labels tab", async () => {

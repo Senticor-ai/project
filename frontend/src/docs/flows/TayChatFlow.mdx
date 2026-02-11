@@ -1,0 +1,257 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+import { Mermaid } from "../../components/docs/Mermaid";
+
+<Meta title="Flows/Chat with Tay" />
+
+# Flow: Chat with Tay
+
+This document traces the user experience of chatting with Tay, from opening the panel to accepting a suggestion that creates real items in the workspace.
+
+---
+
+## Overview
+
+<Mermaid chart={`
+graph LR
+  O["<b>OPEN</b><br/>Toggle panel"]
+  C["<b>CHAT</b><br/>Send msg, get reply"]
+  S["<b>SUGGEST</b><br/>Tay tool call"]
+  R["<b>REVIEW</b><br/>Edit or dismiss"]
+  CF["<b>CONFIRM</b><br/>Items created"]
+
+  O --> C --> S
+  S --> R
+  R --> CF
+
+  style O fill:#e3f2fd,stroke:#1976d2
+  style C fill:#e3f2fd,stroke:#1976d2
+  style S fill:#fff3e0,stroke:#ef6c00
+  style R fill:#fce4ec,stroke:#c62828
+  style CF fill:#e8f5e9,stroke:#2e7d32
+`} />
+
+---
+
+## Phase 1: Open Panel
+
+**Component**: `TayChatToggle` (in `AppHeader`) → `TayChatPanel`
+
+**User story**: "I want to talk to Tay about planning something. I click the sparkle icon in the header."
+
+**Flow**:
+
+1. User sees the `chat_bubble` icon button in `AppHeader` (between logo and hamburger menu)
+2. Clicks the button → `TayChatPanel` slides in from the right edge
+3. Panel is ~400px wide on desktop, full-screen on mobile
+4. Empty state shows a welcome message: "Hallo! Ich bin Tay. Wie kann ich helfen?"
+5. `ChatInput` is focused and ready for typing
+
+**Paperclip interactions**:
+
+- Panel slides in with a Framer Motion `x` transition (from right)
+- Workspace content remains visible behind the panel (desktop)
+- Semi-transparent backdrop on mobile
+
+**State**: `isChatOpen: true` in `AuthenticatedApp`
+
+---
+
+## Phase 2: Send Message
+
+**Components**: `ChatInput` → `ChatMessageList` → `UserMessageBubble`
+
+**User story**: "I type my thought and press Enter."
+
+**Flow**:
+
+1. User types in `ChatInput` (wraps `AutoGrowTextarea`)
+2. Presses Enter → message submitted
+3. `UserMessageBubble` appears right-aligned in `ChatMessageList`
+4. `ChatInput` clears, ready for next message
+5. `TayThinkingIndicator` appears (animated dots with `chat_bubble` avatar)
+6. Chat auto-scrolls to bottom
+
+**Keyboard shortcuts**:
+
+- Enter: send message
+- Shift+Enter: newline (multi-line input)
+
+**Data**: `UserChatMessage { role: "user", kind: "text", content: "..." }`
+
+---
+
+## Phase 3: Tay Responds
+
+**Components**: `TayMessageBubble` → `TaySuggestionCard`
+
+**User story**: "Tay understands what I need and shows me a suggestion."
+
+**Flow**:
+
+1. API returns a response with text + optional tool calls
+2. `TayThinkingIndicator` is replaced by `TayMessageBubble` with text content
+3. If tool calls are present, a `TaySuggestionCard` renders below the text
+4. The suggestion card shows a preview of the proposed items
+
+**Message types created**:
+
+- `TayTextMessage` — the conversational text
+- `TaySuggestionMessage` — the tool call rendered as a card (status: `"pending"`)
+
+**Example**: Tay responds to "birthday party planning" with:
+
+```
+TayMessageBubble: "Klingt nach einem Projekt! Hier ist mein Vorschlag:"
+
+TaySuggestionCard:
+  ┌──────────────────────────────────────┐
+  │ ✦ Geburtstagsfeier planen            │
+  │   Ergebnis: Erfolgreiche Feier       │
+  │                                      │
+  │   ☐ Gästeliste erstellen             │
+  │   ☐ Einladungen versenden            │
+  │   ☐ Location buchen                  │
+  │   ☐ Essen & Getränke organisieren    │
+  │   ☐ Dekoration besorgen              │
+  │                                      │
+  │   📄 Einladungsvorlage               │
+  │                                      │
+  │   [✓ Übernehmen] [✗ Verwerfen] [✎]  │
+  └──────────────────────────────────────┘
+```
+
+---
+
+## Phase 4: Review & Edit
+
+**Component**: `TaySuggestionCard` (edit mode)
+
+**User story**: "I like the suggestion but want to tweak a few things before accepting."
+
+**Flow**:
+
+1. User clicks the edit button (✎) on the suggestion card
+2. Card enters edit mode (status: `"editing"`):
+   - Project name becomes an editable text field
+   - Action names become editable text fields
+   - User can remove individual actions (✕ button)
+   - Desired outcome is editable
+3. User modifies the suggestion to their liking
+4. Clicks Accept (✓) to confirm the edited version, or Cancel to return to pending
+
+**Paperclip interactions**:
+
+- Edit mode adds a subtle border highlight to indicate editable state
+- Editable fields use the same pattern as `EditableTitle` (click to edit, Enter/Escape)
+
+---
+
+## Phase 5: Accept or Dismiss
+
+**Components**: `TaySuggestionCard` → `useTayActions` → `TayConfirmation`
+
+### Accept path
+
+**User story**: "This looks right — create it."
+
+**Flow**:
+
+1. User clicks [✓ Übernehmen]
+2. `useTayActions` orchestrates item creation using existing mutation hooks:
+   - `useCreateProject()` → creates the project
+   - `useAddProjectAction()` → creates each action linked to the project
+   - Item creation for references/documents as needed
+3. Suggestion card status changes to `"accepted"`
+4. Card transforms into a compact `TayConfirmation`:
+   - Success message: "Projekt erstellt mit N Aktionen"
+   - Clickable chip for each created item (navigates to workspace)
+5. Items appear in workspace bucket views immediately (optimistic updates)
+
+**Data created**:
+
+- `Project` with `CaptureSource: { kind: "tay", conversationId: "..." }`
+- N × `ActionItem` with `bucket: "next"`, linked to project via `projectIds`
+- Optional `ReferenceMaterial` for documents
+
+### Dismiss path
+
+**User story**: "Not what I wanted — skip this."
+
+**Flow**:
+
+1. User clicks [✗ Verwerfen]
+2. Suggestion card status changes to `"dismissed"`
+3. Card collapses to a single line: "Vorschlag verworfen"
+4. No API calls, no items created
+5. Conversation continues — user can send another message
+
+---
+
+## Phase 6: Continue Conversation
+
+**User story**: "I want to ask Tay for more things in the same conversation."
+
+**Flow**:
+
+1. After accepting or dismissing, `ChatInput` remains active
+2. User can send follow-up messages
+3. Each suggestion has its own independent lifecycle (pending/editing/accepted/dismissed)
+4. Multiple accepted suggestions accumulate confirmations in the chat history
+
+---
+
+## Component Interaction Map
+
+<Mermaid chart={`
+graph TD
+  AH["AppHeader"] --> TT["TayChatToggle<br/><i>chat_bubble button</i>"]
+  TT -->|"onClick"| TCP["TayChatPanel<br/><i>right side panel</i>"]
+
+  TCP --> CML["ChatMessageList<br/><i>scrollable</i>"]
+  CML --> UMB["UserMessageBubble"]
+  CML --> TMB["TayMessageBubble"]
+  CML --> TTI["TayThinkingIndicator"]
+  CML --> TSC["TaySuggestionCard"]
+  CML --> TC["TayConfirmation"]
+
+  TCP --> CI["ChatInput<br/><i>AutoGrowTextarea + send</i>"]
+  CI -->|"onSend"| UCS["useChatState<br/><i>local state: messages[]</i>"]
+  UCS --> UTA["useTayApi<br/><i>POST */chat/completions</i>"]
+  UCS -->|"on accept"| UTAC["useTayActions"]
+  UTAC --> UCP["useCreateProject()"]
+  UTAC --> UAPA["useAddProjectAction() x N"]
+  UTAC --> UCI["useCaptureInbox()"]
+
+  style AH fill:#f5f5f5,stroke:#999
+  style TCP fill:#e3f2fd,stroke:#1976d2
+  style CML fill:#fff,stroke:#999
+  style CI fill:#fff,stroke:#999
+  style UCS fill:#e8f5e9,stroke:#2e7d32
+  style UTAC fill:#fff3e0,stroke:#ef6c00
+`} />
+
+---
+
+## Hooks Data Flow
+
+<Mermaid chart={`
+graph LR
+  CS["<b>useChatState</b><br/>messages: ChatMessage[]"]
+  TA["<b>useTayApi</b><br/>POST */chat/completions"]
+  TAC["<b>useTayActions</b><br/>executeToolCall()"]
+  MH["Mutation Hooks<br/><i>useCreateProject, etc.</i>"]
+  IR["CreatedItemRef[]"]
+
+  CS -->|"sendMessage(text)"| TA
+  TA -->|"{ text, toolCalls? }"| CS
+  CS -->|"acceptSuggestion(id)"| TAC
+  CS -->|"dismissSuggestion(id)"| CS
+  TAC --> MH
+  MH --> IR
+
+  style CS fill:#e8f5e9,stroke:#2e7d32
+  style TA fill:#e3f2fd,stroke:#1976d2
+  style TAC fill:#fff3e0,stroke:#ef6c00
+  style MH fill:#f5f5f5,stroke:#999
+  style IR fill:#f5f5f5,stroke:#999
+`} />

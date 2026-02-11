@@ -1,4 +1,9 @@
-import type { ItemRecord, SyncResponse, FileRecord } from "@/lib/api-client";
+import type {
+  ItemRecord,
+  SyncResponse,
+  FileRecord,
+  EmailConnectionResponse,
+} from "@/lib/api-client";
 import type { CanonicalId } from "@/model/canonical-id";
 
 // ---------------------------------------------------------------------------
@@ -7,11 +12,13 @@ import type { CanonicalId } from "@/model/canonical-id";
 
 export const store = {
   items: new Map<string, ItemRecord>(),
+  emailConnections: new Map<string, EmailConnectionResponse>(),
   clear() {
     this.items.clear();
+    this.emailConnections.clear();
   },
   seed(records: ItemRecord[]) {
-    this.clear();
+    this.items.clear();
     for (const r of records) this.items.set(r.item_id, r);
   },
 };
@@ -47,6 +54,9 @@ export function createItemRecord(
     endDate?: string;
     duration?: string;
     location?: string;
+    encodingFormat?: string;
+    fileId?: string;
+    downloadUrl?: string;
   } = {},
 ): ItemRecord {
   counter++;
@@ -120,6 +130,30 @@ export function createItemRecord(
       pv("app:typedReferences", []),
       pv("app:provenanceHistory", [{ timestamp: now, action: "created" }]),
     ];
+  } else if (type === "DigitalDocument" || type === "EmailMessage") {
+    base.name = overrides.name ?? displayName;
+    base.encodingFormat = overrides.encodingFormat ?? null;
+    base.additionalProperty = [
+      pv("app:bucket", bucket),
+      pv("app:rawCapture", overrides.rawCapture ?? displayName),
+      pv("app:needsEnrichment", true),
+      pv("app:confidence", "medium"),
+      pv(
+        "app:captureSource",
+        type === "EmailMessage"
+          ? { kind: "email" }
+          : {
+              kind: "file",
+              fileName: displayName,
+              mimeType: "application/pdf",
+            },
+      ),
+      pv("app:contexts", []),
+      pv("app:isFocused", overrides.isFocused ?? false),
+      pv("app:ports", []),
+      pv("app:typedReferences", []),
+      pv("app:provenanceHistory", [{ timestamp: now, action: "created" }]),
+    ];
   } else if (isEvent) {
     base.startDate = overrides.startDate ?? null;
     base.endDate = overrides.endDate ?? null;
@@ -134,6 +168,17 @@ export function createItemRecord(
       pv("app:typedReferences", []),
       pv("app:provenanceHistory", [{ timestamp: now, action: "created" }]),
     ];
+  }
+
+  // Append file fields to additionalProperty when provided
+  if (overrides.fileId || overrides.downloadUrl) {
+    const props = base.additionalProperty as Array<Record<string, unknown>>;
+    if (overrides.fileId) {
+      props.push(pv("app:fileId", overrides.fileId));
+    }
+    if (overrides.downloadUrl) {
+      props.push(pv("app:downloadUrl", overrides.downloadUrl));
+    }
   }
 
   return {
@@ -213,6 +258,29 @@ export function seedMixedBuckets(): ItemRecord[] {
   return records;
 }
 
+export function seedMixedBucketsWithFiles(): ItemRecord[] {
+  const records = [
+    ...seedMixedBuckets(),
+    createItemRecord({
+      item_id: "file-inbox-1",
+      bucket: "inbox",
+      type: "DigitalDocument",
+      name: "Quarterly Report.pdf",
+      encodingFormat: "application/pdf",
+    }),
+    createItemRecord({
+      item_id: "file-inbox-2",
+      bucket: "inbox",
+      type: "DigitalDocument",
+      name: "Meeting Notes.docx",
+      encodingFormat:
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    }),
+  ];
+  store.seed(records);
+  return records;
+}
+
 // ---------------------------------------------------------------------------
 // SyncResponse builder
 // ---------------------------------------------------------------------------
@@ -243,4 +311,124 @@ export function createFileRecord(
     download_url: "/files/file-msw-1",
     ...overrides,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Email item fixture
+// ---------------------------------------------------------------------------
+
+export function createEmailItemRecord(
+  overrides: {
+    item_id?: string;
+    subject?: string;
+    from?: string;
+    fromName?: string;
+    snippet?: string;
+    bucket?: string;
+  } = {},
+): ItemRecord {
+  counter++;
+  const id = overrides.item_id ?? `email-${counter}`;
+  const now = new Date().toISOString();
+  const bucket = overrides.bucket ?? "inbox";
+  const subject = overrides.subject ?? `Email subject ${counter}`;
+  const fromEmail = overrides.from ?? "sender@example.de";
+  const fromName = overrides.fromName ?? "Hans Schmidt";
+  const snippet =
+    overrides.snippet ?? "Sehr geehrte Frau Muller, hiermit teile ich...";
+  const canonicalId = `urn:app:email:${id}` as CanonicalId;
+
+  const item: Record<string, unknown> = {
+    "@id": canonicalId,
+    "@type": "EmailMessage",
+    _schemaVersion: 2,
+    name: subject,
+    description: null,
+    keywords: [],
+    dateCreated: now,
+    dateModified: now,
+    sender: { "@type": "Person", name: fromName, email: fromEmail },
+    toRecipient: [{ "@type": "Person", email: "beamte@bund.de" }],
+    additionalProperty: [
+      pv("app:bucket", bucket),
+      pv("app:rawCapture", snippet),
+      pv("app:needsEnrichment", bucket === "inbox"),
+      pv("app:confidence", "medium"),
+      pv("app:captureSource", {
+        kind: "email",
+        subject,
+        from: fromEmail,
+      }),
+      pv("app:contexts", []),
+      pv("app:isFocused", false),
+      pv("app:ports", []),
+      pv("app:typedReferences", []),
+      pv("app:provenanceHistory", [{ timestamp: now, action: "created" }]),
+      pv("app:projectRefs", []),
+      pv("app:emailBody", `<p>${snippet}</p>`),
+      pv("app:emailSourceUrl", `https://mail.google.com/mail/u/0/#inbox/${id}`),
+    ],
+    startTime: null,
+    endTime: null,
+  };
+
+  return {
+    item_id: id,
+    canonical_id: canonicalId,
+    source: "gmail",
+    item,
+    created_at: now,
+    updated_at: now,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Email connection fixture
+// ---------------------------------------------------------------------------
+
+export function createEmailConnection(
+  overrides: Partial<EmailConnectionResponse> = {},
+): EmailConnectionResponse {
+  return {
+    connection_id: "conn-1",
+    email_address: "beamte@bund.de",
+    display_name: "Beamter",
+    auth_method: "oauth2",
+    oauth_provider: "gmail",
+    sync_interval_minutes: 15,
+    sync_mark_read: false,
+    last_sync_at: new Date().toISOString(),
+    last_sync_error: null,
+    last_sync_message_count: 12,
+    is_active: true,
+    created_at: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Seed helpers with email items
+// ---------------------------------------------------------------------------
+
+export function seedMixedBucketsWithEmail(): ItemRecord[] {
+  const records = [
+    ...seedMixedBuckets(),
+    createEmailItemRecord({
+      item_id: "email-inbox-1",
+      subject: "Re: Antrag auf Verlangerung",
+      from: "h.schmidt@example.de",
+      fromName: "Hans Schmidt",
+      snippet: "Sehr geehrte Frau Muller, hiermit teile ich Ihnen mit...",
+    }),
+    createEmailItemRecord({
+      item_id: "email-inbox-2",
+      subject: "Einladung: Projektbesprechung",
+      from: "sekretariat@bund.de",
+      fromName: "Sekretariat",
+      snippet: "Hiermit laden wir Sie herzlich ein zur Besprechung am...",
+    }),
+  ];
+  // Re-seed the store with all records including email items
+  store.seed(records);
+  return records;
 }

@@ -140,6 +140,19 @@ The production overlay:
 
 Namespace, Secret, and Ingress are managed by ops (not in version control).
 
+The `app-secrets` Secret must include these keys (in addition to `POSTGRES_PASSWORD`):
+
+| Key | Description | How to generate |
+|-----|-------------|-----------------|
+| `POSTGRES_PASSWORD` | PostgreSQL password | — |
+| `JWT_SECRET` | Internal token signing | `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
+| `GMAIL_CLIENT_ID` | Google OAuth client ID | [Cloud Console > Credentials](https://console.cloud.google.com/apis/credentials) |
+| `GMAIL_CLIENT_SECRET` | Google OAuth client secret | Same as above |
+| `GMAIL_STATE_SECRET` | OAuth CSRF state signing | `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
+| `ENCRYPTION_KEY` | Fernet key for token encryption | `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
+
+Full setup guide: Storybook > Engineering > Email Integration (`?path=/docs/engineering-email-integration--docs`).
+
 ### Verify rendered manifests
 
 ```bash

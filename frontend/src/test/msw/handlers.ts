@@ -1,9 +1,16 @@
 import { http, HttpResponse } from "msw";
-import { store, buildSyncResponse, createFileRecord } from "./fixtures";
+import {
+  store,
+  buildSyncResponse,
+  createFileRecord,
+  createEmailConnection,
+} from "./fixtures";
 import type {
   ItemRecord,
   ImportSummary,
   ImportJobResponse,
+  EmailConnectionResponse,
+  EmailConnectionUpdateRequest,
 } from "@/lib/api-client";
 
 // ---------------------------------------------------------------------------
@@ -277,6 +284,138 @@ export const authHandlers = [
 ];
 
 // ---------------------------------------------------------------------------
+// Email API handlers
+// ---------------------------------------------------------------------------
+
+export const emailHandlers = [
+  http.get(`${API}/email/connections`, () => {
+    const connections = Array.from(store.emailConnections.values()).filter(
+      (c) => c.is_active,
+    );
+    return HttpResponse.json(connections);
+  }),
+
+  http.get(`${API}/email/oauth/gmail/authorize`, () => {
+    return HttpResponse.json({
+      url: "https://accounts.google.com/o/oauth2/v2/auth?mock=true",
+    });
+  }),
+
+  http.patch(`${API}/email/connections/:id`, async ({ params, request }) => {
+    const id = params.id as string;
+    const patch = (await request.json()) as EmailConnectionUpdateRequest;
+    const existing = store.emailConnections.get(id);
+    if (!existing) {
+      return HttpResponse.json({ detail: "Not found" }, { status: 404 });
+    }
+    const updated: EmailConnectionResponse = {
+      ...existing,
+      ...(patch.sync_interval_minutes !== undefined && {
+        sync_interval_minutes: patch.sync_interval_minutes,
+      }),
+      ...(patch.sync_mark_read !== undefined && {
+        sync_mark_read: patch.sync_mark_read,
+      }),
+    };
+    store.emailConnections.set(id, updated);
+    return HttpResponse.json(updated);
+  }),
+
+  http.post(`${API}/email/connections/:id/sync`, ({ params }) => {
+    const id = params.id as string;
+    const existing = store.emailConnections.get(id);
+    if (!existing) {
+      return HttpResponse.json({ detail: "Not found" }, { status: 404 });
+    }
+    store.emailConnections.set(id, {
+      ...existing,
+      last_sync_at: new Date().toISOString(),
+      last_sync_message_count: (existing.last_sync_message_count ?? 0) + 3,
+    });
+    return HttpResponse.json({
+      synced: 3,
+      created: 2,
+      skipped: 1,
+      errors: 0,
+    });
+  }),
+
+  http.delete(`${API}/email/connections/:id`, ({ params }) => {
+    const id = params.id as string;
+    const existing = store.emailConnections.get(id);
+    if (!existing) {
+      return HttpResponse.json({ detail: "Not found" }, { status: 404 });
+    }
+    const archived: EmailConnectionResponse = {
+      ...existing,
+      is_active: false,
+    };
+    store.emailConnections.set(id, archived);
+    return HttpResponse.json(archived);
+  }),
+];
+
+// ---------------------------------------------------------------------------
+// Email store seed helper
+// ---------------------------------------------------------------------------
+
+export function seedEmailConnection(
+  overrides?: Partial<EmailConnectionResponse>,
+) {
+  const conn = createEmailConnection(overrides);
+  store.emailConnections.set(conn.connection_id, conn);
+  return conn;
+}
+
+// ---------------------------------------------------------------------------
+// Chat handlers (Tay Copilot V1)
+// ---------------------------------------------------------------------------
+
+const chatHandlers = [
+  http.post(`${API}/chat/completions`, async ({ request }) => {
+    const body = (await request.json()) as { message: string };
+    const msg = body.message.toLowerCase();
+
+    // Birthday scenario — project with actions
+    if (
+      msg.includes("geburtstag") ||
+      msg.includes("birthday") ||
+      msg.includes("party") ||
+      msg.includes("feier")
+    ) {
+      return HttpResponse.json({
+        text: "Klingt nach einem Projekt! Hier ist mein Vorschlag:",
+        toolCalls: [
+          {
+            name: "create_project_with_actions",
+            arguments: {
+              type: "create_project_with_actions",
+              project: {
+                name: "Geburtstagsfeier planen",
+                desiredOutcome: "Erfolgreiche Geburtstagsfeier",
+              },
+              actions: [
+                { name: "Gästeliste erstellen", bucket: "next" },
+                { name: "Einladungen versenden", bucket: "next" },
+                { name: "Location buchen", bucket: "next" },
+                { name: "Essen & Getränke organisieren", bucket: "next" },
+                { name: "Dekoration besorgen", bucket: "next" },
+              ],
+              documents: [{ name: "Einladungsvorlage" }],
+            },
+          },
+        ],
+      });
+    }
+
+    // Simple text response for greetings
+    return HttpResponse.json({
+      text: "Hallo! Ich bin Tay, dein Assistent. Wie kann ich dir helfen?",
+    });
+  }),
+];
+
+// ---------------------------------------------------------------------------
 // Combined handler set
 // ---------------------------------------------------------------------------
 
@@ -285,4 +424,6 @@ export const handlers = [
   ...filesHandlers,
   ...importsHandlers,
   ...authHandlers,
+  ...emailHandlers,
+  ...chatHandlers,
 ];

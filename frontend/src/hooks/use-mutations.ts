@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-query";
 import { ItemsApi } from "@/lib/api-client";
 import type { ItemRecord } from "@/lib/api-client";
+import { uploadFile } from "@/lib/file-upload";
 import {
   buildNewInboxJsonLd,
   buildNewReferenceJsonLd,
@@ -244,11 +245,42 @@ export function useCaptureInbox() {
 export function useCaptureFile() {
   const qc = useQueryClient();
 
+  type CaptureFileVars = { file: File; jsonLd: Record<string, unknown> };
+
   const mutation = useMutation({
-    mutationFn: async (jsonLd: Record<string, unknown>) => {
-      return ItemsApi.create(jsonLd, "manual");
+    mutationFn: async ({ file, jsonLd }: CaptureFileVars) => {
+      // 1. Create the item (metadata-only)
+      const itemRecord = await ItemsApi.create(jsonLd, "manual");
+
+      // 2. Upload the binary (tolerate failure — item already exists)
+      try {
+        const fileRecord = await uploadFile(file);
+        // 3. Link the uploaded file to the item via PATCH
+        try {
+          await ItemsApi.update(itemRecord.item_id, {
+            additionalProperty: [
+              {
+                "@type": "PropertyValue",
+                propertyID: "app:fileId",
+                value: fileRecord.file_id,
+              },
+              {
+                "@type": "PropertyValue",
+                propertyID: "app:downloadUrl",
+                value: fileRecord.download_url,
+              },
+            ],
+          });
+        } catch {
+          // PATCH failure tolerated — item + file exist, link can be retried
+        }
+      } catch {
+        // Upload failure tolerated — item metadata is persisted
+      }
+
+      return itemRecord;
     },
-    onMutate: async (jsonLd) => {
+    onMutate: async ({ jsonLd }: CaptureFileVars) => {
       const prev = await snapshotActive(qc);
       const now = new Date().toISOString();
       const optimistic: ItemRecord = {
@@ -282,7 +314,7 @@ export function useCaptureFile() {
     (file: File) => {
       const classification = classifyFile(file);
       const jsonLd = buildNewFileInboxJsonLd(classification, file.name);
-      mutation.mutate(jsonLd);
+      mutation.mutate({ file, jsonLd });
     },
     [mutation],
   );
@@ -291,7 +323,7 @@ export function useCaptureFile() {
     async (file: File) => {
       const classification = classifyFile(file);
       const jsonLd = buildNewFileInboxJsonLd(classification, file.name);
-      return mutation.mutateAsync(jsonLd);
+      return mutation.mutateAsync({ file, jsonLd });
     },
     [mutation],
   );

@@ -1,0 +1,279 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+import { Mermaid } from "../../components/docs/Mermaid";
+
+<Meta title="Engineering/Story-Driven Development" />
+
+# Story-Driven Development
+
+TerminAndoYo is built using **Storybook as the single source of truth** for the entire
+system — product vision, design language, engineering architecture, user flows, and
+interactive component demos all live here as MDX pages alongside component stories.
+
+This is not documentation bolted on after the fact. It is the **primary development
+artifact** — written first, consumed by both humans and AI, and kept current as the
+system evolves.
+
+---
+
+## Why Storybook?
+
+Traditional projects scatter knowledge across wikis, Confluence pages, Figma files,
+Notion boards, Slack threads, and README files. When a new engineer (or an AI agent)
+needs to understand the system, they piece together fragments from a dozen sources —
+most of which are stale.
+
+**Story-Driven Development** collapses all of that into one place:
+
+| What                    | Traditional                       | Story-Driven                          |
+| ----------------------- | --------------------------------- | ------------------------------------- |
+| Product specs           | Confluence / Google Docs          | MDX pages in `docs/product/`          |
+| Design system           | Figma / Zeroheight                | MDX pages in `docs/design/`           |
+| Architecture docs       | Wiki / README files               | MDX pages in `docs/engineering/`      |
+| User journeys           | Miro / FigJam                     | MDX pages in `docs/flows/`            |
+| Component API           | Prop tables in README             | Interactive stories (`.stories.tsx`)   |
+| Visual regression       | Separate screenshot tool          | Storybook stories + Chromatic         |
+| Accessibility audits    | Manual WCAG checklist             | axe-core runs on every story          |
+| API mocking             | Separate mock server              | MSW handlers in stories               |
+| Integration tests       | Separate test harness             | Play functions in stories             |
+| Living styleguide       | Stale PDF export                  | Storybook IS the styleguide           |
+
+**One URL. One build. One truth.**
+
+---
+
+## The Documentation Map
+
+Every document you are reading right now lives inside Storybook. Here is the full
+coverage map:
+
+### Product (`docs/product/`)
+
+| Document                                                                                | Purpose                                 |
+| --------------------------------------------------------------------------------------- | --------------------------------------- |
+| [Product Vision](?path=/docs/product-product-vision--docs)                              | Core workflow, buckets, principles, Tay |
+| [Methodology](?path=/docs/product-methodology--docs)                                    | 5-phase task management lifecycle       |
+| [Feature Map](?path=/docs/product-feature-map--docs)                                    | Complete feature inventory              |
+| Epics (Tay Copilot, PWA, Export, Release, Schema Enrichment, Editable Title, Rename...) | Detailed feature specifications         |
+
+### Design (`docs/design/`)
+
+| Document                                                                      | Purpose                              |
+| ----------------------------------------------------------------------------- | ------------------------------------ |
+| [Design Philosophy](?path=/docs/design-philosophy--docs)                      | Apple HIG adoption, Paperclip system |
+| [Paperclip Principles](?path=/docs/design-paperclip-principles--docs)         | 8 design principles with checklists  |
+| [Design Tokens](?path=/docs/design-tokens--docs)                              | Color, typography, spacing, motion   |
+
+### Engineering (`docs/engineering/`)
+
+| Document                                                                                          | Purpose                                   |
+| ------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| [Architecture](?path=/docs/engineering-architecture--docs)                                        | Tech stack, dual-store, projections, AI   |
+| [Testing](?path=/docs/engineering-testing--docs)                                                  | 3 test layers, MSW, E2E patterns          |
+| [Data Model](?path=/docs/engineering-ontology--docs)                                              | Schema.org-first, JSON-LD, canonical IDs  |
+| [Deployment](?path=/docs/engineering-deployment--docs)                                            | Containers, K8s, CI/CD                    |
+| [FRBR Architecture](?path=/docs/engineering-ontology-frbr-knowledge-graph--docs)                  | Knowledge graph ontology                  |
+| [LexCEL Architecture](?path=/docs/engineering-ontology-lexcel-architecture--docs)                 | Typed reference system                    |
+| [Schema Reference](?path=/docs/engineering-ontology-schema-org-vocabulary--docs)                  | Full JSON-LD type catalog                 |
+| [Backend Architecture](?path=/docs/engineering-backend-architecture--docs)                        | FastAPI, Haystack, OpenRouter             |
+| [Email Integration](?path=/docs/engineering-email-integration--docs)                              | IMAP sync, email-to-action transform      |
+
+### Flows (`docs/flows/`)
+
+| Document                                                                                 | Purpose                            |
+| ---------------------------------------------------------------------------------------- | ---------------------------------- |
+| [Collect to Engage](?path=/docs/flows-collect-to-engage--docs)                           | Complete task lifecycle            |
+| [Tax Prep Journey](?path=/docs/flows-tax-prep-journey--docs)                             | End-to-end domain walkthrough      |
+| Tax Prep epics (Triage, Import, Missing Docs)                                            | Detailed flow specifications       |
+
+### Components (co-located `.stories.tsx`)
+
+Every UI component has interactive stories with:
+
+- **Multiple variants** — default, loading, empty, error, overflow states
+- **Play functions** — automated user interactions tested in-browser
+- **Accessibility audits** — axe-core runs on every story, violations fail tests
+- **MSW integration** — connected stories exercise real hooks against mocked APIs
+- **13+ connected story sets** — full stack exercised from UI to serialization
+
+---
+
+## The AI-Augmented Development Loop
+
+TerminAndoYo is built by a human-AI pair: one product owner/developer working with
+**Claude Code** (Anthropic's CLI agent). Storybook is the shared context that makes
+this collaboration work.
+
+### How It Works
+
+<Mermaid chart={`
+graph TD
+  SB["<b>STORYBOOK</b><br/><i>Single Source of Truth</i>"]
+  MDX["MDX Docs<br/>Product specs, architecture,<br/>design principles, user flows"]
+  ST["Stories<br/>Interactive component demos,<br/>integration tests, a11y audits"]
+  CM["CLAUDE.md<br/>Rules, patterns, commands"]
+  MM["MEMORY.md<br/>Learned patterns,<br/>gotchas, conventions"]
+  CC["<b>CLAUDE CODE</b><br/>Reads docs · Writes code<br/>Runs tests · Updates docs"]
+
+  SB --- MDX
+  SB --- ST
+  MDX --> CM
+  ST --> CM
+  MDX --> MM
+  ST --> MM
+  CM --> CC
+  MM --> CC
+  CC -->|"closes the loop"| SB
+
+  style SB fill:#f8f4ee,stroke:#b8860b,stroke-width:2px,color:#333
+  style MDX fill:#fff,stroke:#999
+  style ST fill:#fff,stroke:#999
+  style CM fill:#e8f5e9,stroke:#4caf50
+  style MM fill:#e3f2fd,stroke:#2196f3
+  style CC fill:#fce4ec,stroke:#e91e63,stroke-width:2px,color:#333
+`} />
+
+### The Feedback Loop
+
+1. **Human writes spec** — An MDX page in Storybook describes what to build,
+   including design constraints, data model decisions, and acceptance criteria.
+
+2. **CLAUDE.md encodes rules** — Project instructions (`CLAUDE.md`) tell Claude Code
+   where to find docs, how to run tests, what patterns to follow, and what checks
+   must pass before code is considered complete.
+
+3. **Claude Code reads docs** — Before implementing a feature, Claude Code reads the
+   relevant MDX pages to understand architectural decisions, design principles, and
+   data model constraints. The docs ARE the briefing.
+
+4. **Claude Code writes code** — Implementation follows TDD: write a failing test,
+   implement the minimum to pass, then refactor. Stories are written alongside
+   components.
+
+5. **Claude Code validates** — Type checking (`tsc -b`), linting (`eslint`), unit
+   tests (`vitest`), storybook tests (browser-mode + a11y), and formatting
+   (`prettier`) all must pass before a change is considered done.
+
+6. **Docs are updated** — When architecture changes, new features land, or gotchas
+   are discovered, the MDX docs are updated in the same session. Knowledge stays
+   current because it lives next to the code.
+
+7. **Memory captures patterns** — Claude Code's persistent memory (`MEMORY.md`)
+   records hard-won lessons: testing gotchas, framework quirks, naming conventions.
+   These survive across sessions and prevent repeated mistakes.
+
+### What Claude Code Sees
+
+When Claude Code starts a session, it automatically loads:
+
+- **`CLAUDE.md`** — Project rules, test commands, pre-commit checks, coding standards
+- **`MEMORY.md`** — Accumulated patterns and gotchas from previous sessions
+- **Storybook MDX pages** — Read on-demand when working on a feature area
+
+This means the AI agent has the same level of context as a senior engineer who has
+read all the docs. The difference: it actually reads them every time.
+
+---
+
+## What Story-Driven Development Enables
+
+### For a Solo Developer + AI
+
+- **No context loss between sessions** — Everything is written down in Storybook.
+  Claude Code picks up where the last session left off by reading the docs.
+- **Consistent quality** — The same design principles, testing standards, and
+  architectural patterns are enforced whether you wrote the code at 9 AM or
+  Claude Code wrote it at midnight.
+- **Faster onboarding** — A new collaborator (human or AI) can read Storybook and
+  be productive immediately. No tribal knowledge required.
+- **Audit trail** — Every decision is documented in a living, versioned artifact
+  that ships with the code.
+
+### For the Codebase
+
+- **Self-documenting** — The Storybook IS the documentation. If it's not in
+  Storybook, it doesn't exist.
+- **Always current** — Docs live next to code and are updated in the same PRs.
+  Stale documentation is a build failure, not a backlog item.
+- **Testable specs** — Product specs in MDX reference component stories. Stories
+  are tests. Specs are therefore verifiable.
+- **Accessibility by default** — Every story runs axe-core. A11y is not an
+  afterthought; it's a build gate.
+
+### For Product Development
+
+- **Specs are interactive** — Product stakeholders can see working components in
+  Storybook, not static mockups. The spec IS the prototype.
+- **User journeys are traceable** — Flow docs map directly to components and
+  stories. You can click through from a user journey to the component that
+  implements each step.
+- **Design tokens are live** — The design system is not a PDF; it's a running
+  application with real components using real tokens.
+
+---
+
+## The TDD Cycle Inside Storybook
+
+Every feature follows this pattern:
+
+<Mermaid chart={`
+graph LR
+  S1["1. Write MDX spec<br/><i>What & why?</i>"]
+  S2["2. Write story<br/><i>What should it look like?</i>"]
+  S3["3. Write unit test<br/><i>What should it do?</i>"]
+  S4["4. Implement<br/><i>Make tests pass</i>"]
+  S5["5. Add play functions<br/><i>Automate interactions</i>"]
+  S6["6. Verify in Storybook<br/><i>Does it match the spec?</i>"]
+  S7["7. Update MDX<br/><i>Close the loop</i>"]
+
+  S1 --> S2 --> S3 --> S4 --> S5 --> S6 --> S7
+  S7 -->|"next feature"| S1
+
+  style S1 fill:#e3f2fd,stroke:#1976d2
+  style S2 fill:#e3f2fd,stroke:#1976d2
+  style S3 fill:#fce4ec,stroke:#c62828
+  style S4 fill:#e8f5e9,stroke:#2e7d32
+  style S5 fill:#e8f5e9,stroke:#2e7d32
+  style S6 fill:#fff3e0,stroke:#ef6c00
+  style S7 fill:#e3f2fd,stroke:#1976d2
+`} />
+
+The story is both the design artifact and the test harness. There is no handoff
+between "design" and "implementation" — they are the same file.
+
+---
+
+## Coverage by Discipline
+
+| Discipline        | Hub                        | Artifacts                                          |
+| ----------------- | -------------------------- | -------------------------------------------------- |
+| **Product**       | `docs/product/`            | Vision, methodology, epics, feature map            |
+| **Design**        | `docs/design/`             | Philosophy, principles, tokens                     |
+| **Engineering**   | `docs/engineering/`        | Architecture, data model, testing, deployment      |
+| **UX**            | `docs/flows/`              | User journeys, task lifecycle, domain walkthroughs |
+| **Accessibility** | Every `.stories.tsx` file  | axe-core audits on all stories, WCAG AA compliance |
+| **Testing**       | `docs/engineering/Testing` | Strategy, patterns, conventions, gotchas           |
+| **Security**      | `CLAUDE.md` + Architecture | No-delete policy, append-only audit, JWT auth      |
+| **Operations**    | `docs/engineering/`        | Deployment, CI/CD, observability                   |
+| **Components**    | `*.stories.tsx`            | Interactive demos, prop documentation, variants    |
+
+---
+
+## Key Files
+
+| File                                      | Role                                          |
+| ----------------------------------------- | --------------------------------------------- |
+| `frontend/src/docs/**/*.mdx`              | All documentation (35+ pages)                 |
+| `frontend/src/**/*.stories.tsx`           | Component stories with tests and a11y         |
+| `frontend/.storybook/main.ts`            | Storybook configuration                       |
+| `frontend/.storybook/preview.tsx`        | Global decorators, MSW setup, a11y config     |
+| `CLAUDE.md`                               | AI agent instructions and project rules       |
+| `.claude/projects/*/memory/MEMORY.md`    | AI agent accumulated knowledge                |
+
+---
+
+## Related
+
+- [Architecture](?path=/docs/engineering-architecture--docs) — Technology stack and system design
+- [Testing](?path=/docs/engineering-testing--docs) — Test layers and patterns
+- [Design Philosophy](?path=/docs/design-philosophy--docs) — Paperclip design language
+- [Product Vision](?path=/docs/product-product-vision--docs) — What we're building and why

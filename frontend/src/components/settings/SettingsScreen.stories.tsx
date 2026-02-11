@@ -27,6 +27,42 @@ export const Default: Story = {
 };
 
 // ---------------------------------------------------------------------------
+// Email tab (empty)
+// ---------------------------------------------------------------------------
+
+export const EmailTab: Story = {
+  args: {
+    initialTab: "email",
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Email tab (connected)
+// ---------------------------------------------------------------------------
+
+export const EmailTabConnected: Story = {
+  args: {
+    initialTab: "email",
+    emailConnections: [
+      {
+        connection_id: "conn-1",
+        email_address: "beamte@gmail.com",
+        display_name: "Max Mustermann",
+        auth_method: "oauth2" as const,
+        oauth_provider: "gmail" as const,
+        sync_interval_minutes: 15,
+        sync_mark_read: false,
+        last_sync_at: "2026-02-11T10:00:00Z",
+        last_sync_error: null,
+        last_sync_message_count: 42,
+        is_active: true,
+        created_at: "2026-02-01T08:00:00Z",
+      },
+    ],
+  },
+};
+
+// ---------------------------------------------------------------------------
 // Labels tab
 // ---------------------------------------------------------------------------
 

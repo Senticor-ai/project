@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createElement } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -809,5 +809,64 @@ describe("ActionList", () => {
     expect(onEdit).toHaveBeenCalledWith(items[0]?.id, {
       energyLevel: "high",
     });
+  });
+
+  // -------------------------------------------------------------------------
+  // File drop zone (appears only during file drag)
+  // -------------------------------------------------------------------------
+
+  function simulateFileDragEnter() {
+    act(() => {
+      fireEvent.dragEnter(document, {
+        dataTransfer: { types: ["Files"] },
+      });
+    });
+  }
+
+  it("hides FileDropZone at rest even when onFileDrop is provided", () => {
+    renderActionList({ bucket: "inbox", onFileDrop: vi.fn() });
+    expect(screen.queryByTestId("file-drop-zone")).not.toBeInTheDocument();
+  });
+
+  it("shows FileDropZone when files are dragged into inbox", () => {
+    renderActionList({ bucket: "inbox", onFileDrop: vi.fn() });
+    simulateFileDragEnter();
+    expect(screen.getByTestId("file-drop-zone")).toBeInTheDocument();
+  });
+
+  it("hides FileDropZone when file drag leaves", () => {
+    vi.useFakeTimers();
+    renderActionList({ bucket: "inbox", onFileDrop: vi.fn() });
+    simulateFileDragEnter();
+    expect(screen.getByTestId("file-drop-zone")).toBeInTheDocument();
+
+    act(() => {
+      fireEvent.dragLeave(document, {
+        dataTransfer: { types: ["Files"] },
+      });
+    });
+    // Hide is debounced to avoid flicker from DOM layout shifts
+    expect(screen.getByTestId("file-drop-zone")).toBeInTheDocument();
+    act(() => vi.advanceTimersByTime(50));
+    expect(screen.queryByTestId("file-drop-zone")).not.toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  it("does not show FileDropZone when onFileDrop is not provided", () => {
+    renderActionList({ bucket: "inbox" });
+    simulateFileDragEnter();
+    expect(screen.queryByTestId("file-drop-zone")).not.toBeInTheDocument();
+  });
+
+  it("does not show FileDropZone for non-inbox buckets during file drag", () => {
+    renderActionList({ bucket: "next", onFileDrop: vi.fn() });
+    simulateFileDragEnter();
+    expect(screen.queryByTestId("file-drop-zone")).not.toBeInTheDocument();
+  });
+
+  it("does not show FileDropZone in focus view during file drag", () => {
+    renderActionList({ bucket: "focus", onFileDrop: vi.fn() });
+    simulateFileDragEnter();
+    expect(screen.queryByTestId("file-drop-zone")).not.toBeInTheDocument();
   });
 });

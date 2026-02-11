@@ -4,8 +4,8 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 # Epic: Import What You Have
 
-**Status:** Not started
-**Priority:** Current
+**Status:** Implemented
+**Priority:** Done
 
 ---
 
@@ -14,10 +14,6 @@ import { Meta } from "@storybook/addon-docs/blocks";
 Users collect tax PDFs throughout the year — W-2, 1099-INT, 1099-DIV, 1099-B,
 1098, 1095-A, K-1, charitable receipts, property tax statements, medical expense
 records. They need to drag-drop these into TAY one by one, then process each.
-
-Currently InboxCapture is text-only. FilePreviewCard exists but only in
-NirvanaImportDialog. The chunked upload API works, but there is no FK between
-files and Things (no `app:fileRefs` property).
 
 ---
 
@@ -30,29 +26,59 @@ files and Things (no `app:fileRefs` property).
 
 ## Flow
 
-1. User drops a PDF into the inbox area
-2. Each becomes a `Thing` with `captureSource: { kind: "import" }`
-3. File is uploaded via chunked upload API
-4. Item appears in inbox with file thumbnail and filename
+1. User drops a PDF into the inbox area (FileDropZone overlay appears)
+2. File is classified by `intake-classifier` → `DigitalDocument` with MIME-based `encodingFormat`
+3. Item metadata created via `POST /items` (optimistic UI, appears instantly)
+4. File binary uploaded via chunked API (`initiate` → `uploadChunk` → `complete`)
+5. Item PATCHed with `app:fileId` + `app:downloadUrl` linking it to the stored file
+6. Backend stores file by UUID — original filename preserved in `FileRecord.original_name` for display
 
 ---
 
 ## Capability Assessment
 
-| Capability              | Status  | Notes                                                                             |
-| ----------------------- | ------- | --------------------------------------------------------------------------------- |
-| Text capture to inbox   | Works   | `rawCapture` field via InboxCapture                                               |
-| PDF drag-drop to inbox  | **Gap** | InboxCapture is text-only; FilePreviewCard exists but only in NirvanaImportDialog |
-| Chunked file upload API | Works   | `FilesApi.initiate()` + `uploadChunk()` + `complete()`                            |
-| File→Thing linking      | **Gap** | No FK between files and Things; no `app:fileRefs` property                        |
+| Capability              | Status    | Notes                                                                                   |
+| ----------------------- | --------- | --------------------------------------------------------------------------------------- |
+| Text capture to inbox   | Works     | `rawCapture` field via InboxCapture                                                     |
+| PDF drag-drop to inbox  | **Works** | FileDropZone overlay + `useCaptureFile` in ActionList                                   |
+| Chunked file upload API | Works     | `FilesApi.initiate()` + `uploadChunk()` + `complete()`                                  |
+| File→Thing linking      | **Works** | `app:fileId` + `app:downloadUrl` in `additionalProperty`; `BaseEntity.fileId` in model  |
+| Drag to reference/focus | Works     | `@dnd-kit` drag handles on ReferenceRow; Focus is a drop target in BucketNav            |
+
+---
+
+## Implementation Details
+
+**Key files:**
+
+- `frontend/src/lib/file-upload.ts` — standalone `uploadFile()` async function (chunked)
+- `frontend/src/hooks/use-mutations.ts` — `useCaptureFile`: create → upload → PATCH pipeline
+- `frontend/src/lib/intake-classifier.ts` — classifies files by MIME/extension
+- `frontend/src/lib/item-serializer.ts` — `fromJsonLd`/`toJsonLd` extract and serialize `app:fileId`
+- `frontend/src/components/work/ActionList.tsx` — FileDropZone integration with document-level drag detection
+- `backend/app/models.py` — `DigitalDocument` accepted via `ReferenceItemJsonLd` discriminator
+
+**Error tolerance:** Upload and PATCH failures are caught and tolerated — item metadata
+always persists even if the binary upload fails. The link can be retried later.
 
 ---
 
 ## Schema.org Fit
 
-Each imported file should become a `CreativeWork` with
-`encodingFormat: "application/pdf"` and `url` pointing to the uploaded file's
-storage path. The schema supports this; the wiring is missing.
+Each imported file becomes a `DigitalDocument` (subtype of `CreativeWork`) with
+`encodingFormat: "application/pdf"` and `app:fileId` pointing to the backend's
+UUID-based file storage. The `download_url` provides the retrieval path.
+
+---
+
+## Remaining Gaps
+
+| Capability                          | Status  | Notes                                              |
+| ----------------------------------- | ------- | -------------------------------------------------- |
+| File preview/thumbnail in inbox     | **Gap** | No visual indicator that item has an attached file |
+| Download link in item detail        | **Gap** | `downloadUrl` stored but no UI to open/download    |
+| Link reference to project           | **Gap** | References have no `projectIds` field              |
+| Tay auto-classification (Docling)   | **Gap** | Backend has Docling; no extraction pipeline yet    |
 
 ---
 

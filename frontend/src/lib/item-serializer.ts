@@ -96,6 +96,12 @@ function serializeActionItemAdditionalProps(
   if (thing.recurrence !== undefined) {
     props.push(pv("app:recurrence", thing.recurrence));
   }
+  if (thing.fileId) {
+    props.push(pv("app:fileId", thing.fileId));
+  }
+  if (thing.downloadUrl) {
+    props.push(pv("app:downloadUrl", thing.downloadUrl));
+  }
 
   return props;
 }
@@ -147,6 +153,12 @@ export function toJsonLd(
     if (project.reviewDate !== undefined) {
       props.push(pv("app:reviewDate", project.reviewDate));
     }
+    if (project.fileId) {
+      props.push(pv("app:fileId", project.fileId));
+    }
+    if (project.downloadUrl) {
+      props.push(pv("app:downloadUrl", project.downloadUrl));
+    }
     base.additionalProperty = props;
   } else if (item.bucket === "reference") {
     const ref = item as ReferenceMaterial;
@@ -154,7 +166,7 @@ export function toJsonLd(
     base.url = ref.url ?? null;
     base.encodingFormat = ref.encodingFormat ?? null;
 
-    base.additionalProperty = [
+    const refProps: PropertyValue[] = [
       pv("app:bucket", "reference"),
       pv("app:needsEnrichment", ref.needsEnrichment),
       pv("app:confidence", ref.confidence),
@@ -164,6 +176,13 @@ export function toJsonLd(
       pv("app:provenanceHistory", ref.provenance.history),
       pv("app:origin", ref.origin ?? null),
     ];
+    if (ref.fileId) {
+      refProps.push(pv("app:fileId", ref.fileId));
+    }
+    if (ref.downloadUrl) {
+      refProps.push(pv("app:downloadUrl", ref.downloadUrl));
+    }
+    base.additionalProperty = refProps;
   }
 
   return base;
@@ -206,6 +225,9 @@ export function fromJsonLd(record: ItemRecord): AppItem {
         ) as Provenance["history"]) ?? [],
     },
     ports: (getAdditionalProperty(props, "app:ports") as Port[]) ?? [],
+    fileId: (getAdditionalProperty(props, "app:fileId") as string) || undefined,
+    downloadUrl:
+      (getAdditionalProperty(props, "app:downloadUrl") as string) || undefined,
     needsEnrichment:
       (getAdditionalProperty(props, "app:needsEnrichment") as boolean) ?? true,
     confidence:
@@ -317,14 +339,38 @@ export function fromJsonLd(record: ItemRecord): AppItem {
     } satisfies CalendarEntry;
   }
 
-  // Fallback: treat unknown types as inbox items
-  return {
-    ...base,
-    ...thingFields,
-    bucket: "inbox" as const,
-    rawCapture:
-      (getAdditionalProperty(props, "app:rawCapture") as string) ?? base.name,
-  };
+  if (type === "EmailMessage" || type === "DigitalDocument") {
+    const bucket =
+      (getAdditionalProperty(props, "app:bucket") as ActionItemBucket) ??
+      "inbox";
+    // For EmailMessage, extract sender info for captureSource if not already set
+    const captureSource = (getAdditionalProperty(
+      props,
+      "app:captureSource",
+    ) as CaptureSource) ?? {
+      kind: "email" as const,
+      subject: (t.name as string) || undefined,
+      from: (t.sender as { email?: string } | undefined)?.email || undefined,
+    };
+    return {
+      ...base,
+      ...thingFields,
+      captureSource,
+      bucket,
+      rawCapture:
+        (getAdditionalProperty(props, "app:rawCapture") as string) ||
+        (bucket === "inbox" ? base.name : undefined),
+      emailBody:
+        (getAdditionalProperty(props, "app:emailBody") as string) || undefined,
+      emailSourceUrl:
+        (getAdditionalProperty(props, "app:emailSourceUrl") as string) ||
+        undefined,
+    };
+  }
+
+  // No fallback — all valid types are handled above.
+  console.warn(`fromJsonLd: unknown @type "${type}" for item ${base.id}`);
+  throw new Error(`Unsupported @type "${type}" in item ${base.id}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -546,6 +592,7 @@ export function buildNewUrlInboxJsonLd(url: string): Record<string, unknown> {
     dateModified: now,
     additionalProperty: [
       pv("app:bucket", "inbox"),
+      pv("app:rawCapture", url),
       pv("app:needsEnrichment", true),
       pv("app:confidence", "medium"),
       pv("app:captureSource", { kind: "url" as const, url }),
