@@ -23,7 +23,9 @@ export const test = base.extend<TestFixtures>({
 
     // Navigate to the app — should land on workspace (not login page)
     await page.goto("/");
-    await page.waitForSelector("text=terminandoyo", { timeout: 10_000 });
+    await page.waitForSelector('nav[aria-label="Buckets"]', {
+      timeout: 10_000,
+    });
 
     await use(page);
   },

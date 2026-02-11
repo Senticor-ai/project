@@ -11,35 +11,37 @@ test.describe("Inbox Triage", () => {
 
     const ws = new WorkspacePage(page);
 
-    // First item has triage buttons
-    await expect(ws.triageButton("Next")).toBeVisible();
-    await expect(page.getByText("Item Alpha")).toBeVisible();
-
-    // Triage Item Alpha to Next
-    await ws.triageButton("Next").click();
-
-    // Item Alpha gone from inbox, Item Beta now triageable
-    await expect(page.getByText("Item Alpha")).not.toBeVisible();
+    // Inbox sorts newest-first: Beta (newest) is auto-expanded with triage buttons
     await expect(ws.triageButton("Next")).toBeVisible();
     await expect(page.getByText("Item Beta")).toBeVisible();
+
+    // Triage Item Beta to Next
+    await ws.triageButton("Next").click();
+
+    // Item Beta gone from inbox, Item Alpha now triageable
+    await expect(page.getByText("Item Beta")).not.toBeVisible();
+    await expect(ws.triageButton("Next")).toBeVisible();
+    await expect(page.getByText("Item Alpha")).toBeVisible();
 
     // Count should be 1
     await expect(ws.bucketCount("Inbox")).toHaveText("1");
 
-    // Navigate to Next, verify Item Alpha is there
+    // Navigate to Next, verify Item Beta is there
     await ws.navigateTo("Next");
-    await expect(page.getByText("Item Alpha")).toBeVisible();
+    await expect(page.getByText("Item Beta")).toBeVisible();
   });
 
   test("triages to different buckets", async ({
     authenticatedPage: page,
     apiSeed,
   }) => {
+    // Create in reverse order so newest-first sort matches the triage flow:
+    // Inbox order: Waiting item (newest) → Calendar → Someday → Reference (oldest)
     await apiSeed.createInboxItems([
-      "Waiting item",
-      "Calendar item",
-      "Someday item",
       "Reference item",
+      "Someday item",
+      "Calendar item",
+      "Waiting item",
     ]);
     await page.reload();
 
@@ -76,14 +78,19 @@ test.describe("Inbox Triage", () => {
   }) => {
     await apiSeed.createInboxItem("Disposable thought");
     await page.reload();
-    await page.waitForSelector("text=terminandoyo", { timeout: 10_000 });
+    await page.waitForSelector('nav[aria-label="Buckets"]', {
+      timeout: 10_000,
+    });
 
     const ws = new WorkspacePage(page);
 
     await expect(page.getByText("Disposable thought")).toBeVisible();
     await ws.archiveButton().click();
 
-    await expect(page.getByText("Inbox is empty")).toBeVisible();
+    // Archived item disappears from inbox; Done section appears so
+    // "Inbox is empty" won't show — verify item is gone instead.
+    await expect(page.getByText("Disposable thought")).not.toBeVisible();
+    await expect(page.getByText("0 items to process")).toBeVisible();
   });
 
   test("triage with expanded options (date + complexity)", async ({

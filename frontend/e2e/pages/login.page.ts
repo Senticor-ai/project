@@ -15,7 +15,7 @@ export class LoginPage {
     this.submitButton = page.locator('button[type="submit"]');
     this.switchToRegister = page.getByRole("button", { name: "Request access" });
     this.switchToLogin = page.getByRole("button", { name: "Sign in" });
-    this.errorMessage = page.locator(".text-red-700");
+    this.errorMessage = page.locator(".text-status-error");
     this.heading = page.locator("h2");
   }
 

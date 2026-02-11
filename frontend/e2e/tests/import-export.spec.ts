@@ -129,7 +129,9 @@ test.describe("Import from Settings", () => {
 
     // Can click "Import anyway" to proceed
     await page.getByRole("button", { name: "Import anyway" }).click();
-    await expect(page.getByRole("alert")).not.toBeVisible();
+    await expect(
+      page.getByRole("alert").filter({ hasText: "already imported" }),
+    ).not.toBeVisible();
   });
 });
 

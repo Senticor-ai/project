@@ -86,7 +86,9 @@ test.describe("Nirvana Import", () => {
     // 9. Reload to pick up imported items (dialog unmount stops polling
     //    before invalidateQueries can propagate the refetch)
     await page.reload();
-    await page.waitForSelector("text=terminandoyo", { timeout: 10_000 });
+    await page.waitForSelector('nav[aria-label="Buckets"]', {
+      timeout: 10_000,
+    });
 
     // 10. Navigate to Next — should have items from the import
     const ws = new WorkspacePage(page);

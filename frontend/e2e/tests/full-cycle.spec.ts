@@ -20,16 +20,18 @@ test.describe("Full Cycle", () => {
     // Inbox count should be 3
     await expect(ws.bucketCount("Inbox")).toHaveText("3");
 
-    // 2. Triage all three (FIFO: oldest first)
-    // Item 1 ("Buy groceries") → Next
+    // 2. Triage all three
+    // "Buy groceries" was captured first and auto-expanded; it stays expanded
+    // even as newer items are added. After triaging it, auto-advance picks the
+    // newest remaining item (sorted[0] in descending-by-createdAt sort).
+    //
+    // Triage order: Buy groceries → Read article on testing → Call dentist
     await ws.triageButton("Next").click();
     await expect(ws.bucketCount("Inbox")).toHaveText("2");
 
-    // Item 2 ("Call dentist") → Waiting
     await ws.triageButton("Waiting").click();
     await expect(ws.bucketCount("Inbox")).toHaveText("1");
 
-    // Item 3 ("Read article on testing") → Later
     await ws.triageButton("Later").click();
     await expect(page.getByText("Inbox is empty")).toBeVisible();
 
@@ -49,10 +51,12 @@ test.describe("Full Cycle", () => {
     await expect(page.getByText("Buy groceries")).not.toBeVisible();
 
     // 6. Verify other buckets
+    // "Read article on testing" was auto-advanced (newest remaining) → Waiting
     await ws.navigateTo("Waiting");
-    await expect(page.getByText("Call dentist")).toBeVisible();
-
-    await ws.navigateTo("Later");
     await expect(page.getByText("Read article on testing")).toBeVisible();
+
+    // "Call dentist" was the last remaining → Later
+    await ws.navigateTo("Later");
+    await expect(page.getByText("Call dentist")).toBeVisible();
   });
 });

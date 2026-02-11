@@ -86,8 +86,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=settings.cors_methods,
+    allow_headers=settings.cors_headers,
 )
 
 
@@ -138,6 +138,32 @@ async def csrf_middleware(request: Request, call_next):
     if settings.csrf_enabled and should_validate_csrf(request):
         validate_csrf_request(request)
     return await call_next(request)
+
+
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    response = await call_next(request)
+    if settings.security_headers_enabled:
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        if settings.hsts_enabled:
+            response.headers["Strict-Transport-Security"] = (
+                f"max-age={settings.hsts_max_age}; includeSubDomains"
+            )
+        if settings.csp_policy:
+            response.headers["Content-Security-Policy"] = settings.csp_policy
+    return response
+
+
+_logger_security = get_logger("security")
+if settings.security_headers_enabled:
+    _logger_security.info(
+        "security_headers.enabled",
+        hsts=settings.hsts_enabled,
+        csp=bool(settings.csp_policy),
+    )
 
 
 @app.exception_handler(HTTPException)

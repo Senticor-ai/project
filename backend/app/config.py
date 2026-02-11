@@ -92,6 +92,12 @@ class Settings:
     vapid_private_key: str | None
     vapid_subject: str | None
     dev_tools_enabled: bool
+    security_headers_enabled: bool
+    hsts_enabled: bool
+    hsts_max_age: int
+    csp_policy: str | None
+    cors_methods: list[str]
+    cors_headers: list[str]
 
 
 def _build_database_url() -> str:
@@ -205,6 +211,31 @@ def load_settings() -> Settings:
         vapid_private_key=_get_env("VAPID_PRIVATE_KEY"),
         vapid_subject=_get_env("VAPID_SUBJECT", "mailto:admin@example.com"),
         dev_tools_enabled=_get_bool_env("DEV_TOOLS_ENABLED", False),
+        security_headers_enabled=_get_bool_env("SECURITY_HEADERS_ENABLED", True),
+        hsts_enabled=_get_bool_env("HSTS_ENABLED", False),
+        hsts_max_age=int(_get_env("HSTS_MAX_AGE", "31536000") or "31536000"),
+        csp_policy=_get_env(
+            "CSP_POLICY",
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'",
+        ),
+        cors_methods=[
+            m.strip()
+            for m in (_get_env("CORS_METHODS", "GET,POST,PATCH,DELETE,OPTIONS") or "").split(",")
+            if m.strip()
+        ],
+        cors_headers=[
+            h.strip()
+            for h in (
+                _get_env(
+                    "CORS_HEADERS",
+                    "Content-Type,Authorization,X-Request-ID,X-User-ID,X-Org-Id,"
+                    "X-CSRF-Token,Idempotency-Key,If-None-Match",
+                )
+                or ""
+            ).split(",")
+            if h.strip()
+        ],
     )
 
 
