@@ -130,7 +130,10 @@ export function toJsonLd(
     item.bucket === "someday"
   ) {
     const actionItem = item as ActionItem;
-    base["@type"] = TYPE_MAP.action;
+    base["@type"] = actionItem.objectRef ? "ReadAction" : TYPE_MAP.action;
+    if (actionItem.objectRef) {
+      base.object = { "@id": actionItem.objectRef };
+    }
     base.startTime = actionItem.scheduledDate ?? null;
     base.endTime = actionItem.completedAt ?? null;
     base.additionalProperty = serializeActionItemAdditionalProps(actionItem);
@@ -267,10 +270,13 @@ export function fromJsonLd(record: ItemRecord): AppItem {
       undefined,
   };
 
-  if (type === TYPE_MAP.action || type === "Action") {
+  if (type === TYPE_MAP.action || type === "Action" || type === "ReadAction") {
     const bucket =
       (getAdditionalProperty(props, "app:bucket") as ActionItemBucket) ??
       "next";
+    const objectRef = t.object
+      ? ((t.object as { "@id": string })["@id"] as CanonicalId)
+      : undefined;
     return {
       ...base,
       ...thingFields,
@@ -278,6 +284,7 @@ export function fromJsonLd(record: ItemRecord): AppItem {
       rawCapture:
         (getAdditionalProperty(props, "app:rawCapture") as string) ||
         (bucket === "inbox" ? base.name : undefined),
+      objectRef,
     };
   }
 
@@ -669,5 +676,87 @@ export function buildNewReferenceJsonLd(name: string): Record<string, unknown> {
       pv("app:typedReferences", []),
       pv("app:provenanceHistory", [{ timestamp: now, action: "created" }]),
     ],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// buildNewFileReferenceJsonLd — DigitalDocument inbox item → reference copy
+// ---------------------------------------------------------------------------
+
+export function buildNewFileReferenceJsonLd(
+  sourceItem: ActionItem,
+  sourceRecord: ItemRecord,
+): Record<string, unknown> {
+  const id = createCanonicalId("reference", crypto.randomUUID());
+  const now = new Date().toISOString();
+  const t = sourceRecord.item;
+
+  return {
+    "@id": id,
+    "@type": "DigitalDocument",
+    _schemaVersion: SCHEMA_VERSION,
+    name: sourceItem.name ?? null,
+    description: sourceItem.description ?? null,
+    keywords: sourceItem.tags ?? [],
+    encodingFormat: (t.encodingFormat as string) ?? null,
+    dateCreated: now,
+    dateModified: now,
+    additionalProperty: [
+      pv("app:bucket", "reference"),
+      pv("app:needsEnrichment", false),
+      pv("app:confidence", "high"),
+      pv("app:captureSource", sourceItem.captureSource),
+      pv("app:ports", []),
+      pv("app:typedReferences", []),
+      pv("app:provenanceHistory", [
+        { timestamp: now, action: "created", splitFrom: sourceItem.id },
+      ]),
+      ...(sourceItem.fileId ? [pv("app:fileId", sourceItem.fileId)] : []),
+      ...(sourceItem.downloadUrl
+        ? [pv("app:downloadUrl", sourceItem.downloadUrl)]
+        : []),
+    ],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// buildReadActionTriagePatch — Convert existing item to ReadAction with ref
+// ---------------------------------------------------------------------------
+
+export function buildReadActionTriagePatch(
+  item: ActionItem,
+  result: TriageResult,
+  referenceId: CanonicalId,
+): Record<string, unknown> {
+  const ports = result.energyLevel
+    ? [
+        ...(item.ports ?? []),
+        { kind: "computation", energyLevel: result.energyLevel },
+      ]
+    : (item.ports ?? []);
+
+  const additionalProps: PropertyValue[] = [
+    pv("app:bucket", result.targetBucket),
+    pv("app:contexts", result.contexts ?? []),
+    pv("app:isFocused", false),
+    pv("app:dueDate", null),
+    pv("app:startDate", null),
+    pv("app:delegatedTo", null),
+    pv("app:scheduledTime", null),
+    pv("app:sequenceOrder", null),
+    pv("app:recurrence", null),
+    pv("app:ports", ports),
+    pv("app:projectRefs", result.projectId ? [result.projectId] : []),
+    // Clear file-specific props — the reference now owns these
+    pv("app:fileId", null),
+    pv("app:downloadUrl", null),
+  ];
+
+  return {
+    "@type": "ReadAction",
+    object: { "@id": referenceId },
+    startTime: result.date ?? null,
+    endTime: null,
+    additionalProperty: additionalProps,
   };
 }

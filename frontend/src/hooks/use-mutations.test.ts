@@ -1252,3 +1252,230 @@ describe("useTriageItem non-archive", () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// useTriageItem — split-on-triage (ReadAction)
+// ---------------------------------------------------------------------------
+
+describe("useTriageItem split-on-triage", () => {
+  const DIGITAL_DOC_INBOX = makeRecord({
+    item_id: "tid-doc-1",
+    canonical_id: "urn:app:inbox:pdf1",
+    item: {
+      "@type": "DigitalDocument",
+      "@id": "urn:app:inbox:pdf1",
+      name: "Presupuesto.pdf",
+      encodingFormat: "application/pdf",
+      _schemaVersion: 2,
+      dateCreated: "2026-01-01T00:00:00Z",
+      dateModified: "2026-01-01T00:00:00Z",
+      additionalProperty: [
+        pv("app:bucket", "inbox"),
+        pv("app:needsEnrichment", true),
+        pv("app:confidence", "medium"),
+        pv("app:captureSource", {
+          kind: "file",
+          fileName: "Presupuesto.pdf",
+        }),
+        pv("app:contexts", []),
+        pv("app:isFocused", false),
+        pv("app:ports", []),
+        pv("app:typedReferences", []),
+        pv("app:provenanceHistory", []),
+        pv("app:fileId", "file-123"),
+        pv("app:downloadUrl", "/files/file-123"),
+      ],
+    },
+  });
+
+  const EMAIL_INBOX = makeRecord({
+    item_id: "tid-email-1",
+    canonical_id: "urn:app:inbox:eml1",
+    item: {
+      "@type": "EmailMessage",
+      "@id": "urn:app:inbox:eml1",
+      name: "Meeting notes",
+      _schemaVersion: 2,
+      dateCreated: "2026-01-01T00:00:00Z",
+      dateModified: "2026-01-01T00:00:00Z",
+      additionalProperty: [
+        pv("app:bucket", "inbox"),
+        pv("app:needsEnrichment", true),
+        pv("app:confidence", "medium"),
+        pv("app:captureSource", { kind: "email" }),
+        pv("app:contexts", []),
+        pv("app:isFocused", false),
+        pv("app:ports", []),
+        pv("app:typedReferences", []),
+        pv("app:provenanceHistory", []),
+      ],
+    },
+  });
+
+  it("splits DigitalDocument from inbox into ReadAction + reference", async () => {
+    const refRecord = makeRecord({
+      item_id: "srv-ref-1",
+      canonical_id: "urn:app:reference:newref",
+      item: { "@type": "DigitalDocument" },
+    });
+    mocked.create.mockResolvedValue(refRecord);
+    mocked.update.mockResolvedValue(
+      makeRecord({
+        item_id: "tid-doc-1",
+        item: { "@type": "ReadAction" },
+      }),
+    );
+
+    const { result } = renderHook(() => useTriageItem(), {
+      wrapper: createWrapper([DIGITAL_DOC_INBOX]),
+    });
+
+    const item = createInboxItem({
+      name: "Presupuesto.pdf",
+      id: "urn:app:inbox:pdf1" as CanonicalId,
+      needsEnrichment: true,
+      confidence: "medium",
+      fileId: "file-123",
+      downloadUrl: "/files/file-123",
+      captureSource: {
+        kind: "file",
+        fileName: "Presupuesto.pdf",
+        mimeType: "application/pdf",
+      },
+    });
+
+    act(() =>
+      result.current.mutate({ item, result: { targetBucket: "next" } }),
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    // 1. Reference created via ItemsApi.create with source "auto-split"
+    expect(mocked.create).toHaveBeenCalledTimes(1);
+    const [refJsonLd, source] = mocked.create.mock.calls[0]!;
+    expect(refJsonLd).toHaveProperty("@type", "DigitalDocument");
+    expect(source).toBe("auto-split");
+    const refProps = refJsonLd.additionalProperty as Array<{
+      propertyID: string;
+      value: unknown;
+    }>;
+    expect(refProps.find((p) => p.propertyID === "app:bucket")?.value).toBe(
+      "reference",
+    );
+
+    // 2. Existing item patched to ReadAction with object ref
+    expect(mocked.update).toHaveBeenCalledTimes(1);
+    const [updateItemId, patch] = mocked.update.mock.calls[0]!;
+    expect(updateItemId).toBe("tid-doc-1");
+    expect(patch).toHaveProperty("@type", "ReadAction");
+    expect(patch).toHaveProperty("object", {
+      "@id": "urn:app:reference:newref",
+    });
+  });
+
+  it("does NOT split when triaging DigitalDocument to reference", async () => {
+    mocked.update.mockResolvedValue(
+      makeRecord({
+        item_id: "tid-doc-1",
+        item: { "@type": "CreativeWork" },
+      }),
+    );
+
+    const { result } = renderHook(() => useTriageItem(), {
+      wrapper: createWrapper([DIGITAL_DOC_INBOX]),
+    });
+
+    const item = createInboxItem({
+      name: "Presupuesto.pdf",
+      id: "urn:app:inbox:pdf1" as CanonicalId,
+      needsEnrichment: true,
+      confidence: "medium",
+    });
+
+    act(() =>
+      result.current.mutate({
+        item,
+        result: { targetBucket: "reference" },
+      }),
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    // No split — direct move
+    expect(mocked.create).not.toHaveBeenCalled();
+    expect(mocked.update).toHaveBeenCalledTimes(1);
+    const [, patch] = mocked.update.mock.calls[0]!;
+    expect(patch["@type"]).toBe("CreativeWork");
+  });
+
+  it("does NOT split EmailMessage items", async () => {
+    mocked.update.mockResolvedValue(
+      makeRecord({
+        item_id: "tid-email-1",
+        item: { "@type": "Action" },
+      }),
+    );
+
+    const { result } = renderHook(() => useTriageItem(), {
+      wrapper: createWrapper([EMAIL_INBOX]),
+    });
+
+    const item = createInboxItem({
+      name: "Meeting notes",
+      id: "urn:app:inbox:eml1" as CanonicalId,
+      needsEnrichment: true,
+      confidence: "medium",
+    });
+
+    act(() =>
+      result.current.mutate({ item, result: { targetBucket: "next" } }),
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    // No split — normal triage
+    expect(mocked.create).not.toHaveBeenCalled();
+    expect(mocked.update).toHaveBeenCalledTimes(1);
+  });
+
+  it("does NOT split a regular Action item", async () => {
+    mocked.update.mockResolvedValue(ACTION_RECORD);
+
+    const inboxAction = makeRecord({
+      item_id: "tid-action-inbox",
+      canonical_id: "urn:app:inbox:act1",
+      item: {
+        "@type": "Action",
+        "@id": "urn:app:inbox:act1",
+        name: "Call Bob",
+        additionalProperty: [
+          pv("app:bucket", "inbox"),
+          pv("app:isFocused", false),
+        ],
+      },
+    });
+
+    const { result } = renderHook(() => useTriageItem(), {
+      wrapper: createWrapper([inboxAction]),
+    });
+
+    const item = createInboxItem({
+      name: "Call Bob",
+      id: "urn:app:inbox:act1" as CanonicalId,
+      needsEnrichment: false,
+      confidence: "high",
+    });
+
+    act(() =>
+      result.current.mutate({ item, result: { targetBucket: "next" } }),
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    // No split — normal triage
+    expect(mocked.create).not.toHaveBeenCalled();
+    expect(mocked.update).toHaveBeenCalledTimes(1);
+    const [, patch] = mocked.update.mock.calls[0]!;
+    expect(patch["@type"]).toBe("Action");
+  });
+});

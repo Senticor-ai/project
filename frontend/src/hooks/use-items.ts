@@ -76,7 +76,7 @@ function deserializeActionItems(
     records
       ?.filter((r) => {
         const type = r.item["@type"] as string;
-        if (type === "Action") return true;
+        if (type === "Action" || type === "ReadAction") return true;
         // EmailMessage/DigitalDocument can sit in any action bucket after triage
         if (type === "EmailMessage" || type === "DigitalDocument") return true;
         // Other types (CreativeWork for URL captures) only in inbox

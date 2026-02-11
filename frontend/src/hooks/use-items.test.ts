@@ -411,3 +411,76 @@ describe("DigitalDocument and EmailMessage items in action buckets", () => {
     expect(result.current.data[0]?.name).toBe("Style guide");
   });
 });
+
+// ---------------------------------------------------------------------------
+// ReadAction items
+// ---------------------------------------------------------------------------
+
+describe("ReadAction items in action buckets", () => {
+  const READACTION_RECORD = makeRecord({
+    item: {
+      "@type": "ReadAction",
+      "@id": "urn:app:action:read1",
+      _schemaVersion: 2,
+      name: "Read Presupuesto.pdf",
+      keywords: [],
+      dateCreated: "2026-01-01T00:00:00Z",
+      dateModified: "2026-01-01T00:00:00Z",
+      startTime: null,
+      endTime: null,
+      object: { "@id": "urn:app:reference:doc1" },
+      additionalProperty: [
+        pvFixture("app:bucket", "next"),
+        pvFixture("app:needsEnrichment", false),
+        pvFixture("app:confidence", "high"),
+        pvFixture("app:captureSource", {
+          kind: "file",
+          fileName: "Presupuesto.pdf",
+        }),
+        pvFixture("app:contexts", []),
+        pvFixture("app:isFocused", false),
+        pvFixture("app:ports", []),
+        pvFixture("app:typedReferences", []),
+        pvFixture("app:provenanceHistory", []),
+      ],
+    },
+  });
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it("useActions includes ReadAction items", async () => {
+    mockedItems.sync.mockResolvedValue(
+      makeSyncPage([READACTION_RECORD, ACTION_RECORD], false),
+    );
+
+    const { result } = renderHook(() => useActions(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(result.current.data).toHaveLength(2);
+    const readItem = result.current.data.find(
+      (t) => t.name === "Read Presupuesto.pdf",
+    );
+    expect(readItem).toBeDefined();
+    expect(readItem?.bucket).toBe("next");
+  });
+
+  it("useReferences does NOT include ReadAction items", async () => {
+    mockedItems.sync.mockResolvedValue(
+      makeSyncPage([READACTION_RECORD, REFERENCE_RECORD], false),
+    );
+
+    const { result } = renderHook(() => useReferences(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(result.current.data).toHaveLength(1);
+    expect(result.current.data[0]?.name).toBe("Style guide");
+  });
+});

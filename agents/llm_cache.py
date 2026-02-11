@@ -12,12 +12,17 @@ import hashlib
 import json
 import logging
 import time
-from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import (  # noqa: UP035 — must match Haystack's parent types exactly
+    Any,
+    Awaitable,
+    Callable,
+    Union,
+)
 
 from haystack.components.generators.chat import OpenAIChatGenerator
+from haystack.core.component import component
 from haystack.dataclasses import ChatMessage, StreamingChunk
 from haystack.tools import Tool, Toolset
 
@@ -166,28 +171,28 @@ class CachedTracedChatGenerator(OpenAIChatGenerator):
     1. Checked against the file cache (cache hit → skip API call)
     2. Logged as a JSON trace file in storage/traces/
     3. Cached for future identical requests in storage/llm_cache/
+
+    Overrides both ``run`` and ``run_async`` because Haystack's Agent uses
+    ``run_async`` exclusively — the synchronous ``run`` is only used when
+    calling the generator outside an Agent.
     """
 
-    def run(
-        self,
-        messages: list[ChatMessage],
-        streaming_callback: Callable[[StreamingChunk], None]
-        | Callable[[StreamingChunk], Awaitable[None]]
-        | None = None,
-        generation_kwargs: dict[str, Any] | None = None,
-        *,
-        tools: list[Tool] | list[Toolset] | list[Tool | Toolset] | Toolset | None = None,
-        tools_strict: bool | None = None,
-    ) -> dict[str, list[ChatMessage]]:
-        # Resolve tools list for cache/trace (flatten Toolset if needed)
-        tool_list: list[Tool] | None = None
-        if tools is not None:
-            if isinstance(tools, list):
-                tool_list = [t for t in tools if isinstance(t, Tool)]
-            elif isinstance(tools, Toolset):
-                tool_list = list(tools)
+    def _resolve_tools(
+        self, tools: list[Tool] | list[Toolset] | list[Tool | Toolset] | Toolset | None,
+    ) -> list[Tool] | None:
+        """Flatten tools/toolsets to a plain list for cache/trace."""
+        if tools is None:
+            return None
+        if isinstance(tools, list):
+            return [t for t in tools if isinstance(t, Tool)]
+        if isinstance(tools, Toolset):
+            return list(tools)
+        return None
 
-        # Check cache
+    def _check_cache_and_trace(
+        self, messages: list[ChatMessage], tool_list: list[Tool] | None,
+    ) -> dict[str, list[ChatMessage]] | None:
+        """Check cache; if hit, write trace and return cached result."""
         cached = _read_cache(self.model, messages, tool_list)
         if cached is not None:
             _write_trace(
@@ -198,20 +203,16 @@ class CachedTracedChatGenerator(OpenAIChatGenerator):
                 duration_ms=0,
                 cache_hit=True,
             )
-            return cached
+        return cached
 
-        # Call the real LLM
-        start = time.monotonic()
-        result = super().run(
-            messages=messages,
-            streaming_callback=streaming_callback,
-            generation_kwargs=generation_kwargs,
-            tools=tools,
-            tools_strict=tools_strict,
-        )
-        duration_ms = (time.monotonic() - start) * 1000
-
-        # Write trace and cache
+    def _record_result(
+        self,
+        messages: list[ChatMessage],
+        tool_list: list[Tool] | None,
+        result: dict[str, list[ChatMessage]],
+        duration_ms: float,
+    ) -> None:
+        """Write trace and cache for a fresh LLM result."""
         _write_trace(
             model=self.model,
             messages=messages,
@@ -222,4 +223,64 @@ class CachedTracedChatGenerator(OpenAIChatGenerator):
         )
         _write_cache(self.model, messages, tool_list, result)
 
+    @component.output_types(replies=list[ChatMessage])
+    def run(
+        self,
+        messages: list[ChatMessage],
+        streaming_callback: Union[  # noqa: UP007 — must match Haystack's parent types exactly
+            Callable[[StreamingChunk], None],
+            Callable[[StreamingChunk], Awaitable[None]],
+            None,
+        ] = None,
+        generation_kwargs: dict[str, Any] | None = None,
+        *,
+        tools: list[Tool] | list[Toolset] | list[Tool | Toolset] | Toolset | None = None,
+        tools_strict: bool | None = None,
+    ) -> dict[str, list[ChatMessage]]:
+        tool_list = self._resolve_tools(tools)
+
+        cached = self._check_cache_and_trace(messages, tool_list)
+        if cached is not None:
+            return cached
+
+        start = time.monotonic()
+        result = super().run(
+            messages=messages,
+            streaming_callback=streaming_callback,
+            generation_kwargs=generation_kwargs,
+            tools=tools,
+            tools_strict=tools_strict,
+        )
+        self._record_result(messages, tool_list, result, (time.monotonic() - start) * 1000)
+        return result
+
+    @component.output_types(replies=list[ChatMessage])
+    async def run_async(
+        self,
+        messages: list[ChatMessage],
+        streaming_callback: Union[  # noqa: UP007 — must match Haystack's parent types exactly
+            Callable[[StreamingChunk], None],
+            Callable[[StreamingChunk], Awaitable[None]],
+            None,
+        ] = None,
+        generation_kwargs: dict[str, Any] | None = None,
+        *,
+        tools: list[Tool] | list[Toolset] | list[Tool | Toolset] | Toolset | None = None,
+        tools_strict: bool | None = None,
+    ) -> dict[str, list[ChatMessage]]:
+        tool_list = self._resolve_tools(tools)
+
+        cached = self._check_cache_and_trace(messages, tool_list)
+        if cached is not None:
+            return cached
+
+        start = time.monotonic()
+        result = await super().run_async(
+            messages=messages,
+            streaming_callback=streaming_callback,
+            generation_kwargs=generation_kwargs,
+            tools=tools,
+            tools_strict=tools_strict,
+        )
+        self._record_result(messages, tool_list, result, (time.monotonic() - start) * 1000)
         return result

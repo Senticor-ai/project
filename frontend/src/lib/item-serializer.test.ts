@@ -2219,3 +2219,226 @@ describe("toJsonLd serializes fileId and downloadUrl", () => {
     expectPropertyValue(ld, "app:downloadUrl", "/files/file-uuid-ref");
   });
 });
+
+// ---------------------------------------------------------------------------
+// ReadAction support
+// ---------------------------------------------------------------------------
+
+describe("ReadAction support", () => {
+  beforeEach(() => resetFactoryCounter());
+
+  it("fromJsonLd handles ReadAction with object ref", () => {
+    const record = wrapAsItemRecord({
+      "@type": "ReadAction",
+      "@id": "urn:app:action:read1",
+      _schemaVersion: 2,
+      name: "Read report",
+      keywords: [],
+      dateCreated: "2026-01-01T00:00:00Z",
+      dateModified: "2026-01-01T00:00:00Z",
+      startTime: null,
+      endTime: null,
+      object: { "@id": "urn:app:reference:doc1" },
+      additionalProperty: [
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:bucket",
+          value: "next",
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:needsEnrichment",
+          value: false,
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:confidence",
+          value: "high",
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:captureSource",
+          value: { kind: "file", fileName: "report.pdf" },
+        },
+        { "@type": "PropertyValue", propertyID: "app:contexts", value: [] },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:isFocused",
+          value: false,
+        },
+        { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:typedReferences",
+          value: [],
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:provenanceHistory",
+          value: [],
+        },
+      ],
+    });
+    const item = fromJsonLd(record) as ActionItem;
+    expect(item.bucket).toBe("next");
+    expect(item.objectRef).toBe("urn:app:reference:doc1");
+    expect(item.name).toBe("Read report");
+  });
+
+  it("fromJsonLd Action without object has objectRef undefined", () => {
+    const record = wrapAsItemRecord({
+      "@type": "Action",
+      "@id": "urn:app:action:plain1",
+      _schemaVersion: 2,
+      name: "Buy milk",
+      keywords: [],
+      dateCreated: "2026-01-01T00:00:00Z",
+      dateModified: "2026-01-01T00:00:00Z",
+      startTime: null,
+      endTime: null,
+      additionalProperty: [
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:bucket",
+          value: "next",
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:needsEnrichment",
+          value: false,
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:confidence",
+          value: "high",
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:captureSource",
+          value: { kind: "thought" },
+        },
+        { "@type": "PropertyValue", propertyID: "app:contexts", value: [] },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:isFocused",
+          value: false,
+        },
+        { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:typedReferences",
+          value: [],
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:provenanceHistory",
+          value: [],
+        },
+      ],
+    });
+    const item = fromJsonLd(record) as ActionItem;
+    expect(item.objectRef).toBeUndefined();
+  });
+
+  it("toJsonLd emits ReadAction and object when objectRef set", () => {
+    const action = createAction({
+      name: "Read report",
+      bucket: "next",
+      objectRef: "urn:app:reference:doc1" as CanonicalId,
+    });
+    const ld = toJsonLd(action);
+    expect(ld["@type"]).toBe("ReadAction");
+    expect(ld.object).toEqual({ "@id": "urn:app:reference:doc1" });
+  });
+
+  it("toJsonLd emits Action without object when objectRef absent", () => {
+    const action = createAction({ name: "Buy milk", bucket: "next" });
+    const ld = toJsonLd(action);
+    expect(ld["@type"]).toBe("Action");
+    expect(ld.object).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildNewFileReferenceJsonLd
+// ---------------------------------------------------------------------------
+
+describe("buildNewFileReferenceJsonLd", () => {
+  it("creates DigitalDocument reference with splitFrom provenance", async () => {
+    const { buildNewFileReferenceJsonLd } = await import("./item-serializer");
+    resetFactoryCounter();
+
+    const sourceItem = createAction({
+      name: "Presupuesto.pdf",
+      bucket: "inbox",
+      fileId: "file-123",
+      downloadUrl: "/files/file-123",
+      captureSource: {
+        kind: "file",
+        fileName: "Presupuesto.pdf",
+        mimeType: "application/pdf",
+      },
+    });
+
+    const sourceRecord = wrapAsItemRecord({
+      "@type": "DigitalDocument",
+      "@id": sourceItem.id,
+      _schemaVersion: 2,
+      name: "Presupuesto.pdf",
+      encodingFormat: "application/pdf",
+      dateCreated: "2026-01-01T00:00:00Z",
+      dateModified: "2026-01-01T00:00:00Z",
+    });
+
+    const ld = buildNewFileReferenceJsonLd(sourceItem, sourceRecord);
+    expect(ld["@type"]).toBe("DigitalDocument");
+    expect(ld["@id"]).toMatch(/^urn:app:reference:/);
+    expect(ld.encodingFormat).toBe("application/pdf");
+    expect(ld.name).toBe("Presupuesto.pdf");
+    expectPropertyValue(ld, "app:bucket", "reference");
+    expectPropertyValue(ld, "app:confidence", "high");
+    expectPropertyValue(ld, "app:fileId", "file-123");
+    expectPropertyValue(ld, "app:downloadUrl", "/files/file-123");
+
+    const history = getProp(ld, "app:provenanceHistory") as Array<{
+      timestamp: string;
+      action: string;
+      splitFrom?: string;
+    }>;
+    expect(history).toHaveLength(1);
+    expect(history[0]?.action).toBe("created");
+    expect(history[0]?.splitFrom).toBe(sourceItem.id);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildReadActionTriagePatch
+// ---------------------------------------------------------------------------
+
+describe("buildReadActionTriagePatch", () => {
+  it("creates ReadAction patch with object ref", async () => {
+    const { buildReadActionTriagePatch } = await import("./item-serializer");
+    resetFactoryCounter();
+
+    const item = createAction({
+      name: "Presupuesto.pdf",
+      bucket: "inbox",
+      fileId: "file-123",
+      downloadUrl: "/files/file-123",
+    });
+
+    const refId = "urn:app:reference:doc1" as CanonicalId;
+    const patch = buildReadActionTriagePatch(
+      item,
+      { targetBucket: "next" },
+      refId,
+    );
+
+    expect(patch["@type"]).toBe("ReadAction");
+    expect(patch.object).toEqual({ "@id": refId });
+    expectPropertyValue(patch, "app:bucket", "next");
+    // File-specific props cleared
+    expectPropertyValue(patch, "app:fileId", null);
+    expectPropertyValue(patch, "app:downloadUrl", null);
+  });
+});

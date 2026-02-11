@@ -15,6 +15,8 @@ import {
   buildNewActionJsonLd,
   buildNewFileInboxJsonLd,
   buildNewUrlInboxJsonLd,
+  buildNewFileReferenceJsonLd,
+  buildReadActionTriagePatch,
 } from "@/lib/item-serializer";
 import { classifyText, classifyFile } from "@/lib/intake-classifier";
 import type { ActionItem, ActionItemBucket, TriageResult } from "@/model/types";
@@ -122,6 +124,31 @@ function removeFromCache(qc: QueryClient, canonicalId: CanonicalId) {
 /** Determine the correct @type for a target bucket. */
 function targetTypeForBucket(bucket: string): string {
   return bucket === "reference" ? "CreativeWork" : "Action";
+}
+
+/** Extract app:bucket from a raw ItemRecord. */
+function getBucketFromRecord(record: ItemRecord): string | undefined {
+  const props = record.item.additionalProperty as AdditionalProp[] | undefined;
+  return props?.find((p) => p.propertyID === "app:bucket")?.value as
+    | string
+    | undefined;
+}
+
+/**
+ * Should triage of this item trigger a split into ReadAction + reference?
+ * Only for DigitalDocument items triaged from inbox to an action bucket.
+ */
+function shouldSplitOnTriage(
+  qc: QueryClient,
+  canonicalId: CanonicalId,
+  targetBucket: string,
+): boolean {
+  if (targetBucket === "reference" || targetBucket === "archive") return false;
+  const record = findRecord(qc, canonicalId);
+  if (!record) return false;
+  const currentBucket = getBucketFromRecord(record);
+  if (currentBucket !== "inbox") return false;
+  return (record.item["@type"] as string) === "DigitalDocument";
 }
 
 /** Promote @type to the appropriate type in the active cache. */
@@ -347,6 +374,9 @@ export function useCaptureFile() {
 export function useTriageItem() {
   const qc = useQueryClient();
   const savedIds = useRef(new Map<string, string>());
+  const savedSplitDecisions = useRef(
+    new Map<string, { shouldSplit: boolean; record?: ItemRecord }>(),
+  );
 
   return useMutation({
     mutationFn: async ({
@@ -363,6 +393,24 @@ export function useTriageItem() {
         return ItemsApi.archive(itemId);
       }
 
+      // Read split decision saved by onMutate (before optimistic cache changes)
+      const splitDecision = savedSplitDecisions.current.get(item.id);
+      if (splitDecision?.shouldSplit && splitDecision.record) {
+        // 1. Create the reference (DigitalDocument in reference bucket)
+        const refJsonLd = buildNewFileReferenceJsonLd(
+          item,
+          splitDecision.record,
+        );
+        const refRecord = await ItemsApi.create(refJsonLd, "auto-split");
+        // 2. Patch existing item → ReadAction with object ref
+        const patch = buildReadActionTriagePatch(
+          item,
+          result,
+          refRecord.canonical_id as CanonicalId,
+        );
+        return ItemsApi.update(itemId, patch);
+      }
+
       const patch = buildTriagePatch(item, result);
       return ItemsApi.update(itemId, patch);
     },
@@ -370,23 +418,49 @@ export function useTriageItem() {
       const itemId = findItemId(qc, item.id);
       if (itemId) savedIds.current.set(item.id, itemId);
 
+      // Compute split decision BEFORE optimistic updates change the cache
+      const doSplit = shouldSplitOnTriage(qc, item.id, result.targetBucket);
+      const record = doSplit ? findRecord(qc, item.id) : undefined;
+      savedSplitDecisions.current.set(item.id, {
+        shouldSplit: doSplit,
+        record,
+      });
+
       if (result.targetBucket === "archive") {
-        const record = findRecord(qc, item.id);
+        const archiveRecord = findRecord(qc, item.id);
         const { prevActive, prevCompleted } = await snapshotBoth(qc);
         removeFromCache(qc, item.id);
         // Optimistically show in Done section
-        if (record) {
+        if (archiveRecord) {
           addToCache(qc, COMPLETED_KEY, {
-            ...record,
-            item: { ...record.item, endTime: new Date().toISOString() },
+            ...archiveRecord,
+            item: { ...archiveRecord.item, endTime: new Date().toISOString() },
           });
         }
         return { prevActive, prevCompleted };
       }
 
       const prev = await snapshotActive(qc);
+
+      if (doSplit && record) {
+        // Optimistically add a reference record to the cache
+        const now = new Date().toISOString();
+        const refJsonLd = buildNewFileReferenceJsonLd(item, record);
+        const optimisticRef: ItemRecord = {
+          item_id: `temp-ref-${Date.now()}`,
+          canonical_id: refJsonLd["@id"] as string,
+          source: "auto-split",
+          item: refJsonLd,
+          created_at: now,
+          updated_at: now,
+        };
+        addToCache(qc, ACTIVE_KEY, optimisticRef);
+        // Promote type to ReadAction with object ref
+        promoteTypeInCache(qc, item.id, "ReadAction");
+      }
+
       updateBucketInCache(qc, item.id, result.targetBucket);
-      if (needsTypePromotion(qc, item.id, result.targetBucket)) {
+      if (!doSplit && needsTypePromotion(qc, item.id, result.targetBucket)) {
         promoteTypeInCache(
           qc,
           item.id,
@@ -402,6 +476,7 @@ export function useTriageItem() {
     },
     onSettled: async (_data, _err, { item }) => {
       savedIds.current.delete(item.id);
+      savedSplitDecisions.current.delete(item.id);
       // Only invalidate active partition — triage doesn't affect completed items,
       // and archive optimistically adds to COMPLETED_KEY which we want to preserve.
       await qc.invalidateQueries({ queryKey: ACTIVE_KEY });

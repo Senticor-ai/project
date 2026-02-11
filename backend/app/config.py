@@ -243,7 +243,9 @@ def load_settings() -> Settings:
         ),
         cors_methods=[
             m.strip()
-            for m in (_get_env("CORS_METHODS", "GET,POST,PATCH,DELETE,OPTIONS") or "").split(",")
+            for m in (
+                _get_env("CORS_METHODS", "GET,POST,PUT,PATCH,DELETE,OPTIONS") or ""
+            ).split(",")
             if m.strip()
         ],
         cors_headers=[
@@ -252,7 +254,8 @@ def load_settings() -> Settings:
                 _get_env(
                     "CORS_HEADERS",
                     "Content-Type,Authorization,X-Request-ID,X-User-ID,X-Org-Id,"
-                    "X-CSRF-Token,Idempotency-Key,If-None-Match",
+                    "X-CSRF-Token,Idempotency-Key,If-None-Match,"
+                    "X-Chunk-Index,X-Chunk-Total",
                 )
                 or ""
             ).split(",")
