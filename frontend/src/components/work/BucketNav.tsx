@@ -1,24 +1,8 @@
 import { useDroppable } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
+import { navItems } from "./bucket-nav-items";
 import type { Bucket } from "@/model/types";
-
-interface BucketNavItemConfig {
-  bucket: Bucket;
-  label: string;
-  icon: string;
-}
-
-const navItems: BucketNavItemConfig[] = [
-  { bucket: "inbox", label: "Inbox", icon: "inbox" },
-  { bucket: "focus", label: "Focus", icon: "center_focus_strong" },
-  { bucket: "next", label: "Next Actions", icon: "bolt" },
-  { bucket: "project", label: "Projects", icon: "folder" },
-  { bucket: "waiting", label: "Waiting For", icon: "schedule" },
-  { bucket: "calendar", label: "Calendar", icon: "calendar_month" },
-  { bucket: "someday", label: "Someday/Maybe", icon: "cloud" },
-  { bucket: "reference", label: "Reference", icon: "book" },
-];
 
 // Drop targets: buckets where items can be dragged to
 const droppableBuckets = new Set<string>([

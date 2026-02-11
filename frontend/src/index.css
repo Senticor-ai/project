@@ -31,21 +31,27 @@
   --color-industrial-500: oklch(0.6 0.18 35);
   --color-industrial-600: oklch(0.52 0.17 33);
 
-  /* @tokens GTD Buckets (WCAG AA: ≥4.5:1 on /15 tint backgrounds) */
-  --color-gtd-inbox: oklch(0.5 0.12 55);
-  --color-gtd-next: oklch(0.45 0.15 145);
-  --color-gtd-project: oklch(0.45 0.15 235);
-  --color-gtd-waiting: oklch(0.47 0.1 300);
-  --color-gtd-someday: oklch(0.48 0.08 210);
-  --color-gtd-calendar: oklch(0.48 0.13 25);
-  --color-gtd-reference: oklch(0.48 0.05 80);
-  --color-gtd-focus: oklch(0.45 0.18 35);
+  /* @tokens App Buckets (WCAG AA: ≥4.5:1 on /15 tint backgrounds) */
+  --color-app-inbox: oklch(0.5 0.12 55);
+  --color-app-next: oklch(0.45 0.15 145);
+  --color-app-project: oklch(0.45 0.15 235);
+  --color-app-waiting: oklch(0.47 0.1 300);
+  --color-app-someday: oklch(0.48 0.08 210);
+  --color-app-calendar: oklch(0.48 0.13 25);
+  --color-app-reference: oklch(0.48 0.05 80);
+  --color-app-focus: oklch(0.45 0.18 35);
 
   /* @tokens Confidence (WCAG AA: ≥4.5:1 on white) */
   --color-confidence-high: oklch(0.45 0.15 145);
   --color-confidence-medium: oklch(0.5 0.12 85);
   --color-confidence-low: oklch(0.48 0.15 25);
   --color-confidence-enrichment: oklch(0.5 0.12 55);
+
+  /* @tokens Status (WCAG AA: ≥4.5:1 on white; use /10–/15 tint for backgrounds, /30–/40 for borders) */
+  --color-status-error: oklch(0.55 0.2 25);
+  --color-status-success: oklch(0.5 0.16 145);
+  --color-status-warning: oklch(0.52 0.14 55);
+  --color-status-info: var(--color-blueprint-500);
 
   /* @tokens Semantic colors */
   --color-surface: var(--color-paper-50);

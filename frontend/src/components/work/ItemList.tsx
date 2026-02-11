@@ -162,7 +162,7 @@ export function ItemList<T extends BaseEntity>({
             />
           </div>
           {captureError && (
-            <p role="alert" className="pl-6 text-xs text-red-600">
+            <p role="alert" className="pl-6 text-xs text-status-error">
               {captureError}
             </p>
           )}

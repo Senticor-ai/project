@@ -14,6 +14,9 @@ dependencies = [
   "docling",
   "structlog",
   "prometheus-client",
+  "opentelemetry-sdk",
+  "opentelemetry-exporter-otlp-proto-http",
+  "opentelemetry-instrumentation-fastapi",
   "pytest",
   "httpx",
   # Pin to CPU-only wheels (transitive from docling, declared here so
@@ -55,6 +58,8 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["E501"]
 "app/routes/*.py" = ["B008"]
+"app/imports/**/routes.py" = ["B008"]
+"app/imports/router.py" = ["B008"]
 
 [tool.ruff.format]
 quote-style = "double"

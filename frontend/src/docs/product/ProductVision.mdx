@@ -6,17 +6,15 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 ## What Is Terminandoyo?
 
-A **GTD-native task management system** that brings David Allen's
-Getting Things Done methodology into a modern, evidence-first workspace.
-
-Inspired by **ThinkingRock**'s discipline and **NirvanaHQ**'s elegance,
+A **structured task management system** that brings a disciplined
+five-phase methodology into a modern, evidence-first workspace,
 grounded in concepts from knowledge graph architecture
 ([FRBR](?path=/docs/engineering-ontology-frbr-knowledge-graph--docs),
 [LexCEL](?path=/docs/engineering-ontology-lexcel-architecture--docs)).
 
 ---
 
-## Core GTD Workflow
+## Core Workflow
 
 ### The 5 Phases
 
@@ -30,30 +28,30 @@ grounded in concepts from knowledge graph architecture
 
 ### The Buckets
 
-| Bucket            | Purpose                                | Color          |
-| ----------------- | -------------------------------------- | -------------- |
-| **Inbox**         | Unprocessed captures                   | Warm amber     |
-| **Next Actions**  | Immediately actionable, context-tagged | Green          |
-| **Projects**      | Multi-step outcomes                    | Blueprint blue |
-| **Waiting For**   | Delegated or dependent items           | Purple         |
-| **Someday/Maybe** | Deferred aspirations                   | Cool cyan      |
-| **Calendar**      | Time-specific commitments              | Red-orange     |
-| **Reference**     | Supporting materials                   | Muted olive    |
-| **Focus**         | Filtered priority view (NirvanaHQ)     | Bold orange    |
+| Bucket        | Purpose                                | Color          |
+| ------------- | -------------------------------------- | -------------- |
+| **Inbox**     | Unprocessed captures                   | Warm amber     |
+| **Next**      | Immediately actionable, context-tagged | Green          |
+| **Projects**  | Multi-step outcomes                    | Blueprint blue |
+| **Waiting**   | Delegated or dependent items           | Purple         |
+| **Later**     | Deferred aspirations                   | Cool cyan      |
+| **Calendar**  | Time-specific commitments              | Red-orange     |
+| **Reference** | Supporting materials                   | Muted olive    |
+| **Focus**     | Filtered priority view                 | Bold orange    |
 
 ---
 
-## Key Inspirations
+## Design Principles
 
-### From ThinkingRock: Discipline
+### Discipline
 
 - **Newest-First Inbox**: The most recently captured item appears at the top.
   Quick-entry items are immediately visible without scrolling.
 - **Sequential Projects**: Sub-actions within a project are ordered.
   Only the next action is visible until the current one completes.
-- **Strict GTD Adherence**: The system enforces the methodology, not just suggests it.
+- **Structured Methodology Adherence**: The system enforces the methodology, not just suggests it.
 
-### From NirvanaHQ: Elegance
+### Elegance
 
 - **Focus List**: A virtual filtered bucket showing only highest-priority items.
   Not a separate list — a lens over existing items marked as "focused".
@@ -67,11 +65,11 @@ grounded in concepts from knowledge graph architecture
 ## Knowledge Architecture (from Papers)
 
 Terminandoyo's data model draws from three academic papers on legal knowledge
-graph architecture, mapping their concepts to GTD:
+graph architecture, mapping their concepts to task management:
 
-### FRBR Hierarchy → GTD Item Identity
+### FRBR Hierarchy → Item Identity
 
-| FRBR Level        | GTD Mapping  | Example                             |
+| FRBR Level        | App Mapping  | Example                             |
 | ----------------- | ------------ | ----------------------------------- |
 | **Work**          | Project      | "Launch website redesign"           |
 | **Expression**    | Action       | "Draft wireframes for homepage"     |
@@ -85,7 +83,7 @@ Items enter as raw captures and get progressively enriched through clarification
 
 Actions connect to each other via **typed references** (not just plain links):
 
-| Reference Type | GTD Meaning                             | Example                                   |
+| Reference Type | Meaning                                 | Example                                   |
 | -------------- | --------------------------------------- | ----------------------------------------- |
 | `blocks`       | This item blocks another                | "Get approval" blocks "Start development" |
 | `depends_on`   | Cannot start until dependency completes | "Deploy" depends_on "Pass tests"          |
@@ -97,7 +95,7 @@ Actions connect to each other via **typed references** (not just plain links):
 
 ### LexCEL Ports → Action Attributes
 
-| Port Type           | GTD Usage                              | Example                                |
+| Port Type           | Usage                                  | Example                                |
 | ------------------- | -------------------------------------- | -------------------------------------- |
 | **DefinitionPort**  | What does "done" mean?                 | "Homepage wireframes approved by team" |
 | **PredicatePort**   | What conditions must be true to start? | "Design system tokens finalized"       |
@@ -106,7 +104,7 @@ Actions connect to each other via **typed references** (not just plain links):
 
 ### Three-Phase Processing → Capture-Clarify-Enrich
 
-| Phase   | Paper Concept               | GTD Implementation                                      |
+| Phase   | Paper Concept               | Implementation                                          |
 | ------- | --------------------------- | ------------------------------------------------------- |
 | Phase 1 | Heuristic classification    | Capture: item enters inbox, auto-tagged with source     |
 | Phase 2 | Hierarchy with placeholders | Clarify: create project/action structure, mark unknowns |
@@ -165,7 +163,7 @@ Users cannot delete items. This is a core design principle for audit compliance:
 - **Personality**: Helpful, concise, respectful of user authority (Paperclip principle #5: AI is a contributor, not an authority)
 - **Avatar**: Uses the `auto_awesome` Material Symbol icon
 - **Interaction model**: Tay suggests, the user decides. Suggestions appear as detachable attachments — never auto-applied
-- **Name origin**: Short for TerminAndoYo — your personal GTD companion
+- **Name origin**: Short for TerminAndoYo — your personal task management companion
 
 ### Language Policy
 

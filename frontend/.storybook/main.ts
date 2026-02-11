@@ -3,6 +3,7 @@ import remarkGfm from "remark-gfm";
 
 const config: StorybookConfig = {
   stories: ["../src/**/*.mdx", "../src/**/*.stories.@(js|jsx|mjs|ts|tsx)"],
+  staticDirs: ["../public"],
   addons: [
     "@chromatic-com/storybook",
     "@storybook/addon-vitest",
@@ -18,8 +19,11 @@ const config: StorybookConfig = {
       },
     },
     "@storybook/addon-onboarding",
+    "storybook/viewport",
   ],
   framework: "@storybook/react-vite",
+  managerHead: (head) =>
+    `${head}<link rel="icon" type="image/svg+xml" href="/favicon.svg" />`,
   viteFinal: (config) => {
     if (process.env.STORYBOOK_BASE) {
       config.base = process.env.STORYBOOK_BASE;

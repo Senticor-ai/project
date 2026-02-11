@@ -69,7 +69,7 @@ def api_context(playwright: Playwright, api_base_url: str) -> tuple[APIRequestCo
     context.dispose()
 
 
-def test_gtd_flow_playwright(api_context: tuple[APIRequestContext, str]):
+def test_full_flow_playwright(api_context: tuple[APIRequestContext, str]):
     context, default_org_id = api_context
 
     response = context.get("/auth/me")

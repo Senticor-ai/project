@@ -211,9 +211,9 @@ export const MoveToSomeday: Story = {
     await step("Open move menu", async () => {
       await userEvent.click(canvas.getByLabelText("Move Move me"));
     });
-    await step("Select Someday", async () => {
+    await step("Select Later", async () => {
       const menu = canvas.getByRole("menu");
-      await userEvent.click(within(menu).getByText("Move to Someday"));
+      await userEvent.click(within(menu).getByText("Move to Later"));
     });
     await expect(args.onMove).toHaveBeenCalledWith(args.thing.id, "someday");
   },
@@ -289,8 +289,8 @@ export const ExpandedTitleEditing: Story = {
     await expect(
       canvas.getByRole("button", { name: "Rename me" }),
     ).toBeInTheDocument();
-    // Click title to enter editing
-    await userEvent.click(canvas.getByRole("button", { name: "Rename me" }));
+    // Double-click title to enter editing (single click toggles expand/collapse)
+    await userEvent.dblClick(canvas.getByRole("button", { name: "Rename me" }));
     // Now title is a textarea
     await expect(canvas.getByDisplayValue("Rename me")).toBeInTheDocument();
   },

@@ -2,14 +2,26 @@ import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { AppMenu, type AppMenuSection } from "./AppMenu";
 import type { AppView } from "@/lib/route-utils";
+import type { Bucket } from "@/model/types";
+import type { BucketNavItemConfig } from "@/components/work/bucket-nav-items";
 
 export type { AppView };
+
+export interface MobileBucketNav {
+  activeBucket: Bucket;
+  items: BucketNavItemConfig[];
+  counts: Partial<Record<Bucket, number>>;
+  onBucketChange: (bucket: Bucket) => void;
+}
 
 export interface AppHeaderProps {
   username: string;
   currentView: AppView;
   onNavigate: (view: AppView) => void;
   onSignOut: () => void;
+  onLogoClick: () => void;
+  mobileBucketNav?: MobileBucketNav;
+  appVersion?: string;
   className?: string;
 }
 
@@ -18,54 +30,90 @@ export function AppHeader({
   currentView,
   onNavigate,
   onSignOut,
+  onLogoClick,
+  mobileBucketNav,
+  appVersion,
   className,
 }: AppHeaderProps) {
-  const menuSections: AppMenuSection[] = useMemo(
-    () => [
-      {
-        items: [
-          {
-            id: "workspace",
-            label: "Workspace",
-            icon: "dashboard",
-            active: currentView === "workspace",
-            onClick: () => onNavigate("workspace"),
-          },
-          {
-            id: "settings",
-            label: "Settings",
-            icon: "settings",
-            active: currentView === "settings",
-            onClick: () => onNavigate("settings"),
-          },
-        ],
-      },
-      {
-        items: [
-          {
-            id: "sign-out",
-            label: "Sign out",
-            icon: "logout",
-            onClick: onSignOut,
-          },
-        ],
-      },
-    ],
-    [currentView, onNavigate, onSignOut],
-  );
+  const menuSections: AppMenuSection[] = useMemo(() => {
+    const headerSection: AppMenuSection = {
+      header: { username, appName: "TerminAndoYo", appVersion },
+      items: [],
+    };
+
+    const navSection: AppMenuSection = {
+      items: [
+        {
+          id: "workspace",
+          label: "Workspace",
+          icon: "dashboard",
+          active: currentView === "workspace",
+          onClick: () => onNavigate("workspace"),
+        },
+        {
+          id: "settings",
+          label: "Settings",
+          icon: "settings",
+          active: currentView === "settings",
+          onClick: () => onNavigate("settings"),
+        },
+      ],
+    };
+
+    const signOutSection: AppMenuSection = {
+      items: [
+        {
+          id: "sign-out",
+          label: "Sign out",
+          icon: "logout",
+          onClick: onSignOut,
+        },
+      ],
+    };
+
+    if (!mobileBucketNav) {
+      return [headerSection, navSection, signOutSection];
+    }
+
+    const bucketSection: AppMenuSection = {
+      label: "Buckets",
+      items: mobileBucketNav.items.map(({ bucket, label, icon }) => {
+        const count = mobileBucketNav.counts[bucket];
+        return {
+          id: `bucket-${bucket}`,
+          label: count ? `${label} (${count})` : label,
+          icon,
+          active: mobileBucketNav.activeBucket === bucket,
+          onClick: () => mobileBucketNav.onBucketChange(bucket),
+        };
+      }),
+    };
+
+    return [headerSection, navSection, bucketSection, signOutSection];
+  }, [
+    currentView,
+    onNavigate,
+    onSignOut,
+    mobileBucketNav,
+    username,
+    appVersion,
+  ]);
 
   return (
     <header className={cn("flex items-center justify-between", className)}>
-      <div className="flex items-center gap-3">
+      {/* Mobile: hamburger left, logo right */}
+      {/* Desktop: logo left, hamburger right */}
+      <div className="flex items-center gap-3 md:order-2">
         <AppMenu sections={menuSections} />
+      </div>
+      <button
+        onClick={onLogoClick}
+        className="cursor-pointer md:order-1"
+        aria-label="Go to Inbox"
+        title="TerminAndoYo"
+      >
         <img src="/tay-logo.svg" alt="TAY" className="h-8 w-8" />
-        <h1 className="font-mono text-xl font-bold text-blueprint-700">
-          terminandoyo
-        </h1>
-      </div>
-      <div className="flex items-center">
-        <span className="text-xs text-text-subtle">{username}</span>
-      </div>
+      </button>
     </header>
   );
 }

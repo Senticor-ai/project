@@ -1,23 +1,24 @@
 import { useState, useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { ImportSummary, ImportJobResponse } from "@/lib/api-client";
 import { ImportsApi } from "@/lib/api-client";
-import type { NirvanaImportSummary, ImportJobResponse } from "@/lib/api-client";
-import { useFileUpload } from "./use-file-upload";
-import { ITEMS_QUERY_KEY } from "./use-items";
-import { IMPORT_JOBS_QUERY_KEY } from "./use-import-jobs";
+import { useFileUpload } from "@/hooks/use-file-upload";
+import { ITEMS_QUERY_KEY } from "@/hooks/use-items";
+import { IMPORT_JOBS_QUERY_KEY } from "@/hooks/use-import-jobs";
+import type { ImportSourceConfig } from "./types";
 
-export function useNirvanaImport() {
+export function useImportSource(config: ImportSourceConfig) {
   const qc = useQueryClient();
   const upload = useFileUpload();
   const [jobId, setJobId] = useState<string | null>(null);
 
   const inspect = useMutation<
-    NirvanaImportSummary,
+    ImportSummary,
     Error,
     { fileId: string; includeCompleted: boolean }
   >({
     mutationFn: (params) =>
-      ImportsApi.inspectNirvana({
+      config.inspectFn({
         file_id: params.fileId,
         include_completed: params.includeCompleted,
       }),
@@ -29,7 +30,7 @@ export function useNirvanaImport() {
     { fileId: string; includeCompleted: boolean }
   >({
     mutationFn: (params) =>
-      ImportsApi.importNirvanaFromFile({
+      config.importFn({
         file_id: params.fileId,
         include_completed: params.includeCompleted,
       }),

@@ -14,6 +14,7 @@ from ..idempotency import (
     get_idempotent_response,
     store_idempotent_response,
 )
+from ..metrics import APP_ITEMS_ARCHIVED_TOTAL, APP_ITEMS_CREATED_TOTAL, APP_ITEMS_UPDATED_TOTAL
 from ..models import (
     ItemCreateRequest,
     ItemPatchRequest,
@@ -706,6 +707,7 @@ def update_item(
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
 
+    APP_ITEMS_UPDATED_TOTAL.inc()
     enqueue_event("item_upserted", {"item_id": str(row["item_id"]), "org_id": org_id})
     enqueue_job(
         org_id=org_id,
@@ -784,6 +786,7 @@ def archive_item(
             "ok": True,
         }
 
+    APP_ITEMS_ARCHIVED_TOTAL.inc()
     enqueue_event("item_archived", {"item_id": str(row["item_id"]), "org_id": org_id})
     enqueue_job(
         org_id=org_id,
@@ -934,6 +937,8 @@ def create_item(
 
         conn.commit()
 
+    bucket = _get_additional_property(item_data, "app:bucket") or "unknown"
+    APP_ITEMS_CREATED_TOTAL.labels(bucket=bucket).inc()
     enqueue_event("item_upserted", {"item_id": str(row["item_id"]), "org_id": org_id})
 
     response = _build_item_response(row)

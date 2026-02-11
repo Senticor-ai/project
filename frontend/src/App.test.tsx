@@ -46,7 +46,7 @@ vi.mock("./components/settings/SettingsScreen", () => ({
   ),
 }));
 
-vi.mock("./components/work/NirvanaImportDialog", () => ({
+vi.mock("./features/imports/nirvana/NirvanaImportDialog", () => ({
   NirvanaImportDialog: ({
     open,
     onClose,
@@ -140,9 +140,12 @@ describe("App", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows workspace when user is authenticated", () => {
+  it("shows workspace when user is authenticated", async () => {
+    const user = userEvent.setup();
     renderAuthenticated();
     expect(screen.getByTestId("connected-bucket-view")).toBeInTheDocument();
+    // Username is inside the menu, not visible in the header bar
+    await user.click(screen.getByRole("button", { name: "Main menu" }));
     expect(screen.getByText("testuser")).toBeInTheDocument();
   });
 

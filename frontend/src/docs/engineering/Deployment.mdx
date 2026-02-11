@@ -123,7 +123,84 @@ Contact ops if the quota needs to be increased.
 
 ## Observability
 
-Pod logs are collected automatically into Loki. The Grafana dashboard is available on the cluster. For application-level traces and metrics, send OTLP data to the cluster's Alloy collector (configured via `OTEL_EXPORTER_OTLP_ENDPOINT` in the ConfigMap).
+The backend exposes three observability signals: **structured logs**, **Prometheus metrics**, and **OpenTelemetry traces**. All three are collected automatically in the cluster.
+
+### Logs
+
+Structured JSON logs via `structlog`. Every log entry includes `trace_id` and `span_id` when OTEL tracing is active, enabling Loki ↔ Tempo correlation in Grafana. Logs are collected automatically into Loki.
+
+| Field | Source |
+| --- | --- |
+| `request_id` | `X-Request-ID` header (or server-generated UUID) |
+| `trace_id` | OTEL span context (32-hex) |
+| `span_id` | OTEL span context (16-hex) |
+| `user_id` | Session auth |
+
+Set `LOG_FORMAT=console` in the ConfigMap for human-readable output during local development.
+
+### Prometheus Metrics
+
+All three deployments expose `/metrics` in Prometheus format with scrape annotations already configured:
+
+| Deployment | Port | Endpoint |
+| --- | --- | --- |
+| Backend | 8000 | `/metrics` |
+| Projection Worker | 9090 | `/metrics` |
+| Push Worker | 9091 | `/metrics` |
+
+**HTTP server metrics** (backend):
+
+| Metric | Type | Labels |
+| --- | --- | --- |
+| `http_server_requests_total` | Counter | method, route, status_class |
+| `http_server_request_duration_seconds` | Histogram | method, route, status_class |
+| `http_server_in_flight_requests` | Gauge | — |
+
+**Queue health metrics** (backend, refreshed on scrape):
+
+| Metric | Type | Labels |
+| --- | --- | --- |
+| `app_queue_depth` | Gauge | queue |
+| `app_queue_oldest_age_seconds` | Gauge | queue |
+| `app_queue_jobs_by_status` | Gauge | queue, status |
+| `app_queue_dead_lettered` | Gauge | queue |
+
+Queues tracked: `outbox_events`, `push_outbox`, `import_jobs`, `search_index_jobs`.
+
+**Business metrics** (backend + workers):
+
+| Metric | Type | Labels |
+| --- | --- | --- |
+| `app_items_created_total` | Counter | bucket |
+| `app_items_updated_total` | Counter | — |
+| `app_items_archived_total` | Counter | — |
+| `app_imports_completed_total` | Counter | source (nirvana, native) |
+| `app_imports_failed_total` | Counter | source |
+
+**Worker health metrics** (workers):
+
+| Metric | Type | Labels |
+| --- | --- | --- |
+| `worker_batches_total` | Counter | worker |
+| `worker_events_total` | Counter | worker |
+| `worker_errors_total` | Counter | worker |
+| `worker_batch_duration_seconds` | Histogram | worker |
+| `worker_up` | Gauge | worker |
+
+### OpenTelemetry Tracing
+
+OTEL tracing is initialised at app startup via `app/tracing.py`. The SDK auto-reads the standard environment variables from the ConfigMap:
+
+| Variable | Value (production) |
+| --- | --- |
+| `OTEL_SERVICE_NAME` | `terminandoyo-backend` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://alloy.observability.svc.cluster.local:4318` |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/protobuf` |
+| `OTEL_RESOURCE_ATTRIBUTES` | `service.namespace=terminandoyo,deployment.environment=production` |
+
+FastAPI routes are auto-instrumented — every inbound request creates a span with method, route, and status. Traces are exported via `BatchSpanProcessor` to the Alloy collector, which forwards to Tempo.
+
+**Local development:** When `OTEL_EXPORTER_OTLP_ENDPOINT` is not set, tracing is silently disabled. The app logs `tracing.disabled` and runs without any OTEL overhead.
 
 ---
 

@@ -15,7 +15,7 @@ test.describe("ContextFilterBar", () => {
     await page.reload();
 
     const ws = new WorkspacePage(page);
-    await ws.navigateTo("Next Actions");
+    await ws.navigateTo("Next");
 
     // Context filter bar should appear with both context chips
     await expect(ws.contextFilterBar()).toBeVisible();
@@ -39,7 +39,7 @@ test.describe("ContextFilterBar", () => {
     await page.reload();
 
     const ws = new WorkspacePage(page);
-    await ws.navigateTo("Next Actions");
+    await ws.navigateTo("Next");
 
     // All 3 actions visible initially
     await expect(page.getByText("Call client")).toBeVisible();
@@ -71,7 +71,7 @@ test.describe("ContextFilterBar", () => {
     await page.reload();
 
     const ws = new WorkspacePage(page);
-    await ws.navigateTo("Next Actions");
+    await ws.navigateTo("Next");
 
     // Select @phone and @computer
     await ws.contextChip("@phone").click();
@@ -96,7 +96,7 @@ test.describe("ContextFilterBar", () => {
     await page.reload();
 
     const ws = new WorkspacePage(page);
-    await ws.navigateTo("Next Actions");
+    await ws.navigateTo("Next");
 
     // Filter to @phone only
     await ws.contextChip("@phone").click();
@@ -118,7 +118,7 @@ test.describe("ContextFilterBar", () => {
     await page.reload();
 
     const ws = new WorkspacePage(page);
-    await ws.navigateTo("Next Actions");
+    await ws.navigateTo("Next");
 
     await expect(page.getByText("Plain task")).toBeVisible();
     await expect(ws.contextFilterBar()).not.toBeVisible();

@@ -38,7 +38,7 @@ export function DeveloperPanel({ onFlush, className }: DeveloperPanelProps) {
       <section className="space-y-3">
         <h2 className="text-sm font-medium text-text-primary">
           <span className="flex items-center gap-1">
-            <Icon name="warning" size={14} className="text-red-600" />
+            <Icon name="warning" size={14} className="text-status-error" />
             Danger Zone
           </span>
         </h2>
@@ -47,9 +47,9 @@ export function DeveloperPanel({ onFlush, className }: DeveloperPanelProps) {
           be undone.
         </p>
 
-        <div className="rounded-[var(--radius-lg)] border-2 border-dashed border-red-300 p-4">
+        <div className="rounded-[var(--radius-lg)] border-2 border-dashed border-status-error/40 p-4">
           <div className="flex items-start gap-3">
-            <Icon name="delete_forever" size={24} className="text-red-600" />
+            <Icon name="delete_forever" size={24} className="text-status-error" />
             <div className="flex-1 space-y-2">
               <span className="text-sm font-medium text-text-primary">
                 Flush All Data
@@ -66,7 +66,7 @@ export function DeveloperPanel({ onFlush, className }: DeveloperPanelProps) {
                     setState({ step: "confirming" });
                     setConfirmText("");
                   }}
-                  className="rounded-[var(--radius-md)] bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-700"
+                  className="rounded-[var(--radius-md)] bg-status-error px-3 py-1.5 text-xs font-medium text-white transition-colors hover:opacity-90"
                 >
                   Flush All Data
                 </button>
@@ -94,7 +94,7 @@ export function DeveloperPanel({ onFlush, className }: DeveloperPanelProps) {
                       disabled={confirmText !== "FLUSH"}
                       onClick={handleFlush}
                       aria-label="Confirm flush"
-                      className="rounded-[var(--radius-md)] bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+                      className="rounded-[var(--radius-md)] bg-status-error px-3 py-1.5 text-xs font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
                     >
                       Confirm flush
                     </button>
@@ -114,11 +114,11 @@ export function DeveloperPanel({ onFlush, className }: DeveloperPanelProps) {
               )}
 
               {state.step === "done" && (
-                <div className="space-y-1 rounded-[var(--radius-md)] bg-green-50 p-3">
-                  <p className="text-xs font-medium text-green-700">
+                <div className="space-y-1 rounded-[var(--radius-md)] bg-status-success/10 p-3">
+                  <p className="text-xs font-medium text-status-success">
                     Data flushed successfully
                   </p>
-                  <ul className="space-y-0.5 text-xs text-green-700">
+                  <ul className="space-y-0.5 text-xs text-status-success">
                     {Object.entries(state.result.deleted).map(
                       ([table, count]) => (
                         <li key={table}>
@@ -138,8 +138,8 @@ export function DeveloperPanel({ onFlush, className }: DeveloperPanelProps) {
               )}
 
               {state.step === "error" && (
-                <div className="space-y-1 rounded-[var(--radius-md)] bg-red-50 p-3">
-                  <p className="text-xs font-medium text-red-700">
+                <div className="space-y-1 rounded-[var(--radius-md)] bg-status-error/10 p-3">
+                  <p className="text-xs font-medium text-status-error">
                     {state.message}
                   </p>
                   <button

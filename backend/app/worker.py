@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 
 from .config import settings
 from .db import db_conn, jsonb
+from .metrics import APP_IMPORTS_COMPLETED_TOTAL, APP_IMPORTS_FAILED_TOTAL
 from .observability import configure_logging, get_logger
 from .projection.fuseki import is_enabled as fuseki_enabled
 from .projection.fuseki import upsert_jsonld
@@ -480,6 +481,8 @@ def process_batch(limit: int = 25) -> int:
                         )
                 elif event_type in ("nirvana_import_job", "native_import_job"):
                     _process_import_job(payload)
+                    source = "nirvana" if event_type == "nirvana_import_job" else "native"
+                    APP_IMPORTS_COMPLETED_TOTAL.labels(source=source).inc()
 
                 _mark_processed(conn, event_id)
                 processed += 1
@@ -492,6 +495,8 @@ def process_batch(limit: int = 25) -> int:
             except Exception as exc:  # noqa: BLE001
                 logger.exception("outbox.process_failed", event_id=str(event_id))
                 if event_type in ("nirvana_import_job", "native_import_job"):
+                    source = "nirvana" if event_type == "nirvana_import_job" else "native"
+                    APP_IMPORTS_FAILED_TOTAL.labels(source=source).inc()
                     _mark_import_failed(payload.get("job_id"), str(exc))
                 if org_id and entity_type and entity_id:
                     try:

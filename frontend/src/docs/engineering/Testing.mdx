@@ -1,0 +1,393 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Engineering/Testing" />
+
+# Testing Strategy
+
+This document is the testing reference for TerminAndoYo. It covers test layers, isolation
+architecture, patterns, and conventions. For the technology overview see
+[Architecture](?path=/docs/engineering-architecture--docs).
+
+---
+
+## Test Layers
+
+| Layer         | Location               | Tools                                 | Purpose                            |
+| ------------- | ---------------------- | ------------------------------------- | ---------------------------------- |
+| **Unit**      | `src/**/*.test.ts(x)`  | Vitest (jsdom)                        | Pure logic, hooks, utilities       |
+| **Storybook** | `src/**/*.stories.tsx` | Vitest (browser/Playwright), axe-core | Interactive UI + accessibility     |
+| **E2E**       | `e2e/tests/*.spec.ts`  | Playwright                            | Full user journeys (real services) |
+
+### Layer Rules
+
+1. **Unit tests** — No network calls. Mock external dependencies with `vi.mock()`. Test pure
+   functions, hooks, and component rendering in isolation.
+2. **Storybook tests** — Use MSW for API mocking. Test user interactions via `play()` functions.
+   Every story automatically runs axe-core accessibility audits.
+3. **E2E tests** — Real backend + PostgreSQL + local JWT auth. Test critical user journeys only.
+   Use page objects and API seeding for setup.
+
+---
+
+## Quick Start
+
+```bash
+# Unit tests (never use watch mode in CI)
+cd frontend && CI=1 npx vitest run --project=unit
+
+# Storybook tests (browser mode)
+cd frontend && STORYBOOK_TESTS=1 CI=1 npx vitest run --project=storybook
+
+# Type checking (MUST use -b for project references)
+cd frontend && npx tsc -b --noEmit
+
+# E2E tests (spins up backend + frontend + test database)
+cd frontend && npm run e2e
+
+# E2E tests (against already-running services)
+cd frontend && npm run test:e2e
+
+# Coverage reports
+cd frontend && npm run test:coverage:unit        # coverage/unit/
+cd frontend && npm run test:coverage:storybook   # coverage/storybook/
+```
+
+---
+
+## Test Isolation Architecture
+
+Tests are completely isolated from development data. There is **zero risk** of test/dev data
+leakage.
+
+### Frontend Isolation
+
+| Aspect              | Mechanism                         | Location                     |
+| ------------------- | --------------------------------- | ---------------------------- |
+| **API calls**       | MSW (Mock Service Worker)         | `src/test/msw/handlers.ts`   |
+| **In-memory store** | `Map`-based item store            | `src/test/msw/fixtures.ts`   |
+| **Handler reset**   | `server.resetHandlers()` per test | `.storybook/vitest.setup.ts` |
+| **DOM cleanup**     | `cleanup()` after each test       | `src/test/setup.ts`          |
+| **Query client**    | Fresh `QueryClient` per story     | `.storybook/preview.tsx`     |
+
+MSW intercepts all HTTP requests at the network level. No real backend communication occurs
+during unit or storybook tests.
+
+### Backend Isolation
+
+| Aspect             | Mechanism                               |
+| ------------------ | --------------------------------------- |
+| **Database**       | SQLite in-memory per test (`sqlite://`) |
+| **File storage**   | `tempfile.TemporaryDirectory()`         |
+| **Authentication** | Mocked via FastAPI DI override          |
+| **LLM calls**      | Mocked via pytest fixtures              |
+
+Each test gets a fresh in-memory database destroyed when the test ends. No PostgreSQL tables
+are touched.
+
+### E2E Isolation
+
+E2E tests run against a dedicated service stack started by `scripts/e2e-stack.sh`. The script
+creates an isolated PostgreSQL database (`terminandoyo_e2e`), starts the backend on port 8001,
+and the frontend on port 5174. Environment overrides live in `.env.e2e` (separate session
+cookies, file storage path, disabled Fuseki).
+
+A custom Playwright fixture provides `authenticatedPage` (auto-registers a unique user via
+local JWT auth) and `apiSeed` (programmatic data setup via API).
+
+---
+
+## MSW Patterns
+
+### Handler URL Convention
+
+All fetch URLs are absolute (`VITE_API_BASE_URL=http://localhost:8000`). MSW handlers **must**
+use a wildcard prefix to match any origin:
+
+```typescript
+// Correct — matches any origin
+http.get("*/items/sync", () => { ... })
+
+// Wrong — only matches vitest page origin
+http.get("/items/sync", () => { ... })
+```
+
+### Per-Story Handler Overrides
+
+Override default handlers for a specific story via `parameters.msw.handlers`:
+
+```typescript
+export const EmptyState: Story = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.get("*/items/sync", () =>
+          HttpResponse.json({
+            items: [],
+            deletedIds: [],
+            serverTime: new Date().toISOString(),
+          }),
+        ),
+      ],
+    },
+  },
+};
+```
+
+The preview loader applies overrides via `worker.use()`. Cleaned up by `afterEach(worker.resetHandlers)`.
+
+### SSE / Streaming Handlers
+
+For server-sent events or streaming responses:
+
+```typescript
+http.get("*/stream", () => {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(encoder.encode('data: {"event":"delta"}\n\n'));
+      controller.close();
+    },
+  });
+  return new HttpResponse(stream, {
+    headers: { "Content-Type": "text/event-stream" },
+  });
+});
+```
+
+### MSW Double-Start Prevention
+
+When `preview.tsx` is imported by `vitest.setup.ts`, module-level side effects run. Guard
+`worker.start()` with the vitest check to avoid double-start:
+
+```typescript
+if (!import.meta.env.VITEST) {
+  worker.start({ onUnhandledRequest: "bypass" });
+}
+```
+
+---
+
+## Test Data Factories
+
+### `createItemRecord(overrides)`
+
+The primary factory in `src/test/msw/fixtures.ts`. Generates a complete `ItemRecord` with
+unique IDs, canonical IDs, timestamps, and proper JSON-LD structure.
+
+```typescript
+const item = createItemRecord({ bucket: "next", name: "Buy groceries" });
+const project = createItemRecord({
+  bucket: "project",
+  type: "Project",
+  name: "Kitchen reno",
+});
+const focused = createItemRecord({ bucket: "next", isFocused: true });
+```
+
+### Preset Seeders
+
+```typescript
+seedInboxItems(5); // 5 unprocessed inbox items
+seedMixedBuckets(); // 8 items across all buckets
+```
+
+### `buildSyncResponse()`
+
+Wraps the current store state in a `SyncResponse` envelope for the `/items/sync` handler.
+
+---
+
+## Accessibility Testing
+
+### Storybook (Automatic)
+
+Every story runs axe-core audits automatically via `@storybook/addon-a11y`. Violations fail
+the test (`a11y.test: "error"` in preview config).
+
+**Disabled rules:**
+
+- `color-contrast` — axe-core cannot evaluate CSS `oklch()` or custom properties. Palette
+  manually verified for WCAG AA (≥4.5:1 contrast ratio).
+
+### Unit Tests (vitest-axe)
+
+For components not covered by stories, or when you want axe checks closer to the component
+logic, use `vitest-axe` directly in unit tests. The `toHaveNoViolations` matcher is globally
+available via `src/test/setup.ts`.
+
+```typescript
+import { axe } from "vitest-axe";
+
+test("has no accessibility violations", async () => {
+  const { container } = render(<MyComponent />);
+  expect(await axe(container)).toHaveNoViolations();
+});
+```
+
+### Query Priority
+
+Follow Testing Library's
+[query priority](https://testing-library.com/docs/queries/about#priority):
+
+1. `getByRole` — accessible name, role
+2. `getByLabelText` — form controls
+3. `getByPlaceholderText` — fallback for unlabeled inputs
+4. `getByText` — visible text content
+5. `getByTestId` — last resort only
+
+Page objects in E2E tests also use accessible queries (`getByRole`, `getByLabel`).
+
+---
+
+## E2E Patterns
+
+### Page Objects
+
+Each screen has a page object in `e2e/pages/`:
+
+```typescript
+const workspace = new WorkspacePage(page);
+await workspace.navigateTo("next");
+await workspace.captureInboxItem("Buy milk");
+```
+
+Page objects encapsulate locators and actions. All locators use accessible queries.
+
+### API Seeding
+
+Use the `apiSeed` fixture for programmatic data creation instead of UI-driven setup:
+
+```typescript
+test("filters by context", async ({ authenticatedPage, apiSeed }) => {
+  await apiSeed.createAction("Call dentist", "next", { contexts: ["@phone"] });
+  // Test filtering...
+});
+```
+
+This is faster and more reliable than clicking through the UI to create test data.
+
+### Authenticated Fixture
+
+The `authenticatedPage` fixture auto-registers a unique user, logs in, and asserts the
+workspace has loaded. Each test gets a fresh user with no data.
+
+---
+
+## Component Test Patterns
+
+### Rendering with Providers
+
+Unit tests that need providers should wrap manually:
+
+```typescript
+import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
+
+function renderWithClient(ui: React.ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+}
+```
+
+### User Events
+
+Always use the modern `userEvent.setup()` API:
+
+```typescript
+import userEvent from "@testing-library/user-event";
+
+test("submits form", async () => {
+  const user = userEvent.setup();
+  render(<MyForm />);
+  await user.type(screen.getByLabelText("Name"), "Test");
+  await user.click(screen.getByRole("button", { name: /submit/i }));
+  expect(await screen.findByText("Saved")).toBeInTheDocument();
+});
+```
+
+### Storybook Play Functions
+
+In play functions, `userEvent` **must** come from the play function context (instrumented for
+the Interactions panel). Other utilities are imported normally:
+
+```typescript
+import { expect, waitFor, within } from "storybook/test";
+
+export const Interactive: Story = {
+  play: async ({ canvas, userEvent }) => {
+    // userEvent from context — NOT imported
+    await userEvent.click(canvas.getByRole("button", { name: /add/i }));
+    await expect(canvas.getByText("Added")).toBeVisible();
+  },
+};
+```
+
+---
+
+## Flaky Test Prevention
+
+Flaky tests undermine confidence. Follow these rules:
+
+1. **Never use fixed delays** — Use `waitFor` or `findBy*` queries instead of `setTimeout`
+   or arbitrary waits.
+2. **Clean up after each test** — `cleanup()` for DOM, `server.resetHandlers()` for MSW,
+   store resets for state.
+3. **Await all async operations** — Missing `await` is the most common cause of flaky tests.
+   This includes `invalidateQueries()` in mutation `onSettled` callbacks — always `async/await`.
+4. **Use deterministic data** — Factories with predictable outputs, not random data.
+5. **Framer Motion caveat** — `AnimatePresence` exit animations don't instantly unmount in
+   jsdom. Use `waitFor` to assert removal.
+6. **act() warnings fail tests** — The unit test setup intercepts `console.error` and throws
+   on React `act()` warnings. This catches state-update-outside-act bugs early.
+
+### Flaky Test Tracking
+
+When a test is identified as flaky, create a **GitLab issue** with the label `flaky-test`.
+Include the test name, file path, and observed failure pattern. Fix flaky tests with high
+priority — they erode team confidence in the suite.
+
+---
+
+## Debugging Tests
+
+### Verbose Output
+
+```bash
+# Verbose reporter
+cd frontend && CI=1 npx vitest run --project=unit --reporter=verbose
+
+# Single file
+cd frontend && CI=1 npx vitest run --project=unit src/components/ui/Icon.test.tsx
+```
+
+### MSW Debugging
+
+Temporarily switch to strict mode to catch unhandled requests:
+
+```typescript
+server.listen({ onUnhandledRequest: "error" });
+```
+
+### E2E Debugging
+
+```bash
+# Run headed (visible browser)
+cd frontend && npm run test:e2e:headed
+
+# Traces on failure (configured: on-first-retry)
+cd frontend && npx playwright show-trace test-results/*/trace.zip
+```
+
+---
+
+## Conventions
+
+| Convention         | Rule                                                                   |
+| ------------------ | ---------------------------------------------------------------------- |
+| **File naming**    | `.test.tsx` for unit, `.stories.tsx` for storybook, `.spec.ts` for E2E |
+| **Test runner**    | Always `CI=1 npx vitest run` — never watch mode in CI                  |
+| **Type checking**  | `npx tsc -b --noEmit` — must use `-b` for project references           |
+| **Cleanup**        | Explicit `cleanup()` in setup (no `globals: true`)                     |
+| **Mocking**        | MSW for network, `vi.mock()` for modules — prefer MSW when possible    |
+| **Assertions**     | `@testing-library/jest-dom` + `vitest-axe` matchers                    |
+| **Coverage**       | v8 provider, thresholds: 80% lines/statements/functions, 70% branches  |
+| **act() warnings** | Fail tests — enforced in `src/test/setup.ts`                           |

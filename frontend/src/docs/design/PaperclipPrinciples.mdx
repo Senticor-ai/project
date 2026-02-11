@@ -224,40 +224,40 @@ Understanding should be faster than reading.
 
 ---
 
-## Canonical Paperclip Widgets (Required)
+## Canonical Paperclip Widgets
 
-These widgets must exist to support paperclip UX:
+These widgets support paperclip UX. Status reflects what is built today.
 
-### Object Card
+### Object Card &mdash; Implemented
 
 - Represents one object
 - Slight elevation
 - Hover actions only
 
-### Sheet / Side Panel
-
-- Replaces modals
-- Anchored to context
-- Auto-saving
-
-### Clip / Attachment Chip
+### Clip / Attachment Chip &mdash; Implemented
 
 - Shows relationship
 - Removable
 - Stackable
 
-### Hover Inspector
+### Sheet / Side Panel &mdash; Planned
+
+- Replaces modals
+- Anchored to context
+- Auto-saving
+
+### Hover Inspector &mdash; Planned
 
 - Infinite depth
 - Explains rules, provenance, AI reasoning
 
-### Comparison Panel
+### Comparison Panel &mdash; Planned
 
 - Before / after
 - Rule impact
 - AI vs human
 
-### Live Graph / Diagram
+### Live Graph / Diagram &mdash; Planned
 
 - Object graph
 - Procedure constraints
@@ -293,31 +293,31 @@ Cross-cutting rules that apply across all Paperclip components.
 
 ### Animation Catalog
 
-| Trigger               | Animation                                  | Duration   | Easing          |
-| --------------------- | ------------------------------------------ | ---------- | --------------- |
-| Card hover            | Lift (translateY: -2px) + shadow deepen    | 150ms      | `--ease-snap`   |
-| Card select           | Border-left blueprint + slight scale(1.01) | 150ms      | `--ease-snap`   |
-| Action complete       | Strikethrough + fade to 0.5 + slide out    | 250ms      | `--ease-unfold` |
-| Auto-sequence promote | Slide up + fade in from 0.4 to 1.0         | 150ms      | `--ease-snap`   |
-| Drag reorder          | Spring physics, overshoot 0.05             | Continuous | Spring          |
-| Tab switch            | Content crossfade                          | 200ms      | Linear          |
-| Review step complete  | Checkmark + progress bar fill              | 300ms      | `--ease-unfold` |
-| Focus star toggle     | Scale bounce (1.0 → 1.3 → 1.0)             | 200ms      | `--ease-snap`   |
+| Trigger               | Animation                                  | Duration   | Easing          | Status      |
+| --------------------- | ------------------------------------------ | ---------- | --------------- | ----------- |
+| Card hover            | Lift (translateY: -2px) + shadow deepen    | 150ms      | `--ease-snap`   | Implemented |
+| Card select           | Border-left blueprint + slight scale(1.01) | 150ms      | `--ease-snap`   | Planned     |
+| Action complete       | Strikethrough + fade to 0.5 + slide out    | 250ms      | `--ease-unfold` | Planned     |
+| Auto-sequence promote | Slide up + fade in from 0.4 to 1.0         | 150ms      | `--ease-snap`   | Planned     |
+| Drag reorder          | Spring physics, overshoot 0.05             | Continuous | Spring          | Implemented |
+| Tab switch            | Content crossfade                          | 200ms      | Linear          | Implemented |
+| Review step complete  | Checkmark + progress bar fill              | 300ms      | `--ease-unfold` | Planned     |
+| Focus star toggle     | Scale bounce (1.0 &rarr; 1.3 &rarr; 1.0)  | 200ms      | `--ease-snap`   | Planned     |
 
 ### Empty States
 
 Every list component has an empty state with an encouraging message
 and primary action button (if applicable).
 
-| Component        | Empty Message                                    | Action                            |
-| ---------------- | ------------------------------------------------ | --------------------------------- |
-| InboxList        | "Inbox is empty"                                 | None (capture bar always visible) |
-| ActionList       | "No actions match your filters"                  | "Clear filters"                   |
-| FocusList        | "Nothing in focus. Star items to see them here." | None                              |
-| WaitingForList   | "Nothing delegated"                              | None                              |
-| SomedayList      | "No someday items. Dream big!"                   | "Capture an idea"                 |
-| ReferenceLibrary | "No references yet"                              | "Add reference"                   |
-| CalendarView     | "Clear schedule"                                 | "Add calendar entry"              |
+| Component                    | Empty Message                                    | Action                            | Status      |
+| ---------------------------- | ------------------------------------------------ | --------------------------------- | ----------- |
+| InboxList (ActionList)       | "Inbox is empty"                                 | None (capture bar always visible) | Implemented |
+| ActionList                   | "No actions match your filters"                  | "Clear filters"                   | Implemented |
+| ActionList (focus filter)    | "Nothing in focus. Star items to see them here." | None                              | Planned     |
+| WaitingForList               | "Nothing delegated"                              | None                              | Planned     |
+| ActionList (later bucket)    | "No someday items. Dream big!"                   | "Capture an idea"                 | Planned     |
+| ReferenceList                | "No references yet"                              | "Add reference"                   | Planned     |
+| CalendarView                 | "Clear schedule"                                 | "Add calendar entry"              | Planned     |
 
 ---
 

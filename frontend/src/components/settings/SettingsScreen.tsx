@@ -36,6 +36,9 @@ export interface SettingsScreenProps {
   onExport?: (options: ExportOptions) => void;
   onFlush?: () => Promise<import("@/lib/api-client").FlushResponse>;
   importJobs?: ImportJobData[];
+  onRetryJob?: (jobId: string) => void;
+  onArchiveJob?: (jobId: string) => void;
+  retryingJobId?: string | null;
   className?: string;
 }
 
@@ -48,6 +51,9 @@ export function SettingsScreen({
   onExport,
   onFlush,
   importJobs,
+  onRetryJob,
+  onArchiveJob,
+  retryingJobId,
   className,
 }: SettingsScreenProps) {
   const [internalTab, setInternalTab] = useState<SettingsTab>(initialTab);
@@ -86,6 +92,9 @@ export function SettingsScreen({
               onImportNirvana={onImportNirvana ?? (() => {})}
               onExport={onExport ?? (() => {})}
               importJobs={importJobs}
+              onRetryJob={onRetryJob}
+              onArchiveJob={onArchiveJob}
+              retryingJobId={retryingJobId}
             />
           )}
           {activeTab === "labels" && (

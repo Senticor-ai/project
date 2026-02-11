@@ -7,7 +7,7 @@ test.describe("Action Management", () => {
     await page.reload();
 
     const ws = new WorkspacePage(page);
-    await ws.navigateTo("Next Actions");
+    await ws.navigateTo("Next");
 
     await expect(page.getByText("Write report")).toBeVisible();
 
@@ -26,7 +26,7 @@ test.describe("Action Management", () => {
     await page.reload();
 
     const ws = new WorkspacePage(page);
-    await ws.navigateTo("Next Actions");
+    await ws.navigateTo("Next");
 
     // Focus the action
     await ws.focusStar("Prepare slides").click();
@@ -49,7 +49,7 @@ test.describe("Action Management", () => {
     await page.reload();
 
     const ws = new WorkspacePage(page);
-    await ws.navigateTo("Next Actions");
+    await ws.navigateTo("Next");
 
     await expect(page.getByText("Review contract")).toBeVisible();
 
@@ -60,11 +60,11 @@ test.describe("Action Management", () => {
     // Move to Waiting
     await ws.moveMenuItem("Waiting").click();
 
-    // Action should be gone from Next Actions
+    // Action should be gone from Next
     await expect(page.getByText("Review contract")).not.toBeVisible();
 
-    // Navigate to Waiting For, verify it's there
-    await ws.navigateTo("Waiting For");
+    // Navigate to Waiting, verify it's there
+    await ws.navigateTo("Waiting");
     await expect(page.getByText("Review contract")).toBeVisible();
   });
 });

@@ -6,7 +6,7 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 This is the full catalog of schema.org types available to the app. The
 [Data Model](?path=/docs/engineering-ontology--docs) page describes how these types
-are applied to GTD entities and which fields use `additionalProperty` for custom extensions.
+are applied to app entities and which fields use `additionalProperty` for custom extensions.
 
 The app spans personal work, business work, and procedural work. Data is stored as JSON-LD
 and aligned to schema.org vocabulary for interoperability and semantic clarity.
@@ -44,7 +44,7 @@ Procedural work is captured with `schema:HowTo` and `schema:HowToStep` so repeat
 
 ## Breadth Example: Public Sector Funding
 
-The same schema.org-driven model can also represent complex public-sector workflows, such as grant or funding applications to nonprofits. This is a good signal for the depth of application and breadth of management the app can support, similar to broad "job to be done" tools like ThinkingRock.
+The same schema.org-driven model can also represent complex public-sector workflows, such as grant or funding applications to nonprofits. This is a good signal for the depth of application and breadth of management the app can support, similar to broad "job to be done" task management tools.
 
 Example mapping (non-exhaustive):
 
@@ -422,6 +422,6 @@ isDigitalDocument(thing: Thing): thing is DigitalDocument
 
 - [schema.org](https://schema.org) - Vocabulary reference
 - [JSON-LD](https://json-ld.org) - Serialization format
-- [Data Model](?path=/docs/engineering-ontology--docs) - How schema.org types are applied to GTD entities
+- [Data Model](?path=/docs/engineering-ontology--docs) - How schema.org types are applied to app entities
 - [Architecture](?path=/docs/engineering-architecture--docs) - Technology stack and architectural decisions
 - [Architecture](?path=/docs/engineering-architecture--docs) - Technology stack, dual-store model, and architectural principles

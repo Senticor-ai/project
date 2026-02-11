@@ -155,7 +155,7 @@ describe("BucketView counts", () => {
     const nav = screen.getByRole("navigation", { name: "Buckets" });
     const inboxBtn = within(nav).getByText("Inbox").closest("button")!;
     expect(inboxBtn).toHaveTextContent("1");
-    const nextBtn = within(nav).getByText("Next Actions").closest("button")!;
+    const nextBtn = within(nav).getByText("Next").closest("button")!;
     expect(nextBtn).toHaveTextContent("1");
   });
 
@@ -253,7 +253,8 @@ describe("BucketView focus bucket", () => {
       <BucketView {...baseProps} activeBucket="focus" actionItems={things} />,
     );
     // Focus view shows BucketBadge for each item (showBucket=true in ActionList)
-    expect(screen.getByText("Next")).toBeInTheDocument();
+    const main = screen.getByRole("main", { name: "Bucket content" });
+    expect(within(main).getByText("Next")).toBeInTheDocument();
   });
 });
 

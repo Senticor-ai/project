@@ -1,35 +1,40 @@
 import { useState, useCallback, useRef } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { useToast } from "@/lib/use-toast";
-import { useNativeImport } from "@/hooks/use-native-import";
 import {
   DuplicateImportWarning,
   type PreviousImport,
 } from "@/components/settings/DuplicateImportWarning";
 import { ImportSummaryBreakdown } from "./ImportSummaryBreakdown";
 import type { Bucket } from "@/model/types";
+import { useImportSource } from "./useImportSource";
+import type { ImportSourceConfig } from "./types";
 
-export interface NativeImportDialogProps {
+export interface ImportDialogProps {
   open: boolean;
   onClose: () => void;
   onNavigateToBucket?: (bucket: Bucket) => void;
+  /** Check if a file with this SHA256 was previously imported. Return match info or null. */
   checkDuplicate?: (sha256: string) => PreviousImport | null;
+  config: ImportSourceConfig;
 }
 
 /** Wrapper: mounts/unmounts the inner dialog so state resets naturally. */
-export function NativeImportDialog({ open, ...rest }: NativeImportDialogProps) {
+export function ImportDialog({ open, ...rest }: ImportDialogProps) {
   if (!open) return null;
-  return <NativeImportDialogContent {...rest} />;
+  return <ImportDialogContent {...rest} />;
 }
 
 type Step = "select" | "uploading" | "preview" | "importing" | "results";
 
-function NativeImportDialogContent({
+function ImportDialogContent({
   onClose,
   onNavigateToBucket,
   checkDuplicate,
-}: Omit<NativeImportDialogProps, "open">) {
-  const { upload, inspect, startImport, job, setJobId } = useNativeImport();
+  config,
+}: Omit<ImportDialogProps, "open">) {
+  const { upload, inspect, startImport, job, setJobId } =
+    useImportSource(config);
   const { toast } = useToast();
   const [step, setStep] = useState<Step>("select");
   const [fileId, setFileId] = useState<string | null>(null);
@@ -47,6 +52,7 @@ function NativeImportDialogContent({
         const record = await upload.mutateAsync(file);
         setFileId(record.file_id);
 
+        // Check for duplicate file hash
         if (checkDuplicate) {
           const dup = checkDuplicate(record.sha256);
           if (dup) setDuplicateInfo(dup);
@@ -112,7 +118,7 @@ function NativeImportDialogContent({
         {/* Header */}
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-text-primary">
-            Import from TerminAndoYo
+            {config.title}
           </h2>
           <button
             onClick={onClose}
@@ -126,28 +132,24 @@ function NativeImportDialogContent({
         {/* Step: File Selection */}
         {step === "select" && (
           <div className="space-y-3">
-            <p className="text-sm text-text-muted">
-              Drop your TerminAndoYo JSON export file below, or click to browse.
-            </p>
+            <p className="text-sm text-text-muted">{config.description}</p>
             <div
               className="flex cursor-pointer flex-col items-center gap-2 rounded-[var(--radius-lg)] border-2 border-dashed border-border p-8 transition-colors hover:border-blueprint-400 hover:bg-blueprint-50/30"
               onClick={() => fileInputRef.current?.click()}
             >
               <Icon name="upload_file" size={32} className="text-text-subtle" />
-              <p className="text-sm text-text-muted">
-                Drop TerminAndoYo export here
-              </p>
+              <p className="text-sm text-text-muted">{config.dropLabel}</p>
             </div>
             <input
               ref={fileInputRef}
-              data-testid="native-file-input"
+              data-testid={config.fileTestId}
               type="file"
               accept=".json,application/json"
               className="hidden"
               onChange={handleFileInput}
             />
             {upload.error && (
-              <p className="text-sm text-red-600">
+              <p className="text-sm text-status-error">
                 Upload failed: {upload.error.message}
               </p>
             )}
@@ -169,6 +171,7 @@ function NativeImportDialogContent({
         {/* Step: Preview */}
         {step === "preview" && preview && (
           <div className="space-y-4">
+            {/* Duplicate warning */}
             {duplicateInfo && (
               <DuplicateImportWarning
                 previousImport={duplicateInfo}
@@ -181,11 +184,13 @@ function NativeImportDialogContent({
               {preview.total} items found
             </p>
 
+            {/* Bucket breakdown */}
             <ImportSummaryBreakdown
               bucketCounts={preview.bucket_counts}
               completedCounts={preview.completed_counts}
             />
 
+            {/* Include completed toggle */}
             <label className="flex items-center gap-2 text-sm text-text-muted">
               <input
                 type="checkbox"
@@ -195,9 +200,10 @@ function NativeImportDialogContent({
               Include completed items
             </label>
 
+            {/* Errors */}
             {preview.errors > 0 && (
               <div className="space-y-1">
-                <p className="text-sm text-amber-600">
+                <p className="text-sm text-status-warning">
                   {preview.errors} items with errors
                 </p>
                 {preview.sample_errors.map((err) => (
@@ -208,6 +214,7 @@ function NativeImportDialogContent({
               </div>
             )}
 
+            {/* Import button */}
             <button
               onClick={handleImport}
               className="w-full rounded-[var(--radius-md)] bg-blueprint-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blueprint-700"
@@ -239,12 +246,12 @@ function NativeImportDialogContent({
             <div className="space-y-4">
               <div className="flex items-center gap-2">
                 {jobData?.error ? (
-                  <Icon name="error" size={20} className="text-red-600" />
+                  <Icon name="error" size={20} className="text-status-error" />
                 ) : (
                   <Icon
                     name="check_circle"
                     size={20}
-                    className="text-green-500"
+                    className="text-status-success"
                   />
                 )}
                 <p className="text-sm font-medium text-text-primary">
@@ -252,6 +259,7 @@ function NativeImportDialogContent({
                 </p>
               </div>
 
+              {/* Summary stats */}
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div>
                   <span className="text-text-subtle">Created</span>
@@ -271,6 +279,7 @@ function NativeImportDialogContent({
                 </div>
               </div>
 
+              {/* Bucket breakdown — clickable rows */}
               <ImportSummaryBreakdown
                 bucketCounts={finalSummary.bucket_counts}
                 completedCounts={finalSummary.completed_counts}
@@ -280,8 +289,9 @@ function NativeImportDialogContent({
                 }}
               />
 
+              {/* Error details */}
               {jobData?.error && (
-                <p className="text-sm text-red-600">{jobData.error}</p>
+                <p className="text-sm text-status-error">{jobData.error}</p>
               )}
 
               {finalSummary.sample_errors.length > 0 && (
@@ -294,6 +304,7 @@ function NativeImportDialogContent({
                 </div>
               )}
 
+              {/* Guidance + CTAs */}
               {!jobData?.error && (
                 <>
                   <p className="text-xs text-text-subtle">
@@ -324,6 +335,7 @@ function NativeImportDialogContent({
                 </>
               )}
 
+              {/* Close on error */}
               {jobData?.error && (
                 <button
                   type="button"

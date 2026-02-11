@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook, waitFor } from "@testing-library/react";
+import { renderHook, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
 import { ImportsApi } from "@/lib/api-client";
@@ -9,6 +9,8 @@ import { useImportJobs } from "./use-import-jobs";
 vi.mock("@/lib/api-client", () => ({
   ImportsApi: {
     listJobs: vi.fn(),
+    retryJob: vi.fn(),
+    archiveJob: vi.fn(),
   },
 }));
 
@@ -35,6 +37,7 @@ const COMPLETED_JOB: ImportJobResponse = {
   },
   progress: null,
   error: null,
+  archived_at: null,
 };
 
 const RUNNING_JOB: ImportJobResponse = {
@@ -50,6 +53,7 @@ const RUNNING_JOB: ImportJobResponse = {
   summary: null,
   progress: null,
   error: null,
+  archived_at: null,
 };
 
 function wrapper({ children }: { children: React.ReactNode }) {
@@ -126,5 +130,40 @@ describe("useImportJobs", () => {
     const { result } = renderHook(() => useImportJobs(), { wrapper });
 
     expect(result.current.checkDuplicate("abc123hash")).toBeNull();
+  });
+
+  it("retryJob calls ImportsApi.retryJob", async () => {
+    mockedImports.listJobs.mockResolvedValue([COMPLETED_JOB]);
+    mockedImports.retryJob.mockResolvedValue({
+      ...COMPLETED_JOB,
+      job_id: "job-new",
+      status: "queued",
+    });
+
+    const { result } = renderHook(() => useImportJobs(), { wrapper });
+    await waitFor(() => expect(result.current.jobs).toHaveLength(1));
+
+    await act(async () => {
+      await result.current.retryJob.mutateAsync("job-1");
+    });
+
+    expect(mockedImports.retryJob).toHaveBeenCalledWith("job-1");
+  });
+
+  it("archiveJob calls ImportsApi.archiveJob", async () => {
+    mockedImports.listJobs.mockResolvedValue([COMPLETED_JOB]);
+    mockedImports.archiveJob.mockResolvedValue({
+      ...COMPLETED_JOB,
+      archived_at: "2025-06-15T12:00:00Z",
+    });
+
+    const { result } = renderHook(() => useImportJobs(), { wrapper });
+    await waitFor(() => expect(result.current.jobs).toHaveLength(1));
+
+    await act(async () => {
+      await result.current.archiveJob.mutateAsync("job-1");
+    });
+
+    expect(mockedImports.archiveJob).toHaveBeenCalledWith("job-1");
   });
 });

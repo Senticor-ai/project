@@ -53,7 +53,7 @@ function getAdditionalProperty(
 }
 
 // ---------------------------------------------------------------------------
-// toJsonLd — Frontend GTD entity → schema.org JSON-LD for the backend
+// toJsonLd — Frontend entity → schema.org JSON-LD for the backend
 // ---------------------------------------------------------------------------
 
 function serializeActionItemAdditionalProps(
@@ -170,7 +170,7 @@ export function toJsonLd(
 }
 
 // ---------------------------------------------------------------------------
-// fromJsonLd — ItemRecord from backend → Frontend GTD entity
+// fromJsonLd — ItemRecord from backend → Frontend entity
 // ---------------------------------------------------------------------------
 
 export function fromJsonLd(record: ItemRecord): AppItem {

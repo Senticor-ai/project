@@ -8,14 +8,16 @@ const defaults = {
   currentView: "workspace" as const,
   onNavigate: vi.fn(),
   onSignOut: vi.fn(),
+  onLogoClick: vi.fn(),
 };
 
 describe("AppHeader", () => {
-  it("renders logo, title, and username", () => {
+  it("renders logo with tooltip and no visible app name text", () => {
     render(<AppHeader {...defaults} />);
-    expect(screen.getByText("terminandoyo")).toBeInTheDocument();
-    expect(screen.getByText("testuser")).toBeInTheDocument();
     expect(screen.getByAltText("TAY")).toBeInTheDocument();
+    expect(screen.getByTitle("TerminAndoYo")).toBeInTheDocument();
+    // Username is now inside the menu, not visible in the header bar
+    expect(screen.queryByText("testuser")).not.toBeInTheDocument();
   });
 
   it("renders hamburger menu trigger", () => {
@@ -25,9 +27,13 @@ describe("AppHeader", () => {
     ).toBeInTheDocument();
   });
 
-  it("does not render a standalone Import button", () => {
-    render(<AppHeader {...defaults} />);
-    expect(screen.queryByText("Import")).not.toBeInTheDocument();
+  it("shows username and app info inside the menu", async () => {
+    const user = userEvent.setup();
+    render(<AppHeader {...defaults} appVersion="0.1.0" />);
+
+    await user.click(screen.getByRole("button", { name: "Main menu" }));
+    expect(screen.getByText("testuser")).toBeInTheDocument();
+    expect(screen.getByText("TerminAndoYo v0.1.0")).toBeInTheDocument();
   });
 
   it("does not render a standalone Sign out button in the header bar", () => {
@@ -73,6 +79,16 @@ describe("AppHeader", () => {
     await user.click(screen.getByText("Sign out"));
 
     expect(onSignOut).toHaveBeenCalledOnce();
+  });
+
+  it("fires onLogoClick when logo is clicked", async () => {
+    const onLogoClick = vi.fn();
+    const user = userEvent.setup();
+    render(<AppHeader {...defaults} onLogoClick={onLogoClick} />);
+
+    await user.click(screen.getByLabelText("Go to Inbox"));
+
+    expect(onLogoClick).toHaveBeenCalledOnce();
   });
 
   it("marks current view as active in menu", async () => {

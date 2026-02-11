@@ -20,12 +20,12 @@ const bucketMeta: Record<
     subtitle: "Capture and clarify",
   },
   next: {
-    label: "Next Actions",
+    label: "Next",
     icon: "bolt",
     subtitle: "To-do's for anytime",
   },
   waiting: {
-    label: "Waiting For",
+    label: "Waiting",
     icon: "schedule",
     subtitle: "Delegated or blocked",
   },
@@ -35,7 +35,7 @@ const bucketMeta: Record<
     subtitle: "Scheduled actions",
   },
   someday: {
-    label: "Someday / Maybe",
+    label: "Later",
     icon: "cloud",
     subtitle: "When the time is right",
   },
@@ -153,8 +153,8 @@ export function ActionList({
     if (isInbox) {
       return [...contextFiltered].sort(
         (a, b) =>
-          new Date(a.provenance.createdAt).getTime() -
-          new Date(b.provenance.createdAt).getTime(),
+          new Date(b.provenance.createdAt).getTime() -
+          new Date(a.provenance.createdAt).getTime(),
       );
     }
     return [...contextFiltered].sort((a, b) => {

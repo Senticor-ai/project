@@ -144,7 +144,7 @@ export const Default: Story = {
 // CaptureTriageNavigate — end-to-end screen workflow
 // ---------------------------------------------------------------------------
 
-/** Capture an item, move it to Next, navigate to Next Actions, verify counts. */
+/** Capture an item, move it to Next, navigate to Next, verify counts. */
 export const CaptureTriageNavigate: Story = {
   render: () => <WorkScreenApp initialItems={[...sampleItems]} />,
   play: async ({ canvas, userEvent, step }) => {
@@ -170,12 +170,12 @@ export const CaptureTriageNavigate: Story = {
       },
     );
 
-    await step("Click Next Actions in BucketNav", async () => {
-      await userEvent.click(sidebar.getByText("Next Actions"));
+    await step("Click Next in BucketNav", async () => {
+      await userEvent.click(sidebar.getByText("Next"));
       await expect(
-        canvas.getByRole("heading", { name: /Next Actions/ }),
+        canvas.getByRole("heading", { name: /Next/ }),
       ).toBeInTheDocument();
-      // Moved item appears in Next Actions
+      // Moved item appears in Next
       await expect(
         canvas.getByText("Antrag von Frau Schmidt bearbeiten"),
       ).toBeInTheDocument();

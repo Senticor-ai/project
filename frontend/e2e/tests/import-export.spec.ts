@@ -96,9 +96,14 @@ test.describe("Import from Settings", () => {
     // Close dialog after first import
     await page.getByRole("button", { name: "Done" }).click();
 
-    // Wait for import jobs to refetch so checkDuplicate has data
+    // Wait for the first import job to fully complete on the backend.
+    // The dialog may show "Import complete" from the inspect preview before
+    // the actual job finishes. The duplicate check needs a completed job.
     await expect(settings.recentImportsHeading()).toBeVisible({
       timeout: 10_000,
+    });
+    await expect(page.getByText("Completed")).toBeVisible({
+      timeout: 30_000,
     });
 
     // --- Second import of same file ---

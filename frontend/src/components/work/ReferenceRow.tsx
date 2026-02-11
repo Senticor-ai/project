@@ -26,12 +26,12 @@ const originConfig: Record<
   triaged: {
     label: "Triaged",
     icon: "move_item",
-    className: "text-gtd-inbox",
+    className: "text-app-inbox",
   },
   captured: {
     label: "Captured",
     icon: "edit_note",
-    className: "text-gtd-reference",
+    className: "text-app-reference",
   },
   file: {
     label: "File",

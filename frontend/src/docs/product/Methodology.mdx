@@ -1,12 +1,12 @@
 import { Meta } from "@storybook/addon-docs/blocks";
 
-<Meta title="Product/GTD Methodology" />
+<Meta title="Product/Methodology" />
 
-# GTD Methodology as Implemented
+# Terminandoyo's Five-Phase Task Management Methodology
 
-This document describes how Terminandoyo implements David Allen's
-Getting Things Done (GTD) methodology, drawing from ThinkingRock's
-rigor and NirvanaHQ's design elegance.
+This document describes how Terminandoyo implements a structured
+five-phase task management methodology, combining disciplined
+processing with an elegant user experience.
 
 ---
 
@@ -14,7 +14,7 @@ rigor and NirvanaHQ's design elegance.
 
 ### 1. Capture
 
-> "Your mind is for having ideas, not holding them." — David Allen
+> "The fewer things on your mind, the more you can focus on what matters."
 
 Everything starts in the **Inbox**. The capture mechanism must be:
 
@@ -23,7 +23,7 @@ Everything starts in the **Inbox**. The capture mechanism must be:
 - **Complete**: Every captured item records its **source** (thought, email, meeting, voice, import)
 - **Non-judgmental**: No categorization at capture time
 
-The Inbox is a **FIFO queue** (ThinkingRock). Items are processed oldest-first.
+The Inbox is a **FIFO queue**. Items are processed oldest-first.
 No cherry-picking — this enforces the discipline of processing everything.
 
 ### 2. Clarify
@@ -34,14 +34,14 @@ Processing each inbox item with a structured decision tree:
 Is it actionable?
 ├── YES
 │   ├── Will it take <2 minutes? → DO IT NOW
-│   ├── Should someone else do it? → DELEGATE (Waiting For)
+│   ├── Should someone else do it? → DELEGATE (Waiting)
 │   └── What's the next action?
-│       ├── Single action → NEXT ACTIONS
+│       ├── Single action → NEXT
 │       ├── Multi-step → create PROJECT + first action
 │       └── Time-specific → CALENDAR
 └── NO
     ├── Trash → ARCHIVE (no delete!)
-    ├── Maybe later → SOMEDAY/MAYBE
+    ├── Maybe later → LATER
     └── Useful info → REFERENCE
 ```
 
@@ -56,14 +56,14 @@ Is it actionable?
 
 Route clarified items to their correct bucket:
 
-| Bucket            | Criteria                                          |
-| ----------------- | ------------------------------------------------- |
-| **Next Actions**  | Actionable, can be done as soon as context allows |
-| **Projects**      | Outcome requiring &gt;1 action, target &lt;1 year |
-| **Waiting For**   | Delegated, with person + date noted               |
-| **Calendar**      | Must happen on a specific date/time               |
-| **Someday/Maybe** | Not committed now, review during weekly review    |
-| **Reference**     | Not actionable, but useful information            |
+| Bucket        | Criteria                                          |
+| ------------- | ------------------------------------------------- |
+| **Next**      | Actionable, can be done as soon as context allows |
+| **Projects**  | Outcome requiring &gt;1 action, target &lt;1 year |
+| **Waiting**   | Delegated, with person + date noted               |
+| **Calendar**  | Must happen on a specific date/time               |
+| **Later**     | Not committed now, review during weekly review    |
+| **Reference** | Not actionable, but useful information            |
 
 Each item gets:
 
@@ -74,15 +74,15 @@ Each item gets:
 
 ### 4. Reflect
 
-#### Weekly Review (~60-90 minutes)
+#### Review (~60-90 minutes weekly)
 
-The weekly review is the backbone of GTD. In Terminandoyo:
+The weekly review is the backbone of Terminandoyo's methodology:
 
 1. **Clear inbox** — process every remaining item (FIFO enforced)
-2. **Review Next Actions** — are these still relevant? Any completed?
+2. **Review Next** — are these still relevant? Any completed?
 3. **Review Projects** — each project has a defined next action?
-4. **Review Waiting For** — follow up on delegated items?
-5. **Review Someday/Maybe** — promote anything to active?
+4. **Review Waiting** — follow up on delegated items?
+5. **Review Later** — promote anything to active?
 6. **Review Calendar** — upcoming commitments?
 7. **Review Focus** — re-evaluate what deserves focus?
 
@@ -102,18 +102,18 @@ Work from your lists based on:
 3. **Energy** — what's my energy level?
 4. **Priority** — what has the highest impact?
 
-The **Focus list** (NirvanaHQ) surfaces items you've explicitly marked
+The **Focus list** surfaces items you've explicitly marked
 as high-priority, cutting through list noise.
 
 ---
 
-## ThinkingRock Specifics
+## Disciplined Inbox Processing
 
 ### FIFO Inbox Processing
 
 The inbox enforces **First In, First Out** order. You must process the
-oldest item before moving to the next. This is "highly irritating, yet
-highly valuable" — it prevents avoidance of difficult items.
+oldest item before moving to the next. This is intentionally strict — it
+prevents avoidance of difficult items.
 
 Implementation:
 
@@ -124,7 +124,7 @@ Implementation:
 ### Sequential Project Actions
 
 Within a project, sub-actions are **ordered** and only the **next action**
-is visible in the Next Actions list. Subsequent actions are hidden until
+is visible in the Next list. Subsequent actions are hidden until
 the current one completes.
 
 This prevents:
@@ -137,7 +137,7 @@ When an action completes, the next one in sequence auto-promotes to visible.
 
 ---
 
-## NirvanaHQ Specifics
+## Smart Lists and Scheduling
 
 ### Focus List
 
@@ -155,7 +155,7 @@ Focus is:
 Actions can have a `startDate`. Until that date arrives, they live in
 a "Scheduled" state (visible but dimmed). On the start date, they:
 
-1. Auto-promote to the Next Actions list
+1. Auto-promote to the Next list
 2. Receive a Focus star
 3. Send a notification (if configured)
 
@@ -178,10 +178,10 @@ with the next scheduled date.
 
 ## Evidence-First Processing (from Papers)
 
-GTD's Clarify phase maps to the "three-phase processing" from the
+Terminandoyo's Clarify phase maps to the "three-phase processing" from the
 [FRBR evidence-first architecture](?path=/docs/engineering-ontology-frbr-knowledge-graph--docs) paper:
 
-| Paper Phase                       | GTD Phase | What Happens                                                          |
+| Paper Phase                       | App Phase | What Happens                                                          |
 | --------------------------------- | --------- | --------------------------------------------------------------------- |
 | Phase 1: Classification           | Capture   | Item enters inbox, source recorded, basic type detected               |
 | Phase 2: Hierarchy + Placeholders | Clarify   | Create project/action structure, mark unknowns with `needsEnrichment` |

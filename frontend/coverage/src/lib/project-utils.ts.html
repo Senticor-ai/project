@@ -30,9 +30,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">70% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>7/10</span>
+                <span class='fraction'>10/10</span>
             </div>
         
             
@@ -46,7 +46,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>9/9</span>
+                <span class='fraction'>10/10</span>
             </div>
         
             
@@ -94,7 +94,11 @@
 <a name='L29'></a><a href='#L29'>29</a>
 <a name='L30'></a><a href='#L30'>30</a>
 <a name='L31'></a><a href='#L31'>31</a>
-<a name='L32'></a><a href='#L32'>32</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L32'></a><a href='#L32'>32</a>
+<a name='L33'></a><a href='#L33'>33</a>
+<a name='L34'></a><a href='#L34'>34</a>
+<a name='L35'></a><a href='#L35'>35</a>
+<a name='L36'></a><a href='#L36'>36</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -102,17 +106,10 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">32x</span>
-<span class="cline-any cline-yes">176x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">75x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">51x</span>
+<span class="cline-any cline-yes">41x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">7x</span>
-<span class="cline-any cline-yes">4x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -120,41 +117,56 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">32x</span>
-<span class="cline-any cline-yes">164x</span>
-<span class="cline-any cline-yes">30x</span>
-<span class="cline-any cline-yes">45x</span>
+<span class="cline-any cline-yes">25x</span>
+<span class="cline-any cline-yes">25x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import type { Thing, Project } from "@/model/types";
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">53x</span>
+<span class="cline-any cline-yes">47x</span>
+<span class="cline-any cline-yes">37x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">47x</span>
+<span class="cline-any cline-yes">24x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import type { ActionItem, Project } from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
 &nbsp;
 /** Returns things belonging to a project, sorted by sequenceOrder. */
 export function getProjectActions(
   project: Project,
-  allThings: Thing[],
-): Thing[] {
-  return allThings
+  allActionItems: ActionItem[],
+): ActionItem[] {
+  return allActionItems
     .filter((t) =&gt; t.projectIds.includes(project.id))
     .sort(
-      (a, b) =&gt; (a.sequenceOrder ?? <span class="branch-1 cbranch-no" title="branch not covered" >Infinity) - (b</span>.sequenceOrder ?? <span class="branch-1 cbranch-no" title="branch not covered" >Infinity),</span>
+      (a, b) =&gt; (a.sequenceOrder ?? Infinity) - (b.sequenceOrder ?? Infinity),
     );
 }
 &nbsp;
 /** Returns the ID of the next incomplete action (lowest sequenceOrder), or null. */
-export function getNextActionId(sortedThings: Thing[]): CanonicalId | null {
-  const next = sortedThings.find((t) =&gt; !t.completedAt);
-  return next?.id ?? <span class="branch-1 cbranch-no" title="branch not covered" >null;</span>
+export function getNextActionId(
+  sortedActionItems: ActionItem[],
+): CanonicalId | null {
+  const next = sortedActionItems.find((t) =&gt; !t.completedAt);
+  return next?.id ?? null;
 }
 &nbsp;
 /** Checks if a project is "stalled" (active but has no incomplete actions). */
 export function isProjectStalled(
   project: Project,
-  allThings: Thing[],
+  allActionItems: ActionItem[],
 ): boolean {
   if (project.status !== "active") return false;
-  const projectThings = allThings.filter((t) =&gt; t.projectIds.includes(project.id));
-  if (projectThings.length === 0) return true;
-  return projectThings.every((t) =&gt; !!t.completedAt);
+  const projectActionItems = allActionItems.filter((t) =&gt;
+    t.projectIds.includes(project.id),
+  );
+  if (projectActionItems.length === 0) return true;
+  return projectActionItems.every((t) =&gt; !!t.completedAt);
 }
 &nbsp;</pre></td></tr></table></pre>
 
@@ -163,7 +175,7 @@ export function isProjectStalled(
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-02-09T16:31:20.461Z
+                at 2026-02-11T09:04:47.025Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

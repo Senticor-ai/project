@@ -29,7 +29,7 @@ const moveTargets: Array<{ bucket: ActionItem["bucket"]; label: string }> = [
   { bucket: "next", label: "Next" },
   { bucket: "waiting", label: "Waiting" },
   { bucket: "calendar", label: "Calendar" },
-  { bucket: "someday", label: "Someday" },
+  { bucket: "someday", label: "Later" },
 ];
 
 function formatDueDate(dueDate: string): { text: string; className: string } {
@@ -41,8 +41,9 @@ function formatDueDate(dueDate: string): { text: string; className: string } {
   );
 
   if (diffDays < 0)
-    return { text: `${dueDate} (overdue)`, className: "text-red-600" };
-  if (diffDays === 0) return { text: "today", className: "text-orange-600" };
+    return { text: `${dueDate} (overdue)`, className: "text-status-error" };
+  if (diffDays === 0)
+    return { text: "today", className: "text-status-warning" };
   if (diffDays === 1) return { text: "tomorrow", className: "text-text-muted" };
   return { text: dueDate, className: "text-text-subtle" };
 }
@@ -69,24 +70,24 @@ const triageTargets: Array<{
   icon: string;
   colorClass: string;
 }> = [
-  { bucket: "next", label: "Next", icon: "bolt", colorClass: "text-gtd-next" },
+  { bucket: "next", label: "Next", icon: "bolt", colorClass: "text-app-next" },
   {
     bucket: "waiting",
     label: "Waiting",
     icon: "schedule",
-    colorClass: "text-gtd-waiting",
+    colorClass: "text-app-waiting",
   },
   {
     bucket: "calendar",
     label: "Calendar",
     icon: "calendar_month",
-    colorClass: "text-gtd-calendar",
+    colorClass: "text-app-calendar",
   },
   {
     bucket: "someday",
-    label: "Someday",
+    label: "Later",
     icon: "cloud",
-    colorClass: "text-gtd-someday",
+    colorClass: "text-app-someday",
   },
   {
     bucket: "reference",
@@ -177,7 +178,7 @@ export function ActionRow({
           {...listeners}
           {...attributes}
           aria-label={`Drag ${displayName}`}
-          className="cursor-grab text-text-subtle opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+          className="hidden cursor-grab text-text-subtle opacity-0 group-hover:opacity-100 focus-visible:opacity-100 md:inline"
         >
           <Icon name="drag_indicator" size={14} />
         </span>
@@ -210,8 +211,8 @@ export function ActionRow({
           className={cn(
             "shrink-0",
             thing.isFocused
-              ? "text-gtd-focus"
-              : "text-text-muted hover:text-gtd-focus",
+              ? "text-app-focus"
+              : "text-text-muted hover:text-app-focus",
           )}
         >
           <Icon
@@ -283,7 +284,7 @@ export function ActionRow({
             aria-label={
               isExpanded ? `Collapse ${displayName}` : `Edit ${displayName}`
             }
-            className="shrink-0 text-text-subtle opacity-0 hover:text-text group-hover:opacity-100 focus-visible:opacity-100"
+            className="shrink-0 text-text-subtle opacity-100 hover:text-text md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100"
           >
             <Icon name={isExpanded ? "expand_less" : "edit"} size={16} />
           </button>
@@ -295,7 +296,7 @@ export function ActionRow({
             onClick={() => setMenuOpen(!menuOpen)}
             aria-label={`Move ${displayName}`}
             aria-expanded={menuOpen}
-            className="shrink-0 text-text-subtle opacity-0 hover:text-text group-hover:opacity-100 focus-visible:opacity-100"
+            className="shrink-0 text-text-subtle opacity-100 hover:text-text md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100"
           >
             <Icon name="more_vert" size={16} />
           </button>

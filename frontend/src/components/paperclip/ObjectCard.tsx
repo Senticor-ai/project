@@ -45,13 +45,12 @@ export function ObjectCard({
         "cursor-pointer select-none",
         "shadow-[var(--shadow-card)]",
         "transition-colors duration-[var(--duration-fast)]",
-        isFocused && "ring-2 ring-gtd-focus/40",
+        isFocused && "ring-2 ring-app-focus/40",
         className,
       )}
       whileHover={{
         y: -2,
-        boxShadow:
-          "0 4px 12px oklch(0.20 0 0 / 0.10), 0 2px 4px oklch(0.20 0 0 / 0.06)",
+        boxShadow: "var(--shadow-card-hover)",
       }}
       transition={{
         duration: 0.15,

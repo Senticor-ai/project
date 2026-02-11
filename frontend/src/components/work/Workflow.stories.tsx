@@ -197,10 +197,10 @@ export const TriageToWaiting: Story = {
 };
 
 // ---------------------------------------------------------------------------
-// Story 4: Complete items from Next Actions
+// Story 4: Complete items from Next
 // ---------------------------------------------------------------------------
 
-/** User completes items in the Next Actions bucket. */
+/** User completes items in the Next bucket. */
 export const CompleteFromNextActions: Story = {
   render: () => (
     <WorkflowApp
@@ -248,7 +248,7 @@ export const CompleteFromNextActions: Story = {
 // Story 5: Full capture → triage → complete workflow
 // ---------------------------------------------------------------------------
 
-/** End-to-end: capture an item, triage it, switch to Next Actions, complete it. */
+/** End-to-end: capture an item, triage it, switch to Next, complete it. */
 export const FullWorkflow: Story = {
   render: () => <WorkflowApp />,
   play: async ({ canvas, userEvent, step }) => {

@@ -18,17 +18,17 @@ describe("BucketNav", () => {
     render(<BucketNav {...defaultProps} />);
     expect(screen.getByText("Inbox")).toBeInTheDocument();
     expect(screen.getByText("Focus")).toBeInTheDocument();
-    expect(screen.getByText("Next Actions")).toBeInTheDocument();
+    expect(screen.getByText("Next")).toBeInTheDocument();
     expect(screen.getByText("Projects")).toBeInTheDocument();
-    expect(screen.getByText("Waiting For")).toBeInTheDocument();
+    expect(screen.getByText("Waiting")).toBeInTheDocument();
     expect(screen.getByText("Calendar")).toBeInTheDocument();
-    expect(screen.getByText("Someday/Maybe")).toBeInTheDocument();
+    expect(screen.getByText("Later")).toBeInTheDocument();
     expect(screen.getByText("Reference")).toBeInTheDocument();
   });
 
   it("marks the active bucket with aria-current=page", () => {
     render(<BucketNav {...defaultProps} activeBucket="next" />);
-    const nextBtn = screen.getByText("Next Actions").closest("button")!;
+    const nextBtn = screen.getByText("Next").closest("button")!;
     expect(nextBtn).toHaveAttribute("aria-current", "page");
 
     const inboxBtn = screen.getByText("Inbox").closest("button")!;

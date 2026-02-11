@@ -131,7 +131,7 @@ describe("ActionRow rendering", () => {
     });
     renderRow({ thing });
     const dueDateEl = screen.getByText(/2020-01-01/);
-    expect(dueDateEl).toHaveClass("text-red-600");
+    expect(dueDateEl).toHaveClass("text-status-error");
   });
 
   it("shows bucket badge when showBucket is true", () => {
@@ -147,7 +147,7 @@ describe("ActionRow rendering", () => {
     // Check for BucketBadge specifically — it has a specific className
     const badges = screen.queryAllByText("Next");
     // Should not have a visible badge in the row itself
-    expect(badges.filter((el) => el.closest("[class*=bg-gtd]"))).toHaveLength(
+    expect(badges.filter((el) => el.closest("[class*=bg-app]"))).toHaveLength(
       0,
     );
   });
@@ -336,7 +336,7 @@ describe("ActionRow move menu", () => {
       thing: createActionItem({ name: "Task", bucket: "next" }),
     });
     await user.click(screen.getByLabelText("Move Task"));
-    await user.click(screen.getByText("Move to Someday"));
+    await user.click(screen.getByText("Move to Later"));
     expect(props.onMove).toHaveBeenCalledWith(props.thing.id, "someday");
   });
 
@@ -354,7 +354,7 @@ describe("ActionRow move menu", () => {
     const user = userEvent.setup();
     renderRow({ thing: createActionItem({ name: "Task", bucket: "next" }) });
     await user.click(screen.getByLabelText("Move Task"));
-    await user.click(screen.getByText("Move to Someday"));
+    await user.click(screen.getByText("Move to Later"));
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 });
@@ -409,7 +409,7 @@ describe("ActionRow expanded", () => {
     expect(screen.getByLabelText("Move to Next")).toBeInTheDocument();
     expect(screen.getByLabelText("Move to Waiting")).toBeInTheDocument();
     expect(screen.getByLabelText("Move to Calendar")).toBeInTheDocument();
-    expect(screen.getByLabelText("Move to Someday")).toBeInTheDocument();
+    expect(screen.getByLabelText("Move to Later")).toBeInTheDocument();
     expect(screen.getByLabelText("Move to Reference")).toBeInTheDocument();
     expect(screen.getByLabelText("Archive")).toBeInTheDocument();
   });

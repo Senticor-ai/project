@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { http, HttpResponse } from "msw";
-import { expect, fn, waitFor } from "storybook/test";
+import { expect, fn, waitFor, within } from "storybook/test";
 import { ConnectedBucketView } from "./ConnectedBucketView";
 import { store, seedMixedBuckets } from "@/test/msw/fixtures";
 import type { Bucket } from "@/model/types";
@@ -93,7 +93,7 @@ export const CaptureInbox: Story = {
 };
 
 // ---------------------------------------------------------------------------
-// NextActions — view the next actions bucket
+// NextActions — view the next bucket
 // ---------------------------------------------------------------------------
 
 export const NextActions: Story = {
@@ -282,24 +282,25 @@ export const NavigateBuckets: Story = {
       }, WAIT);
     });
 
-    await step("Navigate to Next Actions", async () => {
-      await userEvent.click(
-        canvas.getByRole("button", { name: /Next Actions/i }),
-      );
+    // Scope navigation clicks to the BucketNav to avoid matching triage buttons
+    const nav = within(canvas.getByRole("navigation", { name: "Buckets" }));
+
+    await step("Navigate to Next", async () => {
+      await userEvent.click(nav.getByRole("button", { name: /Next/i }));
       await waitFor(() => {
         expect(canvas.getByText("Draft wireframes")).toBeInTheDocument();
       }, WAIT);
     });
 
     await step("Navigate to Reference", async () => {
-      await userEvent.click(canvas.getByRole("button", { name: /Reference/i }));
+      await userEvent.click(nav.getByRole("button", { name: /Reference/i }));
       await waitFor(() => {
         expect(canvas.getByText("Brand guidelines")).toBeInTheDocument();
       }, WAIT);
     });
 
     await step("Navigate to Projects", async () => {
-      await userEvent.click(canvas.getByRole("button", { name: /Projects/i }));
+      await userEvent.click(nav.getByRole("button", { name: /Projects/i }));
       await waitFor(() => {
         expect(canvas.getByText("Website Redesign")).toBeInTheDocument();
       }, WAIT);

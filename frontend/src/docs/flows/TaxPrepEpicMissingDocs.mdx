@@ -12,9 +12,9 @@ import { Meta } from "@storybook/addon-docs/blocks";
 ## Context
 
 After triaging existing documents, the user realizes some are missing — a
-1099-INT from a savings account, a K-1 from a partnership. These become GTD
+1099-INT from a savings account, a K-1 from a partnership. These become
 actions: next actions (things the user must download) or waiting-for items
-(delegated to a third party). This flow already works with the existing GTD
+(delegated to a third party). This flow already works with the existing
 capture → triage pipeline.
 
 ---
@@ -29,7 +29,7 @@ capture → triage pipeline.
 ## Flow
 
 1. User captures: "Download 1099-INT from Ally Bank"
-2. Triages to Next Actions with context `@computer`
+2. Triages to Next with context `@computer`
 3. Captures: "Request K-1 from XYZ Partners"
 4. Triages to Waiting (delegated to partnership)
 
@@ -39,6 +39,6 @@ capture → triage pipeline.
 
 | Capability                           | Status      | Notes                                            |
 | ------------------------------------ | ----------- | ------------------------------------------------ |
-| Capture text → triage to next action | Works       | Standard GTD flow                                |
+| Capture text → triage to next action | Works       | Standard workflow                                |
 | Waiting with delegation              | Works       | `delegatedTo` property + waiting bucket          |
 | Context assignment                   | Model ready | `contexts` field exists but no context picker UI |

@@ -4,6 +4,7 @@ import { expect, fn, waitFor, within } from "storybook/test";
 import { AppHeader, type AppView } from "./AppHeader";
 import { SettingsScreen } from "@/components/settings/SettingsScreen";
 import { ConnectedBucketView } from "@/components/work/ConnectedBucketView";
+import { navItems } from "@/components/work/bucket-nav-items";
 import { seedMixedBuckets } from "@/test/msw/fixtures";
 import type { Bucket } from "@/model/types";
 
@@ -45,12 +46,13 @@ export const Default: Story = {
     const [view, setView] = useState<AppView>("workspace");
 
     return (
-      <div className="min-h-screen bg-surface p-6">
+      <div className="min-h-screen bg-surface px-6 pb-6 pt-3">
         <AppHeader
           username="wolfgang"
           currentView={view}
           onNavigate={setView}
           onSignOut={fn()}
+          onLogoClick={fn()}
           className="mb-6"
         />
         {view === "workspace" && <ConnectedWorkspace />}
@@ -79,12 +81,13 @@ export const SwitchToSettings: Story = {
     const [view, setView] = useState<AppView>("workspace");
 
     return (
-      <div className="min-h-screen bg-surface p-6">
+      <div className="min-h-screen bg-surface px-6 pb-6 pt-3">
         <AppHeader
           username="wolfgang"
           currentView={view}
           onNavigate={setView}
           onSignOut={fn()}
+          onLogoClick={fn()}
           className="mb-6"
         />
         {view === "workspace" && <ConnectedWorkspace />}
@@ -141,17 +144,90 @@ export const StartInSettings: Story = {
     const [view, setView] = useState<AppView>("settings");
 
     return (
-      <div className="min-h-screen bg-surface p-6">
+      <div className="min-h-screen bg-surface px-6 pb-6 pt-3">
         <AppHeader
           username="wolfgang"
           currentView={view}
           onNavigate={setView}
           onSignOut={fn()}
+          onLogoClick={fn()}
           className="mb-6"
         />
         {view === "workspace" && <ConnectedWorkspace />}
         {view === "settings" && <SettingsScreen />}
       </div>
     );
+  },
+};
+
+// ---------------------------------------------------------------------------
+// MobileWithBucketNav — mobile viewport with buckets in hamburger menu
+// ---------------------------------------------------------------------------
+
+export const MobileWithBucketNav: Story = {
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  render: function MobileShellDemo() {
+    const [view, setView] = useState<AppView>("workspace");
+    const [bucket, setBucket] = useState<Bucket>("inbox");
+
+    return (
+      <div className="min-h-screen bg-surface px-3 pb-3 pt-2">
+        <AppHeader
+          username="wolfgang"
+          currentView={view}
+          onNavigate={setView}
+          onSignOut={fn()}
+          onLogoClick={fn()}
+          mobileBucketNav={{
+            activeBucket: bucket,
+            items: navItems,
+            counts: { inbox: 3, next: 1, waiting: 1, project: 2 },
+            onBucketChange: (b) => {
+              setBucket(b);
+              setView("workspace");
+            },
+          }}
+          className="mb-4"
+        />
+        {view === "workspace" && (
+          <ConnectedBucketView
+            activeBucket={bucket}
+            onBucketChange={setBucket}
+          />
+        )}
+        {view === "settings" && <SettingsScreen />}
+      </div>
+    );
+  },
+  play: async ({ canvas, userEvent, step }) => {
+    await step("Wait for workspace to load", async () => {
+      await waitFor(
+        () => {
+          expect(
+            canvas.getByRole("main", { name: "Bucket content" }),
+          ).toBeInTheDocument();
+        },
+        { timeout: 10000 },
+      );
+    });
+
+    await step("Open menu and see bucket items", async () => {
+      await userEvent.click(canvas.getByRole("button", { name: "Main menu" }));
+      await expect(canvas.getByText("Buckets")).toBeInTheDocument();
+      await expect(canvas.getByText("Inbox (3)")).toBeInTheDocument();
+      await expect(canvas.getByText("Next (1)")).toBeInTheDocument();
+    });
+
+    await step("Navigate to Next via hamburger menu", async () => {
+      await userEvent.click(canvas.getByText("Next (1)"));
+      await waitFor(
+        () => {
+          expect(
+            canvas.getByRole("heading", { name: /Next/ }),
+          ).toBeInTheDocument();
+        },
+        { timeout: 5000 },
+      );
+    });
   },
 };

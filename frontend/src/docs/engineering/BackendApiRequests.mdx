@@ -6,6 +6,8 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 This page documents the end-to-end import flow as currently implemented (Native and Nirvana).
 
+> For the import system architecture and how to add a new importer, see [Import Architecture](?path=/docs/engineering-import-architecture--docs).
+
 ---
 
 ## Current Implementation: Nirvana Import
@@ -25,30 +27,33 @@ The import follows a five-step dialog: **select → uploading → preview → im
 ### Architecture Layers
 
 ```
-┌─────────────────────────────────────────────┐
-│  NirvanaImportDialog.tsx  (UI / steps)      │
-│  └── useNirvanaImport()   (orchestration)   │
-│      ├── useFileUpload()  (chunked upload)  │
-│      ├── useMutation: inspect               │
-│      ├── useMutation: startImport           │
-│      └── useQuery: job polling              │
-├─────────────────────────────────────────────┤
-│  api-client.ts                              │
-│  ├── FilesApi   (initiate / uploadChunk /   │
-│  │               complete)                  │
-│  └── ImportsApi (inspectNirvana /           │
-│                   importNirvanaFromFile /    │
-│                   getJob)                   │
-├─────────────────────────────────────────────┤
-│  Backend (FastAPI)                          │
-│  ├── POST /files/initiate                   │
-│  ├── PUT  /files/upload/{upload_id}         │
-│  ├── POST /files/complete                   │
-│  ├── POST /imports/nirvana/inspect          │
-│  ├── POST /imports/nirvana/from-file        │
-│  └── GET  /imports/jobs/{job_id}            │
-└─────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────┐
+│  {Source}ImportDialog.tsx   (thin wrapper)         │
+│  └── ImportDialog.tsx      (shared 5-step UI)     │
+│      └── useImportSource(config)  (shared hook)   │
+│          ├── useFileUpload()   (chunked upload)   │
+│          ├── useMutation: inspect (config.inspectFn)
+│          ├── useMutation: startImport (config.importFn)
+│          └── useQuery: job polling                │
+├───────────────────────────────────────────────────┤
+│  api-client.ts                                    │
+│  ├── FilesApi   (initiate / uploadChunk /         │
+│  │               complete)                        │
+│  └── ImportsApi (inspect{Source} /                │
+│                   import{Source}FromFile /         │
+│                   getJob)                         │
+├───────────────────────────────────────────────────┤
+│  Backend (FastAPI)                                │
+│  ├── POST /files/initiate                         │
+│  ├── PUT  /files/upload/{upload_id}               │
+│  ├── POST /files/complete                         │
+│  ├── POST /imports/{source}/inspect               │
+│  ├── POST /imports/{source}/from-file             │
+│  └── GET  /imports/jobs/{job_id}                  │
+└───────────────────────────────────────────────────┘
 ```
+
+> See [Import Architecture](?path=/docs/engineering-import-architecture--docs) for the full file structure, `ImportSourceConfig` contract, and checklist for adding new importers.
 
 ### Key Implementation Details
 
@@ -60,7 +65,7 @@ The import follows a five-step dialog: **select → uploading → preview → im
 
 **Inspect before import** (`ImportsApi.inspectNirvana`):
 
-- Dry-run that returns a `NirvanaImportSummary`: `total`, `created`, `updated`, `skipped`, `errors`, `bucket_counts`, `sample_errors`
+- Dry-run that returns a `ImportSummary`: `total`, `created`, `updated`, `skipped`, `errors`, `bucket_counts`, `sample_errors`
 - The dialog calls inspect after upload completes, then again if the user toggles "Include completed"
 - Lets users see exactly what will happen before committing
 
@@ -95,7 +100,7 @@ type NirvanaImportFromFileRequest = {
 };
 
 // Summary returned by inspect and attached to completed jobs
-type NirvanaImportSummary = {
+type ImportSummary = {
   total: number;
   created: number;
   updated: number;
@@ -115,7 +120,7 @@ type ImportJobResponse = {
   updated_at: string;
   started_at: string | null;
   finished_at: string | null;
-  summary: NirvanaImportSummary | null; // populated on completion
+  summary: ImportSummary | null; // populated on completion
   error: string | null; // populated on failure
 };
 ```

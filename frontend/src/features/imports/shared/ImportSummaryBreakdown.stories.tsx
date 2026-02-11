@@ -3,7 +3,7 @@ import { fn } from "storybook/test";
 import { ImportSummaryBreakdown } from "./ImportSummaryBreakdown";
 
 const meta = {
-  title: "Work/ImportSummaryBreakdown",
+  title: "Imports/ImportSummaryBreakdown",
   component: ImportSummaryBreakdown,
   tags: ["autodocs"],
 } satisfies Meta<typeof ImportSummaryBreakdown>;

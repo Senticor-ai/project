@@ -4,11 +4,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
 import { ImportsApi, FilesApi } from "@/lib/api-client";
 import type {
-  NirvanaImportSummary,
+  ImportSummary,
   ImportJobResponse,
   FileRecord,
 } from "@/lib/api-client";
-import { useNirvanaImport } from "./use-nirvana-import";
+import { useNirvanaImport } from "./useNirvanaImport";
 
 vi.mock("@/lib/api-client", () => ({
   FilesApi: {
@@ -26,7 +26,7 @@ vi.mock("@/lib/api-client", () => ({
 const mockedImports = vi.mocked(ImportsApi);
 const mockedFiles = vi.mocked(FilesApi);
 
-const SUMMARY: NirvanaImportSummary = {
+const SUMMARY: ImportSummary = {
   total: 100,
   created: 80,
   updated: 10,
@@ -59,6 +59,7 @@ const JOB_QUEUED: ImportJobResponse = {
   summary: null,
   progress: null,
   error: null,
+  archived_at: null,
 };
 
 const JOB_COMPLETED: ImportJobResponse = {
@@ -108,7 +109,7 @@ describe("useNirvanaImport", () => {
       wrapper: createWrapper(),
     });
 
-    let summary: NirvanaImportSummary | undefined;
+    let summary: ImportSummary | undefined;
     await act(async () => {
       summary = await result.current.inspect.mutateAsync({
         fileId: "file-abc",

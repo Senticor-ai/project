@@ -58,6 +58,38 @@ APP_QUEUE_DEAD_LETTERED = Gauge(
     ["queue"],
 )
 
+# ---------------------------------------------------------------------------
+# Business metrics
+# ---------------------------------------------------------------------------
+
+APP_ITEMS_CREATED_TOTAL = Counter(
+    "app_items_created_total",
+    "Total items created via the API.",
+    ["bucket"],
+)
+
+APP_ITEMS_UPDATED_TOTAL = Counter(
+    "app_items_updated_total",
+    "Total items updated via the API.",
+)
+
+APP_ITEMS_ARCHIVED_TOTAL = Counter(
+    "app_items_archived_total",
+    "Total items archived (soft-deleted) via the API.",
+)
+
+APP_IMPORTS_COMPLETED_TOTAL = Counter(
+    "app_imports_completed_total",
+    "Total import jobs completed successfully.",
+    ["source"],
+)
+
+APP_IMPORTS_FAILED_TOTAL = Counter(
+    "app_imports_failed_total",
+    "Total import jobs that failed.",
+    ["source"],
+)
+
 
 def metrics_payload() -> bytes:
     return generate_latest()

@@ -156,11 +156,11 @@ export function PreferencesPanel({
           >
             <option value="inbox">Inbox</option>
             <option value="focus">Focus</option>
-            <option value="next">Next Actions</option>
+            <option value="next">Next</option>
             <option value="project">Projects</option>
-            <option value="waiting">Waiting For</option>
+            <option value="waiting">Waiting</option>
             <option value="calendar">Calendar</option>
-            <option value="someday">Someday/Maybe</option>
+            <option value="someday">Later</option>
             <option value="reference">Reference</option>
           </select>
         </div>
@@ -182,9 +182,9 @@ export function PreferencesPanel({
         </div>
       </section>
 
-      {/* GTD Review */}
+      {/* Review */}
       <section className="space-y-3">
-        <h2 className="text-sm font-medium text-text-primary">GTD Review</h2>
+        <h2 className="text-sm font-medium text-text-primary">Review</h2>
 
         <label className="flex items-center gap-2 text-sm text-text-muted">
           <input

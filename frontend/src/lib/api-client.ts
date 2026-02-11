@@ -276,7 +276,7 @@ export type NirvanaImportFromFileRequest = {
   default_bucket?: string;
 };
 
-export type NirvanaImportSummary = {
+export type ImportSummary = {
   total: number;
   created: number;
   updated: number;
@@ -298,7 +298,7 @@ export type ImportJobResponse = {
   updated_at: string;
   started_at: string | null;
   finished_at: string | null;
-  summary: NirvanaImportSummary | null;
+  summary: ImportSummary | null;
   progress: {
     processed: number;
     total: number;
@@ -308,6 +308,7 @@ export type ImportJobResponse = {
     errors?: number;
   } | null;
   error: string | null;
+  archived_at: string | null;
 };
 
 export type NativeInspectRequest = {
@@ -327,7 +328,7 @@ export type NativeImportFromFileRequest = {
 
 export const ImportsApi = {
   inspectNirvana: (req: NirvanaInspectRequest) =>
-    request<NirvanaImportSummary>("/imports/nirvana/inspect", {
+    request<ImportSummary>("/imports/nirvana/inspect", {
       method: "POST",
       body: JSON.stringify(req),
     }),
@@ -339,7 +340,7 @@ export const ImportsApi = {
     }),
 
   inspectNative: (req: NativeInspectRequest) =>
-    request<NirvanaImportSummary>("/imports/native/inspect", {
+    request<ImportSummary>("/imports/native/inspect", {
       method: "POST",
       body: JSON.stringify(req),
     }),
@@ -362,6 +363,16 @@ export const ImportsApi = {
     const qs = searchParams.toString();
     return request<ImportJobResponse[]>(`/imports/jobs${qs ? `?${qs}` : ""}`);
   },
+
+  retryJob: (jobId: string) =>
+    request<ImportJobResponse>(`/imports/jobs/${jobId}/retry`, {
+      method: "POST",
+    }),
+
+  archiveJob: (jobId: string) =>
+    request<ImportJobResponse>(`/imports/jobs/${jobId}/archive`, {
+      method: "POST",
+    }),
 };
 
 // ---------------------------------------------------------------------------

@@ -398,7 +398,7 @@ class ItemPatchModel(BaseModel):
 
 class ItemCreateRequest(BaseModel):
     source: str = "manual"
-    item: ItemJsonLd = Field(..., description="JSON-LD GTD object.")
+    item: ItemJsonLd = Field(..., description="JSON-LD item object.")
 
 
 class ItemPatchRequest(BaseModel):
@@ -409,7 +409,7 @@ class ItemPatchRequest(BaseModel):
     )
     item: ItemPatchModel = Field(
         ...,
-        description="Partial JSON-LD GTD object to deep-merge.",
+        description="Partial JSON-LD item object to deep-merge.",
     )
 
 
@@ -584,7 +584,7 @@ class NirvanaImportRequest(BaseModel):
     )
 
 
-class NirvanaImportSummary(BaseModel):
+class ImportSummary(BaseModel):
     total: int = Field(..., description="Total number of input items processed.")
     created: int = Field(..., description="Number of new items created.")
     updated: int = Field(..., description="Number of existing items updated.")
@@ -629,6 +629,8 @@ class NirvanaImportSummary(BaseModel):
             ]
         }
     )
+
+
 
 
 class NirvanaImportInspectRequest(BaseModel):
@@ -757,7 +759,7 @@ class ImportJobResponse(BaseModel):
         default=None,
         description="Worker completion timestamp (UTC).",
     )
-    summary: NirvanaImportSummary | None = Field(
+    summary: ImportSummary | None = Field(
         default=None,
         description="Import summary, present when completed.",
     )
@@ -768,6 +770,10 @@ class ImportJobResponse(BaseModel):
     error: str | None = Field(
         default=None,
         description="Failure details, present when status is `failed`.",
+    )
+    archived_at: datetime | None = Field(
+        default=None,
+        description="Archive timestamp (UTC). Archived jobs are hidden from listings.",
     )
 
     model_config = ConfigDict(

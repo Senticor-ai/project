@@ -2,7 +2,7 @@ import { test, expect } from "../fixtures/auth.fixture";
 import { WorkspacePage } from "../pages/workspace.page";
 
 test.describe("Inbox Triage", () => {
-  test("triages first item to Next Actions", async ({
+  test("triages first item to Next", async ({
     authenticatedPage: page,
     apiSeed,
   }) => {
@@ -15,7 +15,7 @@ test.describe("Inbox Triage", () => {
     await expect(ws.triageButton("Next")).toBeVisible();
     await expect(page.getByText("Item Alpha")).toBeVisible();
 
-    // Triage Item Alpha to Next Actions
+    // Triage Item Alpha to Next
     await ws.triageButton("Next").click();
 
     // Item Alpha gone from inbox, Item Beta now triageable
@@ -26,8 +26,8 @@ test.describe("Inbox Triage", () => {
     // Count should be 1
     await expect(ws.bucketCount("Inbox")).toHaveText("1");
 
-    // Navigate to Next Actions, verify Item Alpha is there
-    await ws.navigateTo("Next Actions");
+    // Navigate to Next, verify Item Alpha is there
+    await ws.navigateTo("Next");
     await expect(page.getByText("Item Alpha")).toBeVisible();
   });
 
@@ -52,21 +52,21 @@ test.describe("Inbox Triage", () => {
     await ws.triageButton("Calendar").click();
     await page.getByLabel("Schedule date").fill("2026-03-01");
     await expect(ws.bucketCount("Inbox")).toHaveText("2");
-    // Triage to Someday
-    await ws.triageButton("Someday").click();
+    // Triage to Later
+    await ws.triageButton("Later").click();
     await expect(ws.bucketCount("Inbox")).toHaveText("1");
     // Triage to Reference
     await ws.triageButton("Reference").click();
     await expect(page.getByText("Inbox is empty")).toBeVisible();
 
     // Verify each bucket
-    await ws.navigateTo("Waiting For");
+    await ws.navigateTo("Waiting");
     await expect(page.getByText("Waiting item")).toBeVisible();
 
     await ws.navigateTo("Calendar");
     await expect(page.getByText("Calendar item")).toBeVisible();
 
-    await ws.navigateTo("Someday/Maybe");
+    await ws.navigateTo("Later");
     await expect(page.getByText("Someday item")).toBeVisible();
   });
 
@@ -76,6 +76,7 @@ test.describe("Inbox Triage", () => {
   }) => {
     await apiSeed.createInboxItem("Disposable thought");
     await page.reload();
+    await page.waitForSelector("text=terminandoyo", { timeout: 10_000 });
 
     const ws = new WorkspacePage(page);
 

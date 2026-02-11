@@ -9,8 +9,11 @@ A **ontology-native task management system** bringing schema.org into a modern, 
 cd frontend && npm install && npm run storybook   # Storybook at http://localhost:6006
 cd frontend && npm run dev                         # Vite dev server
 
-# Backend
+# Backend (API server)
 cd backend && uv sync && uv run uvicorn app.main:app --reload
+
+# Backend (worker — processes import jobs, search indexing, push notifications)
+cd backend && uv run python -m app.worker --loop
 ```
 
 ## Documentation
@@ -22,21 +25,21 @@ and interactive component demos.
 cd frontend && npm run storybook   # http://localhost:6006
 ```
 
-| Section | What you'll find |
-|---------|-----------------|
-| Product | Vision, GTD methodology, epics, feature specs |
-| Design | Paperclip design language, philosophy, tokens, component catalog |
+| Section     | What you'll find                                                             |
+| ----------- | ---------------------------------------------------------------------------- |
+| Product     | Vision, methodology, epics, feature specs                                    |
+| Design      | Paperclip design language, philosophy, tokens, component catalog             |
 | Engineering | Architecture, data model, schema reference, FRBR/LexCEL ontology, deployment |
-| Flows | End-to-end user journeys |
+| Flows       | End-to-end user journeys                                                     |
 
 ## Tech Stack
 
-| Layer | Technologies |
-|-------|-------------|
-| Frontend | React 19, Vite, TypeScript, Tailwind v4, shadcn/ui, Framer Motion, Storybook 10 |
-| Backend | Python, FastAPI, Haystack, PostgreSQL, Apache Jena Fuseki, Qdrant |
-| Observability | OpenTelemetry, Grafana LGTM (Loki, Grafana, Tempo, Mimir) |
-| Auth | Local JWT with HTTP-only cookies |
+| Layer         | Technologies                                                                    |
+| ------------- | ------------------------------------------------------------------------------- |
+| Frontend      | React 19, Vite, TypeScript, Tailwind v4, shadcn/ui, Framer Motion, Storybook 10 |
+| Backend       | Python, FastAPI, Haystack, PostgreSQL, Apache Jena Fuseki, Qdrant               |
+| Observability | OpenTelemetry, Grafana LGTM (Loki, Grafana, Tempo, Mimir)                       |
+| Auth          | Local JWT with HTTP-only cookies                                                |
 
 ## Development
 
@@ -48,7 +51,7 @@ cd frontend && CI=1 npx vitest run --project=unit   # Frontend unit tests
 cd backend && uv run python -m pytest               # Backend tests
 
 # Pre-commit checks (frontend)
-cd frontend && npx tsc --noEmit && npx eslint src/ && npx prettier --check src/
+cd frontend && npx tsc -b --noEmit && npx eslint src/ && npx prettier --check src/
 ```
 
 ## API

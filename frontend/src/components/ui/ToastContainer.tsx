@@ -9,18 +9,18 @@ const typeConfig: Record<
 > = {
   error: {
     icon: "error",
-    iconClass: "text-red-500",
-    borderClass: "border-red-200",
+    iconClass: "text-status-error",
+    borderClass: "border-status-error/30",
   },
   success: {
     icon: "check_circle",
-    iconClass: "text-green-600",
-    borderClass: "border-green-200",
+    iconClass: "text-status-success",
+    borderClass: "border-status-success/30",
   },
   info: {
     icon: "info",
-    iconClass: "text-blue-500",
-    borderClass: "border-blue-200",
+    iconClass: "text-status-info",
+    borderClass: "border-status-info/30",
   },
 };
 

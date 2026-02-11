@@ -17,6 +17,30 @@ REQUEST_ID_ENV = "REQUEST_ID"
 USER_ID_ENV = "USER_ID"
 
 
+def _add_otel_context(
+    logger: object,  # noqa: ARG001
+    method_name: str,  # noqa: ARG001
+    event_dict: dict,
+) -> dict:
+    """Inject ``trace_id`` and ``span_id`` from the current OTEL span.
+
+    Enables log ↔ trace correlation in Grafana (Loki ↔ Tempo).
+    Gracefully no-ops when the OTEL SDK is not installed or tracing
+    is disabled.
+    """
+    try:
+        from opentelemetry import trace
+
+        span = trace.get_current_span()
+        ctx = span.get_span_context()
+        if ctx and ctx.trace_id:
+            event_dict["trace_id"] = format(ctx.trace_id, "032x")
+            event_dict["span_id"] = format(ctx.span_id, "016x")
+    except Exception:  # noqa: BLE001
+        pass
+    return event_dict
+
+
 def configure_logging() -> None:
     log_format = os.environ.get("LOG_FORMAT", "json").lower()
 
@@ -24,6 +48,7 @@ def configure_logging() -> None:
         structlog.contextvars.merge_contextvars,
         structlog.processors.add_log_level,
         add_logger_name,
+        _add_otel_context,
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
@@ -38,7 +63,7 @@ def configure_logging() -> None:
     processors = shared_processors + [renderer]
 
     structlog.configure(
-        processors=processors,  # type: ignore[arg-type]
+        processors=processors,
         logger_factory=structlog.stdlib.LoggerFactory(),
         wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
         cache_logger_on_first_use=True,

@@ -2,11 +2,11 @@ import { test, expect } from "../fixtures/auth.fixture";
 import { WorkspacePage } from "../pages/workspace.page";
 
 test.describe("Rapid Entry", () => {
-  test("adds an action via rapid entry in Next Actions", async ({
+  test("adds an action via rapid entry in Next", async ({
     authenticatedPage: page,
   }) => {
     const ws = new WorkspacePage(page);
-    await ws.navigateTo("Next Actions");
+    await ws.navigateTo("Next");
 
     await ws.addRapidEntry("Quick task from rapid entry");
 
@@ -18,7 +18,7 @@ test.describe("Rapid Entry", () => {
     authenticatedPage: page,
   }) => {
     const ws = new WorkspacePage(page);
-    await ws.navigateTo("Next Actions");
+    await ws.navigateTo("Next");
 
     await ws.addRapidEntry("Task A");
     await ws.addRapidEntry("Task B");
@@ -43,13 +43,13 @@ test.describe("Rapid Entry", () => {
     authenticatedPage: page,
   }) => {
     const ws = new WorkspacePage(page);
-    await ws.navigateTo("Waiting For");
+    await ws.navigateTo("Waiting");
 
     await ws.addRapidEntry("Waiting task via rapid entry");
 
     await expect(
       page.getByText("Waiting task via rapid entry"),
     ).toBeVisible();
-    await expect(ws.bucketCount("Waiting For")).toHaveText("1");
+    await expect(ws.bucketCount("Waiting")).toHaveText("1");
   });
 });

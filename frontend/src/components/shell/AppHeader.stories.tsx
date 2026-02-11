@@ -11,6 +11,7 @@ const meta = {
     currentView: "workspace",
     onNavigate: fn(),
     onSignOut: fn(),
+    onLogoClick: fn(),
   },
   decorators: [
     (Story) => (

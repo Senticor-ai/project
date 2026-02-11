@@ -142,7 +142,7 @@ export function LabelsPanel({
           </span>
         </h2>
         <p className="text-xs text-text-subtle">
-          Tags for additional categorization beyond GTD contexts
+          Tags for additional categorization beyond contexts
         </p>
         <AddInput placeholder="New tag..." onAdd={onAddTag} />
         <ChipList items={tags} onRemove={onRemoveTag} />

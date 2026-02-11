@@ -1,0 +1,170 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Engineering/Import Architecture" />
+
+# Import Architecture
+
+This page documents the structure of the import system and how to add a new importer.
+For the end-user UX flow and backend API improvement requests, see [Backend API Requests: Import UX](?path=/docs/engineering-backend-api-requests-import-ux--docs).
+
+---
+
+## Design Principles
+
+The import system follows a **shared base + source-specific wrapper** pattern.
+All importers share a single dialog component, a single orchestration hook, and common backend utilities.
+Source-specific code is limited to:
+
+- A ~15-line config object (frontend)
+- A transform function + orchestrator + routes file (backend)
+
+This keeps the cost of adding a new importer low while ensuring consistent UX across all sources.
+
+---
+
+## File Structure
+
+### Frontend (`frontend/src/features/imports/`)
+
+| Path                                 | Purpose                                                                  |
+| ------------------------------------ | ------------------------------------------------------------------------ |
+| `index.ts`                           | Public barrel — re-exports dialogs, hooks, and types                     |
+| **shared/**                          |                                                                          |
+| `types.ts`                           | `ImportSourceConfig` interface — the contract every importer implements  |
+| `useImportSource.ts`                 | Shared hook: upload → inspect → import → poll → cache invalidation       |
+| `ImportDialog.tsx`                   | Shared 5-step dialog: select → uploading → preview → importing → results |
+| `ImportSummaryBreakdown.tsx`         | Bucket count breakdown with active/completed split                       |
+| `ImportSummaryBreakdown.test.tsx`    | Unit tests for breakdown component                                       |
+| `ImportSummaryBreakdown.stories.tsx` | Visual variants (real-world, balanced, active-only, etc.)                |
+| `useImportSource.test.ts`            | Unit tests for the shared hook (mock config, no real API)                |
+| **nirvana/**                         |                                                                          |
+| `useNirvanaImport.ts`                | Config object + thin wrapper calling `useImportSource(nirvanaConfig)`    |
+| `useNirvanaImport.test.ts`           | Wiring tests: proves correct API methods are called                      |
+| `NirvanaImportDialog.tsx`            | Passes `nirvanaConfig` to `ImportDialog`                                 |
+| `NirvanaImportDialog.test.tsx`       | Component integration tests (upload, preview, results, errors)           |
+| `NirvanaImportDialog.stories.tsx`    | Interactive stories with MSW handlers                                    |
+| **native/**                          |                                                                          |
+| `useNativeImport.ts`                 | Config object + thin wrapper calling `useImportSource(nativeConfig)`     |
+| `useNativeImport.test.ts`            | Wiring tests: proves correct API methods are called                      |
+| `NativeImportDialog.tsx`             | Passes `nativeConfig` to `ImportDialog`                                  |
+| `NativeImportDialog.test.tsx`        | Component integration tests                                              |
+| `NativeImportDialog.stories.tsx`     | Interactive stories with MSW handlers                                    |
+
+### Backend (`backend/app/imports/`)
+
+| Path              | Purpose                                                                                     |
+| ----------------- | ------------------------------------------------------------------------------------------- |
+| `__init__.py`     | Package exports                                                                             |
+| `router.py`       | Aggregates sub-routers + shared job endpoints (`GET /imports/jobs/{id}`)                    |
+| `shared.py`       | Common utilities: `_load_items_from_file`, `_IMPORT_JOB_STALE_ERROR`, job lifecycle helpers |
+| **nirvana/**      |                                                                                             |
+| `routes.py`       | `POST /imports/nirvana/inspect`, `POST /imports/nirvana/from-file`                          |
+| `transform.py`    | Nirvana JSON → TerminAndoYo item conversion logic                                           |
+| `orchestrator.py` | `run_nirvana_import()` — coordinates transform → upsert → summary                           |
+| **native/**       |                                                                                             |
+| `routes.py`       | `POST /imports/native/inspect`, `POST /imports/native/from-file`                            |
+| `orchestrator.py` | `run_native_import()` — validates + upserts native JSON items                               |
+
+---
+
+## Data Flow
+
+```
+User selects file
+        │
+        ▼
+┌─ ImportDialog ──────────────────────────────────────┐
+│  1. handleFile(file)                                │
+│     ├─ upload.mutateAsync(file)                     │
+│     │   └─ useFileUpload: initiate → chunks → complete
+│     │       → FileRecord { file_id, sha256 }        │
+│     ├─ checkDuplicate(sha256)  (optional)           │
+│     └─ inspect.mutateAsync({ fileId, includeCompleted })
+│         └─ config.inspectFn → API → ImportSummary   │
+│                                                      │
+│  2. User reviews preview, clicks "Import N items"   │
+│     └─ startImport.mutateAsync({ fileId, includeCompleted })
+│         └─ config.importFn → API → ImportJobResponse│
+│                                                      │
+│  3. Poll job status every 2s                        │
+│     └─ useQuery: ImportsApi.getJob(jobId)           │
+│     └─ While "running": invalidate items every 3s   │
+│     └─ On "completed": final invalidation (guarded) │
+│                                                      │
+│  4. Show results: created/updated/skipped/errors    │
+└─────────────────────────────────────────────────────┘
+```
+
+---
+
+## The `ImportSourceConfig` Contract
+
+Every importer provides a config object implementing this interface:
+
+```typescript
+interface ImportSourceConfig {
+  sourceId: string; // e.g. "nirvana", "native"
+  title: string; // Dialog header text
+  description: string; // Subtitle on the file selection step
+  dropLabel: string; // Label inside the file drop zone
+  fileTestId: string; // data-testid for the hidden file input
+  inspectFn: (req: {
+    file_id: string;
+    include_completed: boolean;
+  }) => Promise<ImportSummary>;
+  importFn: (req: {
+    file_id: string;
+    include_completed: boolean;
+  }) => Promise<ImportJobResponse>;
+}
+```
+
+The shared hook (`useImportSource`) and shared dialog (`ImportDialog`) are fully parameterized by this config.
+Source-specific wrappers are typically ~15 lines.
+
+---
+
+## Adding a New Importer
+
+### Backend (6 steps)
+
+1. **Create directory**: `backend/app/imports/{source}/` with `__init__.py`
+2. **Transform** (`transform.py`): Write a function that converts the source format into TerminAndoYo item dicts. Include bucket mapping and field normalization.
+3. **Orchestrator** (`orchestrator.py`): Implement `run_{source}_import(db, file_path, ...)` — load file, call transform, upsert items, build `ImportSummary`.
+4. **Routes** (`routes.py`): Add `POST /imports/{source}/inspect` and `POST /imports/{source}/from-file`. Use shared helpers from `shared.py` for job lifecycle.
+5. **Register router**: In `router.py`, import and include the new sub-router with prefix `/imports/{source}`.
+6. **Tests**: Add `backend/tests/test_imports_{source}.py` covering transform edge cases, inspect dry-run, and full import flow.
+
+### Frontend (7 steps)
+
+1. **Create directory**: `frontend/src/features/imports/{source}/`
+2. **API methods**: Add `inspectFoo` and `importFooFromFile` to `ImportsApi` in `api-client.ts`.
+3. **Hook** (`use{Source}Import.ts`): Define an `ImportSourceConfig` and export `use{Source}Import()` calling `useImportSource(config)`.
+4. **Dialog** (`{Source}ImportDialog.tsx`): Thin wrapper passing config to `ImportDialog`.
+5. **Stories** (`{Source}ImportDialog.stories.tsx`): At minimum: FileSelection, FullImportFlow, ImportError, InspectPreview. Use MSW handlers for connected stories.
+6. **Tests**: Create `use{Source}Import.test.ts` (wiring) and `{Source}ImportDialog.test.tsx` (component integration). Model on existing Nirvana/Native tests.
+7. **Wire up**: Add the dialog to `SettingsScreen` / `ImportExportPanel` and export from `features/imports/index.ts`.
+
+---
+
+## Testing Overview
+
+| Test file                                 | What it tests                                                                              | Type        |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------ | ----------- |
+| `shared/useImportSource.test.ts`          | Shared hook with mock config: inspect, import, polling, upload, cache invalidation         | Unit        |
+| `shared/ImportSummaryBreakdown.test.tsx`  | Bucket breakdown rendering, active/completed split, click handlers                         | Unit        |
+| `nirvana/useNirvanaImport.test.ts`        | Wiring: correct API methods called, polling, upload delegation                             | Unit        |
+| `nirvana/NirvanaImportDialog.test.tsx`    | Full component flow: upload, preview, results, errors, duplicates, toasts                  | Integration |
+| `nirvana/NirvanaImportDialog.stories.tsx` | Visual: FileSelection, FullImportFlow, ImportError, InspectPreview, ToggleIncludeCompleted | Stories     |
+| `native/useNativeImport.test.ts`          | Wiring: correct API methods called, polling, upload delegation                             | Unit        |
+| `native/NativeImportDialog.test.tsx`      | Full component flow: upload, preview, results, errors                                      | Integration |
+| `native/NativeImportDialog.stories.tsx`   | Visual: FileSelection, FullImportFlow, ImportError, InspectPreview                         | Stories     |
+| `backend/tests/test_imports_*.py`         | Transform, inspect, full import, error handling                                            | pytest      |
+
+---
+
+## Related Documentation
+
+- [Backend API Requests: Import UX](?path=/docs/engineering-backend-api-requests-import-ux--docs) — End-to-end UX flow, API types, backend improvement requests
+- [Data Model](?path=/docs/engineering-data-model--docs) — JSON-LD item schema, canonical IDs, bucket semantics
+- [Testing](?path=/docs/engineering-testing--docs) — Vitest setup, MSW conventions, storybook test patterns

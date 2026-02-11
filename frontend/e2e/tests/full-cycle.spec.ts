@@ -1,7 +1,7 @@
 import { test, expect } from "../fixtures/auth.fixture";
 import { WorkspacePage } from "../pages/workspace.page";
 
-test.describe("Full GTD Cycle", () => {
+test.describe("Full Cycle", () => {
   test("capture → triage → manage → complete", async ({
     authenticatedPage: page,
   }) => {
@@ -21,7 +21,7 @@ test.describe("Full GTD Cycle", () => {
     await expect(ws.bucketCount("Inbox")).toHaveText("3");
 
     // 2. Triage all three (FIFO: oldest first)
-    // Item 1 ("Buy groceries") → Next Actions
+    // Item 1 ("Buy groceries") → Next
     await ws.triageButton("Next").click();
     await expect(ws.bucketCount("Inbox")).toHaveText("2");
 
@@ -29,12 +29,12 @@ test.describe("Full GTD Cycle", () => {
     await ws.triageButton("Waiting").click();
     await expect(ws.bucketCount("Inbox")).toHaveText("1");
 
-    // Item 3 ("Read article on testing") → Someday
-    await ws.triageButton("Someday").click();
+    // Item 3 ("Read article on testing") → Later
+    await ws.triageButton("Later").click();
     await expect(page.getByText("Inbox is empty")).toBeVisible();
 
-    // 3. Navigate to Next Actions, verify "Buy groceries"
-    await ws.navigateTo("Next Actions");
+    // 3. Navigate to Next, verify "Buy groceries"
+    await ws.navigateTo("Next");
     await expect(page.getByText("Buy groceries")).toBeVisible();
 
     // 4. Star it (focus)
@@ -49,10 +49,10 @@ test.describe("Full GTD Cycle", () => {
     await expect(page.getByText("Buy groceries")).not.toBeVisible();
 
     // 6. Verify other buckets
-    await ws.navigateTo("Waiting For");
+    await ws.navigateTo("Waiting");
     await expect(page.getByText("Call dentist")).toBeVisible();
 
-    await ws.navigateTo("Someday/Maybe");
+    await ws.navigateTo("Later");
     await expect(page.getByText("Read article on testing")).toBeVisible();
   });
 });

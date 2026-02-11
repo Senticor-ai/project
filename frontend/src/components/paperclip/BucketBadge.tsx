@@ -9,42 +9,42 @@ const bucketConfig: Record<
   inbox: {
     label: "Inbox",
     icon: "inbox",
-    className: "bg-gtd-inbox/15 text-gtd-inbox",
+    className: "bg-app-inbox/15 text-app-inbox",
   },
   next: {
     label: "Next",
     icon: "bolt",
-    className: "bg-gtd-next/15 text-gtd-next",
+    className: "bg-app-next/15 text-app-next",
   },
   project: {
     label: "Project",
     icon: "folder",
-    className: "bg-gtd-project/15 text-gtd-project",
+    className: "bg-app-project/15 text-app-project",
   },
   waiting: {
     label: "Waiting",
     icon: "schedule",
-    className: "bg-gtd-waiting/15 text-gtd-waiting",
+    className: "bg-app-waiting/15 text-app-waiting",
   },
   someday: {
-    label: "Someday",
+    label: "Later",
     icon: "cloud",
-    className: "bg-gtd-someday/15 text-gtd-someday",
+    className: "bg-app-someday/15 text-app-someday",
   },
   calendar: {
     label: "Calendar",
     icon: "calendar_month",
-    className: "bg-gtd-calendar/15 text-gtd-calendar",
+    className: "bg-app-calendar/15 text-app-calendar",
   },
   reference: {
     label: "Reference",
     icon: "book",
-    className: "bg-gtd-reference/15 text-gtd-reference",
+    className: "bg-app-reference/15 text-app-reference",
   },
   focus: {
     label: "Focus",
     icon: "center_focus_strong",
-    className: "bg-gtd-focus/15 text-gtd-focus",
+    className: "bg-app-focus/15 text-app-focus",
   },
 };
 

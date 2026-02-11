@@ -153,7 +153,7 @@ export function ConnectedBucketView({
   if (error) {
     return (
       <div className={cn("py-12 text-center", className)}>
-        <Icon name="error" size={28} className="mx-auto text-red-600" />
+        <Icon name="error" size={28} className="mx-auto text-status-error" />
         <p className="mt-2 text-sm text-text-muted">Failed to load data</p>
         <button
           onClick={() => {

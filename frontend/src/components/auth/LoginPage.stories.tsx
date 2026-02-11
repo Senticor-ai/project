@@ -22,7 +22,7 @@ export const Default: Story = {
     expect(canvas.getByText("Sovereign compute")).toBeInTheDocument();
     expect(canvas.getByText("Built-in legitimacy")).toBeInTheDocument();
 
-    // No GTD branding anywhere
+    // No trademark text anywhere
     expect(canvas.queryByText(/GTD/)).toBeNull();
 
     // Right column: system-first heading

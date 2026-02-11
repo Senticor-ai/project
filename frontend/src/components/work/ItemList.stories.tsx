@@ -86,7 +86,7 @@ export const Default: Story = {
     items: activeItems,
     header: {
       icon: "bolt",
-      label: "Next Actions",
+      label: "Next",
       subtitle: "To-do's for anytime",
     },
     renderItem: (item: DemoItem, { isExpanded }: { isExpanded: boolean }) => (

@@ -2,7 +2,6 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-
 ## Development Practices
 
 - **Walking skeleton first** - Get the thinnest end-to-end slice working before layering features. Prove the architecture early.
@@ -25,27 +24,29 @@ SECRET=<SECRET>
 ```
 
 Common placeholder patterns (auto-ignored by scanners):
+
 - `<your-password>`, `<DB_PASSWORD>` - angle brackets
 - `${VAR}`, `$VAR` - shell variable syntax
 - `{{VAR}}` - template syntax
 - `your_api_key_here`, `changeme`, `placeholder` - obvious placeholders
 
 Fallback markers (only when placeholder patterns aren't possible):
+
 - `# gitleaks:allow` - gitleaks
 - `# pragma: allowlist secret` - detect-secrets
 - `# nosec B105` - bandit (Python hardcoded password check)
 
 ## Language Policy
 
-| Context | Language |
-|---------|----------|
-| Code (variables, functions, classes, comments) | English |
-| Documentation (README, docs/, CLAUDE.md) | English |
-| Git commits and PR descriptions | English |
-| UI strings | German (de) and English (en) via i18n |
-| LLM prompt templates | German (primary) |
-| Case examples, test fixtures, domain terms | German |
-| User persona | German federal clerks (Bundesbeamte) |
+| Context                                        | Language                              |
+| ---------------------------------------------- | ------------------------------------- |
+| Code (variables, functions, classes, comments) | English                               |
+| Documentation (README, docs/, CLAUDE.md)       | English                               |
+| Git commits and PR descriptions                | English                               |
+| UI strings                                     | German (de) and English (en) via i18n |
+| LLM prompt templates                           | German (primary)                      |
+| Case examples, test fixtures, domain terms     | German                                |
+| User persona                                   | German federal clerks (Bundesbeamte)  |
 
 ## Data Retention (No-Delete Policy)
 
@@ -75,12 +76,12 @@ cd frontend && npm run build-storybook  # Static build
 
 ### Documentation structure (`frontend/src/docs/`)
 
-| Directory | Content |
-|-----------|---------|
-| `product/` | Vision, GTD methodology, epics, feature specs |
-| `design/` | Design philosophy, Paperclip principles, design tokens, component catalog |
+| Directory      | Content                                                                               |
+| -------------- | ------------------------------------------------------------------------------------- |
+| `product/`     | Vision, methodology, epics, feature specs                                             |
+| `design/`      | Design philosophy, Paperclip principles, design tokens, component catalog             |
 | `engineering/` | Architecture, data model, schema reference, FRBR/LexCEL ontology, deployment, routing |
-| `flows/` | End-to-end user journeys (Collect-to-Engage) |
+| `flows/`       | End-to-end user journeys (Collect-to-Engage)                                          |
 
 ### Component stories (`frontend/src/**/*.stories.tsx`)
 
@@ -111,6 +112,7 @@ npx tsc -b --noEmit                    # Type checking (uses project references)
 ```
 
 **Rules:**
+
 - Fix ALL errors before marking a task as done
 - Don't ignore linter warnings - they often catch real bugs
 - If you modify Python files, run ruff + mypy on affected files
@@ -118,6 +120,7 @@ npx tsc -b --noEmit                    # Type checking (uses project references)
 - When adding i18n keys, add to BOTH `messages.en.ts` and `messages.de.ts`
 
 **Quick validation for changed files only:**
+
 ```bash
 # Backend: check specific files
 uv run ruff check app/path/to/file.py
@@ -181,7 +184,6 @@ Storybook stories use MSW to intercept API requests in-browser, enabling "connec
 
 - **OpenAPI UI**: `http://localhost:8000/docs`
 
-
 ## GitLab
 
 - **CLI**: Use `glab` (not `gh`) for all GitLab operations — issues, MRs, labels, milestones.
@@ -189,4 +191,3 @@ Storybook stories use MSW to intercept API requests in-browser, enabling "connec
 - Don't push unless explicitly asked.
 - Don't amend commits unless explicitly asked.
 - Don't force-push.
-

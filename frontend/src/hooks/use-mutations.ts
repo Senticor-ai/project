@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useCallback, useRef } from "react";
 import {
   useMutation,
   useQueryClient,
@@ -170,27 +170,19 @@ function updateBucketInCache(
 export function useCaptureInbox() {
   const qc = useQueryClient();
 
-  return useMutation({
-    mutationFn: async (rawText: string) => {
-      const classification = classifyText(rawText);
-      const jsonLd =
-        classification.captureSource.kind === "url"
-          ? buildNewUrlInboxJsonLd(classification.captureSource.url)
-          : buildNewInboxJsonLd(rawText);
+  // Internal mutation accepts pre-built JSON-LD so onMutate and mutationFn
+  // share the exact same object (same @id). This prevents the race condition
+  // where optimistic records have a different canonical_id than the server.
+  const mutation = useMutation({
+    mutationFn: async (jsonLd: Record<string, unknown>) => {
       return ItemsApi.create(jsonLd, "manual");
     },
-    onMutate: async (rawText) => {
+    onMutate: async (jsonLd) => {
       const prev = await snapshotActive(qc);
-      const classification = classifyText(rawText);
-      const tempId = `urn:app:inbox:temp-${Date.now()}`;
       const now = new Date().toISOString();
-      const jsonLd =
-        classification.captureSource.kind === "url"
-          ? buildNewUrlInboxJsonLd(classification.captureSource.url)
-          : buildNewInboxJsonLd(rawText);
       const optimistic: ItemRecord = {
         item_id: `temp-${Date.now()}`,
-        canonical_id: tempId,
+        canonical_id: jsonLd["@id"] as string,
         source: "manual",
         item: jsonLd,
         created_at: now,
@@ -202,6 +194,13 @@ export function useCaptureInbox() {
       ]);
       return { prev };
     },
+    onSuccess: (data) => {
+      // Replace the optimistic record (temp item_id) with real server data.
+      // Both share the same canonical_id because the same @id was sent.
+      qc.setQueryData<ItemRecord[]>(ACTIVE_KEY, (old) =>
+        old?.map((r) => (r.canonical_id === data.canonical_id ? data : r)),
+      );
+    },
     onError: (_err, _vars, context) => {
       if (context?.prev) qc.setQueryData(ACTIVE_KEY, context.prev);
     },
@@ -209,6 +208,33 @@ export function useCaptureInbox() {
       await qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
     },
   });
+
+  // Public API: callers pass raw text, we build JSON-LD once and forward it.
+  const mutate = useCallback(
+    (rawText: string) => {
+      const classification = classifyText(rawText);
+      const jsonLd =
+        classification.captureSource.kind === "url"
+          ? buildNewUrlInboxJsonLd(classification.captureSource.url)
+          : buildNewInboxJsonLd(rawText);
+      mutation.mutate(jsonLd);
+    },
+    [mutation],
+  );
+
+  const mutateAsync = useCallback(
+    async (rawText: string) => {
+      const classification = classifyText(rawText);
+      const jsonLd =
+        classification.captureSource.kind === "url"
+          ? buildNewUrlInboxJsonLd(classification.captureSource.url)
+          : buildNewInboxJsonLd(rawText);
+      return mutation.mutateAsync(jsonLd);
+    },
+    [mutation],
+  );
+
+  return { ...mutation, mutate, mutateAsync };
 }
 
 // ---------------------------------------------------------------------------
@@ -218,22 +244,18 @@ export function useCaptureInbox() {
 export function useCaptureFile() {
   const qc = useQueryClient();
 
-  return useMutation({
-    mutationFn: async (file: File) => {
-      const classification = classifyFile(file);
-      const jsonLd = buildNewFileInboxJsonLd(classification, file.name);
+  const mutation = useMutation({
+    mutationFn: async (jsonLd: Record<string, unknown>) => {
       return ItemsApi.create(jsonLd, "manual");
     },
-    onMutate: async (file) => {
+    onMutate: async (jsonLd) => {
       const prev = await snapshotActive(qc);
-      const classification = classifyFile(file);
-      const tempId = `urn:app:inbox:temp-${Date.now()}`;
       const now = new Date().toISOString();
       const optimistic: ItemRecord = {
         item_id: `temp-${Date.now()}`,
-        canonical_id: tempId,
+        canonical_id: jsonLd["@id"] as string,
         source: "manual",
-        item: buildNewFileInboxJsonLd(classification, file.name),
+        item: jsonLd,
         created_at: now,
         updated_at: now,
       };
@@ -243,13 +265,38 @@ export function useCaptureFile() {
       ]);
       return { prev };
     },
+    onSuccess: (data) => {
+      qc.setQueryData<ItemRecord[]>(ACTIVE_KEY, (old) =>
+        old?.map((r) => (r.canonical_id === data.canonical_id ? data : r)),
+      );
+    },
     onError: (_err, _vars, context) => {
       if (context?.prev) qc.setQueryData(ACTIVE_KEY, context.prev);
     },
-    onSettled: () => {
-      qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
+    onSettled: async () => {
+      await qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
     },
   });
+
+  const mutate = useCallback(
+    (file: File) => {
+      const classification = classifyFile(file);
+      const jsonLd = buildNewFileInboxJsonLd(classification, file.name);
+      mutation.mutate(jsonLd);
+    },
+    [mutation],
+  );
+
+  const mutateAsync = useCallback(
+    async (file: File) => {
+      const classification = classifyFile(file);
+      const jsonLd = buildNewFileInboxJsonLd(classification, file.name);
+      return mutation.mutateAsync(jsonLd);
+    },
+    [mutation],
+  );
+
+  return { ...mutation, mutate, mutateAsync };
 }
 
 // ---------------------------------------------------------------------------
@@ -312,11 +359,11 @@ export function useTriageItem() {
       if (context?.prevCompleted)
         qc.setQueryData(COMPLETED_KEY, context.prevCompleted);
     },
-    onSettled: (_data, _err, { item }) => {
+    onSettled: async (_data, _err, { item }) => {
       savedIds.current.delete(item.id);
       // Only invalidate active partition — triage doesn't affect completed items,
       // and archive optimistically adds to COMPLETED_KEY which we want to preserve.
-      qc.invalidateQueries({ queryKey: ACTIVE_KEY });
+      await qc.invalidateQueries({ queryKey: ACTIVE_KEY });
     },
   });
 }
@@ -372,9 +419,9 @@ export function useCompleteAction() {
       if (context?.prevCompleted)
         qc.setQueryData(COMPLETED_KEY, context.prevCompleted);
     },
-    onSettled: (_data, _err, canonicalId) => {
+    onSettled: async (_data, _err, canonicalId) => {
       savedRecords.current.delete(canonicalId);
-      qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
+      await qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
     },
   });
 }
@@ -437,9 +484,9 @@ export function useToggleFocus() {
     onError: (_err, _vars, context) => {
       if (context?.prev) qc.setQueryData(ACTIVE_KEY, context.prev);
     },
-    onSettled: (_data, _err, canonicalId) => {
+    onSettled: async (_data, _err, canonicalId) => {
       savedRecords.current.delete(canonicalId);
-      qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
+      await qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
     },
   });
 }
@@ -499,9 +546,9 @@ export function useMoveAction() {
     onError: (_err, _vars, context) => {
       if (context?.prev) qc.setQueryData(ACTIVE_KEY, context.prev);
     },
-    onSettled: (_data, _err, { canonicalId }) => {
+    onSettled: async (_data, _err, { canonicalId }) => {
       savedMeta.current.delete(canonicalId);
-      qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
+      await qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
     },
   });
 }
@@ -540,8 +587,8 @@ export function useUpdateItem() {
     onError: (_err, _vars, context) => {
       if (context?.prev) qc.setQueryData(ACTIVE_KEY, context.prev);
     },
-    onSettled: () => {
-      qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
+    onSettled: async () => {
+      await qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
     },
   });
 }
@@ -584,8 +631,8 @@ export function useAddAction() {
     onError: (_err, _vars, context) => {
       if (context?.prev) qc.setQueryData(ACTIVE_KEY, context.prev);
     },
-    onSettled: () => {
-      qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
+    onSettled: async () => {
+      await qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
     },
   });
 }
@@ -622,8 +669,8 @@ export function useAddReference() {
     onError: (_err, _vars, context) => {
       if (context?.prev) qc.setQueryData(ACTIVE_KEY, context.prev);
     },
-    onSettled: () => {
-      qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
+    onSettled: async () => {
+      await qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
     },
   });
 }
@@ -666,8 +713,8 @@ export function useAddProjectAction() {
     onError: (_err, _vars, context) => {
       if (context?.prev) qc.setQueryData(ACTIVE_KEY, context.prev);
     },
-    onSettled: () => {
-      qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
+    onSettled: async () => {
+      await qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
     },
   });
 }
@@ -710,8 +757,8 @@ export function useCreateProject() {
     onError: (_err, _vars, context) => {
       if (context?.prev) qc.setQueryData(ACTIVE_KEY, context.prev);
     },
-    onSettled: () => {
-      qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
+    onSettled: async () => {
+      await qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
     },
   });
 }
@@ -753,11 +800,11 @@ export function useArchiveReference() {
       if (context?.prevCompleted)
         qc.setQueryData(COMPLETED_KEY, context.prevCompleted);
     },
-    onSettled: (_data, _err, canonicalId) => {
+    onSettled: async (_data, _err, canonicalId) => {
       savedIds.current.delete(canonicalId);
       // Only invalidate active partition — archive optimistically adds to
       // COMPLETED_KEY which we want to preserve until next completed refresh.
-      qc.invalidateQueries({ queryKey: ACTIVE_KEY });
+      await qc.invalidateQueries({ queryKey: ACTIVE_KEY });
     },
   });
 }

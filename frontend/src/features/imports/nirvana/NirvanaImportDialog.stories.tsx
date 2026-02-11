@@ -6,7 +6,7 @@ import { store } from "@/test/msw/fixtures";
 import type { ImportJobResponse } from "@/lib/api-client";
 
 const meta = {
-  title: "Work/NirvanaImportDialog",
+  title: "Imports/NirvanaImportDialog",
   component: NirvanaImportDialog,
   tags: ["autodocs"],
   args: {
@@ -116,6 +116,7 @@ const failedJob: ImportJobResponse = {
   },
   progress: null,
   error: "Database connection lost",
+  archived_at: null,
 };
 
 export const ImportError: Story = {

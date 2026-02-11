@@ -23,18 +23,18 @@ export const Filled: Story = {
   args: { name: "check_circle", size: 24, fill: true },
 };
 
-export const GTDBuckets: Story = {
+export const AppBuckets: Story = {
   args: { name: "inbox" },
   render: () => (
     <div className="flex items-center gap-4">
-      <Icon name="inbox" className="text-gtd-inbox" />
-      <Icon name="bolt" className="text-gtd-next" />
-      <Icon name="folder" className="text-gtd-project" />
-      <Icon name="schedule" className="text-gtd-waiting" />
-      <Icon name="cloud" className="text-gtd-someday" />
-      <Icon name="calendar_month" className="text-gtd-calendar" />
-      <Icon name="book" className="text-gtd-reference" />
-      <Icon name="center_focus_strong" className="text-gtd-focus" />
+      <Icon name="inbox" className="text-app-inbox" />
+      <Icon name="bolt" className="text-app-next" />
+      <Icon name="folder" className="text-app-project" />
+      <Icon name="schedule" className="text-app-waiting" />
+      <Icon name="cloud" className="text-app-someday" />
+      <Icon name="calendar_month" className="text-app-calendar" />
+      <Icon name="book" className="text-app-reference" />
+      <Icon name="center_focus_strong" className="text-app-focus" />
     </div>
   ),
 };

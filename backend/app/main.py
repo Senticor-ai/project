@@ -35,13 +35,14 @@ from .observability import (
     get_logger,
 )
 from .routes import assertions, auth, dev, files, imports, items, orgs, push, schemas, search
+from .tracing import configure_tracing, shutdown_tracing
 
 configure_logging()
 logger = get_logger("app")
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(application: FastAPI):
     worker_id = os.environ.get("UVICORN_WORKER_ID") or os.environ.get("WORKER_ID") or "main"
     port = os.environ.get("PORT") or os.environ.get("UVICORN_PORT") or "8000"
     logger.info(
@@ -50,9 +51,11 @@ async def lifespan(_: FastAPI):
         worker_id=worker_id,
         port=port,
     )
+    tracer_provider = configure_tracing(application)
     try:
         yield
     finally:
+        shutdown_tracing(tracer_provider)
         logger.info(
             "app.shutdown",
             pid=os.getpid(),

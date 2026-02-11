@@ -69,26 +69,26 @@ export const Interactive: Story = {
     const nav = canvas.getByRole("navigation", { name: "Buckets" });
     const sidebar = within(nav);
 
-    await step("Click Next Actions — gets aria-current=page", async () => {
-      const nextBtn = sidebar.getByText("Next Actions").closest("button")!;
+    await step("Click Next — gets aria-current=page", async () => {
+      const nextBtn = sidebar.getByText("Next").closest("button")!;
       await userEvent.click(nextBtn);
       await expect(nextBtn).toHaveAttribute("aria-current", "page");
     });
 
     await step(
-      "Click Calendar — Calendar active, Next Actions loses active",
+      "Click Calendar — Calendar active, Next loses active",
       async () => {
         const calBtn = sidebar.getByText("Calendar").closest("button")!;
         await userEvent.click(calBtn);
         await expect(calBtn).toHaveAttribute("aria-current", "page");
 
-        const nextBtn = sidebar.getByText("Next Actions").closest("button")!;
+        const nextBtn = sidebar.getByText("Next").closest("button")!;
         await expect(nextBtn).not.toHaveAttribute("aria-current");
       },
     );
 
     await step("Count badges are visible for buckets with counts", async () => {
-      // "12" badge for Next Actions, "4" for Inbox, "1" for Calendar
+      // "12" badge for Next, "4" for Inbox, "1" for Calendar
       await expect(sidebar.getByText("12")).toBeInTheDocument();
       await expect(sidebar.getByText("4")).toBeInTheDocument();
       await expect(sidebar.getByText("1")).toBeInTheDocument();

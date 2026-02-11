@@ -162,7 +162,7 @@ export function FileDropZone({
       {errors.length > 0 && (
         <div className="mt-2 space-y-1">
           {errors.map((err) => (
-            <p key={err} className="text-xs text-red-600">
+            <p key={err} className="text-xs text-status-error">
               {err}
             </p>
           ))}

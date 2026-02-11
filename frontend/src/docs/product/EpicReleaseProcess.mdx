@@ -1,0 +1,235 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Product/Epics/Release Process" />
+
+# Epic: Release Process & Hygiene
+
+**Status:** Not started
+**Priority:** Future (deferred until beta users)
+
+## Context
+
+Every successful deploy to production pushes SHA-tagged container images to Harbor and auto-commits the new tag to the Kubernetes kustomization manifest. However there are no named releases, no git tags, no release notes, and no archived testing evidence. Additionally, all test jobs have `allow_failure: true`, meaning broken code can reach production without any gate.
+
+This epic introduces a phased release process — starting with a minimal local script for tagging and release notes, then hardening the pipeline with quality gates and evidence archival, and finally adding supply-chain security measures.
+
+**Versioning scheme:** SemVer (`MAJOR.MINOR.PATCH`), single version for the monorepo since frontend and backend deploy atomically. Tag format: `v0.x.y`. A root `VERSION` file is the authoritative source; `package.json` and `pyproject.toml` are updated at release time.
+
+**Release trigger:** Manual. A human decides "this deployed SHA is stable enough to be a named release" and runs the script with a version number.
+
+---
+
+## Phase 1: Minimum Viable Release (local script)
+
+### 1a. `VERSION` file
+
+Create a plain text file at the repo root containing the current version (e.g., `0.1.0`). This is the single source of truth read by the release script.
+
+### 1b. `ci/release.sh`
+
+A shell script (~120 lines) run locally that:
+
+1. **Validates** — clean working tree, on `main`, valid SemVer, tag does not already exist
+2. **Reads deployed SHA** from `infra/k8s/overlays/production/kustomization.yaml`
+3. **Re-tags container images** in Harbor using `crane tag` — adds a `v0.x.y` alias to the existing SHA-tagged manifest without rebuilding or transferring layers
+4. **Updates `VERSION`** and bumps version in `frontend/package.json` (`npm version --no-git-tag-version`) and `backend/pyproject.toml`
+5. **Commits** the version bump locally
+6. **Creates annotated git tag** `v0.x.y` with image URIs in the tag message
+7. **Generates release notes** from commits since previous tag, filtering out auto-generated `deploy: update image tag` commits
+8. **Creates GitLab release** via `glab release create` with the generated notes
+9. Prints a reminder to push — does NOT push (per project conventions)
+
+**Usage:** `./ci/release.sh 0.2.0`
+
+**Prerequisites:** `brew install crane`, `glab` authenticated, Harbor credentials available to crane.
+
+### 1c. VERIFY
+
+```bash
+# Install crane
+brew install crane
+crane auth login harbor.100-114-108-51.nip.io:30443 -u $HARBOR_USER -p $HARBOR_PASSWORD --insecure
+
+# Run first release
+./ci/release.sh 0.1.0
+
+# Verify
+git tag -l                           # shows v0.1.0
+crane ls harbor.100-114-108-51.nip.io:30443/terminandoyo/frontend --insecure  # shows both SHA and v0.1.0
+glab release view v0.1.0             # shows release with notes
+
+# Push when ready
+git push origin main --tags
+```
+
+---
+
+## Phase 2: Quality Gates + Testing Evidence
+
+### 2a. Fix pre-existing test failures
+
+Before removing `allow_failure`, fix known failures:
+
+- `Workflow.stories.tsx` (TriageToNext, TriageToWaiting, FullWorkflow)
+- `WorkScreen.stories.tsx` (CapturTriageNavigate)
+
+These are related to triage button labels.
+
+### 2b. Remove `allow_failure: true`
+
+Remove `allow_failure: true` from all 11 quality/test jobs in `.gitlab-ci.yml`. Add `needs:` to build jobs so they depend on quality+test completion:
+
+```yaml
+build-frontend:
+  needs: [frontend-lint, frontend-typecheck, frontend-unit, frontend-storybook, frontend-integration]
+
+build-backend:
+  needs: [backend-lint, backend-typecheck, backend-unit, backend-integration]
+```
+
+### 2c. Add JUnit report artifacts
+
+Add `--reporter=junit --outputFile=test-results/junit.xml` to vitest jobs and `--junitxml=test-results/junit.xml` to pytest jobs. Declare as `reports: junit:` artifacts for native GitLab test report integration.
+
+### 2d. Fix push-rebuilds-from-scratch
+
+The push stage currently re-runs Kaniko with the full Dockerfile instead of pushing the tar artifact from the build stage. This means the pushed image may differ from the built/tested one if any `RUN` commands have non-deterministic behavior.
+
+Fix by adding `crane` to the CI image and replacing the push jobs:
+
+```yaml
+push-frontend:
+  extends: .push-base
+  image: $CI_NODE_PYTHON_IMAGE
+  needs: [build-frontend]
+  script:
+    - crane push /tmp/frontend.tar "${HARBOR_REGISTRY}/terminandoyo/frontend:${CI_COMMIT_SHORT_SHA}" --insecure
+```
+
+Add to `ci/Dockerfile.ci`:
+
+```dockerfile
+RUN curl -sL https://github.com/google/go-containerregistry/releases/latest/download/go-containerregistry_Linux_x86_64.tar.gz \
+    | tar xz -C /usr/local/bin crane
+```
+
+### 2e. Testing evidence archival
+
+Enhance `ci/release.sh` (or add a CI `release` stage) to:
+
+1. Download pipeline artifacts for the deployed SHA via `glab api`
+2. Bundle test reports, coverage, and Playwright reports into `testing-evidence-v0.x.y.tar.gz`
+3. Attach to the GitLab release via `glab release upload`
+4. Include pipeline URL in release notes
+
+### 2f. VERIFY
+
+```bash
+# Rebuild CI image with crane
+glab ci run --variables BUILD_CI_IMAGE=true
+
+# Push a commit with a failing test — verify pipeline stops at test stage
+# Fix the test, push — verify full pipeline succeeds and deploys
+
+# Create release with evidence
+./ci/release.sh 0.2.0
+glab release view v0.2.0   # should show attached testing-evidence archive
+```
+
+---
+
+## Phase 3: Advanced Hygiene
+
+### 3a. Post-deploy smoke tests
+
+Add a CI job after `update-manifests` that curls health endpoints on the production URL to verify the new version is serving:
+
+```yaml
+smoke-test:
+  stage: deploy
+  needs: [update-manifests]
+  script:
+    - sleep 30
+    - curl -fsSk "https://terminandoyo.100-114-108-51.nip.io:30443/" || exit 1
+    - curl -fsSk "https://terminandoyo.100-114-108-51.nip.io:30443/api/health" || exit 1
+```
+
+### 3b. SBOM generation
+
+Use `syft` to generate Software Bill of Materials for each container image at release time. Attach SPDX JSON files as release assets.
+
+### 3c. Container image signing
+
+Use `cosign` to sign released images. Store the private key as a CI/CD variable, commit `cosign.pub` to the repo. Signatures prove images have not been tampered with between build and deploy.
+
+### 3d. CHANGELOG automation
+
+Generate `CHANGELOG.md` from git tags. Each release section lists non-deploy commits since the previous tag.
+
+### 3e. Conventional Commits
+
+Enforce structured commit messages via `commitlint`. Enables categorized changelogs (features, fixes, breaking changes).
+
+### 3f. Rollback runbook
+
+Document `docs/rollback.md` with step-by-step procedures for reverting to a previous release tag, including database migration downgrade considerations.
+
+### 3g. DB migration tracking
+
+Once Alembic migration versions are in use, list new migrations in release notes with a reminder to run `uv run alembic upgrade head`.
+
+---
+
+## Files to create/modify
+
+**New files (Phase 1):**
+
+- `VERSION` — single-line version string (repo root)
+- `ci/release.sh` — release script (~120 lines)
+
+**Modified files (Phase 2):**
+
+- `.gitlab-ci.yml` — remove `allow_failure`, add `needs`, add JUnit artifacts, fix push stage
+- `ci/Dockerfile.ci` — add `crane` binary
+
+**Modified at release time (by script):**
+
+- `frontend/package.json` — version field bumped
+- `backend/pyproject.toml` — version field bumped
+- `infra/k8s/overlays/production/kustomization.yaml` — read for deployed SHA
+
+**New files (Phase 3):**
+
+- `docs/rollback.md` — rollback procedures
+
+---
+
+## Priority matrix
+
+| Item | Phase | Effort | Impact |
+| ---- | ----- | ------ | ------ |
+| `VERSION` + `ci/release.sh` | 1 | Small | High — enables named releases |
+| First release `v0.1.0` | 1 | Tiny | High — proves the process |
+| Fix pre-existing test failures | 2 | Medium | Critical — prerequisite for quality gates |
+| Remove `allow_failure: true` | 2 | Small | High — tests protect deploys |
+| Fix push-rebuilds-from-scratch | 2 | Small | High — image integrity |
+| JUnit report artifacts | 2 | Small | Medium — CI visibility |
+| Testing evidence archival | 2 | Small | Medium — audit trail |
+| Post-deploy smoke tests | 3 | Small | Medium — catch deploy failures |
+| SBOM generation | 3 | Small | Low — compliance prep |
+| Container signing | 3 | Medium | Low — supply chain security |
+| Changelog + conventional commits | 3 | Medium | Medium — developer experience |
+| Rollback runbook | 3 | Small | Medium — operational safety |
+
+---
+
+## Verification checklist
+
+- [ ] `ci/release.sh 0.x.y` creates git tag, re-tags images, creates GitLab release
+- [ ] `crane ls` shows both SHA and version tags for all 3 images
+- [ ] `glab release view v0.x.y` shows release notes with commit log
+- [ ] Quality/test failures block the build stage (Phase 2)
+- [ ] JUnit reports appear in GitLab MR/pipeline UI (Phase 2)
+- [ ] Testing evidence archive attached to release (Phase 2)
+- [ ] Pushed images are byte-identical to built tars (Phase 2)
+- [ ] Smoke test job runs after deploy (Phase 3)

@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { FilesApi, ImportsApi } from "@/lib/api-client";
 import type {
-  NirvanaImportSummary,
+  ImportSummary,
   ImportJobResponse,
   FileRecord,
   FileInitiateResponse,
@@ -46,7 +46,7 @@ const FILE_RECORD: FileRecord = {
   download_url: "/files/file-abc",
 };
 
-const SUMMARY: NirvanaImportSummary = {
+const SUMMARY: ImportSummary = {
   total: 100,
   created: 80,
   updated: 10,
@@ -70,6 +70,7 @@ const JOB_COMPLETED: ImportJobResponse = {
   summary: SUMMARY,
   progress: null,
   error: null,
+  archived_at: null,
 };
 
 function renderDialog(

@@ -4,7 +4,7 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 # Flow: Collect → Process → Organize → Review → Engage
 
-This document traces the complete GTD lifecycle through Terminandoyo's
+This document traces the complete task lifecycle through Terminandoyo's
 Paperclip components, from the moment a thought enters the system to the
 moment it's acted upon.
 
@@ -128,7 +128,7 @@ add dates, or apply labels — all inline on the card.
 - Triage bar is always visible on the first card (no click to reveal)
 - "More options" expands with a smooth slide animation (Framer Motion)
 - On bucket tap: card slides out, item appears in target bucket
-- Bucket buttons use GTD bucket colors for instant visual recognition
+- Bucket buttons use bucket colors for instant visual recognition
 
 ---
 
@@ -138,7 +138,7 @@ add dates, or apply labels — all inline on the card.
 
 After processing, items live in their appropriate buckets.
 
-### If single action → Next Actions
+### If single action → Next
 
 The action appears in `ActionList` with:
 
@@ -156,7 +156,7 @@ A new `Project` is created with:
 
 Subsequent inbox items can be routed to this project during clarification.
 
-### If delegated → Waiting For
+### If delegated → Waiting
 
 An action with `bucket: "waiting"` and `delegatedTo` set appears in `WaitingForList`:
 
@@ -188,10 +188,10 @@ An action with `scheduledDate` appears in `CalendarView`:
 | Step          | Component Used                | What User Does                 |
 | ------------- | ----------------------------- | ------------------------------ |
 | Clear Inbox   | `InboxList` + `InboxTriage`   | Triage remaining items         |
-| Next Actions  | `ActionList` (filtered: next) | Mark done, reschedule, archive |
+| Next          | `ActionList` (filtered: next) | Mark done, reschedule, archive |
 | Projects      | `ProjectTree` (each project)  | Ensure each has a next action  |
-| Waiting For   | `WaitingForList`              | Follow up on overdue items     |
-| Someday/Maybe | `SomedayList`                 | Promote or archive             |
+| Waiting       | `WaitingForList`              | Follow up on overdue items     |
+| Later         | `SomedayList`                 | Promote or archive             |
 | Calendar      | `CalendarView` (next 2 weeks) | Confirm upcoming commitments   |
 | Set Focus     | `FocusList`                   | Star/unstar items for the week |
 
@@ -219,7 +219,7 @@ should I do?"
 
 **Flow**:
 
-1. User opens ActionList (or taps BucketNav → Next Actions)
+1. User opens ActionList (or taps BucketNav → Next)
 2. Context filter: selects `@computer` (they're at their desk)
 3. Time filter: "I have 30 min"
 4. Energy filter: "Medium" (it's mid-afternoon)

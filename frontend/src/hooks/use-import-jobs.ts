@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ImportsApi } from "@/lib/api-client";
 import type { ImportJobResponse } from "@/lib/api-client";
 import type { ImportJobData } from "@/components/settings/ImportJobRow";
@@ -31,6 +31,8 @@ function toImportJobData(job: ImportJobResponse): ImportJobData {
 }
 
 export function useImportJobs() {
+  const qc = useQueryClient();
+
   const query = useQuery<ImportJobResponse[]>({
     queryKey: IMPORT_JOBS_QUERY_KEY,
     queryFn: () => ImportsApi.listJobs({ limit: 20 }),
@@ -61,5 +63,21 @@ export function useImportJobs() {
     [query.data],
   );
 
-  return { jobs, checkDuplicate, isLoading: query.isLoading };
+  const retryJob = useMutation({
+    mutationFn: (jobId: string) => ImportsApi.retryJob(jobId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: IMPORT_JOBS_QUERY_KEY }),
+  });
+
+  const archiveJob = useMutation({
+    mutationFn: (jobId: string) => ImportsApi.archiveJob(jobId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: IMPORT_JOBS_QUERY_KEY }),
+  });
+
+  return {
+    jobs,
+    checkDuplicate,
+    isLoading: query.isLoading,
+    retryJob,
+    archiveJob,
+  };
 }

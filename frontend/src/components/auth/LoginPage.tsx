@@ -118,7 +118,7 @@ export function LoginPage({
             </h2>
 
             {error && (
-              <p className="text-xs text-red-700">
+              <p className="text-xs text-status-error">
                 <Icon
                   name="error"
                   size={12}

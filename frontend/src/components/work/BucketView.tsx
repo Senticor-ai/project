@@ -9,6 +9,8 @@ import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
 import { BucketBadge } from "@/components/paperclip/BucketBadge";
 import { getDisplayName } from "@/model/types";
+import { computeBucketCounts } from "@/lib/bucket-counts";
+import { useIsMobile } from "@/hooks/use-is-mobile";
 import { BucketNav } from "./BucketNav";
 import { ActionList } from "./ActionList";
 import { ReferenceList } from "./ReferenceList";
@@ -84,6 +86,7 @@ export function BucketView({
   onSelectReference,
   className,
 }: BucketViewProps) {
+  const isMobile = useIsMobile();
   const [activeItem, setActiveItem] = useState<ActionItem | null>(null);
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
@@ -106,31 +109,20 @@ export function BucketView({
     [onMoveActionItem],
   );
 
-  const counts: Partial<Record<Bucket, number>> = {
-    inbox: actionItems.filter((t) => t.bucket === "inbox" && !t.completedAt)
-      .length,
-    focus: actionItems.filter((t) => t.isFocused && !t.completedAt).length,
-    next: actionItems.filter((t) => t.bucket === "next" && !t.completedAt)
-      .length,
-    waiting: actionItems.filter((t) => t.bucket === "waiting" && !t.completedAt)
-      .length,
-    calendar: actionItems.filter(
-      (t) => t.bucket === "calendar" && !t.completedAt,
-    ).length,
-    someday: actionItems.filter((t) => t.bucket === "someday" && !t.completedAt)
-      .length,
-    reference: referenceItems.filter((r) => !r.provenance.archivedAt).length,
-    project: projects.filter((p) => p.status === "active").length,
-  };
+  const counts = computeBucketCounts(actionItems, referenceItems, projects);
 
   return (
-    <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+    <DndContext
+      onDragStart={isMobile ? undefined : handleDragStart}
+      onDragEnd={isMobile ? undefined : handleDragEnd}
+      sensors={isMobile ? [] : undefined}
+    >
       <div className={cn("flex gap-6", className)}>
         <BucketNav
           activeBucket={activeBucket}
           onSelect={onBucketChange}
           counts={counts}
-          className="w-56 shrink-0"
+          className="hidden w-56 shrink-0 md:block"
         />
 
         <main className="min-w-0 flex-1" aria-label="Bucket content">

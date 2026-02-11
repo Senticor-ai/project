@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Preview } from "@storybook/react-vite";
+import { MINIMAL_VIEWPORTS } from "storybook/viewport";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ToastProvider } from "../src/components/ui/ToastProvider";
 import { worker } from "./msw-setup";
@@ -56,6 +57,55 @@ const preview: Preview = {
     },
   ],
   parameters: {
+    viewport: {
+      options: {
+        ...MINIMAL_VIEWPORTS,
+        iphoneSE: {
+          name: "iPhone SE",
+          styles: { width: "375px", height: "667px" },
+          type: "mobile" as const,
+        },
+        iphone14: {
+          name: "iPhone 14",
+          styles: { width: "390px", height: "844px" },
+          type: "mobile" as const,
+        },
+        ipadMini: {
+          name: "iPad mini",
+          styles: { width: "768px", height: "1024px" },
+          type: "tablet" as const,
+        },
+      },
+    },
+    options: {
+      storySort: {
+        method: "alphabetical" as const,
+        order: [
+          "Product",
+          ["Vision", "Methodology", "Feature Map", "Sales Battlecard", "Epics"],
+          "Flows",
+          ["Collect to Engage", "Tax Prep", ["Overview", "*"]],
+          "Design",
+          ["Philosophy", "Paperclip Principles", "Tokens"],
+          "Engineering",
+          [
+            "Architecture",
+            "Routing",
+            "Deployment",
+            "Backend API Requests",
+            "Backend Architecture",
+            "Ontology",
+            ["*"],
+          ],
+          "Primitives",
+          "UI",
+          "Work",
+          "Screens",
+          "Shell",
+          "Settings",
+        ],
+      },
+    },
     controls: {
       matchers: {
         color: /(background|color)$/i,

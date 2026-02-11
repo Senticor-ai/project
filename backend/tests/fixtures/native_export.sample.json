@@ -111,9 +111,9 @@
       "@id": "urn:app:reference:REF-001",
       "@type": "CreativeWork",
       "_schemaVersion": 2,
-      "name": "GTD methodology notes",
-      "description": "Reference material on Getting Things Done",
-      "keywords": ["reference", "gtd"],
+      "name": "Task methodology notes",
+      "description": "Reference material on task management",
+      "keywords": ["reference", "methodology"],
       "dateCreated": "2026-01-01T00:00:00+00:00",
       "dateModified": "2026-01-01T00:00:00+00:00",
       "additionalProperty": [

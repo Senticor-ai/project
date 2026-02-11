@@ -9,6 +9,9 @@ export interface ImportExportPanelProps {
   onImportNirvana: () => void;
   onExport: (options: ExportOptions) => void;
   importJobs?: ImportJobData[];
+  onRetryJob?: (jobId: string) => void;
+  onArchiveJob?: (jobId: string) => void;
+  retryingJobId?: string | null;
   className?: string;
 }
 
@@ -17,6 +20,9 @@ export function ImportExportPanel({
   onImportNirvana,
   onExport,
   importJobs,
+  onRetryJob,
+  onArchiveJob,
+  retryingJobId,
   className,
 }: ImportExportPanelProps) {
   const [includeArchived, setIncludeArchived] = useState(false);
@@ -72,7 +78,13 @@ export function ImportExportPanel({
           </h2>
           <div className="space-y-2">
             {importJobs.map((job) => (
-              <ImportJobRow key={job.job_id} job={job} />
+              <ImportJobRow
+                key={job.job_id}
+                job={job}
+                onRetry={onRetryJob}
+                onArchive={onArchiveJob}
+                isRetrying={retryingJobId === job.job_id}
+              />
             ))}
           </div>
         </section>
@@ -88,7 +100,7 @@ export function ImportExportPanel({
         </h2>
         <fieldset className="space-y-2">
           <legend className="text-xs text-text-subtle">
-            Export your active GTD items to a file for backup or migration.
+            Export your active items to a file for backup or migration.
           </legend>
           <label className="flex items-center gap-2 text-sm text-text-muted">
             <input

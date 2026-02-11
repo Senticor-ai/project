@@ -246,7 +246,7 @@ function ProjectRow({
         {stalled && (
           <span
             aria-label="Needs next action"
-            className="shrink-0 text-amber-700"
+            className="shrink-0 text-status-warning"
           >
             <Icon name="warning" size={16} />
           </span>

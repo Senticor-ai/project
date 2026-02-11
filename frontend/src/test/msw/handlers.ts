@@ -2,7 +2,7 @@ import { http, HttpResponse } from "msw";
 import { store, buildSyncResponse, createFileRecord } from "./fixtures";
 import type {
   ItemRecord,
-  NirvanaImportSummary,
+  ImportSummary,
   ImportJobResponse,
 } from "@/lib/api-client";
 
@@ -154,7 +154,7 @@ export const filesHandlers = [
 // Imports API handlers
 // ---------------------------------------------------------------------------
 
-const defaultImportSummary: NirvanaImportSummary = {
+const defaultImportSummary: ImportSummary = {
   total: 42,
   created: 35,
   updated: 3,
@@ -186,6 +186,7 @@ export const importsHandlers = [
       summary: defaultImportSummary,
       progress: null,
       error: null,
+      archived_at: null,
     };
     return HttpResponse.json(importJobState);
   }),
@@ -209,6 +210,7 @@ export const importsHandlers = [
       summary: defaultImportSummary,
       progress: null,
       error: null,
+      archived_at: null,
     };
     return HttpResponse.json(importJobState);
   }),
@@ -222,6 +224,36 @@ export const importsHandlers = [
 
   http.get(`${API}/imports/jobs`, () => {
     return HttpResponse.json(importJobState ? [importJobState] : []);
+  }),
+
+  http.post(`${API}/imports/jobs/:jobId/retry`, () => {
+    const now = new Date().toISOString();
+    importJobState = {
+      job_id: "msw-job-retry",
+      status: "queued",
+      file_id: importJobState?.file_id ?? "file-msw-1",
+      file_sha256: importJobState?.file_sha256 ?? "abc123def456",
+      source: importJobState?.source ?? "nirvana",
+      created_at: now,
+      updated_at: now,
+      started_at: null,
+      finished_at: null,
+      summary: null,
+      progress: null,
+      error: null,
+      archived_at: null,
+    };
+    return HttpResponse.json(importJobState, { status: 202 });
+  }),
+
+  http.post(`${API}/imports/jobs/:jobId/archive`, () => {
+    if (importJobState) {
+      importJobState = {
+        ...importJobState,
+        archived_at: new Date().toISOString(),
+      };
+    }
+    return HttpResponse.json(importJobState);
   }),
 ];
 

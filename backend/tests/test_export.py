@@ -11,7 +11,7 @@ def _create_item(auth_client, item: dict, source: str = "manual") -> dict:
 def _action_item(
     *,
     name: str = "Ship export endpoint",
-    description: str = "Export all GTD items",
+    description: str = "Export all items",
     raw_capture: str = "capture, with comma",
     bucket: str = "next",
     end_time: str | None = None,

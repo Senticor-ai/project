@@ -263,20 +263,20 @@ export const NavigateBuckets: Story = {
 
     await expect(canvas.getByText(/3 items to process/)).toBeInTheDocument();
 
-    await step("Navigate to Next Actions", async () => {
-      await userEvent.click(sidebar.getByText("Next Actions"));
+    await step("Navigate to Next", async () => {
+      await userEvent.click(sidebar.getByText("Next"));
       await expect(
-        canvas.getByRole("heading", { name: /Next Actions/ }),
+        canvas.getByRole("heading", { name: /Next/ }),
       ).toBeInTheDocument();
       await expect(
         canvas.getByText("Review team performance reports"),
       ).toBeInTheDocument();
     });
 
-    await step("Navigate to Waiting For", async () => {
-      await userEvent.click(sidebar.getByText("Waiting For"));
+    await step("Navigate to Waiting", async () => {
+      await userEvent.click(sidebar.getByText("Waiting"));
       await expect(
-        canvas.getByRole("heading", { name: /Waiting For/ }),
+        canvas.getByRole("heading", { name: /Waiting/ }),
       ).toBeInTheDocument();
       await expect(
         canvas.getByText("Follow up with vendor"),
@@ -293,8 +293,8 @@ export const NavigateBuckets: Story = {
       ).toBeInTheDocument();
     });
 
-    await step("Navigate to Someday/Maybe", async () => {
-      await userEvent.click(sidebar.getByText("Someday/Maybe"));
+    await step("Navigate to Later", async () => {
+      await userEvent.click(sidebar.getByText("Later"));
       await expect(canvas.getByText("Plan team offsite")).toBeInTheDocument();
     });
 
@@ -305,7 +305,7 @@ export const NavigateBuckets: Story = {
   },
 };
 
-/** Move an inbox item to Next, then verify it shows in Next Actions. */
+/** Move an inbox item to Next, then verify it shows in Next. */
 export const InboxToNext: Story = {
   render: () => (
     <StatefulBucketView
@@ -333,8 +333,8 @@ export const InboxToNext: Story = {
 
     await expect(canvas.getByText("Inbox is empty")).toBeInTheDocument();
 
-    await step("Navigate to Next Actions", async () => {
-      await userEvent.click(sidebar.getByText("Next Actions"));
+    await step("Navigate to Next", async () => {
+      await userEvent.click(sidebar.getByText("Next"));
       await expect(
         canvas.getByText("Write quarterly report"),
       ).toBeInTheDocument();
@@ -343,7 +343,7 @@ export const InboxToNext: Story = {
   },
 };
 
-/** Complete an action from the Next Actions view — count decreases. */
+/** Complete an action from the Next view — count decreases. */
 export const CompleteFromNext: Story = {
   render: () => (
     <StatefulBucketView
@@ -405,7 +405,7 @@ export const DragToSomeday: Story = {
   render: () => (
     <StatefulBucketView
       initialItems={[
-        createActionItem({ rawCapture: "Drag me to Someday", bucket: "next" }),
+        createActionItem({ rawCapture: "Drag me to Later", bucket: "next" }),
         createActionItem({ rawCapture: "Stay in Next", bucket: "next" }),
       ]}
       initialBucket="next"
@@ -419,11 +419,11 @@ export const DragInboxToBucket: Story = {
     <StatefulBucketView
       initialItems={[
         createActionItem({
-          rawCapture: "Drag me to Next Actions",
+          rawCapture: "Drag me to Next",
           bucket: "inbox",
         }),
         createActionItem({
-          rawCapture: "Drag me to Someday",
+          rawCapture: "Drag me to Later",
           bucket: "inbox",
         }),
       ]}
@@ -454,7 +454,7 @@ export const FullWorkflow: Story = {
     });
 
     await step("Navigate to Next and star the action", async () => {
-      await userEvent.click(sidebar.getByText("Next Actions"));
+      await userEvent.click(sidebar.getByText("Next"));
       await expect(
         canvas.getByText("Prepare team presentation"),
       ).toBeInTheDocument();
@@ -478,8 +478,57 @@ export const FullWorkflow: Story = {
     });
 
     await step("Verify Next is also empty", async () => {
-      await userEvent.click(sidebar.getByText("Next Actions"));
+      await userEvent.click(sidebar.getByText("Next"));
       await expect(canvas.getByText("No actions here yet")).toBeInTheDocument();
+    });
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Responsive viewport stories
+// ---------------------------------------------------------------------------
+
+/** Mobile viewport — sidebar is hidden via `hidden md:block`. */
+export const MobileLayout: Story = {
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  render: () => (
+    <StatefulBucketView
+      initialItems={[...sampleItems]}
+      initialRefs={[...sampleRefs]}
+      projects={sampleProjects}
+    />
+  ),
+  play: async ({ canvas, step }) => {
+    await step("Sidebar is hidden on mobile", async () => {
+      const nav = canvas.queryByRole("navigation", { name: "Buckets" });
+      if (nav) {
+        await expect(nav).not.toBeVisible();
+      }
+    });
+
+    await step("Content area is visible", async () => {
+      await expect(
+        canvas.getByLabelText("Bucket content"),
+      ).toBeInTheDocument();
+    });
+  },
+};
+
+/** Tablet viewport — sidebar + content fit side by side. */
+export const TabletLayout: Story = {
+  globals: { viewport: { value: "tablet", isRotated: false } },
+  render: () => (
+    <StatefulBucketView
+      initialItems={[...sampleItems]}
+      initialRefs={[...sampleRefs]}
+      projects={sampleProjects}
+    />
+  ),
+  play: async ({ canvas, step }) => {
+    await step("Sidebar is visible on tablet", async () => {
+      await expect(
+        canvas.getByRole("navigation", { name: "Buckets" }),
+      ).toBeVisible();
     });
   },
 };

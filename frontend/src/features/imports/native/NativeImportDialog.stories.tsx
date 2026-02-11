@@ -6,7 +6,7 @@ import { store } from "@/test/msw/fixtures";
 import type { ImportJobResponse } from "@/lib/api-client";
 
 const meta = {
-  title: "Work/NativeImportDialog",
+  title: "Imports/NativeImportDialog",
   component: NativeImportDialog,
   tags: ["autodocs"],
   args: {
@@ -114,6 +114,7 @@ const failedJob: ImportJobResponse = {
   },
   progress: null,
   error: "Database connection lost",
+  archived_at: null,
 };
 
 export const ImportError: Story = {

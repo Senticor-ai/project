@@ -25,6 +25,7 @@ CLEAN_DB=false
 RUN_TESTS=true
 PW_ARGS=()
 BACKEND_PID=""
+WORKER_PID=""
 FRONTEND_PID=""
 
 # ── Parse flags ──────────────────────────────────────────────────────
@@ -107,6 +108,10 @@ cleanup() {
     kill "$FRONTEND_PID" 2>/dev/null || true
     wait "$FRONTEND_PID" 2>/dev/null || true
   fi
+  if [ -n "$WORKER_PID" ]; then
+    kill "$WORKER_PID" 2>/dev/null || true
+    wait "$WORKER_PID" 2>/dev/null || true
+  fi
   if [ -n "$BACKEND_PID" ]; then
     kill "$BACKEND_PID" 2>/dev/null || true
     wait "$BACKEND_PID" 2>/dev/null || true
@@ -179,6 +184,15 @@ for i in $(seq 1 30); do
   fi
   sleep 1
 done
+
+# ── Step 6b: Start outbox worker ──────────────────────────────────────
+# The worker processes outbox events (import jobs, search indexing, etc.).
+# Without it, import jobs stay in "queued" status forever.
+echo "[e2e] Starting outbox worker..."
+cd "$ROOT_DIR/backend"
+uv run python -m app.worker --loop &
+WORKER_PID=$!
+echo "[e2e] Worker started (PID $WORKER_PID)."
 
 # ── Step 7: Start frontend ───────────────────────────────────────────
 echo "[e2e] Starting frontend on :$FRONTEND_PORT..."

@@ -38,7 +38,7 @@ export class ErrorBoundary extends Component<Props, State> {
             <Icon
               name="error"
               size={48}
-              className="mx-auto mb-4 text-red-500"
+              className="mx-auto mb-4 text-status-error"
             />
             <h1 className="mb-2 text-lg font-semibold text-text">
               Something went wrong

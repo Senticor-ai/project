@@ -1,35 +1,35 @@
 import { Meta } from "@storybook/addon-docs/blocks";
 
-<Meta title="Product/ThinkingRock Features" />
+<Meta title="Product/Feature Map" />
 
-# ThinkingRock Feature Map
+# Terminandoyo Feature Map
 
-This document maps every ThinkingRock capability to Terminandoyo's Paperclip components.
-Each feature is categorized by GTD phase and specifies the exact component, interaction
-pattern, and data model backing.
+This document maps every Terminandoyo capability to Paperclip components.
+Each feature is categorized by workflow phase and specifies the exact component,
+interaction pattern, and data model backing.
 
 ---
 
 ## Feature Status
 
-| Feature                  | Status   | Component          | Sprint |
-| ------------------------ | -------- | ------------------ | ------ |
-| Quick capture            | Built    | `InboxCapture`     | 4      |
-| Newest-first inbox       | Built    | `InboxList`        | 4      |
-| Inline triage            | Built    | `InboxTriage`      | 4      |
-| Bucket navigation        | Built    | `BucketNav`        | 4      |
-| Object card              | Built    | `ObjectCard`       | 3      |
-| Project tree             | **Spec** | `ProjectTree`      | 5      |
-| Action list + filters    | **Spec** | `ActionList`       | 5      |
-| Focus list               | **Spec** | `FocusList`        | 5      |
-| Calendar view            | **Spec** | `CalendarView`     | 6      |
-| Delegation / waiting-for | **Spec** | `WaitingForList`   | 5      |
-| Recurrence editor        | **Spec** | `RecurrenceEditor` | 6      |
-| Weekly review            | **Spec** | `ReviewDashboard`  | 6      |
-| Reference library        | **Spec** | `ReferenceLibrary` | 5      |
-| Someday/maybe list       | **Spec** | `SomedayList`      | 5      |
-| Goal tracker             | **Spec** | `GoalTracker`      | 7      |
-| Context filter bar       | **Spec** | `ContextFilterBar` | 5      |
+| Feature               | Status   | Component          | Sprint |
+| --------------------- | -------- | ------------------ | ------ |
+| Quick capture         | Built    | `InboxCapture`     | 4      |
+| Newest-first inbox    | Built    | `InboxList`        | 4      |
+| Inline triage         | Built    | `InboxTriage`      | 4      |
+| Bucket navigation     | Built    | `BucketNav`        | 4      |
+| Object card           | Built    | `ObjectCard`       | 3      |
+| Project tree          | **Spec** | `ProjectTree`      | 5      |
+| Action list + filters | **Spec** | `ActionList`       | 5      |
+| Focus list            | **Spec** | `FocusList`        | 5      |
+| Calendar view         | **Spec** | `CalendarView`     | 6      |
+| Delegation / waiting  | **Spec** | `WaitingList`      | 5      |
+| Recurrence editor     | **Spec** | `RecurrenceEditor` | 6      |
+| Review dashboard      | **Spec** | `ReviewDashboard`  | 6      |
+| Reference library     | **Spec** | `ReferenceLibrary` | 5      |
+| Later list            | **Spec** | `LaterList`        | 5      |
+| Goal tracker          | **Spec** | `GoalTracker`      | 7      |
+| Context filter bar    | **Spec** | `ContextFilterBar` | 5      |
 
 ---
 
@@ -66,7 +66,7 @@ pattern, and data model backing.
 **InboxTriage** (`src/components/work/InboxTriage.tsx`)
 
 - Inline action bar on each inbox item card (no multi-step dialog)
-- One-tap bucket assignment: Next, Waiting, Calendar, Someday, Reference, Archive
+- One-tap bucket assignment: Next, Waiting, Calendar, Later, Reference, Archive
 - Expandable "More options" for project assignment, date, and context labels
 - Produces a `TriageResult` with `targetBucket` + optional `projectId`, `date`, `contexts`
 
@@ -90,7 +90,7 @@ without routing to any bucket.
 
 **Location**: `src/components/work/ProjectTree.tsx`
 
-ThinkingRock's most distinctive feature: unlimited project/sub-project nesting
+Terminandoyo's project management feature: unlimited project/sub-project nesting
 with auto-sequencing.
 
 **Paperclip design**:
@@ -111,14 +111,14 @@ with auto-sequencing.
 
 **Key behaviors**:
 
-| Behavior              | Implementation                                                                 |
-| --------------------- | ------------------------------------------------------------------------------ |
-| Auto-sequence         | When action N completes, action N+1 auto-promotes to Next Actions              |
-| Next action indicator | Only `sequenceOrder === 0` (or lowest incomplete) visible in Next Actions list |
-| Sub-project nesting   | A `Project` can reference another `Project` via `part_of`                      |
-| Drag-and-drop reorder | Updates `sequenceOrder` on all affected actions                                |
-| Project completion    | All actions complete → project auto-completes, provenance logged               |
-| Stalled detection     | No next action defined → `needsEnrichment: true`, confidence drops             |
+| Behavior              | Implementation                                                         |
+| --------------------- | ---------------------------------------------------------------------- |
+| Auto-sequence         | When action N completes, action N+1 auto-promotes to Next              |
+| Next action indicator | Only `sequenceOrder === 0` (or lowest incomplete) visible in Next list |
+| Sub-project nesting   | A `Project` can reference another `Project` via `part_of`              |
+| Drag-and-drop reorder | Updates `sequenceOrder` on all affected actions                        |
+| Project completion    | All actions complete → project auto-completes, provenance logged       |
+| Stalled detection     | No next action defined → `needsEnrichment: true`, confidence drops     |
 
 **Props**:
 
@@ -147,7 +147,7 @@ interface ProjectTreeProps {
 
 **Location**: `src/components/work/ActionList.tsx`
 
-ThinkingRock's "different views to display your tasks" — filtered, tabbed, customizable.
+Multiple views to display your tasks — filtered, tabbed, customizable.
 
 **Paperclip design**:
 
@@ -167,11 +167,11 @@ ThinkingRock's "different views to display your tasks" — filtered, tabbed, cus
 | Overdue     | `dueDate < today` and not completed      |
 | Waiting     | `bucket === "waiting"`                   |
 
-**Filter dimensions** (ThinkingRock's columns):
+**Filter dimensions**:
 
 | Dimension      | Source                                | UI                                                |
 | -------------- | ------------------------------------- | ------------------------------------------------- |
-| Context        | `Action.contexts` → `GtdContext.name` | Chip toggle bar                                   |
+| Context        | `Action.contexts` → `AppContext.name` | Chip toggle bar                                   |
 | Energy         | `ComputationPort.energyLevel`         | 3-segment toggle (low/med/high)                   |
 | Time available | `ComputationPort.timeEstimate`        | Dropdown: "I have 15 min / 30 min / 1 hr / 2+ hr" |
 | Project        | `Action.projectId`                    | Dropdown with project names                       |
@@ -181,7 +181,7 @@ ThinkingRock's "different views to display your tasks" — filtered, tabbed, cus
 ```typescript
 interface ActionListProps {
   actions: Action[];
-  contexts: GtdContext[];
+  contexts: AppContext[];
   activeFilters: ActionFilters;
   activeTab: string;
   tabs: TabDefinition[];
@@ -222,7 +222,7 @@ interface TabDefinition {
 
 **Location**: `src/components/work/ContextFilterBar.tsx`
 
-The "what can I do right now?" filter — ThinkingRock's context-switching feature.
+The "what can I do right now?" filter — context-switching for focused work.
 
 **Paperclip design**:
 
@@ -236,7 +236,7 @@ The "what can I do right now?" filter — ThinkingRock's context-switching featu
 
 ```typescript
 interface ContextFilterBarProps {
-  contexts: GtdContext[];
+  contexts: AppContext[];
   activeContextIds: CanonicalId[];
   actionCounts: Record<string, number>;
   onToggleContext: (contextId: CanonicalId) => void;
@@ -252,7 +252,7 @@ interface ContextFilterBarProps {
 
 **Location**: `src/components/work/FocusList.tsx`
 
-NirvanaHQ's "Focus" concept + ThinkingRock's goal alignment.
+A priority-driven focus view combined with goal alignment.
 
 **Paperclip design**:
 
@@ -296,7 +296,7 @@ interface FocusListProps {
 
 **Location**: `src/components/work/GoalTracker.tsx`
 
-ThinkingRock's "Review your values and life priorities" feature.
+Review your values and life priorities — track alignment between goals and daily work.
 
 **Paperclip design**:
 
@@ -310,7 +310,7 @@ ThinkingRock's "Review your values and life priorities" feature.
 **Data model extension** (new type needed):
 
 ```typescript
-interface Goal extends GtdBaseEntity {
+interface Goal extends BaseEntity {
   bucket: "focus";
   valueArea: string; // "Health", "Career", "Family", etc.
   targetDate?: string;
@@ -336,11 +336,11 @@ interface GoalTrackerProps {
 
 ## 5. Delegate — "Actions can be delegated to someone else"
 
-### Spec: WaitingForList
+### Spec: WaitingList
 
-**Location**: `src/components/work/WaitingForList.tsx`
+**Location**: `src/components/work/WaitingList.tsx`
 
-ThinkingRock's delegation tracking.
+Delegation tracking for items assigned to others.
 
 **Paperclip design**:
 
@@ -353,7 +353,7 @@ ThinkingRock's delegation tracking.
 **Props**:
 
 ```typescript
-interface WaitingForListProps {
+interface WaitingListProps {
   waitingItems: Action[];
   onFollowUp: (action: Action) => void;
   onComplete: (actionId: CanonicalId) => void;
@@ -414,7 +414,7 @@ interface CalendarViewProps {
 
 **Location**: `src/components/work/RecurrenceEditor.tsx`
 
-Set up recurring patterns (ThinkingRock's recurrent actions).
+Set up recurring patterns for repeating tasks.
 
 **Paperclip design**:
 
@@ -448,7 +448,8 @@ interface RecurrenceEditorProps {
 
 **Location**: `src/components/work/ReviewDashboard.tsx`
 
-The weekly review is GTD's backbone. ThinkingRock enforces it; we make it delightful.
+The weekly review is the backbone of Terminandoyo's methodology. The review
+dashboard makes it structured and delightful.
 
 **Paperclip design**:
 
@@ -458,17 +459,17 @@ The weekly review is GTD's backbone. ThinkingRock enforces it; we make it deligh
 - "Sweep" animation when a step is complete (cards stack/shuffle)
 - Completion celebration (confetti optional, but satisfying checkmark mandatory)
 
-**Review steps** (matching GTD methodology):
+**Review steps**:
 
-| Step             | What                    | Actions Available                                 |
-| ---------------- | ----------------------- | ------------------------------------------------- |
-| 1. Clear Inbox   | Process remaining items | Triage each (inline triage on each card)          |
-| 2. Next Actions  | Review each action      | Complete / Reschedule / Move to Someday / Archive |
-| 3. Projects      | Check each project      | Has next action? Stalled? Complete?               |
-| 4. Waiting For   | Follow up on delegated  | Follow up / Still waiting / Complete              |
-| 5. Someday/Maybe | Incubation check        | Promote to Next / Keep / Archive                  |
-| 6. Calendar      | Upcoming week           | Confirm / Reschedule                              |
-| 7. Focus         | Set this week's focus   | Star / Unstar items                               |
+| Step           | What                    | Actions Available                               |
+| -------------- | ----------------------- | ----------------------------------------------- |
+| 1. Clear Inbox | Process remaining items | Triage each (inline triage on each card)        |
+| 2. Next        | Review each action      | Complete / Reschedule / Move to Later / Archive |
+| 3. Projects    | Check each project      | Has next action? Stalled? Complete?             |
+| 4. Waiting     | Follow up on delegated  | Follow up / Still waiting / Complete            |
+| 5. Later       | Incubation check        | Promote to Next / Keep / Archive                |
+| 6. Calendar    | Upcoming week           | Confirm / Reschedule                            |
+| 7. Focus       | Set this week's focus   | Star / Unstar items                             |
 
 **Props**:
 
@@ -477,8 +478,8 @@ interface ReviewDashboardProps {
   inboxCount: number;
   nextActions: Action[];
   projects: Project[];
-  waitingFor: Action[];
-  somedayItems: Action[];
+  waitingItems: Action[];
+  laterItems: Action[];
   calendarEntries: CalendarEntry[];
   focusedItems: (Action | Project)[];
   currentStep: ReviewStep;
@@ -490,10 +491,10 @@ interface ReviewDashboardProps {
 
 type ReviewStep =
   | "inbox"
-  | "next-actions"
+  | "next"
   | "projects"
-  | "waiting-for"
-  | "someday"
+  | "waiting"
+  | "later"
   | "calendar"
   | "focus"
   | "done";
@@ -503,7 +504,7 @@ type ReviewStep =
 
 - `InboxStep` — reviewing 5 remaining inbox items
 - `ProjectsStep` — 2 stalled projects highlighted
-- `WaitingForStep` — overdue follow-ups in red
+- `WaitingStep` — overdue follow-ups in red
 - `CompletedReview` — celebration state
 - `Interactive` — full walkthrough of all 7 steps
 
@@ -515,7 +516,7 @@ type ReviewStep =
 
 **Location**: `src/components/work/ReferenceLibrary.tsx`
 
-ThinkingRock's "Find information easily and quickly."
+Find information easily and quickly with a searchable reference library.
 
 **Paperclip design**:
 
@@ -548,26 +549,26 @@ interface ReferenceLibraryProps {
 
 ---
 
-## 9. Someday/Maybe — "Have time for your someday/maybe list"
+## 9. Later — "Have time for your deferred list"
 
-### Spec: SomedayList
+### Spec: LaterList
 
-**Location**: `src/components/work/SomedayList.tsx`
+**Location**: `src/components/work/LaterList.tsx`
 
 The incubation list — reviewed weekly, occasionally promoted.
 
 **Paperclip design**:
 
-- ObjectCards with `bucket="someday"` in a relaxed, airy layout (more spacing)
+- ObjectCards with `bucket="later"` in a relaxed, airy layout (more spacing)
 - Cards slightly desaturated (lower opacity on bucket badge)
-- "Promote to Next" button on each card (snaps item to Next Actions)
+- "Promote to Next" button on each card (snaps item to Next)
 - Category grouping (optional): "Travel", "Learning", "Projects", "Ideas"
 - Review prompt: "Last reviewed: 3 days ago"
 
 **Props**:
 
 ```typescript
-interface SomedayListProps {
+interface LaterListProps {
   items: Action[];
   onPromote: (actionId: CanonicalId) => void;
   onArchive: (actionId: CanonicalId) => void;
@@ -579,7 +580,7 @@ interface SomedayListProps {
 
 ## Paperclip Design Principles Applied
 
-All new components follow the Paperclip design language:
+All components follow the Paperclip design language:
 
 | Principle               | Application                                                                    |
 | ----------------------- | ------------------------------------------------------------------------------ |
@@ -595,14 +596,14 @@ All new components follow the Paperclip design language:
 
 ## Data Model Coverage
 
-All ThinkingRock features map to existing types in `src/model/types.ts`:
+All features map to existing types in `src/model/types.ts`:
 
 | Feature           | Type / Field                                                       |
 | ----------------- | ------------------------------------------------------------------ |
 | Project hierarchy | `Project.actionIds` + `TypedReference.type: "part_of"`             |
 | Auto-sequencing   | `Action.sequenceOrder` + `TypedReference.type: "follows"`          |
 | Delegation        | `Action.delegatedTo` + `Action.bucket: "waiting"`                  |
-| Contexts          | `Action.contexts: CanonicalId[]` + `GtdContext`                    |
+| Contexts          | `Action.contexts: CanonicalId[]` + `AppContext`                    |
 | Energy/time       | `ComputationPort.energyLevel` + `ComputationPort.timeEstimate`     |
 | Focus             | `Action.isFocused` / `Project.isFocused`                           |
 | Scheduling        | `Action.scheduledDate` / `Action.scheduledTime` / `Action.dueDate` |
@@ -610,7 +611,7 @@ All ThinkingRock features map to existing types in `src/model/types.ts`:
 | Done criteria     | `DefinitionPort.doneCriteria`                                      |
 | Checklists        | `ProcedurePort.steps: ChecklistItem[]`                             |
 | References        | `ReferenceMaterial` entity                                         |
-| Someday/maybe     | `Action.bucket: "someday"`                                         |
+| Later             | `Action.bucket: "later"`                                           |
 
 **Only addition needed**: `Goal` type for goal tracking (Sprint 7).
 
@@ -618,8 +619,8 @@ All ThinkingRock features map to existing types in `src/model/types.ts`:
 
 ## Implementation Priority
 
-| Sprint | Components                                                                                         | Rationale                                             |
-| ------ | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| **5**  | `ActionList`, `ContextFilterBar`, `FocusList`, `WaitingForList`, `SomedayList`, `ReferenceLibrary` | Core "Engage" phase — users need to work from lists   |
-| **6**  | `ProjectTree`, `CalendarView`, `RecurrenceEditor`, `ReviewDashboard`                               | "Plan" and "Review" phases — structure and discipline |
-| **7**  | `GoalTracker`, multi-channel capture, notifications                                                | "Align" phase — values and priorities                 |
+| Sprint | Components                                                                                    | Rationale                                             |
+| ------ | --------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| **5**  | `ActionList`, `ContextFilterBar`, `FocusList`, `WaitingList`, `LaterList`, `ReferenceLibrary` | Core "Engage" phase — users need to work from lists   |
+| **6**  | `ProjectTree`, `CalendarView`, `RecurrenceEditor`, `ReviewDashboard`                          | "Plan" and "Review" phases — structure and discipline |
+| **7**  | `GoalTracker`, multi-channel capture, notifications                                           | "Align" phase — values and priorities                 |

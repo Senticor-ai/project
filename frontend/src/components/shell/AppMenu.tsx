@@ -10,8 +10,15 @@ export interface AppMenuItem {
   onClick: () => void;
 }
 
+export interface AppMenuSectionHeader {
+  username: string;
+  appName: string;
+  appVersion?: string;
+}
+
 export interface AppMenuSection {
   label?: string;
+  header?: AppMenuSectionHeader;
   items: AppMenuItem[];
 }
 
@@ -117,15 +124,34 @@ export function AppMenu({ sections, className }: AppMenuProps) {
           role="menu"
           aria-label="Main menu"
           onKeyDown={handleKeyDown}
-          className="absolute left-0 top-full z-50 mt-1 w-56 rounded-[var(--radius-lg)] border border-border bg-paper-50 py-1 shadow-[var(--shadow-overlay)]"
+          className="absolute left-0 top-full z-50 mt-1 max-h-[80vh] w-56 overflow-y-auto rounded-[var(--radius-lg)] border border-border bg-paper-50 py-1 shadow-[var(--shadow-overlay)] md:left-auto md:right-0"
         >
           {sections.map((section, sIdx) => (
             <div key={sIdx}>
-              {sIdx > 0 && <div className="my-1 border-t border-paper-200" />}
+              {sIdx > 0 && section.items.length > 0 && (
+                <div className="my-1 border-t border-paper-200" />
+              )}
+              {section.header && (
+                <div className="px-3 pb-1 pt-2">
+                  <div className="text-sm font-medium text-text">
+                    {section.header.username}
+                  </div>
+                  <div className="text-[10px] text-text-subtle">
+                    {section.header.appName}
+                    {section.header.appVersion &&
+                      ` v${section.header.appVersion}`}
+                  </div>
+                </div>
+              )}
               {section.label && (
-                <span className="block px-3 pb-1 pt-2 text-[10px] font-medium uppercase tracking-wider text-text-subtle">
-                  {section.label}
-                </span>
+                <>
+                  {sIdx > 0 && (
+                    <div className="my-1 border-t border-paper-200" />
+                  )}
+                  <span className="block px-3 pb-1 pt-2 text-[10px] font-medium uppercase tracking-wider text-text-subtle">
+                    {section.label}
+                  </span>
+                </>
               )}
               {section.items.map((item) => (
                 <button

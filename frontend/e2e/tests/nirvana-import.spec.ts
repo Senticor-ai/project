@@ -88,10 +88,10 @@ test.describe("Nirvana Import", () => {
     await page.reload();
     await page.waitForSelector("text=terminandoyo", { timeout: 10_000 });
 
-    // 10. Navigate to Next Actions — should have items from the import
+    // 10. Navigate to Next — should have items from the import
     const ws = new WorkspacePage(page);
-    await ws.navigateTo("Next Actions");
-    await expect(ws.bucketCount("Next Actions")).toBeVisible({
+    await ws.navigateTo("Next");
+    await expect(ws.bucketCount("Next")).toBeVisible({
       timeout: 30_000,
     });
   });

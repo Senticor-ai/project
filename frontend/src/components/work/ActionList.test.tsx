@@ -78,7 +78,7 @@ describe("ActionList", () => {
 
   it("renders bucket header for next", () => {
     renderActionList({ bucket: "next" });
-    expect(screen.getByText("Next Actions")).toBeInTheDocument();
+    expect(screen.getByText("Next")).toBeInTheDocument();
     expect(screen.getByText("To-do's for anytime")).toBeInTheDocument();
   });
 
@@ -90,7 +90,7 @@ describe("ActionList", () => {
 
   it("renders bucket header for waiting", () => {
     renderActionList({ bucket: "waiting" });
-    expect(screen.getByText("Waiting For")).toBeInTheDocument();
+    expect(screen.getByText("Waiting")).toBeInTheDocument();
   });
 
   it("renders bucket header for calendar", () => {
@@ -100,7 +100,7 @@ describe("ActionList", () => {
 
   it("renders bucket header for someday", () => {
     renderActionList({ bucket: "someday" });
-    expect(screen.getByText("Someday / Maybe")).toBeInTheDocument();
+    expect(screen.getByText("Later")).toBeInTheDocument();
   });
 
   // -------------------------------------------------------------------------
@@ -424,7 +424,7 @@ describe("ActionList", () => {
   // Sorting
   // -------------------------------------------------------------------------
 
-  it("sorts inbox items oldest first (FIFO)", () => {
+  it("sorts inbox items newest first", () => {
     const items = [
       createActionItem({
         name: "Newer",
@@ -450,7 +450,7 @@ describe("ActionList", () => {
     const older = screen.getByText("Older");
     const newer = screen.getByText("Newer");
     expect(
-      older.compareDocumentPosition(newer) & Node.DOCUMENT_POSITION_FOLLOWING,
+      newer.compareDocumentPosition(older) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
 

@@ -49,12 +49,12 @@ const statusConfig: Record<
   completed: {
     icon: "check_circle",
     label: "Completed",
-    color: "text-green-700",
+    color: "text-status-success",
   },
   failed: {
     icon: "error",
     label: "Failed",
-    color: "text-red-600",
+    color: "text-status-error",
   },
 };
 
@@ -122,10 +122,19 @@ function useElapsedTime(
 
 export interface ImportJobRowProps {
   job: ImportJobData;
+  onRetry?: (jobId: string) => void;
+  onArchive?: (jobId: string) => void;
+  isRetrying?: boolean;
   className?: string;
 }
 
-export function ImportJobRow({ job, className }: ImportJobRowProps) {
+export function ImportJobRow({
+  job,
+  onRetry,
+  onArchive,
+  isRetrying,
+  className,
+}: ImportJobRowProps) {
   const config = statusConfig[job.status];
   const isActive = job.status === "running" || job.status === "queued";
   const elapsed = useElapsedTime(
@@ -198,7 +207,7 @@ export function ImportJobRow({ job, className }: ImportJobRowProps) {
               </span>
             )}
             {!!job.progress.errors && (
-              <span className="text-red-600">
+              <span className="text-status-error">
                 <span className="font-mono">{job.progress.errors}</span> errors
               </span>
             )}
@@ -218,7 +227,7 @@ export function ImportJobRow({ job, className }: ImportJobRowProps) {
             <span className="font-mono">{job.summary.skipped}</span> skipped
           </span>
           {job.summary.errors > 0 && (
-            <span className="text-red-600">
+            <span className="text-status-error">
               <span className="font-mono">{job.summary.errors}</span> errors
             </span>
           )}
@@ -226,7 +235,37 @@ export function ImportJobRow({ job, className }: ImportJobRowProps) {
       )}
 
       {/* Error message (when failed) */}
-      {job.error && <p className="mt-2 text-xs text-red-600">{job.error}</p>}
+      {job.error && (
+        <p className="mt-2 text-xs text-status-error">{job.error}</p>
+      )}
+
+      {/* Actions for failed/completed jobs */}
+      {(job.status === "failed" || job.status === "completed") &&
+        (onRetry || onArchive) && (
+          <div className="mt-2 flex items-center gap-2">
+            {job.status === "failed" && onRetry && (
+              <button
+                type="button"
+                onClick={() => onRetry(job.job_id)}
+                disabled={isRetrying}
+                className="flex items-center gap-1 rounded-[var(--radius-md)] border border-border px-2.5 py-1 text-xs font-medium text-text-primary transition-colors hover:bg-paper-100 disabled:opacity-50"
+              >
+                <Icon name="refresh" size={14} />
+                Retry
+              </button>
+            )}
+            {onArchive && (
+              <button
+                type="button"
+                onClick={() => onArchive(job.job_id)}
+                className="flex items-center gap-1 rounded-[var(--radius-md)] border border-border px-2.5 py-1 text-xs font-medium text-text-subtle transition-colors hover:bg-paper-100"
+              >
+                <Icon name="visibility_off" size={14} />
+                Dismiss
+              </button>
+            )}
+          </div>
+        )}
 
       {/* Timestamps */}
       <div className="mt-2 flex items-center gap-3 text-[11px] text-text-subtle">
