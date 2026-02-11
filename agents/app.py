@@ -17,14 +17,13 @@ from pydantic import BaseModel
 # Load .env from monorepo root
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
-from tay import create_agent  # noqa: E402 — must load env before importing
+from backend_client import AuthContext  # noqa: E402 — must load env before importing
+from tay import MODELS, create_agent  # noqa: E402
+from tool_executor import ToolCallInput, execute_tool  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="TerminAndoYo Agents", version="0.1.0")
-
-# Create the agent once at startup
-_agent = create_agent()
 
 # ---------------------------------------------------------------------------
 # Pydantic models
@@ -46,6 +45,37 @@ class ChatCompletionResponse(BaseModel):
     toolCalls: list[ChatToolCallResponse] | None = None
 
 
+# -- Execute tool models (for approved tool calls) --
+
+
+class ToolCallPayload(BaseModel):
+    name: str
+    arguments: dict
+
+
+class AuthContextPayload(BaseModel):
+    sessionToken: str
+    sessionCookieName: str = "terminandoyo_session"
+    orgId: str | None = None
+    clientIp: str | None = None
+
+
+class ExecuteToolRequest(BaseModel):
+    toolCall: ToolCallPayload
+    conversationId: str
+    auth: AuthContextPayload
+
+
+class CreatedItemRefResponse(BaseModel):
+    canonicalId: str
+    name: str
+    type: str
+
+
+class ExecuteToolResponse(BaseModel):
+    createdItems: list[CreatedItemRefResponse]
+
+
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
@@ -57,10 +87,25 @@ async def health():
 
 
 async def run_agent(message: str) -> ChatMessage:
-    """Run the Haystack agent with a user message and return the last message."""
+    """Run the Haystack agent with model fallback.
+
+    Tries each model in MODELS (from AGENT_MODEL env var) in order.
+    Falls back to the next model if the current one fails.
+    """
     user_msg = ChatMessage.from_user(message)
-    result = await _agent.run_async(messages=[user_msg])
-    return result["last_message"]
+    last_error: Exception | None = None
+
+    for model in MODELS:
+        try:
+            agent = create_agent(model)
+            result = await agent.run_async(messages=[user_msg])
+            return result["last_message"]
+        except Exception as exc:
+            last_error = exc
+            logger.warning("Model %s failed: %s. Trying next model...", model, exc)
+
+    # All models failed
+    raise RuntimeError(f"All {len(MODELS)} models failed. Last error: {last_error}") from last_error
 
 
 @app.post("/chat/completions", response_model=ChatCompletionResponse)
@@ -85,3 +130,35 @@ async def chat_completions(req: ChatCompletionRequest):
         ]
 
     return ChatCompletionResponse(text=text, toolCalls=tool_calls)
+
+
+@app.post("/execute-tool", response_model=ExecuteToolResponse)
+async def execute_tool_endpoint(req: ExecuteToolRequest):
+    """Execute an approved tool call by creating items via the backend API."""
+    auth = AuthContext(
+        session_token=req.auth.sessionToken,
+        session_cookie_name=req.auth.sessionCookieName,
+        org_id=req.auth.orgId,
+        client_ip=req.auth.clientIp,
+    )
+
+    try:
+        created = await execute_tool(
+            ToolCallInput(name=req.toolCall.name, arguments=req.toolCall.arguments),
+            conversation_id=req.conversationId,
+            auth=auth,
+        )
+    except Exception as exc:
+        logger.exception("Tool execution error")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    return ExecuteToolResponse(
+        createdItems=[
+            CreatedItemRefResponse(
+                canonicalId=ref.canonical_id,
+                name=ref.name,
+                type=ref.item_type,
+            )
+            for ref in created
+        ]
+    )

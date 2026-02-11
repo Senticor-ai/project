@@ -43,6 +43,14 @@ function StatusBadge({
     );
   }
   if (connection.last_sync_at) {
+    if (connection.watch_active) {
+      return (
+        <span className="flex items-center gap-1 text-xs text-status-success">
+          <Icon name="bolt" size={12} />
+          Echtzeit
+        </span>
+      );
+    }
     return (
       <span className="flex items-center gap-1 text-xs text-status-success">
         <Icon name="check_circle" size={12} />
@@ -55,6 +63,35 @@ function StatusBadge({
       <Icon name="circle" size={12} />
       Nicht synchronisiert
     </span>
+  );
+}
+
+function SyncMethodIndicator({
+  connection,
+}: {
+  connection: EmailConnectionResponse;
+}) {
+  if (connection.watch_active) {
+    return (
+      <p className="flex items-center gap-1 text-xs text-blueprint-600">
+        <Icon name="bolt" size={12} />
+        Echtzeit-Sync (Push)
+      </p>
+    );
+  }
+  if (connection.sync_interval_minutes > 0) {
+    return (
+      <p className="flex items-center gap-1 text-xs text-text-muted">
+        <Icon name="schedule" size={12} />
+        Polling alle {connection.sync_interval_minutes} Min.
+      </p>
+    );
+  }
+  return (
+    <p className="flex items-center gap-1 text-xs text-text-muted">
+      <Icon name="pause" size={12} />
+      Nur manuell
+    </p>
   );
 }
 
@@ -105,6 +142,9 @@ export function EmailConnectionCard({
         <StatusBadge connection={connection} isSyncing={isSyncing} />
       </div>
 
+      {/* Sync method */}
+      <SyncMethodIndicator connection={connection} />
+
       {/* Sync info */}
       {connection.last_sync_at && (
         <p className="text-xs text-text-muted">
@@ -127,7 +167,7 @@ export function EmailConnectionCard({
         <div>
           <label htmlFor="email-sync-interval" className={labelClass}>
             <Icon name="timer" size={10} />
-            Sync-Intervall
+            {connection.watch_active ? "Fallback-Intervall" : "Sync-Intervall"}
           </label>
           <select
             id="email-sync-interval"
@@ -142,6 +182,12 @@ export function EmailConnectionCard({
             <option value={30}>Alle 30 Minuten</option>
             <option value={60}>Jede Stunde</option>
           </select>
+          {connection.watch_active && (
+            <p className="mt-1 text-[10px] leading-tight text-text-subtle">
+              Push-Benachrichtigungen aktiv. Das Intervall dient als
+              Sicherheitsnetz.
+            </p>
+          )}
         </div>
 
         <div className="flex items-end pb-0.5">

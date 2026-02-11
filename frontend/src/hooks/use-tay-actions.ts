@@ -1,93 +1,35 @@
 import { useCallback } from "react";
-import {
-  useCreateProject,
-  useAddProjectAction,
-  useCaptureInbox,
-  useAddReference,
-} from "./use-mutations";
+import { useQueryClient } from "@tanstack/react-query";
+import { ChatApi } from "@/lib/api-client";
+import { ITEMS_QUERY_KEY } from "./use-items";
 import type { TaySuggestion, CreatedItemRef } from "@/model/chat-types";
 import type { CanonicalId } from "@/model/canonical-id";
-import type { ItemRecord } from "@/lib/api-client";
 
 export function useTayActions() {
-  const createProject = useCreateProject();
-  const addProjectAction = useAddProjectAction();
-  const captureInbox = useCaptureInbox();
-  const addReference = useAddReference();
+  const queryClient = useQueryClient();
 
   const executeSuggestion = useCallback(
-    async (suggestion: TaySuggestion): Promise<CreatedItemRef[]> => {
-      const created: CreatedItemRef[] = [];
+    async (
+      suggestion: TaySuggestion,
+      conversationId: string,
+    ): Promise<CreatedItemRef[]> => {
+      const response = await ChatApi.executeTool({
+        toolCall: {
+          name: suggestion.type,
+          arguments: suggestion as unknown as Record<string, unknown>,
+        },
+        conversationId,
+      });
 
-      switch (suggestion.type) {
-        case "create_project_with_actions": {
-          const projectResult = (await createProject.mutateAsync({
-            name: suggestion.project.name,
-            desiredOutcome: suggestion.project.desiredOutcome,
-          })) as ItemRecord;
+      await queryClient.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
 
-          const projectId = projectResult.canonical_id as CanonicalId;
-          created.push({
-            canonicalId: projectId,
-            name: suggestion.project.name,
-            type: "project",
-          });
-
-          for (const action of suggestion.actions) {
-            const actionResult = (await addProjectAction.mutateAsync({
-              projectId,
-              title: action.name,
-            })) as ItemRecord;
-            created.push({
-              canonicalId: actionResult.canonical_id as CanonicalId,
-              name: action.name,
-              type: "action",
-            });
-          }
-
-          if (suggestion.documents) {
-            for (const doc of suggestion.documents) {
-              const refResult = (await addReference.mutateAsync(
-                doc.name,
-              )) as ItemRecord;
-              created.push({
-                canonicalId: refResult.canonical_id as CanonicalId,
-                name: doc.name,
-                type: "reference",
-              });
-            }
-          }
-          break;
-        }
-
-        case "create_action": {
-          const result = (await captureInbox.mutateAsync(
-            suggestion.name,
-          )) as ItemRecord;
-          created.push({
-            canonicalId: result.canonical_id as CanonicalId,
-            name: suggestion.name,
-            type: "action",
-          });
-          break;
-        }
-
-        case "create_reference": {
-          const result = (await addReference.mutateAsync(
-            suggestion.name,
-          )) as ItemRecord;
-          created.push({
-            canonicalId: result.canonical_id as CanonicalId,
-            name: suggestion.name,
-            type: "reference",
-          });
-          break;
-        }
-      }
-
-      return created;
+      return response.createdItems.map((item) => ({
+        canonicalId: item.canonicalId as CanonicalId,
+        name: item.name,
+        type: item.type,
+      }));
     },
-    [createProject, addProjectAction, captureInbox, addReference],
+    [queryClient],
   );
 
   return { executeSuggestion };

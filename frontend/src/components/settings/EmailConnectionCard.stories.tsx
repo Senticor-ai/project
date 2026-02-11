@@ -15,6 +15,8 @@ const baseConnection: EmailConnectionResponse = {
   last_sync_error: null,
   last_sync_message_count: 42,
   is_active: true,
+  watch_active: false,
+  watch_expires_at: null,
   created_at: "2026-02-01T08:00:00Z",
 };
 
@@ -82,6 +84,35 @@ export const MarkReadEnabled: Story = {
     connection: {
       ...baseConnection,
       sync_mark_read: true,
+    },
+  },
+};
+
+export const PushActive: Story = {
+  args: {
+    connection: {
+      ...baseConnection,
+      watch_active: true,
+      watch_expires_at: "2026-02-18T10:00:00Z",
+    },
+  },
+};
+
+export const PushExpired: Story = {
+  args: {
+    connection: {
+      ...baseConnection,
+      watch_active: false,
+      watch_expires_at: "2026-02-10T10:00:00Z",
+    },
+  },
+};
+
+export const ManualOnly: Story = {
+  args: {
+    connection: {
+      ...baseConnection,
+      sync_interval_minutes: 0,
     },
   },
 };

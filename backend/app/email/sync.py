@@ -31,6 +31,7 @@ class SyncResult:
     created: int = 0
     skipped: int = 0
     errors: int = 0
+    archived: int = 0
 
 
 # ---------------------------------------------------------------------------
@@ -193,8 +194,9 @@ def run_email_sync(
 
         last_history_id = sync_state["last_history_id"] if sync_state else None
 
-        # 4. Collect new message IDs
+        # 4. Collect new message IDs + archived message IDs from history
         new_message_ids: list[str] = []
+        archived_gmail_ids: list[str] = []
         new_history_id: str | None = None
 
         if last_history_id:
@@ -216,6 +218,17 @@ def run_email_sync(
                             new_message_ids.append(msg_id)
                             seen_ids.add(msg_id)
 
+                # Collect messages archived in Gmail (INBOX label removed)
+                archived_seen: set[str] = set()
+                for entry in history_data.get("history", []):
+                    for removed in entry.get("labelsRemoved", []):
+                        removed_labels = removed.get("labelIds", [])
+                        if "INBOX" in removed_labels:
+                            msg_id = removed.get("message", {}).get("id")
+                            if msg_id and msg_id not in archived_seen:
+                                archived_gmail_ids.append(msg_id)
+                                archived_seen.add(msg_id)
+
             except httpx.HTTPStatusError as exc:
                 if exc.response.status_code == 404:
                     logger.warning(
@@ -236,7 +249,12 @@ def run_email_sync(
             new_message_ids = [m["id"] for m in msg_stubs]
             # We'll get the historyId from the first fetched message
 
-        if not new_message_ids:
+            # Reconcile: archive TAY items no longer in Gmail inbox
+            inbox_gmail_ids = {m["id"] for m in msg_stubs}
+            reconciled = _reconcile_archived(org_id, inbox_gmail_ids)
+            result.archived += reconciled
+
+        if not new_message_ids and not archived_gmail_ids:
             _update_connection_success(connection_id, org_id, 0)
             return result
 
@@ -302,6 +320,44 @@ def run_email_sync(
 
             conn.commit()
 
+        # 5b. Archive TAY items whose Gmail messages were archived
+        if archived_gmail_ids:
+            now = datetime.now(UTC)
+            with db_conn() as conn:
+                for gmail_id in archived_gmail_ids:
+                    try:
+                        with conn.cursor() as cur:
+                            cur.execute(
+                                """
+                                UPDATE items
+                                SET archived_at = %s, updated_at = %s
+                                WHERE org_id = %s
+                                  AND source = 'gmail'
+                                  AND archived_at IS NULL
+                                  AND schema_jsonld -> 'sourceMetadata'
+                                      -> 'raw' ->> 'gmailMessageId' = %s
+                                RETURNING item_id
+                                """,
+                                (now, now, org_id, gmail_id),
+                            )
+                            row = cur.fetchone()
+                        if row:
+                            result.archived += 1
+                            enqueue_event(
+                                "item_archived",
+                                {
+                                    "item_id": str(row["item_id"]),
+                                    "org_id": org_id,
+                                },
+                            )
+                    except Exception:
+                        logger.warning(
+                            "Failed to archive TAY item for gmail_id=%s",
+                            gmail_id,
+                            exc_info=True,
+                        )
+                conn.commit()
+
         # 6. Update sync state with new history ID
         if new_history_id:
             _update_sync_state(connection_id, int(new_history_id))
@@ -330,7 +386,91 @@ def run_email_sync(
         _update_connection_error(connection_id, org_id, str(exc))
         raise
 
+    logger.info(
+        "Email sync complete for connection %s: "
+        "synced=%d created=%d skipped=%d errors=%d archived=%d",
+        connection_id,
+        result.synced,
+        result.created,
+        result.skipped,
+        result.errors,
+        result.archived,
+    )
     return result
+
+
+# ---------------------------------------------------------------------------
+# Reconciliation
+# ---------------------------------------------------------------------------
+
+
+def _reconcile_archived(
+    org_id: str,
+    inbox_gmail_ids: set[str],
+) -> int:
+    """Archive TAY items whose Gmail messages are no longer in the inbox.
+
+    Called during full-sync fallback when we have the complete set of
+    current Gmail inbox message IDs.  Any active (non-archived) TAY item
+    with source='gmail' whose gmailMessageId is NOT in that set gets
+    archived.
+
+    Returns the number of items archived.
+    """
+    now = datetime.now(UTC)
+    archived_count = 0
+
+    with db_conn() as conn:
+        # Fetch active gmail items for this org
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT item_id,
+                       schema_jsonld -> 'sourceMetadata'
+                           -> 'raw' ->> 'gmailMessageId' AS gmail_id
+                FROM items
+                WHERE org_id = %s
+                  AND source = 'gmail'
+                  AND archived_at IS NULL
+                """,
+                (org_id,),
+            )
+            active_items = cur.fetchall()
+
+        for item in active_items:
+            gmail_id = item.get("gmail_id")
+            if not gmail_id or gmail_id in inbox_gmail_ids:
+                continue
+            # This item's email is no longer in Gmail inbox → archive
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE items
+                    SET archived_at = %s, updated_at = %s
+                    WHERE item_id = %s AND archived_at IS NULL
+                    RETURNING item_id
+                    """,
+                    (now, now, item["item_id"]),
+                )
+                row = cur.fetchone()
+            if row:
+                archived_count += 1
+                enqueue_event(
+                    "item_archived",
+                    {
+                        "item_id": str(row["item_id"]),
+                        "org_id": org_id,
+                    },
+                )
+        conn.commit()
+
+    if archived_count:
+        logger.info(
+            "Reconciliation archived %d stale TAY items for org=%s",
+            archived_count,
+            org_id,
+        )
+    return archived_count
 
 
 # ---------------------------------------------------------------------------
@@ -556,24 +696,37 @@ def enqueue_due_syncs() -> int:
     return count
 
 
-def mark_email_read(item_row: dict, org_id: str) -> None:
-    """Mark the original email as read in Gmail via API.
+def sync_email_archive(item_row: dict, org_id: str) -> None:
+    """Archive the original email in Gmail when the item is triaged out of inbox.
 
-    Called when a gmail-sourced item is archived. Extracts the Gmail message ID
-    from sourceMetadata and uses the connection's credentials to modify labels.
+    Removes both INBOX and UNREAD labels — equivalent to Gmail's "archive" action.
+    Extracts the Gmail message ID from sourceMetadata and uses the connection's
+    credentials to modify labels.
 
     Silently returns on any error (missing data, no connection, API failure).
     """
+    item_id = item_row.get("item_id")
     schema = item_row.get("schema_jsonld") or {}
     source_meta = schema.get("sourceMetadata") or {}
     raw = source_meta.get("raw") or {}
     gmail_message_id = raw.get("gmailMessageId")
     if not gmail_message_id:
-        logger.debug("No gmailMessageId in item %s, skipping mark-read", item_row.get("item_id"))
+        logger.warning(
+            "sync_email_archive: no gmailMessageId in item %s, skipping",
+            item_id,
+        )
         return
 
     # Find the user's active email connection
     user_id = str(item_row.get("created_by_user_id", ""))
+    logger.info(
+        "sync_email_archive: item=%s gmail_msg=%s user=%s org=%s",
+        item_id,
+        gmail_message_id,
+        user_id,
+        org_id,
+    )
+
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -587,8 +740,8 @@ def mark_email_read(item_row: dict, org_id: str) -> None:
             connection = cur.fetchone()
 
     if not connection:
-        logger.debug(
-            "No active email connection for org=%s user=%s, skipping mark-read",
+        logger.warning(
+            "sync_email_archive: no active connection for org=%s user=%s",
             org_id,
             user_id,
         )
@@ -599,16 +752,17 @@ def mark_email_read(item_row: dict, org_id: str) -> None:
         gmail_api.message_modify(
             access_token,
             gmail_message_id,
-            remove_label_ids=["UNREAD"],
+            remove_label_ids=["UNREAD", "INBOX"],
         )
         logger.info(
-            "Marked email %s as read for item %s",
+            "sync_email_archive: archived gmail_msg=%s for item=%s",
             gmail_message_id,
-            item_row.get("item_id"),
+            item_id,
         )
     except Exception:
         logger.warning(
-            "Failed to mark email as read for item %s",
-            item_row.get("item_id"),
+            "sync_email_archive: failed for item=%s gmail_msg=%s",
+            item_id,
+            gmail_message_id,
             exc_info=True,
         )

@@ -77,7 +77,9 @@ function deserializeActionItems(
       ?.filter((r) => {
         const type = r.item["@type"] as string;
         if (type === "Action") return true;
-        // Include any @type that sits in the inbox bucket (file/URL captures)
+        // EmailMessage/DigitalDocument can sit in any action bucket after triage
+        if (type === "EmailMessage" || type === "DigitalDocument") return true;
+        // Other types (CreativeWork for URL captures) only in inbox
         return getBucketFromRecord(r) === "inbox";
       })
       .map((r) => {

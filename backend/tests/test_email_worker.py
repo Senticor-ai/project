@@ -9,7 +9,7 @@ from unittest.mock import patch
 import pytest
 
 from app.db import db_conn, jsonb
-from app.email.sync import enqueue_due_syncs, mark_email_read
+from app.email.sync import enqueue_due_syncs, sync_email_archive
 
 
 @pytest.fixture(autouse=True)
@@ -258,16 +258,16 @@ class TestEnqueueDueSyncs:
         assert count == 1
 
 
-class TestMarkEmailRead:
+class TestSyncEmailArchive:
     @patch("app.email.sync.gmail_api")
     @patch("app.email.sync.get_valid_gmail_token")
-    def test_marks_email_read_via_gmail_api(
+    def test_archives_email_via_gmail_api(
         self,
         mock_get_token,
         mock_gmail_api,
         auth_client,
     ):
-        """mark_email_read uses Gmail API message_modify to remove UNREAD label."""
+        """sync_email_archive removes UNREAD + INBOX labels in Gmail."""
         org_id = auth_client.headers["X-Org-Id"]
         me = auth_client.get("/auth/me")
         user_id = me.json()["id"]
@@ -286,12 +286,12 @@ class TestMarkEmailRead:
                 )
                 item_row = cur.fetchone()
 
-        mark_email_read(item_row, org_id)
+        sync_email_archive(item_row, org_id)
 
         mock_gmail_api.message_modify.assert_called_once_with(
             "fake-access-token",
             "msg_501",
-            remove_label_ids=["UNREAD"],
+            remove_label_ids=["UNREAD", "INBOX"],
         )
 
     @patch("app.email.sync.gmail_api")
@@ -302,7 +302,7 @@ class TestMarkEmailRead:
         mock_gmail_api,
         auth_client,
     ):
-        """mark_email_read does nothing when gmailMessageId is missing."""
+        """sync_email_archive does nothing when gmailMessageId is missing."""
         org_id = auth_client.headers["X-Org-Id"]
         me = auth_client.get("/auth/me")
         user_id = me.json()["id"]
@@ -321,7 +321,7 @@ class TestMarkEmailRead:
         }
 
         # Should not raise, just silently skip
-        mark_email_read(item_row, org_id)
+        sync_email_archive(item_row, org_id)
         mock_gmail_api.message_modify.assert_not_called()
 
     @patch("app.email.sync.gmail_api")
@@ -332,7 +332,7 @@ class TestMarkEmailRead:
         mock_gmail_api,
         auth_client,
     ):
-        """mark_email_read does nothing when no active connection exists."""
+        """sync_email_archive does nothing when no active connection exists."""
         org_id = auth_client.headers["X-Org-Id"]
         me = auth_client.get("/auth/me")
         user_id = me.json()["id"]
@@ -349,7 +349,7 @@ class TestMarkEmailRead:
         }
 
         # Should not raise
-        mark_email_read(item_row, org_id)
+        sync_email_archive(item_row, org_id)
         mock_gmail_api.message_modify.assert_not_called()
 
     @patch("app.email.sync.gmail_api")
@@ -360,7 +360,7 @@ class TestMarkEmailRead:
         mock_gmail_api,
         auth_client,
     ):
-        """mark_email_read logs but doesn't raise on Gmail API errors."""
+        """sync_email_archive logs but doesn't raise on Gmail API errors."""
         org_id = auth_client.headers["X-Org-Id"]
         me = auth_client.get("/auth/me")
         user_id = me.json()["id"]
@@ -380,7 +380,7 @@ class TestMarkEmailRead:
                 item_row = cur.fetchone()
 
         # Should not raise — just log the error
-        mark_email_read(item_row, org_id)
+        sync_email_archive(item_row, org_id)
 
 
 class TestWorkerEmailSyncJob:
@@ -446,13 +446,13 @@ class TestWorkerEmailSyncJob:
         assert row is not None
         assert row["processed_at"] is not None
 
-    @patch("app.worker.mark_email_read")
+    @patch("app.worker.sync_email_archive")
     def test_process_batch_marks_read_on_archive(
         self,
         mock_mark_read,
         auth_client,
     ):
-        """item_archived events for gmail items trigger mark_email_read."""
+        """item_archived events for gmail items trigger sync_email_archive."""
         from app.worker import process_batch
 
         _drain_outbox()
@@ -480,19 +480,19 @@ class TestWorkerEmailSyncJob:
 
         process_batch(limit=10)
 
-        # mark_email_read should have been called with the item row
+        # sync_email_archive should have been called with the item row
         mock_mark_read.assert_called_once()
         call_args = mock_mark_read.call_args
         assert str(call_args[0][0]["item_id"]) == item_id  # first positional arg = item_row
         assert str(call_args[0][1]) == org_id  # second positional arg = org_id
 
-    @patch("app.worker.mark_email_read")
+    @patch("app.worker.sync_email_archive")
     def test_process_batch_skips_mark_read_for_non_gmail(
         self,
         mock_mark_read,
         auth_client,
     ):
-        """item_archived events for non-gmail items skip mark_email_read."""
+        """item_archived events for non-gmail items skip sync_email_archive."""
         from app.worker import process_batch
 
         _drain_outbox()
@@ -545,5 +545,5 @@ class TestWorkerEmailSyncJob:
 
         process_batch(limit=10)
 
-        # mark_email_read should NOT have been called
+        # sync_email_archive should NOT have been called
         mock_mark_read.assert_not_called()

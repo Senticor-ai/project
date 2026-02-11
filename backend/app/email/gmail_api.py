@@ -71,7 +71,7 @@ def history_list(
     (history expired) specially.
     """
     if history_types is None:
-        history_types = ["messageAdded"]
+        history_types = ["messageAdded", "labelRemoved"]
 
     all_history: list[dict[str, Any]] = []
     latest_history_id: str = str(start_history_id)

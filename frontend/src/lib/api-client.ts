@@ -391,6 +391,8 @@ export type EmailConnectionResponse = {
   last_sync_error: string | null;
   last_sync_message_count: number | null;
   is_active: boolean;
+  watch_active: boolean;
+  watch_expires_at: string | null;
   created_at: string;
 };
 
@@ -473,6 +475,38 @@ export function downloadExport(options: {
   a.click();
   document.body.removeChild(a);
 }
+
+// ---------------------------------------------------------------------------
+// Chat API (Tay Copilot)
+// ---------------------------------------------------------------------------
+
+export type ExecuteToolRequest = {
+  toolCall: {
+    name: string;
+    arguments: Record<string, unknown>;
+  };
+  conversationId: string;
+};
+
+export type ExecuteToolResponse = {
+  createdItems: Array<{
+    canonicalId: string;
+    name: string;
+    type: "project" | "action" | "reference";
+  }>;
+};
+
+export const ChatApi = {
+  executeTool: (req: ExecuteToolRequest) =>
+    request<ExecuteToolResponse>("/chat/execute-tool", {
+      method: "POST",
+      body: JSON.stringify(req),
+    }),
+};
+
+// ---------------------------------------------------------------------------
+// Items API
+// ---------------------------------------------------------------------------
 
 export const ItemsApi = {
   list: (limit = 50, offset = 0) =>

@@ -252,6 +252,15 @@ export function useCaptureFile() {
       // 1. Create the item (metadata-only)
       const itemRecord = await ItemsApi.create(jsonLd, "manual");
 
+      // Replace optimistic record immediately so findItemId returns the real
+      // server item_id.  Without this, a fast triage (useMoveAction) during
+      // the file upload below would PATCH /items/temp-xxx → 404.
+      qc.setQueryData<ItemRecord[]>(ACTIVE_KEY, (old) =>
+        old?.map((r) =>
+          r.canonical_id === itemRecord.canonical_id ? itemRecord : r,
+        ),
+      );
+
       // 2. Upload the binary (tolerate failure — item already exists)
       try {
         const fileRecord = await uploadFile(file);

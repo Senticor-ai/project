@@ -402,6 +402,79 @@ describe("useCaptureFile", () => {
     expect(mocked.update).not.toHaveBeenCalled();
   });
 
+  it("replaces temp item_id in cache immediately after POST, before upload", async () => {
+    // This test verifies the race condition fix: after the POST creates the
+    // item on the server, the cache must be updated with the real item_id
+    // BEFORE the upload starts.  Otherwise, a fast triage (useMoveAction)
+    // during upload would find "temp-xxx" and PATCH a non-existent item.
+    let resolveUpload!: (value: {
+      file_id: string;
+      original_name: string;
+      content_type: string;
+      size_bytes: number;
+      sha256: string;
+      created_at: string;
+      download_url: string;
+    }) => void;
+    mockedUploadFile.mockReturnValue(
+      new Promise((resolve) => {
+        resolveUpload = resolve;
+      }),
+    );
+
+    // Mock create to return a record that echoes the @id from the jsonLd
+    mocked.create.mockImplementation(
+      async (jsonLd: Record<string, unknown>) => {
+        return makeRecord({
+          item_id: "real-server-id",
+          canonical_id: jsonLd["@id"] as string,
+          item: jsonLd,
+        });
+      },
+    );
+    mocked.update.mockResolvedValue(makeRecord({ item: {} }));
+
+    const qc = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
+    qc.setQueryData(ACTIVE_KEY, []);
+    const qcWrapper = ({ children }: { children: React.ReactNode }) =>
+      createElement(QueryClientProvider, { client: qc }, children);
+
+    const { result } = renderHook(() => useCaptureFile(), {
+      wrapper: qcWrapper,
+    });
+
+    const file = new File(["content"], "report.pdf", {
+      type: "application/pdf",
+    });
+    act(() => result.current.mutate(file));
+
+    // Wait for the POST to complete (upload is still pending).
+    // The cache should have the real server item_id, not "temp-xxx".
+    await waitFor(() => {
+      const cache = qc.getQueryData<ItemRecord[]>(ACTIVE_KEY);
+      expect(cache).toHaveLength(1);
+      expect(cache![0]!.item_id).toBe("real-server-id");
+    });
+
+    // Resolve the upload so the mutation completes
+    resolveUpload({
+      file_id: "file-uuid",
+      original_name: "report.pdf",
+      content_type: "application/pdf",
+      size_bytes: 7,
+      sha256: "abc",
+      created_at: "2026-01-01T00:00:00Z",
+      download_url: "/files/file-uuid",
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  });
+
   it("item persists when PATCH fails after upload", async () => {
     const createdRecord = makeRecord({
       item_id: "srv-item-3",
@@ -590,6 +663,41 @@ describe("useMoveAction", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     const [, patch] = mocked.update.mock.calls[0]!;
     expect(patch["@type"]).toBeUndefined();
+    expect(patch.additionalProperty).toEqual([
+      { "@type": "PropertyValue", propertyID: "app:bucket", value: "next" },
+    ]);
+  });
+
+  it("promotes @type to Action when moving DigitalDocument to next", async () => {
+    const digitalDocRecord = makeRecord({
+      item_id: "tid-doc-1",
+      canonical_id: "urn:app:inbox:doc1",
+      item: {
+        "@type": "DigitalDocument",
+        "@id": "urn:app:inbox:doc1",
+        name: "report.pdf",
+        additionalProperty: [
+          pv("app:bucket", "inbox"),
+          pv("app:isFocused", false),
+        ],
+      },
+    });
+    mocked.update.mockResolvedValue(digitalDocRecord);
+
+    const { result } = renderHook(() => useMoveAction(), {
+      wrapper: createWrapper([digitalDocRecord]),
+    });
+
+    act(() =>
+      result.current.mutate({
+        canonicalId: "urn:app:inbox:doc1" as CanonicalId,
+        bucket: "next",
+      }),
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const [, patch] = mocked.update.mock.calls[0]!;
+    expect(patch["@type"]).toBe("Action");
     expect(patch.additionalProperty).toEqual([
       { "@type": "PropertyValue", propertyID: "app:bucket", value: "next" },
     ]);

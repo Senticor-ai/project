@@ -413,6 +413,73 @@ const chatHandlers = [
       text: "Hallo! Ich bin Tay, dein Assistent. Wie kann ich dir helfen?",
     });
   }),
+
+  http.post(`${API}/chat/execute-tool`, async ({ request }) => {
+    const body = (await request.json()) as {
+      toolCall: { name: string; arguments: Record<string, unknown> };
+      conversationId: string;
+    };
+
+    const createdItems: Array<{
+      canonicalId: string;
+      name: string;
+      type: string;
+    }> = [];
+
+    const args = body.toolCall.arguments;
+    const ts = Date.now();
+
+    switch (body.toolCall.name) {
+      case "create_project_with_actions": {
+        const project = args.project as {
+          name: string;
+          desiredOutcome: string;
+        };
+        const projectId = `urn:app:project:msw-${ts}`;
+        createdItems.push({
+          canonicalId: projectId,
+          name: project.name,
+          type: "project",
+        });
+
+        const actions =
+          (args.actions as Array<{ name: string; bucket: string }>) ?? [];
+        for (const [i, action] of actions.entries()) {
+          createdItems.push({
+            canonicalId: `urn:app:action:msw-${ts}-${i}`,
+            name: action.name,
+            type: "action",
+          });
+        }
+
+        const docs = (args.documents as Array<{ name: string }>) ?? [];
+        for (const [i, doc] of docs.entries()) {
+          createdItems.push({
+            canonicalId: `urn:app:reference:msw-${ts}-${i}`,
+            name: doc.name,
+            type: "reference",
+          });
+        }
+        break;
+      }
+      case "create_action":
+        createdItems.push({
+          canonicalId: `urn:app:action:msw-${ts}`,
+          name: args.name as string,
+          type: "action",
+        });
+        break;
+      case "create_reference":
+        createdItems.push({
+          canonicalId: `urn:app:reference:msw-${ts}`,
+          name: args.name as string,
+          type: "reference",
+        });
+        break;
+    }
+
+    return HttpResponse.json({ createdItems });
+  }),
 ];
 
 // ---------------------------------------------------------------------------

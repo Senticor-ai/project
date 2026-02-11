@@ -7,41 +7,66 @@ with tool calling for creating projects, actions, and references.
 from __future__ import annotations
 
 import json
+import logging
 import os
+from pathlib import Path
 
 from haystack.components.agents import Agent
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.tools import Tool
 from haystack.utils.auth import Secret
+from jinja2 import Environment, FileSystemLoader
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# System prompt (German, Tay personality)
+# Prompt loading (Jinja2)
 # ---------------------------------------------------------------------------
 
-SYSTEM_PROMPT = """\
-Du bist Tay, ein freundlicher GTD-Assistent für die App TerminAndoYo.
+_PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
+_jinja_env = Environment(
+    loader=FileSystemLoader(str(_PROMPTS_DIR)),
+    keep_trailing_newline=False,
+    trim_blocks=True,
+    lstrip_blocks=True,
+)
 
-Deine Aufgabe: Nutzern helfen, ihre Aufgaben, Projekte und Referenzmaterialien
-zu organisieren — nach der Getting-Things-Done-Methode.
+# GTD bucket definitions — passed to the system prompt template
+BUCKETS = [
+    {"id": "inbox", "label": "Noch nicht verarbeitet"},
+    {"id": "next", "label": "Nächste konkrete Schritte"},
+    {"id": "waiting", "label": "Wartet auf jemand anderen"},
+    {"id": "calendar", "label": "Hat einen festen Termin"},
+    {"id": "someday", "label": "Vielleicht/Irgendwann"},
+    {"id": "reference", "label": "Referenzmaterial (kein To-do)"},
+]
 
-## Buckets (GTD-Kontexte)
-- **inbox**: Noch nicht verarbeitet
-- **next**: Nächste konkrete Schritte
-- **waiting**: Wartet auf jemand anderen
-- **calendar**: Hat einen festen Termin
-- **someday**: Vielleicht/Irgendwann
-- **reference**: Referenzmaterial (kein To-do)
 
-## Regeln
-1. Schlage vor, führe NICHT selbst aus. Der Nutzer muss jeden Vorschlag bestätigen.
-2. Für komplexe Ziele mit mehreren Schritten → `create_project_with_actions`
-3. Für einzelne Aufgaben → `create_action`
-4. Für Referenzmaterial (Links, Dokumente, Notizen) → `create_reference`
-5. Antworte auf Deutsch, kurz und klar.
-6. Sei freundlich und hilfsbereit, aber nicht übertrieben.
-7. Wenn der Nutzer nur grüßt oder plaudert, antworte ohne Tool-Aufrufe.
-8. Ordne neue Aktionen sinnvoll in Buckets ein (meist "next").
-"""
+def load_prompt(template_path: str, **kwargs) -> str:
+    """Load and render a Jinja2 prompt template.
+
+    Args:
+        template_path: Relative path from prompts/ dir (e.g. "de/tay_system.j2").
+        **kwargs: Template variables.
+    """
+    template = _jinja_env.get_template(template_path)
+    return template.render(**kwargs)
+
+
+SYSTEM_PROMPT = load_prompt("de/tay_system.j2", buckets=BUCKETS)
+
+# ---------------------------------------------------------------------------
+# Model list — parsed from AGENT_MODEL (falls back to OPENROUTER_MODEL)
+# ---------------------------------------------------------------------------
+
+
+def _parse_models() -> list[str]:
+    """Parse comma-separated model list from env."""
+    raw = os.getenv("AGENT_MODEL") or os.getenv("OPENROUTER_MODEL") or "openai/gpt-4o-mini"
+    return [m.strip() for m in raw.split(",") if m.strip()]
+
+
+MODELS = _parse_models()
 
 # ---------------------------------------------------------------------------
 # Tool definitions — no-op functions that return their arguments
@@ -174,11 +199,14 @@ TOOLS = [
 # ---------------------------------------------------------------------------
 
 
-def create_agent() -> Agent:
-    """Build the Tay Haystack Agent with OpenRouter as the LLM backend."""
-    model = os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini")
-    # Take the first model if comma-separated
-    model = model.split(",")[0].strip()
+def create_agent(model: str | None = None) -> Agent:
+    """Build a Tay Haystack Agent for the given model.
+
+    Args:
+        model: OpenRouter model ID (e.g. "openai/gpt-4o-mini").
+               Defaults to the first model in MODELS.
+    """
+    model = model or MODELS[0]
 
     generator = OpenAIChatGenerator(
         api_key=Secret.from_env_var("OPENROUTER_API_KEY"),

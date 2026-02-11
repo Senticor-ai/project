@@ -401,6 +401,8 @@ export function createEmailConnection(
     last_sync_error: null,
     last_sync_message_count: 12,
     is_active: true,
+    watch_active: false,
+    watch_expires_at: null,
     created_at: new Date().toISOString(),
     ...overrides,
   };

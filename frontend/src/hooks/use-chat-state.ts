@@ -122,7 +122,10 @@ export function useChatState() {
       );
 
       try {
-        const createdItems = await executeSuggestion(suggestionMsg.suggestion);
+        const createdItems = await executeSuggestion(
+          suggestionMsg.suggestion,
+          conversationIdRef.current,
+        );
 
         // Add confirmation message
         const confirmation: TayConfirmationMessage = {

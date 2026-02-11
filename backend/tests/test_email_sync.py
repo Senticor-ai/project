@@ -10,7 +10,7 @@ from unittest.mock import patch
 import httpx
 import pytest
 
-from app.db import db_conn
+from app.db import db_conn, jsonb
 from app.email.sync import (
     SyncResult,
     _parse_address,
@@ -68,17 +68,19 @@ def _make_history_response(
     """Build a Gmail API history.list response."""
     history = []
     for i, mid in enumerate(message_ids):
-        history.append({
-            "id": str(10000 + i),
-            "messagesAdded": [
-                {
-                    "message": {
-                        "id": mid,
-                        "labelIds": ["INBOX", "UNREAD"],
+        history.append(
+            {
+                "id": str(10000 + i),
+                "messagesAdded": [
+                    {
+                        "message": {
+                            "id": mid,
+                            "labelIds": ["INBOX", "UNREAD"],
+                        },
                     },
-                },
-            ],
-        })
+                ],
+            }
+        )
     return {"history": history, "historyId": history_id}
 
 
@@ -111,9 +113,7 @@ class TestGmailApiToEmailMessage:
 
     def test_parses_cc_recipients(self):
         gmail_msg = _make_gmail_message()
-        gmail_msg["payload"]["headers"].append(
-            {"name": "Cc", "value": "CC User <cc@example.de>"}
-        )
+        gmail_msg["payload"]["headers"].append({"name": "Cc", "value": "CC User <cc@example.de>"})
         result = gmail_api_to_email_message(gmail_msg)
         cc = [r for r in result.recipients if r["type"] == "cc"]
         assert len(cc) == 1
@@ -563,3 +563,297 @@ class TestRunEmailSync:
                 assert row is not None
                 raw = row["schema_jsonld"]["sourceMetadata"]["raw"]
                 assert raw["gmailMessageId"] == "msg_meta_id"
+
+
+# ---------------------------------------------------------------------------
+# Reverse archive: Gmail → TAY
+# ---------------------------------------------------------------------------
+
+
+def _make_history_with_label_removed(
+    message_ids: list[str],
+    removed_labels: list[str],
+    history_id: str = "12345",
+) -> dict:
+    """Build a history.list response with labelsRemoved entries."""
+    history = []
+    for i, mid in enumerate(message_ids):
+        history.append(
+            {
+                "id": str(20000 + i),
+                "labelsRemoved": [
+                    {
+                        "message": {"id": mid, "labelIds": []},
+                        "labelIds": removed_labels,
+                    },
+                ],
+            }
+        )
+    return {"history": history, "historyId": history_id}
+
+
+def _seed_gmail_item(
+    org_id: str,
+    user_id: str,
+    gmail_message_id: str,
+    *,
+    archived: bool = False,
+) -> str:
+    """Insert a gmail-sourced item with a gmailMessageId and return item_id."""
+    item_id = str(uuid.uuid4())
+    canonical_id = f"urn:app:email:{gmail_message_id}"
+    entity = {
+        "@type": "EmailMessage",
+        "@id": canonical_id,
+        "name": "Test Subject",
+        "sourceMetadata": {"raw": {"gmailMessageId": gmail_message_id}},
+    }
+    now = datetime.now(UTC)
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO items (
+                    item_id, org_id, created_by_user_id, canonical_id,
+                    schema_jsonld, source, content_hash,
+                    created_at, updated_at, archived_at
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    item_id,
+                    org_id,
+                    user_id,
+                    canonical_id,
+                    jsonb(entity),
+                    "gmail",
+                    "hash-" + gmail_message_id,
+                    now,
+                    now,
+                    now if archived else None,
+                ),
+            )
+        conn.commit()
+    return item_id
+
+
+class TestSyncArchivesFromGmail:
+    """Tests for reverse archive: INBOX label removed in Gmail → archive in TAY."""
+
+    @patch("app.email.sync.enqueue_event")
+    @patch("app.email.sync.gmail_api")
+    @patch("app.email.sync.get_valid_gmail_token")
+    def test_sync_archives_item_when_inbox_label_removed(
+        self,
+        mock_get_token,
+        mock_gmail_api,
+        mock_enqueue,
+        email_connection,
+    ):
+        conn_id, org_id, user_id = email_connection
+        mock_get_token.return_value = "fake-access-token"
+
+        # Seed an existing gmail item in TAY
+        item_id = _seed_gmail_item(org_id, user_id, "msg_archive_me")
+
+        # History shows INBOX label removed for that message
+        mock_gmail_api.history_list.return_value = _make_history_with_label_removed(
+            ["msg_archive_me"], ["INBOX"], history_id="10001"
+        )
+
+        result = run_email_sync(connection_id=conn_id, org_id=org_id, user_id=user_id)
+
+        assert result.archived == 1
+
+        # Verify item is now archived in DB
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT archived_at FROM items WHERE item_id = %s",
+                    (item_id,),
+                )
+                row = cur.fetchone()
+                assert row is not None
+                assert row["archived_at"] is not None
+
+    @patch("app.email.sync.enqueue_event")
+    @patch("app.email.sync.gmail_api")
+    @patch("app.email.sync.get_valid_gmail_token")
+    def test_sync_skips_already_archived_item(
+        self,
+        mock_get_token,
+        mock_gmail_api,
+        mock_enqueue,
+        email_connection,
+    ):
+        conn_id, org_id, user_id = email_connection
+        mock_get_token.return_value = "fake-access-token"
+
+        # Seed an already-archived item
+        _seed_gmail_item(org_id, user_id, "msg_already_done", archived=True)
+
+        mock_gmail_api.history_list.return_value = _make_history_with_label_removed(
+            ["msg_already_done"], ["INBOX"], history_id="10001"
+        )
+
+        result = run_email_sync(connection_id=conn_id, org_id=org_id, user_id=user_id)
+
+        assert result.archived == 0
+        # No item_archived event should be emitted
+        for call in mock_enqueue.call_args_list:
+            assert call[0][0] != "item_archived"
+
+    @patch("app.email.sync.enqueue_event")
+    @patch("app.email.sync.gmail_api")
+    @patch("app.email.sync.get_valid_gmail_token")
+    def test_sync_skips_label_removal_without_inbox(
+        self,
+        mock_get_token,
+        mock_gmail_api,
+        mock_enqueue,
+        email_connection,
+    ):
+        conn_id, org_id, user_id = email_connection
+        mock_get_token.return_value = "fake-access-token"
+
+        # Seed an item
+        _seed_gmail_item(org_id, user_id, "msg_just_read")
+
+        # Only UNREAD removed, not INBOX — should NOT archive
+        mock_gmail_api.history_list.return_value = _make_history_with_label_removed(
+            ["msg_just_read"], ["UNREAD"], history_id="10001"
+        )
+
+        result = run_email_sync(connection_id=conn_id, org_id=org_id, user_id=user_id)
+
+        assert result.archived == 0
+
+    @patch("app.email.sync.enqueue_event")
+    @patch("app.email.sync.gmail_api")
+    @patch("app.email.sync.get_valid_gmail_token")
+    def test_sync_emits_item_archived_event(
+        self,
+        mock_get_token,
+        mock_gmail_api,
+        mock_enqueue,
+        email_connection,
+    ):
+        conn_id, org_id, user_id = email_connection
+        mock_get_token.return_value = "fake-access-token"
+
+        item_id = _seed_gmail_item(org_id, user_id, "msg_emit_event")
+
+        mock_gmail_api.history_list.return_value = _make_history_with_label_removed(
+            ["msg_emit_event"], ["INBOX"], history_id="10001"
+        )
+
+        run_email_sync(connection_id=conn_id, org_id=org_id, user_id=user_id)
+
+        # Find the item_archived call
+        archived_calls = [c for c in mock_enqueue.call_args_list if c[0][0] == "item_archived"]
+        assert len(archived_calls) == 1
+        assert archived_calls[0][0][1]["item_id"] == item_id
+        assert archived_calls[0][0][1]["org_id"] == org_id
+
+
+# ---------------------------------------------------------------------------
+# Reconciliation during full-sync fallback
+# ---------------------------------------------------------------------------
+
+
+class TestReconciliation:
+    """Tests for _reconcile_archived during full-sync fallback."""
+
+    @patch("app.email.sync.enqueue_event")
+    @patch("app.email.sync.gmail_api")
+    @patch("app.email.sync.get_valid_gmail_token")
+    def test_full_sync_archives_stale_items(
+        self,
+        mock_get_token,
+        mock_gmail_api,
+        mock_enqueue,
+        email_connection,
+    ):
+        """Item exists in TAY but gmail message is no longer in inbox."""
+        conn_id, org_id, user_id = email_connection
+        mock_get_token.return_value = "fake-access-token"
+
+        # Seed a TAY item for a gmail message that's no longer in inbox
+        item_id = _seed_gmail_item(org_id, user_id, "msg_stale")
+
+        # Trigger full-sync fallback by returning 404 from history
+        mock_gmail_api.history_list.side_effect = httpx.HTTPStatusError(
+            "Not Found",
+            request=httpx.Request("GET", "https://example.com"),
+            response=httpx.Response(404),
+        )
+        # Gmail inbox now contains msg_current but NOT msg_stale
+        mock_gmail_api.messages_list.return_value = [
+            {"id": "msg_current", "threadId": "thread_1"},
+        ]
+        mock_gmail_api.message_get.return_value = _make_gmail_message(
+            msg_id="msg_current",
+            message_id_header="<current@example.com>",
+            history_id="20000",
+        )
+
+        result = run_email_sync(connection_id=conn_id, org_id=org_id, user_id=user_id)
+
+        # msg_stale should have been archived via reconciliation
+        assert result.archived == 1
+
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT archived_at FROM items WHERE item_id = %s",
+                    (item_id,),
+                )
+                row = cur.fetchone()
+                assert row is not None
+                assert row["archived_at"] is not None
+
+    @patch("app.email.sync.enqueue_event")
+    @patch("app.email.sync.gmail_api")
+    @patch("app.email.sync.get_valid_gmail_token")
+    def test_full_sync_keeps_items_still_in_inbox(
+        self,
+        mock_get_token,
+        mock_gmail_api,
+        mock_enqueue,
+        email_connection,
+    ):
+        """Item exists in TAY and gmail message is still in inbox → keep it."""
+        conn_id, org_id, user_id = email_connection
+        mock_get_token.return_value = "fake-access-token"
+
+        # Seed a TAY item whose gmail message IS still in inbox
+        item_id = _seed_gmail_item(org_id, user_id, "msg_still_there")
+
+        mock_gmail_api.history_list.side_effect = httpx.HTTPStatusError(
+            "Not Found",
+            request=httpx.Request("GET", "https://example.com"),
+            response=httpx.Response(404),
+        )
+        # Gmail inbox contains the same message
+        mock_gmail_api.messages_list.return_value = [
+            {"id": "msg_still_there", "threadId": "thread_1"},
+        ]
+        mock_gmail_api.message_get.return_value = _make_gmail_message(
+            msg_id="msg_still_there",
+            message_id_header="<still-there@example.com>",
+            history_id="20000",
+        )
+
+        result = run_email_sync(connection_id=conn_id, org_id=org_id, user_id=user_id)
+
+        assert result.archived == 0
+
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT archived_at FROM items WHERE item_id = %s",
+                    (item_id,),
+                )
+                row = cur.fetchone()
+                assert row is not None
+                assert row["archived_at"] is None

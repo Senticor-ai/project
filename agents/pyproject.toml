@@ -9,6 +9,7 @@ dependencies = [
   "uvicorn[standard]",
   "python-dotenv",
   "httpx",
+  "jinja2",
 ]
 
 [dependency-groups]
@@ -16,6 +17,7 @@ dev = [
   "ruff>=0.6.0",
   "mypy>=1.10.0",
   "pytest",
+  "anyio",
   "httpx",
 ]
 

@@ -350,6 +350,28 @@ describe("useChatState", () => {
       expect(s.status).toBe("pending");
     });
 
+    it("passes conversationId to executeSuggestion", async () => {
+      mockExecuteSuggestion.mockResolvedValueOnce([
+        {
+          canonicalId: "urn:app:action:1",
+          name: "Testaufgabe",
+          type: "action",
+        },
+      ]);
+
+      const hook = renderHook(() => useChatState());
+      const suggestionId = await setupSuggestion(hook);
+
+      await act(async () => {
+        await hook.result.current.acceptSuggestion(suggestionId);
+      });
+
+      expect(mockExecuteSuggestion).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "create_action" }),
+        hook.result.current.conversationId,
+      );
+    });
+
     it("does nothing for unknown messageId", async () => {
       const hook = renderHook(() => useChatState());
 

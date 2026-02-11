@@ -2,38 +2,29 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useTayActions } from "./use-tay-actions";
 import type { TaySuggestion } from "@/model/chat-types";
-import type { ItemRecord } from "@/lib/api-client";
+import type { ExecuteToolResponse } from "@/lib/api-client";
 
 // ---------------------------------------------------------------------------
-// Mock mutation hooks
+// Mock ChatApi
 // ---------------------------------------------------------------------------
 
-const mockCreateProjectAsync = vi.fn();
-const mockAddProjectActionAsync = vi.fn();
-const mockCaptureInboxAsync = vi.fn();
-const mockAddReferenceAsync = vi.fn();
+const mockExecuteTool = vi.fn<(req: unknown) => Promise<ExecuteToolResponse>>();
 
-vi.mock("./use-mutations", () => ({
-  useCreateProject: () => ({ mutateAsync: mockCreateProjectAsync }),
-  useAddProjectAction: () => ({ mutateAsync: mockAddProjectActionAsync }),
-  useCaptureInbox: () => ({ mutateAsync: mockCaptureInboxAsync }),
-  useAddReference: () => ({ mutateAsync: mockAddReferenceAsync }),
+vi.mock("@/lib/api-client", () => ({
+  ChatApi: {
+    executeTool: (req: unknown) => mockExecuteTool(req),
+  },
 }));
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Mock react-query (invalidateQueries)
 // ---------------------------------------------------------------------------
 
-function makeRecord(canonical_id: string): ItemRecord {
-  return {
-    item_id: `tid-${canonical_id}`,
-    canonical_id,
-    source: "manual",
-    created_at: "2026-01-01T00:00:00Z",
-    updated_at: "2026-01-01T00:00:00Z",
-    item: {},
-  };
-}
+const mockInvalidateQueries = vi.fn().mockResolvedValue(undefined);
+
+vi.mock("@tanstack/react-query", () => ({
+  useQueryClient: () => ({ invalidateQueries: mockInvalidateQueries }),
+}));
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -41,168 +32,205 @@ function makeRecord(canonical_id: string): ItemRecord {
 
 beforeEach(() => {
   vi.resetAllMocks();
-  mockCreateProjectAsync.mockResolvedValue(makeRecord("urn:app:project:p1"));
-  mockAddProjectActionAsync.mockResolvedValue(makeRecord("urn:app:action:a1"));
-  mockCaptureInboxAsync.mockResolvedValue(makeRecord("urn:app:inbox:i1"));
-  mockAddReferenceAsync.mockResolvedValue(makeRecord("urn:app:reference:r1"));
+  mockInvalidateQueries.mockResolvedValue(undefined);
 });
 
 describe("useTayActions", () => {
-  describe("create_project_with_actions", () => {
-    const suggestion: TaySuggestion = {
-      type: "create_project_with_actions",
-      project: { name: "Geburtstagsfeier", desiredOutcome: "Party!" },
-      actions: [
-        { name: "Gästeliste", bucket: "next" },
-        { name: "Einladungen", bucket: "next" },
-      ],
-      documents: [{ name: "Vorlage" }],
-    };
-
-    it("creates project, then actions, then documents", async () => {
-      // Return unique IDs per call
-      mockAddProjectActionAsync
-        .mockResolvedValueOnce(makeRecord("urn:app:action:a1"))
-        .mockResolvedValueOnce(makeRecord("urn:app:action:a2"));
-
-      const { result } = renderHook(() => useTayActions());
-      let created!: Awaited<
-        ReturnType<typeof result.current.executeSuggestion>
-      >;
-
-      await act(async () => {
-        created = await result.current.executeSuggestion(suggestion);
+  describe("calls ChatApi.executeTool with correct payload", () => {
+    it("create_action", async () => {
+      mockExecuteTool.mockResolvedValueOnce({
+        createdItems: [
+          {
+            canonicalId: "urn:app:action:a1",
+            name: "Einkaufen",
+            type: "action",
+          },
+        ],
       });
-
-      // Project created first
-      expect(mockCreateProjectAsync).toHaveBeenCalledWith({
-        name: "Geburtstagsfeier",
-        desiredOutcome: "Party!",
-      });
-
-      // Actions created with project ID
-      expect(mockAddProjectActionAsync).toHaveBeenCalledTimes(2);
-      expect(mockAddProjectActionAsync).toHaveBeenCalledWith({
-        projectId: "urn:app:project:p1",
-        title: "Gästeliste",
-      });
-      expect(mockAddProjectActionAsync).toHaveBeenCalledWith({
-        projectId: "urn:app:project:p1",
-        title: "Einladungen",
-      });
-
-      // Document created
-      expect(mockAddReferenceAsync).toHaveBeenCalledWith("Vorlage");
-
-      // Returns all created refs
-      expect(created).toHaveLength(4);
-      expect(created[0]).toEqual({
-        canonicalId: "urn:app:project:p1",
-        name: "Geburtstagsfeier",
-        type: "project",
-      });
-      expect(created[1]!.type).toBe("action");
-      expect(created[2]!.type).toBe("action");
-      expect(created[3]!.type).toBe("reference");
-    });
-
-    it("skips documents when not present", async () => {
-      const noDocSuggestion: TaySuggestion = {
-        type: "create_project_with_actions",
-        project: { name: "Test", desiredOutcome: "Done" },
-        actions: [{ name: "Step 1", bucket: "next" }],
-      };
 
       const { result } = renderHook(() => useTayActions());
 
-      await act(async () => {
-        await result.current.executeSuggestion(noDocSuggestion);
-      });
-
-      expect(mockAddReferenceAsync).not.toHaveBeenCalled();
-    });
-
-    it("propagates project creation failure", async () => {
-      mockCreateProjectAsync.mockRejectedValue(new Error("API error"));
-      const { result } = renderHook(() => useTayActions());
-
-      await expect(
-        act(() => result.current.executeSuggestion(suggestion)),
-      ).rejects.toThrow("API error");
-
-      expect(mockAddProjectActionAsync).not.toHaveBeenCalled();
-    });
-  });
-
-  describe("create_action", () => {
-    it("captures inbox item", async () => {
       const suggestion: TaySuggestion = {
         type: "create_action",
         name: "Einkaufen",
         bucket: "next",
       };
 
-      const { result } = renderHook(() => useTayActions());
-      let created!: Awaited<
-        ReturnType<typeof result.current.executeSuggestion>
-      >;
-
       await act(async () => {
-        created = await result.current.executeSuggestion(suggestion);
+        await result.current.executeSuggestion(suggestion, "conv-42");
       });
 
-      expect(mockCaptureInboxAsync).toHaveBeenCalledWith("Einkaufen");
-      expect(created).toHaveLength(1);
-      expect(created[0]).toEqual({
-        canonicalId: "urn:app:inbox:i1",
-        name: "Einkaufen",
-        type: "action",
+      expect(mockExecuteTool).toHaveBeenCalledWith({
+        toolCall: {
+          name: "create_action",
+          arguments: suggestion,
+        },
+        conversationId: "conv-42",
       });
     });
-  });
 
-  describe("create_reference", () => {
-    it("creates reference", async () => {
+    it("create_project_with_actions", async () => {
+      mockExecuteTool.mockResolvedValueOnce({
+        createdItems: [
+          { canonicalId: "urn:app:project:p1", name: "Umzug", type: "project" },
+          { canonicalId: "urn:app:action:a1", name: "Kartons", type: "action" },
+        ],
+      });
+
+      const suggestion: TaySuggestion = {
+        type: "create_project_with_actions",
+        project: { name: "Umzug", desiredOutcome: "Neue Wohnung" },
+        actions: [{ name: "Kartons", bucket: "next" }],
+      };
+
+      const { result } = renderHook(() => useTayActions());
+
+      await act(async () => {
+        await result.current.executeSuggestion(suggestion, "conv-99");
+      });
+
+      expect(mockExecuteTool).toHaveBeenCalledWith({
+        toolCall: {
+          name: "create_project_with_actions",
+          arguments: suggestion,
+        },
+        conversationId: "conv-99",
+      });
+    });
+
+    it("create_reference", async () => {
+      mockExecuteTool.mockResolvedValueOnce({
+        createdItems: [
+          {
+            canonicalId: "urn:app:reference:r1",
+            name: "Styleguide",
+            type: "reference",
+          },
+        ],
+      });
+
       const suggestion: TaySuggestion = {
         type: "create_reference",
         name: "Styleguide",
       };
 
       const { result } = renderHook(() => useTayActions());
-      let created!: Awaited<
-        ReturnType<typeof result.current.executeSuggestion>
-      >;
 
       await act(async () => {
-        created = await result.current.executeSuggestion(suggestion);
+        await result.current.executeSuggestion(suggestion, "conv-7");
       });
 
-      expect(mockAddReferenceAsync).toHaveBeenCalledWith("Styleguide");
-      expect(created).toHaveLength(1);
-      expect(created[0]).toEqual({
-        canonicalId: "urn:app:reference:r1",
-        name: "Styleguide",
-        type: "reference",
+      expect(mockExecuteTool).toHaveBeenCalledWith({
+        toolCall: {
+          name: "create_reference",
+          arguments: suggestion,
+        },
+        conversationId: "conv-7",
       });
     });
   });
 
-  it("returns correct canonicalId from server response", async () => {
-    mockCaptureInboxAsync.mockResolvedValue(
-      makeRecord("urn:app:inbox:custom-id-42"),
+  it("passes conversationId to API", async () => {
+    mockExecuteTool.mockResolvedValueOnce({ createdItems: [] });
+
+    const { result } = renderHook(() => useTayActions());
+
+    await act(async () => {
+      await result.current.executeSuggestion(
+        { type: "create_action", name: "Test", bucket: "next" },
+        "conv-specific-id",
+      );
+    });
+
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      expect.objectContaining({ conversationId: "conv-specific-id" }),
     );
+  });
+
+  it("returns mapped CreatedItemRef[]", async () => {
+    mockExecuteTool.mockResolvedValueOnce({
+      createdItems: [
+        {
+          canonicalId: "urn:app:project:p1",
+          name: "Geburtstagsfeier",
+          type: "project",
+        },
+        {
+          canonicalId: "urn:app:action:a1",
+          name: "Gästeliste",
+          type: "action",
+        },
+        {
+          canonicalId: "urn:app:action:a2",
+          name: "Einladungen",
+          type: "action",
+        },
+        {
+          canonicalId: "urn:app:reference:r1",
+          name: "Vorlage",
+          type: "reference",
+        },
+      ],
+    });
 
     const { result } = renderHook(() => useTayActions());
     let created!: Awaited<ReturnType<typeof result.current.executeSuggestion>>;
 
     await act(async () => {
-      created = await result.current.executeSuggestion({
-        type: "create_action",
-        name: "Test",
-        bucket: "inbox",
-      });
+      created = await result.current.executeSuggestion(
+        {
+          type: "create_project_with_actions",
+          project: { name: "Geburtstagsfeier", desiredOutcome: "Party!" },
+          actions: [
+            { name: "Gästeliste", bucket: "next" },
+            { name: "Einladungen", bucket: "next" },
+          ],
+          documents: [{ name: "Vorlage" }],
+        },
+        "conv-1",
+      );
     });
 
-    expect(created[0]!.canonicalId).toBe("urn:app:inbox:custom-id-42");
+    expect(created).toHaveLength(4);
+    expect(created[0]).toEqual({
+      canonicalId: "urn:app:project:p1",
+      name: "Geburtstagsfeier",
+      type: "project",
+    });
+    expect(created[1]!.type).toBe("action");
+    expect(created[2]!.type).toBe("action");
+    expect(created[3]!.type).toBe("reference");
+  });
+
+  it("invalidates items cache after execution", async () => {
+    mockExecuteTool.mockResolvedValueOnce({ createdItems: [] });
+
+    const { result } = renderHook(() => useTayActions());
+
+    await act(async () => {
+      await result.current.executeSuggestion(
+        { type: "create_action", name: "Test", bucket: "next" },
+        "conv-1",
+      );
+    });
+
+    expect(mockInvalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["items"],
+    });
+  });
+
+  it("propagates API errors", async () => {
+    mockExecuteTool.mockRejectedValueOnce(new Error("Server error"));
+
+    const { result } = renderHook(() => useTayActions());
+
+    await expect(
+      act(() =>
+        result.current.executeSuggestion(
+          { type: "create_action", name: "Test", bucket: "next" },
+          "conv-1",
+        ),
+      ),
+    ).rejects.toThrow("Server error");
   });
 });

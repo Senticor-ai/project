@@ -56,6 +56,8 @@ export const EmailTabConnected: Story = {
         last_sync_error: null,
         last_sync_message_count: 42,
         is_active: true,
+        watch_active: false,
+        watch_expires_at: null,
         created_at: "2026-02-01T08:00:00Z",
       },
     ],

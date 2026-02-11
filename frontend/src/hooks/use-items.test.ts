@@ -297,3 +297,117 @@ describe("derived hooks filter by @type", () => {
     expect(result.current.data[0]?.name).toBe("Style guide");
   });
 });
+
+// ---------------------------------------------------------------------------
+// DigitalDocument / EmailMessage items in non-inbox buckets
+// ---------------------------------------------------------------------------
+
+describe("DigitalDocument and EmailMessage items in action buckets", () => {
+  const DIGITAL_DOC_NEXT = makeRecord({
+    item: {
+      "@type": "DigitalDocument",
+      "@id": "urn:app:inbox:pdf1",
+      _schemaVersion: 2,
+      name: "Claude Opus 4.6 System Card.pdf",
+      keywords: [],
+      encodingFormat: "application/pdf",
+      dateCreated: "2026-01-01T00:00:00Z",
+      dateModified: "2026-01-01T00:00:00Z",
+      additionalProperty: [
+        pvFixture("app:bucket", "next"),
+        pvFixture("app:needsEnrichment", true),
+        pvFixture("app:confidence", "medium"),
+        pvFixture("app:captureSource", {
+          kind: "file",
+          fileName: "Claude Opus 4.6 System Card.pdf",
+        }),
+        pvFixture("app:contexts", []),
+        pvFixture("app:isFocused", false),
+        pvFixture("app:ports", []),
+        pvFixture("app:typedReferences", []),
+        pvFixture("app:provenanceHistory", []),
+      ],
+    },
+  });
+
+  const EMAIL_MSG_WAITING = makeRecord({
+    item: {
+      "@type": "EmailMessage",
+      "@id": "urn:app:inbox:eml1",
+      _schemaVersion: 2,
+      name: "meeting-notes.eml",
+      keywords: [],
+      dateCreated: "2026-01-01T00:00:00Z",
+      dateModified: "2026-01-01T00:00:00Z",
+      additionalProperty: [
+        pvFixture("app:bucket", "waiting"),
+        pvFixture("app:needsEnrichment", true),
+        pvFixture("app:confidence", "medium"),
+        pvFixture("app:captureSource", { kind: "email" }),
+        pvFixture("app:contexts", []),
+        pvFixture("app:isFocused", false),
+        pvFixture("app:ports", []),
+        pvFixture("app:typedReferences", []),
+        pvFixture("app:provenanceHistory", []),
+      ],
+    },
+  });
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it("useActions includes DigitalDocument items in non-inbox buckets", async () => {
+    mockedItems.sync.mockResolvedValue(
+      makeSyncPage([DIGITAL_DOC_NEXT, ACTION_RECORD], false),
+    );
+
+    const { result } = renderHook(() => useActions(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(result.current.data).toHaveLength(2);
+    const pdfItem = result.current.data.find(
+      (t) => t.name === "Claude Opus 4.6 System Card.pdf",
+    );
+    expect(pdfItem).toBeDefined();
+    expect(pdfItem?.bucket).toBe("next");
+  });
+
+  it("useActions includes EmailMessage items in non-inbox buckets", async () => {
+    mockedItems.sync.mockResolvedValue(
+      makeSyncPage([EMAIL_MSG_WAITING, ACTION_RECORD], false),
+    );
+
+    const { result } = renderHook(() => useActions(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(result.current.data).toHaveLength(2);
+    const emailItem = result.current.data.find(
+      (t) => t.name === "meeting-notes.eml",
+    );
+    expect(emailItem).toBeDefined();
+    expect(emailItem?.bucket).toBe("waiting");
+  });
+
+  it("useReferences does NOT include DigitalDocument in non-inbox bucket", async () => {
+    mockedItems.sync.mockResolvedValue(
+      makeSyncPage([DIGITAL_DOC_NEXT, REFERENCE_RECORD], false),
+    );
+
+    const { result } = renderHook(() => useReferences(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    // Only the CreativeWork reference, not the DigitalDocument
+    expect(result.current.data).toHaveLength(1);
+    expect(result.current.data[0]?.name).toBe("Style guide");
+  });
+});

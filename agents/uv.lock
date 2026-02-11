@@ -1082,12 +1082,14 @@ dependencies = [
     { name = "fastapi" },
     { name = "haystack-ai" },
     { name = "httpx" },
+    { name = "jinja2" },
     { name = "python-dotenv" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
 [package.dev-dependencies]
 dev = [
+    { name = "anyio" },
     { name = "httpx" },
     { name = "mypy" },
     { name = "pytest" },
@@ -1099,12 +1101,14 @@ requires-dist = [
     { name = "fastapi" },
     { name = "haystack-ai" },
     { name = "httpx" },
+    { name = "jinja2" },
     { name = "python-dotenv" },
     { name = "uvicorn", extras = ["standard"] },
 ]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "anyio" },
     { name = "httpx" },
     { name = "mypy", specifier = ">=1.10.0" },
     { name = "pytest" },

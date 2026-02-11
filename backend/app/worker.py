@@ -6,9 +6,9 @@ from .config import settings
 from .db import db_conn, jsonb
 from .email.sync import (
     enqueue_due_syncs,
-    mark_email_read,
     register_watch,
     run_email_sync,
+    sync_email_archive,
 )
 from .metrics import APP_IMPORTS_COMPLETED_TOTAL, APP_IMPORTS_FAILED_TOTAL
 from .observability import configure_logging, get_logger
@@ -445,10 +445,10 @@ def process_batch(limit: int = 25) -> int:
                         archived_row = cur.fetchone()
                     if archived_row and archived_row.get("source") == "gmail":
                         try:
-                            mark_email_read(archived_row, org_id)
+                            sync_email_archive(archived_row, org_id)
                         except Exception:
                             logger.warning(
-                                "email.mark_read_failed",
+                                "email.archive_sync_failed",
                                 item_id=entity_id,
                                 exc_info=True,
                             )

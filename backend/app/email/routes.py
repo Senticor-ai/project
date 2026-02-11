@@ -48,6 +48,8 @@ class EmailConnectionResponse(BaseModel):
     last_sync_error: str | None = None
     last_sync_message_count: int | None = None
     is_active: bool
+    watch_active: bool
+    watch_expires_at: str | None = None
     created_at: str
 
 
@@ -143,6 +145,8 @@ def _js_string(s: str) -> str:
 
 
 def _row_to_response(row: dict) -> EmailConnectionResponse:
+    watch_exp = row.get("watch_expiration")
+    watch_active = watch_exp is not None and watch_exp > datetime.now(UTC)
     return EmailConnectionResponse(
         connection_id=str(row["connection_id"]),
         email_address=row["email_address"],
@@ -155,6 +159,8 @@ def _row_to_response(row: dict) -> EmailConnectionResponse:
         last_sync_error=row.get("last_sync_error"),
         last_sync_message_count=row.get("last_sync_message_count"),
         is_active=row["is_active"],
+        watch_active=watch_active,
+        watch_expires_at=watch_exp.isoformat() if watch_exp else None,
         created_at=row["created_at"].isoformat() if row.get("created_at") else "",
     )
 

@@ -16,6 +16,8 @@ const baseConnection: EmailConnectionResponse = {
   last_sync_error: null,
   last_sync_message_count: 42,
   is_active: true,
+  watch_active: false,
+  watch_expires_at: null,
   created_at: "2026-02-01T08:00:00Z",
 };
 
@@ -130,5 +132,42 @@ describe("EmailConnectionCard", () => {
       />,
     );
     expect(screen.getByText("Nicht synchronisiert")).toBeInTheDocument();
+  });
+
+  it("shows 'Echtzeit' badge when watch is active", () => {
+    render(
+      <EmailConnectionCard
+        connection={{ ...baseConnection, watch_active: true }}
+      />,
+    );
+    expect(screen.getByText("Echtzeit")).toBeInTheDocument();
+    expect(screen.getByText("Echtzeit-Sync (Push)")).toBeInTheDocument();
+  });
+
+  it("shows 'Fallback-Intervall' label when push is active", () => {
+    render(
+      <EmailConnectionCard
+        connection={{ ...baseConnection, watch_active: true }}
+      />,
+    );
+    expect(screen.getByText(/Fallback-Intervall/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Push-Benachrichtigungen aktiv/),
+    ).toBeInTheDocument();
+  });
+
+  it("shows polling indicator when watch is not active", () => {
+    render(<EmailConnectionCard connection={baseConnection} />);
+    expect(screen.getByText(/Polling alle 15 Min\./)).toBeInTheDocument();
+    expect(screen.getByText(/Sync-Intervall/)).toBeInTheDocument();
+  });
+
+  it("shows 'Nur manuell' when sync interval is 0 and no push", () => {
+    render(
+      <EmailConnectionCard
+        connection={{ ...baseConnection, sync_interval_minutes: 0 }}
+      />,
+    );
+    expect(screen.getByText("Nur manuell")).toBeInTheDocument();
   });
 });
