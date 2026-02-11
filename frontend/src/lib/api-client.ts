@@ -376,6 +376,64 @@ export const ImportsApi = {
 };
 
 // ---------------------------------------------------------------------------
+// Email API
+// ---------------------------------------------------------------------------
+
+export type EmailConnectionResponse = {
+  connection_id: string;
+  email_address: string;
+  display_name: string | null;
+  auth_method: "oauth2";
+  oauth_provider: "gmail";
+  sync_interval_minutes: number;
+  sync_mark_read: boolean;
+  last_sync_at: string | null;
+  last_sync_error: string | null;
+  last_sync_message_count: number | null;
+  is_active: boolean;
+  created_at: string;
+};
+
+export type EmailSyncResponse = {
+  synced: number;
+  created: number;
+  skipped: number;
+  errors: number;
+};
+
+export type EmailConnectionUpdateRequest = {
+  sync_interval_minutes?: number;
+  sync_mark_read?: boolean;
+};
+
+export const EmailApi = {
+  getGmailAuthUrl: () =>
+    request<{ url: string }>("/email/oauth/gmail/authorize"),
+
+  listConnections: () =>
+    request<EmailConnectionResponse[]>("/email/connections"),
+
+  getConnection: (id: string) =>
+    request<EmailConnectionResponse>(`/email/connections/${id}`),
+
+  updateConnection: (id: string, patch: EmailConnectionUpdateRequest) =>
+    request<EmailConnectionResponse>(`/email/connections/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    }),
+
+  triggerSync: (id: string) =>
+    request<EmailSyncResponse>(`/email/connections/${id}/sync`, {
+      method: "POST",
+    }),
+
+  disconnect: (id: string) =>
+    request<EmailConnectionResponse>(`/email/connections/${id}`, {
+      method: "DELETE",
+    }),
+};
+
+// ---------------------------------------------------------------------------
 // Dev API
 // ---------------------------------------------------------------------------
 

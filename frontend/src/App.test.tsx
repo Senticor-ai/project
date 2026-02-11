@@ -66,6 +66,8 @@ vi.mock("./hooks/use-import-jobs", () => ({
     jobs: [],
     checkDuplicate: () => null,
     isLoading: false,
+    retryJob: { mutate: vi.fn(), isPending: false, variables: undefined },
+    archiveJob: { mutate: vi.fn(), isPending: false, variables: undefined },
   }),
 }));
 

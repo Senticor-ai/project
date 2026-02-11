@@ -440,6 +440,89 @@ priority — they erode team confidence in the suite.
 
 ---
 
+## E2E Gotchas
+
+### Inbox Triage Order
+
+The inbox sorts items by `provenance.createdAt` **descending** (newest first). Which item gets
+triaged first depends on how items were created:
+
+| Scenario                     | First triaged item         | Why                                                  |
+| ---------------------------- | -------------------------- | ---------------------------------------------------- |
+| **UI capture** (no reload)   | First captured (oldest)    | Auto-expand fires when first item arrives; stays set |
+| **API seed + `page.reload`** | Newest (last created)      | Fresh state — auto-expand picks `sorted[0]`          |
+
+After the first triage, **auto-advance always picks the newest remaining** item (`sorted[0]`).
+
+When writing triage tests with `apiSeed.createInboxItems(...)`, create items in **reverse
+order** so the test reads naturally (newest item = first triaged = first in the array):
+
+```typescript
+// Items created oldest→newest. Inbox sorts newest first.
+// "Waiting item" (newest) auto-expands → triaged first.
+await apiSeed.createInboxItems([
+  "Reference item",   // oldest → triaged last
+  "Calendar item",
+  "Waiting item",     // newest → triaged first
+]);
+```
+
+### Archive vs. Empty State
+
+Archiving an inbox item moves it to the **Done** section (completed items in `ItemList`).
+When the Done section is visible, `emptyMessage` ("Inbox is empty") does **not** render
+because `hasSecondaryItems` is true. Assert the item is gone instead:
+
+```typescript
+// Wrong — Done section prevents empty message
+await expect(page.getByText("Inbox is empty")).toBeVisible();
+
+// Correct — verify the item disappeared
+await expect(page.getByText("Disposable thought")).not.toBeVisible();
+await expect(page.getByText("0 items to process")).toBeVisible();
+```
+
+### Playwright Strict Mode
+
+`page.getByRole("alert")` fails with a strict mode violation when multiple alerts exist.
+Always filter to match a specific element:
+
+```typescript
+// Wrong — matches all alerts
+await expect(page.getByRole("alert")).not.toBeVisible();
+
+// Correct — filter to the specific alert
+await expect(
+  page.getByRole("alert").filter({ hasText: "already imported" }),
+).not.toBeVisible();
+```
+
+### E2E Stack: Outbox Worker
+
+`scripts/e2e-stack.sh` starts the outbox worker (`uv run python -m app.worker --loop`).
+Without it, import jobs stay in "queued" status forever. If adding new async workflows that
+depend on outbox processing, verify the worker is running in the E2E stack.
+
+### CI-Only Skip for Expensive Tests
+
+For hardware-dependent or large-file tests that should not block CI:
+
+```typescript
+test.skip(
+  !!process.env.CI || !fixtureExists,
+  "Large-file import test — local only",
+);
+```
+
+### Optimistic Update Races
+
+Mutation `onSettled` callbacks must `await` the `invalidateQueries()` call. Without `await`,
+the query refetch races with the next user action. This manifests as items "flickering back"
+in E2E tests after triage or archive — the stale server response briefly overwrites the
+optimistic update.
+
+---
+
 ## Debugging Tests
 
 ### Verbose Output
