@@ -205,8 +205,8 @@ export function useCaptureInbox() {
     onError: (_err, _vars, context) => {
       if (context?.prev) qc.setQueryData(ACTIVE_KEY, context.prev);
     },
-    onSettled: () => {
-      qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
+    onSettled: async () => {
+      await qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
     },
   });
 }

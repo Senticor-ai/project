@@ -138,7 +138,9 @@ export function LoginPage({
                 </label>
                 <input
                   id="email"
+                  name="email"
                   type="email"
+                  autoComplete="username"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -156,7 +158,11 @@ export function LoginPage({
                 </label>
                 <input
                   id="password"
+                  name="password"
                   type="password"
+                  autoComplete={
+                    mode === "login" ? "current-password" : "new-password"
+                  }
                   required
                   minLength={8}
                   value={password}

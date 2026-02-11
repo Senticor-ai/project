@@ -115,7 +115,9 @@ test.describe("Import from Settings", () => {
     });
 
     // Should see duplicate warning
-    await expect(page.getByRole("alert")).toBeVisible();
+    await expect(
+      page.getByRole("alert").filter({ hasText: "already imported" }),
+    ).toBeVisible();
     await expect(
       page.getByText("This file was already imported"),
     ).toBeVisible();

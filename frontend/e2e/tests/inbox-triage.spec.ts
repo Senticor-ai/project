@@ -48,8 +48,9 @@ test.describe("Inbox Triage", () => {
     // Triage to Waiting — wait for count to decrease between each
     await ws.triageButton("Waiting").click();
     await expect(ws.bucketCount("Inbox")).toHaveText("3");
-    // Triage to Calendar
+    // Triage to Calendar (opens date picker — fill date to complete the move)
     await ws.triageButton("Calendar").click();
+    await page.getByLabel("Schedule date").fill("2026-03-01");
     await expect(ws.bucketCount("Inbox")).toHaveText("2");
     // Triage to Someday
     await ws.triageButton("Someday").click();
@@ -102,8 +103,9 @@ test.describe("Inbox Triage", () => {
     // Set complexity
     await ws.complexityButton("high").click();
 
-    // Triage to Calendar
+    // Triage to Calendar (opens inline date picker — fill to complete the move)
     await ws.triageButton("Calendar").click();
+    await page.getByLabel("Schedule date").fill("2026-03-01");
 
     // Verify it moved to Calendar
     await ws.navigateTo("Calendar");
