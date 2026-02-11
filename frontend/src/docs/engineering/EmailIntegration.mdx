@@ -9,6 +9,14 @@ Users connect their Gmail account in **Settings > Email**, and the system
 syncs new messages into the inbox for triage — near-instantly via Pub/Sub
 push notifications, with periodic polling as a reconciliation fallback.
 
+Archive actions are **bidirectional**: archiving a gmail item in TAY removes
+it from the Gmail inbox, and archiving an email in Gmail archives the
+corresponding item in TAY.
+
+> **Status**: The Gmail API integration is fully tested end-to-end —
+> OAuth flow, incremental sync, push notifications, bidirectional archive,
+> and reconnection after disconnect have all been validated in production.
+
 ---
 
 ## OAuth Flow
@@ -34,6 +42,24 @@ User clicks "Mit Google verbinden" in Settings > Email
 If the popup is blocked by the browser, the flow falls back to a full-page
 redirect. The parent window detects `?gmail=connected` on mount and navigates
 to the email settings tab.
+
+### Disconnect and Reconnect
+
+When a user disconnects their Gmail account (Settings > Email > "Verbindung trennen"):
+
+1. Gmail Watch is stopped (Pub/Sub notifications cease)
+2. Connection is soft-deleted: `is_active = false`, tokens wiped, `archived_at` set
+3. **Existing synced items are preserved** — they stay in their current buckets
+4. The `email_sync_state` (history checkpoint) is preserved
+
+When reconnecting the same email address:
+
+1. The existing connection row is reactivated (not duplicated)
+2. New OAuth tokens are stored, `is_active = true`, `archived_at` cleared
+3. Gmail Watch is re-registered for push notifications
+4. First sync resumes from the preserved `last_history_id`:
+   - If history is still valid (<7 days): incremental sync catches up
+   - If history expired (>7 days): full-sync fallback with reconciliation
 
 ---
 
@@ -62,6 +88,9 @@ email address, deduplicates, and enqueues one `email_sync_job` per account.
 Gmail watches expire after ~7 days. The watch worker periodically checks for
 expiring watches (within 12 hours of expiry) and renews them automatically.
 
+The Settings UI shows the current sync method: **"Echtzeit-Sync (Push)"** when
+watch is active, or **"Polling alle X Min."** when falling back to polling only.
+
 ### Fallback: Periodic Polling (every 5 min)
 
 As a reconciliation safety net, the projection worker calls `enqueue_due_syncs()`
@@ -74,23 +103,40 @@ Each `email_sync_job` triggers `run_email_sync()`:
 
 1. Load connection + refresh OAuth token if expired
 2. Incremental sync via `gmail_api.history_list(start_history_id)` — fetches
-   only changes since the last checkpoint
-3. For each new message: `gmail_api.message_get()` → parse headers/body →
-   `build_email_item()` → upsert as `@type: "EmailMessage"`
-4. Update `last_history_id` checkpoint in `email_sync_state`
-5. Optionally mark fetched messages as read via
+   both `messageAdded` and `labelRemoved` events since the last checkpoint
+3. For each new message (`messageAdded`): `gmail_api.message_get()` → parse
+   headers/body → `build_email_item()` → upsert as `@type: "EmailMessage"`
+4. For each archived message (`labelRemoved` with INBOX): find the
+   corresponding TAY item and set `archived_at`
+5. Update `last_history_id` checkpoint in `email_sync_state`
+6. Optionally mark fetched messages as read via
    `gmail_api.message_modify(remove_label_ids=["UNREAD"])`
 
 If the history ID has expired (Gmail returns 404), the sync falls back to
 `gmail_api.messages_list(query="in:inbox newer_than:7d")` and resets the
-history checkpoint.
+history checkpoint. During this full-sync fallback, **reconciliation** runs
+automatically: active TAY items whose Gmail messages are no longer in the
+inbox get archived.
 
-### Mark-as-Read on Archive
+### Bidirectional Archive
 
-When a gmail-sourced item is archived (triaged out of inbox), the projection
-worker calls `mark_email_read()` which uses `gmail_api.message_modify()` to
-remove the `UNREAD` label in Gmail. The `gmailMessageId` is stored in
-`sourceMetadata.raw` during sync for this purpose.
+Archive actions sync in both directions:
+
+| Direction | Trigger | Mechanism |
+|-----------|---------|-----------|
+| **TAY → Gmail** | User archives a gmail item in TAY | Worker calls `sync_email_archive()` → `gmail_api.message_modify(remove_label_ids=["UNREAD", "INBOX"])` |
+| **Gmail → TAY** | User archives an email in Gmail | Next sync detects `labelsRemoved` (INBOX) in history → sets `archived_at` on corresponding TAY item |
+
+**Loop prevention**: When TAY archives an item, the Gmail label change appears
+in the next sync's history. The sync sees the item is already archived
+(`WHERE archived_at IS NULL` returns 0 rows) and skips it. Similarly, Gmail's
+`message_modify` is idempotent — removing INBOX from a message without INBOX
+is a no-op.
+
+**Reconciliation**: During full-sync fallback (history expired), the sync
+cross-checks all active TAY gmail items against the current Gmail inbox. Items
+no longer in the inbox get archived. This handles connectivity gaps longer than
+7 days where history events were lost.
 
 ---
 
@@ -230,11 +276,11 @@ via the `GMAIL_SCOPES` environment variable.
 | `app/email/routes.py` | OAuth endpoints (`/authorize`, `/callback`) + connection CRUD + sync trigger |
 | `app/email/gmail_oauth.py` | Google OAuth helpers (auth URL, code exchange, token refresh) |
 | `app/email/gmail_api.py` | Gmail REST API v1 client (history, messages, watch, modify) |
-| `app/email/sync.py` | Sync orchestrator (Gmail API history → parse → upsert) + watch lifecycle |
+| `app/email/sync.py` | Sync orchestrator (Gmail API history → parse → upsert → archive) + watch lifecycle + reconciliation |
 | `app/email/transform.py` | EmailMessage dataclass + `build_email_item()` JSON-LD transform |
 | `app/email/pubsub.py` | Pub/Sub pull client (service account auth, message parsing) |
 | `app/email/watch_worker.py` | Dedicated Pub/Sub pull loop process |
-| `app/email/imap_client.py` | IMAP client (kept for future non-Gmail IMAP providers; currently unused) |
+| `app/email/imap_client.py` | Generic IMAP client (see IMAP section below) |
 | `app/crypto.py` | Fernet encryption/decryption for OAuth tokens at rest |
 
 ### Frontend Components
@@ -242,8 +288,55 @@ via the `GMAIL_SCOPES` environment variable.
 | Component | Purpose |
 |-----------|---------|
 | `EmailPanel` | Settings tab — connect button, connection list, sync controls |
-| `EmailConnectionCard` | Individual connection display with sync/disconnect actions |
+| `EmailConnectionCard` | Individual connection display with sync method indicator, sync/disconnect actions |
 | `EmailBodyViewer` | Inline email body display in ActionRow (sanitized HTML via DOMPurify) |
+
+### Test Coverage
+
+| Test File | Scope |
+|-----------|-------|
+| `backend/tests/test_email_sync.py` | Sync orchestrator: message parsing, incremental sync, full-sync fallback, reverse archive, reconciliation |
+| `backend/tests/test_email_worker.py` | Worker event handlers: sync job dispatch, TAY→Gmail archive, polling scheduler |
+| `backend/tests/test_watch_worker.py` | Pub/Sub notification processing, watch renewal |
+| `frontend/.../EmailConnectionCard.test.tsx` | Connection card UI: status badge, sync method indicator, actions |
+| `frontend/.../EmailPanel.test.tsx` | Panel: empty state, loading, connection list, callbacks |
+
+---
+
+## IMAP (Generic Providers)
+
+> **Not end-to-end tested.** The IMAP client (`app/email/imap_client.py`) was
+> ported from the Procedere prototype and provides OAuth2-based IMAP access
+> for Gmail. It is **not currently used** — Gmail email ingestion uses the
+> REST API exclusively. The IMAP client is kept as a foundation for future
+> non-Gmail IMAP providers (e.g. Outlook, corporate IMAP servers) but has
+> not been validated in an integration or production setting.
+
+### What exists
+
+- `ImapClient` class with OAuth2 XOAUTH2 authentication (no password auth)
+- `fetch_since(since_uid)` — incremental fetch by UID range
+- `fetch_all()` — full INBOX fetch
+- Message parsing: headers, plain text body, HTML body, attachments
+- Returns `EmailMessage` dataclass (same as Gmail API path)
+
+### What is missing for production use
+
+- No connection management UI (Settings only supports Gmail OAuth)
+- No sync orchestrator integration (only Gmail's `run_email_sync` is wired)
+- No automated tests (unit or integration)
+- No IDLE/push notification support (would need a dedicated worker)
+- No provider-specific OAuth flows (Outlook, Yahoo, etc.)
+- No IMAP-specific error handling or retry logic
+
+### When to revisit
+
+If a second email provider is needed, the recommended approach is:
+
+1. Add provider-specific OAuth flow in `routes.py`
+2. Wire `ImapClient` into a new `run_imap_sync()` function in `sync.py`
+3. Add end-to-end tests with a test IMAP server (e.g. GreenMail)
+4. Validate the full cycle: connect → sync → archive → disconnect → reconnect
 
 ---
 
@@ -257,6 +350,8 @@ via the `GMAIL_SCOPES` environment variable.
 | "Invalid state" (HTTP 400) | `GMAIL_STATE_SECRET` changed between authorize and callback | Ensure secret is stable across backend restarts |
 | Decryption errors on sync | `ENCRYPTION_KEY` changed after tokens were stored | Tokens must be re-authorized with new key |
 | "internal_failure" from Google | OAuth consent screen in "Testing" mode; user not in test list | Add your Google account to test users, or publish the app |
+| Stale items after reconnect | History expired during disconnect period (>7 days) | Full-sync fallback + reconciliation handles this automatically |
+| Archive not syncing to Gmail | Check worker logs for `sync_email_archive:` entries | Verify connection is active, token valid, gmailMessageId present |
 
 ---
 
