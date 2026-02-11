@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
@@ -53,6 +53,38 @@ const RUNNING_JOB: ImportJobResponse = {
   summary: null,
   progress: null,
   error: null,
+  archived_at: null,
+};
+
+const QUEUED_JOB: ImportJobResponse = {
+  job_id: "job-3",
+  status: "queued",
+  file_id: "file-3",
+  file_sha256: "ghi789hash",
+  source: "native",
+  created_at: "2025-06-17T09:00:00Z",
+  updated_at: "2025-06-17T09:00:00Z",
+  started_at: null,
+  finished_at: null,
+  summary: null,
+  progress: null,
+  error: null,
+  archived_at: null,
+};
+
+const FAILED_JOB: ImportJobResponse = {
+  job_id: "job-4",
+  status: "failed",
+  file_id: "file-4",
+  file_sha256: "jkl012hash",
+  source: "nirvana",
+  created_at: "2025-06-18T08:00:00Z",
+  updated_at: "2025-06-18T08:01:00Z",
+  started_at: "2025-06-18T08:00:01Z",
+  finished_at: "2025-06-18T08:01:00Z",
+  summary: null,
+  progress: null,
+  error: "Parse error at line 42",
   archived_at: null,
 };
 
@@ -165,5 +197,90 @@ describe("useImportJobs", () => {
     });
 
     expect(mockedImports.archiveJob).toHaveBeenCalledWith("job-1");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Polling / refetchInterval
+// ---------------------------------------------------------------------------
+
+describe("useImportJobs polling", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("polls every 5s when a job is running", async () => {
+    mockedImports.listJobs.mockResolvedValue([RUNNING_JOB]);
+
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const timerWrapper = ({ children }: { children: React.ReactNode }) =>
+      createElement(QueryClientProvider, { client: qc }, children);
+
+    renderHook(() => useImportJobs(), { wrapper: timerWrapper });
+
+    // Wait for initial fetch
+    await vi.waitFor(() => {
+      expect(mockedImports.listJobs).toHaveBeenCalledTimes(1);
+    });
+
+    // Advance past the 5s refetch interval
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5500);
+    });
+
+    expect(mockedImports.listJobs.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("polls every 5s when a job is queued", async () => {
+    mockedImports.listJobs.mockResolvedValue([QUEUED_JOB]);
+
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const timerWrapper = ({ children }: { children: React.ReactNode }) =>
+      createElement(QueryClientProvider, { client: qc }, children);
+
+    renderHook(() => useImportJobs(), { wrapper: timerWrapper });
+
+    await vi.waitFor(() => {
+      expect(mockedImports.listJobs).toHaveBeenCalledTimes(1);
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5500);
+    });
+
+    expect(mockedImports.listJobs.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("does not poll when all jobs are completed or failed", async () => {
+    mockedImports.listJobs.mockResolvedValue([COMPLETED_JOB, FAILED_JOB]);
+
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const timerWrapper = ({ children }: { children: React.ReactNode }) =>
+      createElement(QueryClientProvider, { client: qc }, children);
+
+    renderHook(() => useImportJobs(), { wrapper: timerWrapper });
+
+    await vi.waitFor(() => {
+      expect(mockedImports.listJobs).toHaveBeenCalledTimes(1);
+    });
+
+    const callsBeforeWait = mockedImports.listJobs.mock.calls.length;
+
+    // Advance well past the refetch interval — should NOT trigger another fetch
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15_000);
+    });
+
+    expect(mockedImports.listJobs.mock.calls.length).toBe(callsBeforeWait);
   });
 });

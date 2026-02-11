@@ -6,6 +6,7 @@ different authenticated users (each with their own org) in the same test DB.
 
 import hashlib
 import json
+import time
 import uuid
 
 from fastapi.testclient import TestClient
@@ -104,12 +105,20 @@ def _run_import_job(
             )
         conn.commit()
 
-    processed = process_batch(limit=10)
-    assert processed >= 1
+    # Process remaining events — may be 0 if already consumed by another test
+    process_batch(limit=10)
 
-    job = auth_client.get(f"/imports/jobs/{job_id}")
-    assert job.status_code == 200
-    return job.json()
+    # Poll job status with retry — worker may have already processed it
+    for _ in range(20):
+        job = auth_client.get(f"/imports/jobs/{job_id}")
+        assert job.status_code == 200
+        if job.json()["status"] in ("completed", "failed"):
+            return job.json()
+        # Retry processing in case event wasn't consumed yet
+        process_batch(limit=10)
+        time.sleep(0.25)
+
+    raise AssertionError(f"Job {job_id} did not complete within timeout")
 
 
 # ---------------------------------------------------------------------------

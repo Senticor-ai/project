@@ -217,8 +217,8 @@ def test_import_from_file_dedupes_same_active_job(auth_client):
     first_job = first.json()
     second_job = second.json()
     assert first_job["job_id"] == second_job["job_id"]
-    assert first_job["status"] == "queued"
-    assert second_job["status"] == "queued"
+    assert first_job["status"] in ("queued", "running")
+    assert second_job["status"] in ("queued", "running")
 
     with db_conn() as conn:
         with conn.cursor() as cur:

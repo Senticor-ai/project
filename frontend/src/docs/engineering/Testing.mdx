@@ -74,15 +74,17 @@ during unit or storybook tests.
 
 ### Backend Isolation
 
-| Aspect             | Mechanism                               |
-| ------------------ | --------------------------------------- |
-| **Database**       | SQLite in-memory per test (`sqlite://`) |
-| **File storage**   | `tempfile.TemporaryDirectory()`         |
-| **Authentication** | Mocked via FastAPI DI override          |
-| **LLM calls**      | Mocked via pytest fixtures              |
+| Aspect             | Mechanism                                                    |
+| ------------------ | ------------------------------------------------------------ |
+| **Database**       | PostgreSQL with per-session schema (`test_{uuid}`)           |
+| **Schema setup**   | `db/schema.sql` applied once per session                     |
+| **File storage**   | `tmp_path_factory` (session-scoped temp directory)           |
+| **Authentication** | Real register/login via `auth_client` fixture                |
+| **Worker**         | Manual `process_batch()` calls (no background thread)        |
 
-Each test gets a fresh in-memory database destroyed when the test ends. No PostgreSQL tables
-are touched.
+Each test session creates a unique PostgreSQL schema. Tests share that schema but each gets
+a fresh `TestClient` (function scope). The `auth_client` fixture registers and logs in a
+unique user per test.
 
 ### E2E Isolation
 
@@ -93,6 +95,69 @@ cookies, file storage path, disabled Fuseki).
 
 A custom Playwright fixture provides `authenticatedPage` (auto-registers a unique user via
 local JWT auth) and `apiSeed` (programmatic data setup via API).
+
+---
+
+## Backend Testing
+
+### Fixtures
+
+| Fixture              | Scope      | Provides                                                    |
+| -------------------- | ---------- | ----------------------------------------------------------- |
+| `test_database_url`  | session    | Isolated PostgreSQL schema with env vars set                |
+| `app`                | session    | FastAPI app with schema applied                             |
+| `client`             | function   | `TestClient` (no auth)                                      |
+| `auth_client`        | function   | `TestClient` with registered + logged-in user                |
+| `api_base_url`       | session    | Live uvicorn server URL for Playwright integration tests    |
+
+### Outbox Event Testing
+
+The outbox worker does **not** run in the background during tests. Tests that need worker
+processing must call `process_batch()` explicitly.
+
+**Pattern:**
+
+1. Call the API endpoint (creates outbox event)
+2. Clean up unrelated events: `DELETE FROM outbox_events WHERE payload->>'job_id' IS DISTINCT FROM %s`
+3. Call `process_batch(limit=N)` to process the target event
+4. Poll job status until complete — don't assert on `process_batch()` return value
+
+**Gotcha:** All tests share a session-scoped database. `process_batch()` processes **all**
+unprocessed events, not just the current test's. Always clean up unrelated events before
+calling it, and poll job status with retries rather than asserting exact batch counts.
+
+```python
+# Clean up events from other tests
+with db_conn() as conn:
+    with conn.cursor() as cur:
+        cur.execute(
+            "DELETE FROM outbox_events WHERE payload->>'job_id' IS DISTINCT FROM %s",
+            (job_id,),
+        )
+    conn.commit()
+
+# Process — may be 0 if already consumed
+process_batch(limit=10)
+
+# Poll with retry
+for _ in range(20):
+    job = auth_client.get(f"/imports/jobs/{job_id}")
+    if job.json()["status"] in ("completed", "failed"):
+        break
+    process_batch(limit=10)
+    time.sleep(0.25)
+```
+
+### Backend Quick Start
+
+```bash
+cd backend
+uv run python -m pytest                    # Full suite
+uv run python -m pytest tests/test_foo.py  # Single file
+uv run python -m pytest -x -q             # Stop on first failure, quiet
+uv run ruff check .                        # Lint
+uv run mypy app/                           # Types
+```
 
 ---
 
@@ -303,6 +368,34 @@ test("submits form", async () => {
   expect(await screen.findByText("Saved")).toBeInTheDocument();
 });
 ```
+
+### TanStack Query Hook Testing
+
+Mutation hooks follow the **snapshot → optimistic update → rollback** pattern. Tests use
+`renderHook` with a `QueryClientProvider` wrapper:
+
+```typescript
+function createWrapper(initialData?: ItemRecord[]) {
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  if (initialData) qc.setQueryData(ACTIVE_KEY, initialData);
+  return ({ children }) =>
+    createElement(QueryClientProvider, { client: qc }, children);
+}
+```
+
+**Testing flow:**
+
+1. Seed the query cache with initial data via `createWrapper([...records])`
+2. Call `mutate()` / `mutateAsync()` in an `act()` block
+3. Assert API mock was called with expected args
+4. For optimistic updates: observe cache state before API resolves (use a pending Promise)
+5. For rollback: reject the mock and verify cache is restored
+6. For `onSettled`: verify `invalidateQueries` was awaited (prevents stale-cache races)
+
+**Polling tests** use `vi.useFakeTimers()` + `vi.advanceTimersByTimeAsync()` to verify
+`refetchInterval` behavior without real delays.
 
 ### Storybook Play Functions
 

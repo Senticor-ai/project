@@ -6,6 +6,7 @@ import { ItemsApi } from "@/lib/api-client";
 import type { ItemRecord } from "@/lib/api-client";
 import {
   useCaptureInbox,
+  useCaptureFile,
   useTriageItem,
   useCompleteAction,
   useToggleFocus,
@@ -152,6 +153,142 @@ describe("useCaptureInbox", () => {
       "Buy groceries",
     );
     expect(source).toBe("manual");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// useCaptureFile
+// ---------------------------------------------------------------------------
+
+describe("useCaptureFile", () => {
+  it("classifies a PDF file as DigitalDocument", async () => {
+    mocked.create.mockResolvedValue(makeRecord({ item: {} }));
+
+    const { result } = renderHook(() => useCaptureFile(), {
+      wrapper: createWrapper(),
+    });
+
+    const file = new File(["content"], "report.pdf", {
+      type: "application/pdf",
+    });
+    act(() => result.current.mutate(file));
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(mocked.create).toHaveBeenCalledTimes(1);
+    const [jsonLd, source] = mocked.create.mock.calls[0]!;
+    expect(jsonLd).toHaveProperty("@type", "DigitalDocument");
+    expect(jsonLd).toHaveProperty("name", "report.pdf");
+    expect(source).toBe("manual");
+    const props = jsonLd.additionalProperty as Array<{
+      propertyID: string;
+      value: unknown;
+    }>;
+    expect(props.find((p) => p.propertyID === "app:bucket")?.value).toBe(
+      "inbox",
+    );
+    expect(props.find((p) => p.propertyID === "app:captureSource")?.value).toMatchObject({
+      kind: "file",
+      fileName: "report.pdf",
+    });
+  });
+
+  it("classifies an .eml file as EmailMessage", async () => {
+    mocked.create.mockResolvedValue(makeRecord({ item: {} }));
+
+    const { result } = renderHook(() => useCaptureFile(), {
+      wrapper: createWrapper(),
+    });
+
+    // Browsers often report empty MIME for .eml, so fallback-by-extension kicks in
+    const file = new File(["email content"], "message.eml", { type: "" });
+    act(() => result.current.mutate(file));
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const [jsonLd] = mocked.create.mock.calls[0]!;
+    expect(jsonLd).toHaveProperty("@type", "EmailMessage");
+    expect(jsonLd).toHaveProperty("name", "message.eml");
+    const props = jsonLd.additionalProperty as Array<{
+      propertyID: string;
+      value: unknown;
+    }>;
+    expect(
+      props.find((p) => p.propertyID === "app:extractableEntities")?.value,
+    ).toEqual(["Person", "Organization"]);
+  });
+
+  it("classifies a .vcf file as DigitalDocument with extractable entities", async () => {
+    mocked.create.mockResolvedValue(makeRecord({ item: {} }));
+
+    const { result } = renderHook(() => useCaptureFile(), {
+      wrapper: createWrapper(),
+    });
+
+    const file = new File(["vcard"], "contact.vcf", { type: "" });
+    act(() => result.current.mutate(file));
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const [jsonLd] = mocked.create.mock.calls[0]!;
+    expect(jsonLd).toHaveProperty("@type", "DigitalDocument");
+    const props = jsonLd.additionalProperty as Array<{
+      propertyID: string;
+      value: unknown;
+    }>;
+    expect(
+      props.find((p) => p.propertyID === "app:extractableEntities")?.value,
+    ).toEqual(["Person", "Organization"]);
+  });
+
+  it("optimistically adds record to active cache", async () => {
+    // Delay the API response so we can observe the optimistic state
+    let resolveApi!: (value: ItemRecord) => void;
+    mocked.create.mockReturnValue(
+      new Promise((resolve) => {
+        resolveApi = resolve;
+      }),
+    );
+
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    qc.setQueryData(ACTIVE_KEY, []);
+    const qcWrapper = ({ children }: { children: React.ReactNode }) =>
+      createElement(QueryClientProvider, { client: qc }, children);
+
+    const { result } = renderHook(() => useCaptureFile(), {
+      wrapper: qcWrapper,
+    });
+
+    const file = new File(["content"], "doc.pdf", { type: "application/pdf" });
+    act(() => result.current.mutate(file));
+
+    // Before API resolves, cache should have the optimistic record
+    await waitFor(() => {
+      const cache = qc.getQueryData<ItemRecord[]>(ACTIVE_KEY);
+      expect(cache).toHaveLength(1);
+      expect(cache![0]!.item_id).toMatch(/^temp-/);
+    });
+
+    // Resolve the API and verify mutation completes
+    const serverRecord = makeRecord({
+      item_id: "server-1",
+      item: { "@type": "DigitalDocument" },
+    });
+    resolveApi(serverRecord);
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  });
+
+  it("restores cache on API failure", async () => {
+    mocked.create.mockRejectedValue(new Error("Upload failed"));
+
+    const wrapper = createWrapper([ACTION_RECORD]);
+    const { result } = renderHook(() => useCaptureFile(), { wrapper });
+
+    const file = new File(["content"], "doc.pdf", { type: "application/pdf" });
+    act(() => result.current.mutate(file));
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(mocked.create).toHaveBeenCalled();
   });
 });
 
