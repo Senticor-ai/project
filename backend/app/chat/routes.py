@@ -51,6 +51,8 @@ def chat_completions(req: ChatCompletionRequest):
         resp.raise_for_status()
     except httpx.ConnectError as exc:
         raise HTTPException(status_code=502, detail="Agents service unreachable") from exc
+    except httpx.TimeoutException as exc:
+        raise HTTPException(status_code=504, detail="Agents service timeout") from exc
     except httpx.HTTPStatusError as exc:
         raise HTTPException(
             status_code=502, detail=f"Agents service error: {exc.response.status_code}"

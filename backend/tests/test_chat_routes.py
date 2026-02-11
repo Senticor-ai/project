@@ -119,3 +119,18 @@ class TestChatCompletions:
         )
         assert response.status_code == 502
         assert "agents" in response.json()["detail"].lower()
+
+    def test_returns_504_when_agents_timeout(self, auth_client, monkeypatch):
+        _patch_settings(monkeypatch, agents_url="http://localhost:8002")
+
+        def _raise_timeout(*args, **kwargs):
+            raise httpx.ReadTimeout("Read timed out")
+
+        monkeypatch.setattr("app.chat.routes.httpx.post", _raise_timeout)
+
+        response = auth_client.post(
+            "/chat/completions",
+            json={"message": "Hallo", "conversationId": "conv-4"},
+        )
+        assert response.status_code == 504
+        assert "timeout" in response.json()["detail"].lower()
