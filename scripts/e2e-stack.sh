@@ -18,6 +18,7 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 E2E_ENV_FILE="${ROOT_DIR}/.env.e2e"
 SCHEMA_FILE="${ROOT_DIR}/backend/db/schema.sql"
 BACKEND_PORT=8001
+AGENTS_PORT=8002
 FRONTEND_PORT=5174
 E2E_DB="terminandoyo_e2e"
 
@@ -26,6 +27,7 @@ RUN_TESTS=true
 PW_ARGS=()
 BACKEND_PID=""
 WORKER_PID=""
+AGENTS_PID=""
 FRONTEND_PID=""
 
 # ── Parse flags ──────────────────────────────────────────────────────
@@ -108,6 +110,10 @@ cleanup() {
     kill "$FRONTEND_PID" 2>/dev/null || true
     wait "$FRONTEND_PID" 2>/dev/null || true
   fi
+  if [ -n "$AGENTS_PID" ]; then
+    kill "$AGENTS_PID" 2>/dev/null || true
+    wait "$AGENTS_PID" 2>/dev/null || true
+  fi
   if [ -n "$WORKER_PID" ]; then
     kill "$WORKER_PID" 2>/dev/null || true
     wait "$WORKER_PID" 2>/dev/null || true
@@ -159,6 +165,7 @@ echo "[e2e] Schema applied."
 
 # ── Step 5: Prepare environment ──────────────────────────────────────
 export DATABASE_URL="postgresql://${PG_USER}:${PG_PASSWORD}@${PG_HOST}:${PG_PORT}/${E2E_DB}"
+export AGENTS_URL="http://localhost:${AGENTS_PORT}"
 mkdir -p "$ROOT_DIR/storage-e2e"
 
 # ── Step 6: Start backend ────────────────────────────────────────────
@@ -193,6 +200,32 @@ cd "$ROOT_DIR/backend"
 uv run python -m app.worker --loop &
 WORKER_PID=$!
 echo "[e2e] Worker started (PID $WORKER_PID)."
+
+# ── Step 6c: Start agents service ─────────────────────────────────
+# The agents service handles Tay chat tool execution. It calls the backend's
+# POST /items to create items on behalf of the user.
+echo "[e2e] Starting agents service on :$AGENTS_PORT..."
+cd "$ROOT_DIR/agents"
+BACKEND_URL="http://localhost:$BACKEND_PORT" \
+  uv run uvicorn app:app \
+    --host 127.0.0.1 \
+    --port "$AGENTS_PORT" \
+    --log-level warning \
+    &
+AGENTS_PID=$!
+
+echo "[e2e] Waiting for agents health..."
+for i in $(seq 1 15); do
+  if curl -sf "http://localhost:$AGENTS_PORT/health" >/dev/null 2>&1; then
+    echo "[e2e] Agents ready."
+    break
+  fi
+  if [ "$i" -eq 15 ]; then
+    echo "[e2e] ERROR: Agents service failed to start within 15s."
+    exit 1
+  fi
+  sleep 1
+done
 
 # ── Step 7: Start frontend ───────────────────────────────────────────
 echo "[e2e] Starting frontend on :$FRONTEND_PORT..."
@@ -229,6 +262,7 @@ else
   echo "[e2e] Stack is running. Press Ctrl-C to stop."
   echo "[e2e]   Frontend: http://localhost:$FRONTEND_PORT"
   echo "[e2e]   Backend:  http://localhost:$BACKEND_PORT"
+  echo "[e2e]   Agents:   http://localhost:$AGENTS_PORT"
   echo "[e2e]   API docs: http://localhost:$BACKEND_PORT/docs"
   echo ""
   wait
