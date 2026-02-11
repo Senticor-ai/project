@@ -197,12 +197,15 @@ class TestExecuteTool:
 
         payload = captured_kwargs["json"]
         assert "auth" in payload
-        # Session token should be present (from auth cookie)
-        assert payload["auth"]["sessionToken"] is not None
+        # Delegated JWT token (not session cookie)
+        assert isinstance(payload["auth"]["token"], str)
+        assert len(payload["auth"]["token"]) > 20  # JWT is a long string
         # Org ID from the user's org
         assert payload["auth"]["orgId"] is not None
-        # Session cookie name from settings
-        assert "sessionCookieName" in payload["auth"]
+        # Old session fields should NOT be present
+        assert "sessionToken" not in payload["auth"]
+        assert "sessionCookieName" not in payload["auth"]
+        assert "clientIp" not in payload["auth"]
 
     def test_returns_502_when_agents_down(self, auth_client, monkeypatch):
         _patch_settings(monkeypatch, agents_url="http://localhost:8002")

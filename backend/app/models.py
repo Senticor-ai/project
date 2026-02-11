@@ -281,10 +281,10 @@ class ItemJsonLdBase(BaseModel):
 class ActionItemJsonLd(ItemJsonLdBase):
     """schema:Action — all action-type items (inbox, next, waiting, calendar, someday)."""
 
-    type: Literal["Action", "EmailMessage"] = Field(
+    type: Literal["Action", "EmailMessage", "ReadAction"] = Field(
         ...,
         alias="@type",
-        description="schema.org Action (also accepts 'EmailMessage').",
+        description="schema.org Action (also accepts 'EmailMessage', 'ReadAction').",
     )
     startTime: str | None = Field(
         default=None,
@@ -293,6 +293,11 @@ class ActionItemJsonLd(ItemJsonLdBase):
     endTime: str | None = Field(
         default=None,
         description="Completion timestamp (schema.org endTime).",
+    )
+    object_ref: dict | None = Field(
+        default=None,
+        alias="object",
+        description="schema.org object (ThingRef, e.g. for ReadAction).",
     )
 
 
@@ -351,6 +356,7 @@ def _resolve_item_type(v: Any) -> str:
     return {
         "Action": "action",
         "EmailMessage": "action",
+        "ReadAction": "action",
         "Project": "project",
         "CreativeWork": "creative_work",
         "DigitalDocument": "creative_work",
@@ -375,12 +381,18 @@ class ItemPatchModel(BaseModel):
         Literal[
             "Action", "Project", "CreativeWork",
             "DigitalDocument", "Event", "EmailMessage",
+            "ReadAction",
         ]
         | None
     ) = Field(
         default=None,
         alias="@type",
         description="Schema.org type override.",
+    )
+    object_ref: dict | None = Field(
+        default=None,
+        alias="object",
+        description="schema.org object (ThingRef, e.g. for ReadAction).",
     )
     schemaVersion: int | None = Field(default=None, alias="_schemaVersion")
     name: str | None = None

@@ -12,10 +12,11 @@ import os
 from pathlib import Path
 
 from haystack.components.agents import Agent
-from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.tools import Tool
 from haystack.utils.auth import Secret
 from jinja2 import Environment, FileSystemLoader
+
+from llm_cache import CachedTracedChatGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -208,7 +209,7 @@ def create_agent(model: str | None = None) -> Agent:
     """
     model = model or MODELS[0]
 
-    generator = OpenAIChatGenerator(
+    generator = CachedTracedChatGenerator(
         api_key=Secret.from_env_var("OPENROUTER_API_KEY"),
         model=model,
         api_base_url="https://openrouter.ai/api/v1",

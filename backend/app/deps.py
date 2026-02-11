@@ -1,21 +1,81 @@
 from datetime import UTC, datetime
 
+import jwt
 from fastapi import Cookie, Depends, Header, HTTPException, Request, status
 
 from .config import settings
 from .db import db_conn
+from .delegation import verify_delegated_token
 from .http import get_client_ip
-from .observability import bind_user_context
+from .observability import bind_user_context, get_logger
 
 ORG_ID_HEADER = "X-Org-Id"
 
+logger = get_logger("deps")
+
+
+def _extract_bearer_token(authorization: str | None) -> str | None:
+    """Extract Bearer token from Authorization header, or None."""
+    if not authorization:
+        return None
+    parts = authorization.split(" ", 1)
+    if len(parts) == 2 and parts[0].lower() == "bearer":
+        return parts[1]
+    return None
+
+
+def _authenticate_via_delegated_jwt(token: str) -> dict:
+    """Verify a delegated JWT and return a user dict with delegation metadata."""
+    try:
+        claims = verify_delegated_token(token)
+    except jwt.PyJWTError as exc:
+        logger.warning("delegated_jwt.invalid", error=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid delegated token",
+        ) from exc
+
+    # Look up the user to confirm they still exist
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, email, username, created_at, default_org_id FROM users WHERE id = %s",
+                (claims.sub,),
+            )
+            row = cur.fetchone()
+
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Delegated token user not found",
+        )
+
+    bind_user_context(str(row["id"]), row.get("email"))
+
+    return {
+        **row,
+        "_delegated": True,
+        "_actor": claims.actor_sub,
+        "_scope": claims.scope,
+        "_jti": claims.jti,
+        "_org_from_token": claims.org,
+    }
+
+
 def get_current_user(
     request: Request,
+    authorization: str | None = Header(default=None),
     session_token: str | None = Cookie(
         default=None,
         alias=settings.session_cookie_name,
     ),
 ):
+    # Path 1: Delegated JWT (agent-to-backend calls)
+    bearer_token = _extract_bearer_token(authorization)
+    if bearer_token:
+        return _authenticate_via_delegated_jwt(bearer_token)
+
+    # Path 2: Session cookie (browser requests)
     if session_token is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 
@@ -97,7 +157,11 @@ def get_current_org(
     current_user=Depends(get_current_user),  # noqa: B008
     org_header: str | None = Header(default=None, alias=ORG_ID_HEADER),  # noqa: B008
 ):
-    resolved_org_id = org_header or current_user.get("default_org_id")
+    # For delegated tokens, use the org from the token claims directly
+    if current_user.get("_delegated"):
+        resolved_org_id = current_user["_org_from_token"]
+    else:
+        resolved_org_id = org_header or current_user.get("default_org_id")
 
     if not resolved_org_id:
         with db_conn() as conn:

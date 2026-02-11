@@ -20,6 +20,12 @@ export default defineConfig({
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
+      testIgnore: ["**/tay-chat-llm.spec.ts"],
+    },
+    {
+      name: "llm",
+      testMatch: "**/tay-chat-llm.spec.ts",
+      use: { ...devices["Desktop Chrome"], actionTimeout: 60_000 },
     },
   ],
 });

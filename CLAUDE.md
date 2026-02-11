@@ -155,11 +155,11 @@ cd frontend && npx tsc -b --noEmit
 cd frontend && npm run test:coverage:unit        # → coverage/unit/
 cd frontend && npm run test:coverage:storybook   # → coverage/storybook/
 
-# Frontend integration tests (mocked services, Playwright)
-cd frontend && npm run test:integration
-
-# Frontend E2E tests (requires running services: Keycloak, backend, database)
+# Frontend Integration + E2E tests (real backend + DB, excludes LLM E2E)
 cd frontend && npm run test:e2e
+
+# Frontend E2E tests with real LLM (requires OPENROUTER_API_KEY + all services)
+cd frontend && npm run test:e2e:llm
 
 # Backend tests
 cd backend && uv run python -m pytest
@@ -169,6 +169,20 @@ cd agents && uv run python -m pytest tests/
 ```
 
 Always use `CI=1 npx vitest run` (not `npx vitest` which starts watch mode).
+
+### Test Layer Naming (Playwright)
+
+Playwright tests live in `frontend/e2e/tests/` and follow a 4-layer model:
+
+| Layer           | File Pattern              | What's Mocked          |
+| --------------- | ------------------------- | ---------------------- |
+| **Integration** | `*-mocked.spec.ts`       | LLM inference (`page.route()`) |
+| **E2E**         | `*.spec.ts` (no `-mocked`) | Nothing — full real stack |
+
+- `npm run test:e2e` runs the `chromium` project (all tests except `*-llm.spec.ts`)
+- `npm run test:e2e:llm` runs the `llm` project (real LLM E2E, needs `OPENROUTER_API_KEY`)
+- Integration tests are fast, deterministic, and run in CI without API keys
+- E2E LLM tests use structural assertions (not exact text) due to LLM non-determinism
 
 ## MSW (Mock Service Worker)
 

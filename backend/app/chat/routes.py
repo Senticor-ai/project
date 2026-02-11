@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from ..config import settings
+from ..delegation import create_delegated_token
 from ..deps import get_current_org, get_current_user
-from ..http import get_client_ip
 
 router = APIRouter(prefix="/chat", tags=["chat"], dependencies=[Depends(get_current_user)])
 
@@ -88,17 +88,18 @@ def chat_completions(req: ChatCompletionRequest):
 @router.post("/execute-tool", response_model=ExecuteToolResponse)
 def execute_tool(
     req: ExecuteToolRequest,
-    request: Request,
-    current_user: dict = Depends(get_current_user),
-    current_org: dict = Depends(get_current_org),
+    current_user: dict = Depends(get_current_user),  # noqa: B008
+    current_org: dict = Depends(get_current_org),  # noqa: B008
 ):
     """Forward approved tool call to agents service for execution."""
     if not settings.agents_url:
         raise HTTPException(status_code=503, detail="Agents service not available")
 
-    # Extract session token from cookie
-    session_token = request.cookies.get(settings.session_cookie_name)
-    client_ip = get_client_ip(request)
+    # Create a short-lived delegated JWT instead of forwarding the session cookie
+    delegated_token = create_delegated_token(
+        user_id=str(current_user["id"]),
+        org_id=current_org["org_id"],
+    )
 
     try:
         resp = httpx.post(
@@ -107,10 +108,8 @@ def execute_tool(
                 "toolCall": req.toolCall.model_dump(),
                 "conversationId": req.conversationId,
                 "auth": {
-                    "sessionToken": session_token,
-                    "sessionCookieName": settings.session_cookie_name,
+                    "token": delegated_token,
                     "orgId": current_org["org_id"],
-                    "clientIp": client_ip,
                 },
             },
             timeout=60.0,

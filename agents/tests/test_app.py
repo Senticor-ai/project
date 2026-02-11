@@ -195,10 +195,8 @@ class TestExecuteTool:
             },
             "conversationId": "conv-42",
             "auth": {
-                "sessionToken": "tok-abc",
-                "sessionCookieName": "terminandoyo_session",
+                "token": "jwt-delegated-tok",
                 "orgId": "org-1",
-                "clientIp": "192.168.1.1",
             },
         }
 

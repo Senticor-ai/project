@@ -58,8 +58,8 @@ When reconnecting the same email address:
 2. New OAuth tokens are stored, `is_active = true`, `archived_at` cleared
 3. Gmail Watch is re-registered for push notifications
 4. First sync resumes from the preserved `last_history_id`:
-   - If history is still valid (<7 days): incremental sync catches up
-   - If history expired (>7 days): full-sync fallback with reconciliation
+   - If history is still valid (`<7 days`): incremental sync catches up
+   - If history expired (`>7 days`): full-sync fallback with reconciliation
 
 ---
 

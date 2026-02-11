@@ -108,6 +108,9 @@ class Settings:
     gmail_scopes: str
     gmail_state_secret: str
     frontend_base_url: str
+    # Delegated JWT (agent On-Behalf-Of flows)
+    delegation_jwt_secret: str
+    delegation_jwt_ttl_seconds: int
     # Gmail Watch + Pub/Sub
     gmail_watch_enabled: bool
     gmail_pubsub_project_id: str
@@ -256,6 +259,8 @@ def load_settings() -> Settings:
             if h.strip()
         ],
         agents_url=_get_env("AGENTS_URL"),
+        delegation_jwt_secret=_get_env("DELEGATION_JWT_SECRET") or _get_env("JWT_SECRET") or "",
+        delegation_jwt_ttl_seconds=int(_get_env("DELEGATION_JWT_TTL_SECONDS", "60") or "60"),
         encryption_key=_get_env("ENCRYPTION_KEY"),
         gmail_client_id=_get_env("GMAIL_CLIENT_ID", "") or "",
         gmail_client_secret=_get_env("GMAIL_CLIENT_SECRET", "") or "",

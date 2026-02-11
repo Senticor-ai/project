@@ -209,7 +209,7 @@ def _normalize_types(value) -> list[str]:
 
 
 def _is_action_type(type_value: str) -> bool:
-    return type_value.split(":")[-1] in {"Action", "PlanAction"}
+    return type_value.split(":")[-1] in {"Action", "PlanAction", "ReadAction"}
 
 
 def _get_additional_property(item: dict, property_id: str):

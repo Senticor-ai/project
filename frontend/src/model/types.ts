@@ -215,6 +215,8 @@ export interface ActionItem extends BaseEntity {
   emailBody?: string;
   /** Link to open the original email in Gmail web. */
   emailSourceUrl?: string;
+  /** schema.org object — canonical ID of the referenced item (generic; used by ReadAction, etc.). */
+  objectRef?: CanonicalId;
 }
 
 // ---------------------------------------------------------------------------

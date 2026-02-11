@@ -11,10 +11,8 @@ from backend_client import AuthContext, BackendClient
 @pytest.fixture
 def auth_ctx():
     return AuthContext(
-        session_token="tok-abc123",
-        session_cookie_name="terminandoyo_session",
+        token="jwt-tok-abc123",
         org_id="org-1",
-        client_ip="192.168.1.100",
     )
 
 
@@ -59,15 +57,15 @@ class TestBackendClient:
         assert result["canonical_id"] == "urn:app:action:uuid-1"
 
     @pytest.mark.anyio
-    async def test_create_item_sends_session_cookie(self, auth_ctx, mock_response):
+    async def test_create_item_sends_bearer_token(self, auth_ctx, mock_response):
         mock_client = _make_mock_client(mock_response)
 
         with patch("backend_client.httpx.AsyncClient", return_value=mock_client):
             client = BackendClient(base_url="http://test:8000")
             await client.create_item({"@id": "x"}, auth_ctx)
 
-        cookies = mock_client.post.call_args.kwargs["cookies"]
-        assert cookies["terminandoyo_session"] == "tok-abc123"
+        headers = mock_client.post.call_args.kwargs["headers"]
+        assert headers["Authorization"] == "Bearer jwt-tok-abc123"
 
     @pytest.mark.anyio
     async def test_create_item_sets_agent_header(self, auth_ctx, mock_response):
@@ -92,24 +90,8 @@ class TestBackendClient:
         assert headers["X-Org-Id"] == "org-1"
 
     @pytest.mark.anyio
-    async def test_create_item_forwards_client_ip(self, auth_ctx, mock_response):
-        mock_client = _make_mock_client(mock_response)
-
-        with patch("backend_client.httpx.AsyncClient", return_value=mock_client):
-            client = BackendClient(base_url="http://test:8000")
-            await client.create_item({"@id": "x"}, auth_ctx)
-
-        headers = mock_client.post.call_args.kwargs["headers"]
-        assert headers["X-Forwarded-For"] == "192.168.1.100"
-
-    @pytest.mark.anyio
     async def test_create_item_without_org_id(self, mock_response):
-        auth = AuthContext(
-            session_token="tok-1",
-            session_cookie_name="session",
-            org_id=None,
-            client_ip=None,
-        )
+        auth = AuthContext(token="jwt-tok-1", org_id=None)
         mock_client = _make_mock_client(mock_response)
 
         with patch("backend_client.httpx.AsyncClient", return_value=mock_client):
@@ -118,7 +100,20 @@ class TestBackendClient:
 
         headers = mock_client.post.call_args.kwargs["headers"]
         assert "X-Org-Id" not in headers
-        assert "X-Forwarded-For" not in headers
+        # Bearer token should still be present
+        assert headers["Authorization"] == "Bearer jwt-tok-1"
+
+    @pytest.mark.anyio
+    async def test_create_item_does_not_send_cookies(self, auth_ctx, mock_response):
+        """Bearer tokens replace cookie-based auth — no cookies should be sent."""
+        mock_client = _make_mock_client(mock_response)
+
+        with patch("backend_client.httpx.AsyncClient", return_value=mock_client):
+            client = BackendClient(base_url="http://test:8000")
+            await client.create_item({"@id": "x"}, auth_ctx)
+
+        call_kwargs = mock_client.post.call_args.kwargs
+        assert "cookies" not in call_kwargs
 
     @pytest.mark.anyio
     async def test_create_item_raises_on_http_error(self, auth_ctx):

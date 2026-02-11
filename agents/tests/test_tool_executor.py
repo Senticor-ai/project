@@ -11,10 +11,8 @@ from tool_executor import ToolCallInput, execute_tool
 @pytest.fixture
 def auth_ctx():
     return AuthContext(
-        session_token="tok-1",
-        session_cookie_name="terminandoyo_session",
+        token="jwt-delegated-token",
         org_id="org-1",
-        client_ip="127.0.0.1",
     )
 
 

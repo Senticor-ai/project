@@ -7,6 +7,7 @@ requests to this service at /chat/completions.
 from __future__ import annotations
 
 import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -20,10 +21,40 @@ load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 from backend_client import AuthContext  # noqa: E402 — must load env before importing
 from tay import MODELS, create_agent  # noqa: E402
 from tool_executor import ToolCallInput, execute_tool  # noqa: E402
+from tracing import configure_tracing, shutdown_tracing  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="TerminAndoYo Agents", version="0.1.0")
+
+def _enable_haystack_logging():
+    """Enable Haystack's real-time pipeline logging to stdout."""
+    import logging as stdlib_logging
+
+    from haystack import tracing
+    from haystack.tracing.logging_tracer import LoggingTracer
+
+    stdlib_logging.getLogger("haystack").setLevel(stdlib_logging.DEBUG)
+    tracing.tracer.is_content_tracing_enabled = True
+    tracing.enable_tracing(
+        LoggingTracer(
+            tags_color_strings={
+                "haystack.component.input": "\x1b[1;31m",
+                "haystack.component.name": "\x1b[1;34m",
+            }
+        )
+    )
+    logger.info("Haystack LoggingTracer enabled (content tracing ON)")
+
+
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    _enable_haystack_logging()
+    tracer_provider = configure_tracing(application)
+    yield
+    shutdown_tracing(tracer_provider)
+
+
+app = FastAPI(title="TerminAndoYo Agents", version="0.1.0", lifespan=lifespan)
 
 # ---------------------------------------------------------------------------
 # Pydantic models
@@ -54,10 +85,8 @@ class ToolCallPayload(BaseModel):
 
 
 class AuthContextPayload(BaseModel):
-    sessionToken: str
-    sessionCookieName: str = "terminandoyo_session"
+    token: str  # Delegated JWT from backend
     orgId: str | None = None
-    clientIp: str | None = None
 
 
 class ExecuteToolRequest(BaseModel):
@@ -136,10 +165,8 @@ async def chat_completions(req: ChatCompletionRequest):
 async def execute_tool_endpoint(req: ExecuteToolRequest):
     """Execute an approved tool call by creating items via the backend API."""
     auth = AuthContext(
-        session_token=req.auth.sessionToken,
-        session_cookie_name=req.auth.sessionCookieName,
+        token=req.auth.token,
         org_id=req.auth.orgId,
-        client_ip=req.auth.clientIp,
     )
 
     try:

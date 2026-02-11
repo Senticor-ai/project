@@ -74,8 +74,11 @@ test.describe("Tay Chat", () => {
     await expect(page.getByText("Übernommen")).toBeVisible();
     await expect(page.getByText(/erstellt/)).toBeVisible();
 
-    // 6. Close chat panel before navigating buckets
-    await page.getByRole("button", { name: /Chat schließen/ }).click();
+    // 6. Close chat panel before navigating buckets (scoped to panel to avoid strict mode violation)
+    await page
+      .getByRole("complementary", { name: "Tay Chat" })
+      .getByRole("button", { name: "Chat schließen" })
+      .click();
 
     // 7. Navigate to Projects — verify birthday project exists
     await ws.navigateTo("Projects");

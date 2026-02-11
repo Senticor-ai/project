@@ -86,6 +86,7 @@ export function createActionItem(overrides: ActionItemOverrides): ActionItem {
     downloadUrl: overrides.downloadUrl,
     emailBody: overrides.emailBody,
     emailSourceUrl: overrides.emailSourceUrl,
+    objectRef: overrides.objectRef,
   };
 }
 

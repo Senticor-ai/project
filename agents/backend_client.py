@@ -1,7 +1,7 @@
 """Backend API client for Tay tool execution.
 
 Calls the backend's POST /items endpoint on behalf of the user,
-forwarding session cookies and agent identification headers.
+using a delegated JWT (Bearer token) for authentication.
 """
 
 from __future__ import annotations
@@ -16,12 +16,10 @@ BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 
 @dataclass
 class AuthContext:
-    """Auth context forwarded from the backend proxy."""
+    """Auth context forwarded from the backend proxy (delegated JWT)."""
 
-    session_token: str
-    session_cookie_name: str
+    token: str  # Delegated JWT
     org_id: str | None = None
-    client_ip: str | None = None
 
 
 @dataclass
@@ -46,20 +44,18 @@ class BackendClient:
         auth: AuthContext,
         source: str = "tay",
     ) -> dict:
-        """POST /items with the user's session cookie and agent header."""
-        cookies = {auth.session_cookie_name: auth.session_token}
-
-        headers: dict[str, str] = {"X-Agent": "tay"}
+        """POST /items with a delegated Bearer JWT and agent identification."""
+        headers: dict[str, str] = {
+            "Authorization": f"Bearer {auth.token}",
+            "X-Agent": "tay",
+        }
         if auth.org_id:
             headers["X-Org-Id"] = auth.org_id
-        if auth.client_ip:
-            headers["X-Forwarded-For"] = auth.client_ip
 
         async with httpx.AsyncClient(timeout=self._timeout) as client:
             response = await client.post(
                 f"{self._base_url}/items",
                 json={"item": jsonld, "source": source},
-                cookies=cookies,
                 headers=headers,
             )
             response.raise_for_status()

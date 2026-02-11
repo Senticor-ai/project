@@ -12,11 +12,12 @@ architecture, patterns, and conventions. For the technology overview see
 
 ## Test Layers
 
-| Layer         | Location               | Tools                                 | Purpose                            |
-| ------------- | ---------------------- | ------------------------------------- | ---------------------------------- |
-| **Unit**      | `src/**/*.test.ts(x)`  | Vitest (jsdom)                        | Pure logic, hooks, utilities       |
-| **Storybook** | `src/**/*.stories.tsx` | Vitest (browser/Playwright), axe-core | Interactive UI + accessibility     |
-| **E2E**       | `e2e/tests/*.spec.ts`  | Playwright                            | Full user journeys (real services) |
+| Layer           | Location                     | Tools                                 | External Services                 | Purpose                            |
+| --------------- | ---------------------------- | ------------------------------------- | --------------------------------- | ---------------------------------- |
+| **Unit**        | `src/**/*.test.ts(x)`        | Vitest (jsdom)                        | None                              | Pure logic, hooks, utilities       |
+| **Storybook**   | `src/**/*.stories.tsx`       | Vitest (browser/Playwright), axe-core | MSW (mocked)                      | Interactive UI + accessibility     |
+| **Integration** | `e2e/tests/*-mocked.spec.ts` | Playwright                            | Real backend + DB, **mocked** LLM | API contracts, tool execution flow |
+| **E2E**         | `e2e/tests/*.spec.ts`        | Playwright                            | **All real** (backend, DB, LLM)   | Full user journeys, no mocking     |
 
 ### Layer Rules
 
@@ -24,8 +25,12 @@ architecture, patterns, and conventions. For the technology overview see
    functions, hooks, and component rendering in isolation.
 2. **Storybook tests** — Use MSW for API mocking. Test user interactions via `play()` functions.
    Every story automatically runs axe-core accessibility audits.
-3. **E2E tests** — Real backend + PostgreSQL + local JWT auth. Test critical user journeys only.
-   Use page objects and API seeding for setup.
+3. **Integration tests** — Real backend + PostgreSQL + agents service, but LLM inference is
+   **mocked** via Playwright `page.route()`. Tests are deterministic and fast. Use the
+   `*-mocked.spec.ts` naming convention to distinguish from E2E tests.
+4. **E2E tests** — Complete real stack including LLM via OpenRouter. No mocking at all.
+   Assertions are structural (not exact text) because LLM output is non-deterministic.
+   Gated on `OPENROUTER_API_KEY` — auto-skip when no API key.
 
 ---
 
@@ -41,11 +46,14 @@ cd frontend && STORYBOOK_TESTS=1 CI=1 npx vitest run --project=storybook
 # Type checking (MUST use -b for project references)
 cd frontend && npx tsc -b --noEmit
 
-# E2E tests (spins up backend + frontend + test database)
+# Integration + E2E tests (spins up backend + frontend + test database)
 cd frontend && npm run e2e
 
-# E2E tests (against already-running services)
+# E2E tests (against already-running services, excludes LLM tests)
 cd frontend && npm run test:e2e
+
+# E2E tests with real LLM (requires OPENROUTER_API_KEY + running services)
+cd frontend && npm run test:e2e:llm
 
 # Coverage reports
 cd frontend && npm run test:coverage:unit        # coverage/unit/
@@ -74,13 +82,13 @@ during unit or storybook tests.
 
 ### Backend Isolation
 
-| Aspect             | Mechanism                                                    |
-| ------------------ | ------------------------------------------------------------ |
-| **Database**       | PostgreSQL with per-session schema (`test_{uuid}`)           |
-| **Schema setup**   | `db/schema.sql` applied once per session                     |
-| **File storage**   | `tmp_path_factory` (session-scoped temp directory)           |
-| **Authentication** | Real register/login via `auth_client` fixture                |
-| **Worker**         | Manual `process_batch()` calls (no background thread)        |
+| Aspect             | Mechanism                                             |
+| ------------------ | ----------------------------------------------------- |
+| **Database**       | PostgreSQL with per-session schema (`test_{uuid}`)    |
+| **Schema setup**   | `db/schema.sql` applied once per session              |
+| **File storage**   | `tmp_path_factory` (session-scoped temp directory)    |
+| **Authentication** | Real register/login via `auth_client` fixture         |
+| **Worker**         | Manual `process_batch()` calls (no background thread) |
 
 Each test session creates a unique PostgreSQL schema. Tests share that schema but each gets
 a fresh `TestClient` (function scope). The `auth_client` fixture registers and logs in a
@@ -102,13 +110,13 @@ local JWT auth) and `apiSeed` (programmatic data setup via API).
 
 ### Fixtures
 
-| Fixture              | Scope      | Provides                                                    |
-| -------------------- | ---------- | ----------------------------------------------------------- |
-| `test_database_url`  | session    | Isolated PostgreSQL schema with env vars set                |
-| `app`                | session    | FastAPI app with schema applied                             |
-| `client`             | function   | `TestClient` (no auth)                                      |
-| `auth_client`        | function   | `TestClient` with registered + logged-in user                |
-| `api_base_url`       | session    | Live uvicorn server URL for Playwright integration tests    |
+| Fixture             | Scope    | Provides                                                 |
+| ------------------- | -------- | -------------------------------------------------------- |
+| `test_database_url` | session  | Isolated PostgreSQL schema with env vars set             |
+| `app`               | session  | FastAPI app with schema applied                          |
+| `client`            | function | `TestClient` (no auth)                                   |
+| `auth_client`       | function | `TestClient` with registered + logged-in user            |
+| `api_base_url`      | session  | Live uvicorn server URL for Playwright integration tests |
 
 ### Outbox Event Testing
 
@@ -304,7 +312,16 @@ Page objects in E2E tests also use accessible queries (`getByRole`, `getByLabel`
 
 ---
 
-## E2E Patterns
+## Integration & E2E Patterns
+
+### Integration vs E2E Naming
+
+Tests using Playwright share the `e2e/tests/` directory but are split into two layers:
+
+- **`*-mocked.spec.ts`** = **Integration** — uses `page.route()` to mock external services (e.g. LLM inference). Fast, deterministic, runs in CI without API keys.
+- **`*.spec.ts`** = **E2E** — no mocking at all. Exercises the complete stack including real LLM calls. Gated on `OPENROUTER_API_KEY`, excluded from default test runs.
+
+The `chromium` Playwright project runs all tests **except** `*-llm.spec.ts`. The `llm` project runs only LLM E2E tests.
 
 ### Page Objects
 
@@ -447,10 +464,10 @@ priority — they erode team confidence in the suite.
 The inbox sorts items by `provenance.createdAt` **descending** (newest first). Which item gets
 triaged first depends on how items were created:
 
-| Scenario                     | First triaged item         | Why                                                  |
-| ---------------------------- | -------------------------- | ---------------------------------------------------- |
-| **UI capture** (no reload)   | First captured (oldest)    | Auto-expand fires when first item arrives; stays set |
-| **API seed + `page.reload`** | Newest (last created)      | Fresh state — auto-expand picks `sorted[0]`          |
+| Scenario                     | First triaged item      | Why                                                  |
+| ---------------------------- | ----------------------- | ---------------------------------------------------- |
+| **UI capture** (no reload)   | First captured (oldest) | Auto-expand fires when first item arrives; stays set |
+| **API seed + `page.reload`** | Newest (last created)   | Fresh state — auto-expand picks `sorted[0]`          |
 
 After the first triage, **auto-advance always picks the newest remaining** item (`sorted[0]`).
 
@@ -461,9 +478,9 @@ order** so the test reads naturally (newest item = first triaged = first in the 
 // Items created oldest→newest. Inbox sorts newest first.
 // "Waiting item" (newest) auto-expands → triaged first.
 await apiSeed.createInboxItems([
-  "Reference item",   // oldest → triaged last
+  "Reference item", // oldest → triaged last
   "Calendar item",
-  "Waiting item",     // newest → triaged first
+  "Waiting item", // newest → triaged first
 ]);
 ```
 
@@ -557,13 +574,13 @@ cd frontend && npx playwright show-trace test-results/*/trace.zip
 
 ## Conventions
 
-| Convention         | Rule                                                                   |
-| ------------------ | ---------------------------------------------------------------------- |
-| **File naming**    | `.test.tsx` for unit, `.stories.tsx` for storybook, `.spec.ts` for E2E |
-| **Test runner**    | Always `CI=1 npx vitest run` — never watch mode in CI                  |
-| **Type checking**  | `npx tsc -b --noEmit` — must use `-b` for project references           |
-| **Cleanup**        | Explicit `cleanup()` in setup (no `globals: true`)                     |
-| **Mocking**        | MSW for network, `vi.mock()` for modules — prefer MSW when possible    |
-| **Assertions**     | `@testing-library/jest-dom` + `vitest-axe` matchers                    |
-| **Coverage**       | v8 provider, thresholds: 80% lines/statements/functions, 70% branches  |
-| **act() warnings** | Fail tests — enforced in `src/test/setup.ts`                           |
+| Convention         | Rule                                                                                                       |
+| ------------------ | ---------------------------------------------------------------------------------------------------------- |
+| **File naming**    | `.test.tsx` for unit, `.stories.tsx` for storybook, `*-mocked.spec.ts` for Integration, `.spec.ts` for E2E |
+| **Test runner**    | Always `CI=1 npx vitest run` — never watch mode in CI                                                      |
+| **Type checking**  | `npx tsc -b --noEmit` — must use `-b` for project references                                               |
+| **Cleanup**        | Explicit `cleanup()` in setup (no `globals: true`)                                                         |
+| **Mocking**        | MSW for network, `vi.mock()` for modules — prefer MSW when possible                                        |
+| **Assertions**     | `@testing-library/jest-dom` + `vitest-axe` matchers                                                        |
+| **Coverage**       | v8 provider, thresholds: 80% lines/statements/functions, 70% branches                                      |
+| **act() warnings** | Fail tests — enforced in `src/test/setup.ts`                                                               |
