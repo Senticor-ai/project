@@ -323,4 +323,24 @@ describe("ReferenceRow", () => {
     expect(screen.queryByLabelText("View file")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Download file")).not.toBeInTheDocument();
   });
+
+  it("shows tag chips when tags exist", () => {
+    const ref = createReferenceMaterial({
+      name: "Tagged ref",
+      tags: ["1099-int", "schedule-b"],
+    });
+    render(
+      <ReferenceRow reference={ref} onArchive={vi.fn()} onSelect={vi.fn()} />,
+    );
+    expect(screen.getByText("1099-int")).toBeInTheDocument();
+    expect(screen.getByText("schedule-b")).toBeInTheDocument();
+  });
+
+  it("does not show tag chips when tags array is empty", () => {
+    const ref = createReferenceMaterial({ name: "No tags", tags: [] });
+    render(
+      <ReferenceRow reference={ref} onArchive={vi.fn()} onSelect={vi.fn()} />,
+    );
+    expect(screen.queryByText("1099-int")).not.toBeInTheDocument();
+  });
 });

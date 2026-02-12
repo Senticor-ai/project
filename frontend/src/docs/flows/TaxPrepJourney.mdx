@@ -34,16 +34,16 @@ and Tay AI agent potential.
 
 ## Phases at a Glance
 
-| #   | Phase                    | Epic                                                                            | Status    |
-| --- | ------------------------ | ------------------------------------------------------------------------------- | --------- |
-| 1   | Import What You Have     | [Epic →](?path=/docs/flows-tax-prep-epic-import--docs)                          | **Works** |
-| 2   | Triage & Label           | [Epic →](?path=/docs/flows-tax-prep-epic-triage-label--docs)                    | Partial   |
-| 2b  | Project-Reference Link   | [Epic →](?path=/docs/flows-tax-prep-epic-project-reference-linking--docs)       | **Gap**   |
-| 3   | Identify Missing Docs    | [Epic →](?path=/docs/flows-tax-prep-epic-missing-docs--docs)                    | Works     |
-| 4   | Download & Attach        | _(below)_                                                                       | **Gap**   |
-| 5 | Extract Key Details      | _(below)_                                                         | **Gap**     |
-| 6 | Tax Organizer            | _(below)_                                                         | **Gap**     |
-| 7 | Export & Handoff to CPA  | _(below)_                                                         | **Gap**     |
+| #   | Phase                   | Epic                                                                      | Status    |
+| --- | ----------------------- | ------------------------------------------------------------------------- | --------- |
+| 1   | Import What You Have    | [Epic →](?path=/docs/flows-tax-prep-epic-import--docs)                    | **Works** |
+| 2   | Triage & Label          | [Epic →](?path=/docs/flows-tax-prep-epic-triage-label--docs)              | Partial   |
+| 2b  | Project-Reference Link  | [Epic →](?path=/docs/flows-tax-prep-epic-project-reference-linking--docs) | **Gap**   |
+| 3   | Identify Missing Docs   | [Epic →](?path=/docs/flows-tax-prep-epic-missing-docs--docs)              | Works     |
+| 4   | Download & Attach       | _(below)_                                                                 | **Gap**   |
+| 5   | Extract Key Details     | _(below)_                                                                 | **Gap**   |
+| 6   | Tax Organizer           | _(below)_                                                                 | **Gap**   |
+| 7   | Export & Handoff to CPA | _(below)_                                                                 | **Gap**   |
 
 ---
 
@@ -230,24 +230,24 @@ You need **both versions** in the system:
 graph TD
   W["<b>Work</b><br/>1099-INT from Schwab for TY2025"]
 
-  E1["<b>Expression 1</b><br/>Original (issued Jan 31, 2026)"]
-  M1["Manifestation: PDF"]
-  I1["schwab-1099-int-original.pdf"]
+E1["<b>Expression 1</b><br/>Original (issued Jan 31, 2026)"]
+M1["Manifestation: PDF"]
+I1["schwab-1099-int-original.pdf"]
 
-  E2["<b>Expression 2</b> ← CURRENT<br/>Corrected (issued Mar 15, 2026)"]
-  M2["Manifestation: PDF"]
-  I2["schwab-1099-int-corrected.pdf"]
+E2["<b>Expression 2</b> ← CURRENT<br/>Corrected (issued Mar 15, 2026)"]
+M2["Manifestation: PDF"]
+I2["schwab-1099-int-corrected.pdf"]
 
-  W --> E1
-  W --> E2
-  E1 --> M1 --> I1
-  E2 --> M2 --> I2
+W --> E1
+W --> E2
+E1 --> M1 --> I1
+E2 --> M2 --> I2
 
-  style W fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-  style E1 fill:#f5f5f5,stroke:#999
-  style E2 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
-  style I1 fill:#fff,stroke:#ccc
-  style I2 fill:#fff,stroke:#ccc
+style W fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+style E1 fill:#f5f5f5,stroke:#999
+style E2 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+style I1 fill:#fff,stroke:#ccc
+style I2 fill:#fff,stroke:#ccc
 `} />
 
 **Provenance tracks** when the correction arrived and which version the CPA
@@ -310,6 +310,31 @@ Use FRBR for **all** tax documents (personal and law references):
 **Highest-leverage Tay feature**: PDF upload → Docling extraction → structured
 PropertyValues with IRS box numbers and amounts. The backend has the library;
 it needs the pipeline.
+
+---
+
+## Living E2E Scoreboard
+
+The journey test suite is the **development guide** for this flow. Each phase
+maps to a `test.describe` block in the E2E spec. Tests marked `test.fixme()`
+represent features that haven't been built yet — they show as "skipped" in CI
+and turn green as epics ship.
+
+```bash
+npm run test:e2e:journey   # Run against full stack (backend + DB)
+```
+
+| Phase          | Tests  | Green  | Skipped | Blocking epic              |
+| -------------- | ------ | ------ | ------- | -------------------------- |
+| 1 Import       | 3      | 3      | 0       | —                          |
+| 2 Triage       | 3      | 3      | 0       | —                          |
+| 2b ProjectRefs | 6      | 6      | 0       | —                          |
+| 3 MissingDocs  | 3      | 3      | 0       | —                          |
+| 4 Attach       | 3      | 1      | 2       | Action.result, file-attach |
+| 5 Extract      | 2      | 0      | 2       | PropertyValue editor       |
+| 6 Organizer    | 2      | 0      | 2       | project-scoped table       |
+| 7 Export       | 2      | 0      | 2       | CSV export, ZIP bundle     |
+| **Total**      | **24** | **16** | **8**   |                            |
 
 ---
 

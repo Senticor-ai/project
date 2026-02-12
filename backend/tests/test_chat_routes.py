@@ -1,14 +1,19 @@
-"""Tests for the chat proxy route (/chat/completions).
+"""Tests for the chat routes (/chat/completions, /chat/execute-tool).
 
-The backend proxies requests to the agents service via httpx.
-These tests monkeypatch httpx and settings to test the HTTP layer
-without a real agents service.
+The backend enriches requests with conversation history from the DB
+and streams NDJSON responses from the agents service.
 """
 
+from __future__ import annotations
+
 import dataclasses
+import json
+from contextlib import contextmanager
+from unittest.mock import MagicMock
 
 import httpx
 
+from app.chat.queries import get_conversation_messages, save_message
 from app.config import settings
 
 _DUMMY_REQUEST = httpx.Request("POST", "http://localhost:8002/chat/completions")
@@ -19,6 +24,32 @@ def _patch_settings(monkeypatch, **overrides):
     patched = dataclasses.replace(settings, **overrides)
     monkeypatch.setattr("app.chat.routes.settings", patched)
     return patched
+
+
+def _make_stream_response(events: list[dict]) -> MagicMock:
+    """Build a mock httpx streaming response that yields NDJSON lines."""
+    lines = [json.dumps(e) for e in events]
+
+    @contextmanager
+    def mock_stream(*args, **kwargs):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.raise_for_status = MagicMock()
+        mock_resp.iter_lines = MagicMock(return_value=iter(lines))
+        yield mock_resp
+
+    return mock_stream
+
+
+def _parse_ndjson(response) -> list[dict]:
+    """Parse NDJSON streaming response body into list of events."""
+    text = response.content.decode()
+    return [json.loads(line) for line in text.strip().split("\n") if line.strip()]
+
+
+# ---------------------------------------------------------------------------
+# Chat completions
+# ---------------------------------------------------------------------------
 
 
 class TestChatCompletions:
@@ -46,94 +77,173 @@ class TestChatCompletions:
         )
         assert response.status_code == 422
 
-    def test_proxies_text_only_response(self, auth_client, monkeypatch):
+    def test_streams_text_response(self, auth_client, monkeypatch):
         _patch_settings(monkeypatch, agents_url="http://localhost:8002")
 
-        mock_response = httpx.Response(
-            200,
-            json={"text": "Hallo! Wie kann ich helfen?", "toolCalls": None},
-            request=_DUMMY_REQUEST,
-        )
-        monkeypatch.setattr(
-            "app.chat.routes.httpx.post",
-            lambda *args, **kwargs: mock_response,
-        )
+        events = [
+            {"type": "text_delta", "content": "Hallo! "},
+            {"type": "text_delta", "content": "Wie kann ich helfen?"},
+            {"type": "done", "text": "Hallo! Wie kann ich helfen?"},
+        ]
+        monkeypatch.setattr("app.chat.routes.httpx.stream", _make_stream_response(events))
 
         response = auth_client.post(
             "/chat/completions",
-            json={"message": "Hallo", "conversationId": "conv-1"},
+            json={"message": "Hallo", "conversationId": "conv-text"},
         )
         assert response.status_code == 200
-        body = response.json()
-        assert body["text"] == "Hallo! Wie kann ich helfen?"
-        assert body.get("toolCalls") is None
+        assert response.headers["content-type"].startswith("application/x-ndjson")
 
-    def test_proxies_tool_calls_response(self, auth_client, monkeypatch):
+        parsed = _parse_ndjson(response)
+        text_deltas = [e for e in parsed if e["type"] == "text_delta"]
+        assert len(text_deltas) == 2
+        assert text_deltas[0]["content"] == "Hallo! "
+
+        done_events = [e for e in parsed if e["type"] == "done"]
+        assert len(done_events) == 1
+
+    def test_streams_tool_calls_response(self, auth_client, monkeypatch):
         _patch_settings(monkeypatch, agents_url="http://localhost:8002")
 
-        mock_response = httpx.Response(
-            200,
-            json={
-                "text": "Hier ist mein Vorschlag:",
-                "toolCalls": [
-                    {
-                        "name": "create_action",
-                        "arguments": {
-                            "type": "create_action",
-                            "name": "E-Mail beantworten",
-                            "bucket": "next",
-                        },
-                    }
-                ],
-            },
-            request=_DUMMY_REQUEST,
-        )
-        monkeypatch.setattr(
-            "app.chat.routes.httpx.post",
-            lambda *args, **kwargs: mock_response,
-        )
+        events = [
+            {"type": "text_delta", "content": "Hier:"},
+            {"type": "tool_calls", "toolCalls": [
+                {"name": "create_action", "arguments": {"name": "Test", "bucket": "next"}},
+            ]},
+            {"type": "done", "text": "Hier:"},
+        ]
+        monkeypatch.setattr("app.chat.routes.httpx.stream", _make_stream_response(events))
 
         response = auth_client.post(
             "/chat/completions",
-            json={"message": "Ich muss eine Mail beantworten", "conversationId": "conv-2"},
+            json={"message": "Erstelle", "conversationId": "conv-tools"},
         )
         assert response.status_code == 200
-        body = response.json()
-        assert body["text"] == "Hier ist mein Vorschlag:"
-        assert len(body["toolCalls"]) == 1
-        tc = body["toolCalls"][0]
-        assert tc["name"] == "create_action"
-        assert tc["arguments"]["bucket"] == "next"
 
-    def test_returns_502_when_agents_down(self, auth_client, monkeypatch):
+        parsed = _parse_ndjson(response)
+        tool_events = [e for e in parsed if e["type"] == "tool_calls"]
+        assert len(tool_events) == 1
+        assert tool_events[0]["toolCalls"][0]["name"] == "create_action"
+
+    def test_stores_user_and_assistant_messages(self, auth_client, monkeypatch):
         _patch_settings(monkeypatch, agents_url="http://localhost:8002")
 
+        events = [
+            {"type": "text_delta", "content": "Antwort"},
+            {"type": "done", "text": "Antwort"},
+        ]
+        monkeypatch.setattr("app.chat.routes.httpx.stream", _make_stream_response(events))
+
+        # Capture the conversation_id by patching get_or_create_conversation
+        from app.chat import queries as q
+
+        original_get_or_create = q.get_or_create_conversation
+        captured_conv_id = {}
+
+        def capturing_get_or_create(*args, **kwargs):
+            result = original_get_or_create(*args, **kwargs)
+            captured_conv_id["id"] = str(result["conversation_id"])
+            return result
+
+        monkeypatch.setattr("app.chat.routes.get_or_create_conversation", capturing_get_or_create)
+
+        auth_client.post(
+            "/chat/completions",
+            json={"message": "Hallo", "conversationId": "conv-persist"},
+        )
+
+        conv_id = captured_conv_id["id"]
+        msgs = get_conversation_messages(conv_id)
+        assert len(msgs) == 2
+        assert msgs[0]["role"] == "user"
+        assert msgs[0]["content"] == "Hallo"
+        assert msgs[1]["role"] == "assistant"
+        assert msgs[1]["content"] == "Antwort"
+
+    def test_multi_turn_sends_history_to_agents(self, auth_client, monkeypatch):
+        _patch_settings(monkeypatch, agents_url="http://localhost:8002")
+
+        captured_payloads: list[dict] = []
+
+        def capturing_stream(*args, **kwargs):
+            payload = kwargs.get("json") or (args[1] if len(args) > 1 else {})
+            if isinstance(payload, str):
+                payload = json.loads(payload)
+            captured_payloads.append(payload)
+            return _make_stream_response([
+                {"type": "text_delta", "content": "ok"},
+                {"type": "done", "text": "ok"},
+            ])(*args, **kwargs)
+
+        monkeypatch.setattr("app.chat.routes.httpx.stream", capturing_stream)
+
+        conv_id = "conv-multi-turn"
+
+        # First message
+        auth_client.post(
+            "/chat/completions",
+            json={"message": "Erste Nachricht", "conversationId": conv_id},
+        )
+
+        # Second message
+        auth_client.post(
+            "/chat/completions",
+            json={"message": "Zweite Nachricht", "conversationId": conv_id},
+        )
+
+        # Second call should include history from first turn
+        assert len(captured_payloads) == 2
+        second_payload = captured_payloads[1]
+        messages = second_payload["messages"]
+
+        # Should have: user1, assistant1, user2
+        assert len(messages) == 3
+        assert messages[0]["role"] == "user"
+        assert messages[0]["content"] == "Erste Nachricht"
+        assert messages[1]["role"] == "assistant"
+        assert messages[1]["content"] == "ok"
+        assert messages[2]["role"] == "user"
+        assert messages[2]["content"] == "Zweite Nachricht"
+
+    def test_streams_error_when_agents_down(self, auth_client, monkeypatch):
+        _patch_settings(monkeypatch, agents_url="http://localhost:8002")
+
+        @contextmanager
         def _raise_connection(*args, **kwargs):
             raise httpx.ConnectError("Connection refused")
+            yield  # noqa: unreachable — required for generator syntax
 
-        monkeypatch.setattr("app.chat.routes.httpx.post", _raise_connection)
+        monkeypatch.setattr("app.chat.routes.httpx.stream", _raise_connection)
 
         response = auth_client.post(
             "/chat/completions",
-            json={"message": "Hallo", "conversationId": "conv-3"},
+            json={"message": "Hallo", "conversationId": "conv-down"},
         )
-        assert response.status_code == 502
-        assert "agents" in response.json()["detail"].lower()
+        assert response.status_code == 200  # StreamingResponse always starts 200
 
-    def test_returns_504_when_agents_timeout(self, auth_client, monkeypatch):
+        parsed = _parse_ndjson(response)
+        error_events = [e for e in parsed if e["type"] == "error"]
+        assert len(error_events) == 1
+        assert "unreachable" in error_events[0]["detail"].lower()
+
+    def test_streams_error_when_agents_timeout(self, auth_client, monkeypatch):
         _patch_settings(monkeypatch, agents_url="http://localhost:8002")
 
+        @contextmanager
         def _raise_timeout(*args, **kwargs):
             raise httpx.ReadTimeout("Read timed out")
+            yield  # noqa: unreachable
 
-        monkeypatch.setattr("app.chat.routes.httpx.post", _raise_timeout)
+        monkeypatch.setattr("app.chat.routes.httpx.stream", _raise_timeout)
 
         response = auth_client.post(
             "/chat/completions",
-            json={"message": "Hallo", "conversationId": "conv-4"},
+            json={"message": "Hallo", "conversationId": "conv-timeout"},
         )
-        assert response.status_code == 504
-        assert "timeout" in response.json()["detail"].lower()
+        parsed = _parse_ndjson(response)
+        error_events = [e for e in parsed if e["type"] == "error"]
+        assert len(error_events) == 1
+        assert "timeout" in error_events[0]["detail"].lower()
 
 
 # ---------------------------------------------------------------------------

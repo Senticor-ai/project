@@ -422,6 +422,7 @@ export function buildTriagePatch(
     }
     return {
       "@type": TYPE_MAP.reference,
+      keywords: item.tags,
       additionalProperty: refProps,
     };
   }
@@ -449,6 +450,7 @@ export function buildTriagePatch(
 
   return {
     "@type": TYPE_MAP.action,
+    keywords: item.tags,
     startTime: result.date ?? null,
     endTime: null,
     additionalProperty: additionalProps,
@@ -491,6 +493,9 @@ export function buildItemEditPatch(
         { kind: "computation", energyLevel: fields.energyLevel },
       ]),
     );
+  }
+  if ("tags" in fields) {
+    patch.keywords = fields.tags;
   }
 
   if (additionalProps.length > 0) {

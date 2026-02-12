@@ -53,8 +53,7 @@ def _serialize_tools(tools: list[Tool] | None) -> list[dict]:
     if not tools:
         return []
     return [
-        {"name": t.name, "description": t.description, "parameters": t.parameters}
-        for t in tools
+        {"name": t.name, "description": t.description, "parameters": t.parameters} for t in tools
     ]
 
 
@@ -72,9 +71,7 @@ def _cache_key(model: str, messages: list[dict], tool_names: list[str]) -> str:
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
-def _read_cache(
-    model: str, messages: list[ChatMessage], tools: list[Tool] | None
-) -> dict | None:
+def _read_cache(model: str, messages: list[ChatMessage], tools: list[Tool] | None) -> dict | None:
     serialized = _serialize_messages(messages)
     tool_names = [t.name for t in (tools or [])]
     key = _cache_key(model, serialized, tool_names)
@@ -151,9 +148,7 @@ def _write_trace(
     }
 
     try:
-        (TRACES_DIR / filename).write_text(
-            json.dumps(trace, indent=2, ensure_ascii=False)
-        )
+        (TRACES_DIR / filename).write_text(json.dumps(trace, indent=2, ensure_ascii=False))
         logger.info("Trace written: %s", filename)
     except Exception as exc:
         logger.warning("Trace write error: %s", exc)
@@ -178,7 +173,8 @@ class CachedTracedChatGenerator(OpenAIChatGenerator):
     """
 
     def _resolve_tools(
-        self, tools: list[Tool] | list[Toolset] | list[Tool | Toolset] | Toolset | None,
+        self,
+        tools: list[Tool] | list[Toolset] | list[Tool | Toolset] | Toolset | None,
     ) -> list[Tool] | None:
         """Flatten tools/toolsets to a plain list for cache/trace."""
         if tools is None:
@@ -190,7 +186,9 @@ class CachedTracedChatGenerator(OpenAIChatGenerator):
         return None
 
     def _check_cache_and_trace(
-        self, messages: list[ChatMessage], tool_list: list[Tool] | None,
+        self,
+        messages: list[ChatMessage],
+        tool_list: list[Tool] | None,
     ) -> dict[str, list[ChatMessage]] | None:
         """Check cache; if hit, write trace and return cached result."""
         cached = _read_cache(self.model, messages, tool_list)

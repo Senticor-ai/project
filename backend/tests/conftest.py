@@ -131,6 +131,28 @@ def auth_client(client):
     return client
 
 
+@pytest.fixture()
+def auth_context(app, client):
+    """Create a user+org and return (org_id, user_id) for pure query tests."""
+    email = f"user-{uuid.uuid4().hex}@example.com"
+    username = f"user-{uuid.uuid4().hex}"
+    password = "Testpass1!"
+
+    response = client.post(
+        "/auth/register",
+        json={"email": email, "username": username, "password": password},
+    )
+    assert response.status_code == 200
+
+    response = client.post("/auth/login", json={"email": email, "password": password})
+    assert response.status_code == 200
+    payload = response.json()
+    org_id = payload["default_org_id"]
+    user_id = payload["id"]
+
+    return org_id, user_id
+
+
 def _get_free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind(("127.0.0.1", 0))

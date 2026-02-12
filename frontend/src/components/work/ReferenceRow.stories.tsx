@@ -251,3 +251,24 @@ export const WithProjectBadge: Story = {
     await expect(canvas.getByText("PDF")).toBeInTheDocument();
   },
 };
+
+// ---------------------------------------------------------------------------
+// Tags
+// ---------------------------------------------------------------------------
+
+const taggedRef = createReferenceMaterial({
+  name: "1099-INT Schwab.pdf",
+  encodingFormat: "application/pdf",
+  origin: "triaged",
+  tags: ["1099-int", "schedule-b"],
+});
+
+/** Reference with tags — shows amber tag chips. */
+export const WithTags: Story = {
+  args: { reference: taggedRef },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText("1099-int")).toBeInTheDocument();
+    await expect(canvas.getByText("schedule-b")).toBeInTheDocument();
+    await expect(canvas.getByText("PDF")).toBeInTheDocument();
+  },
+};

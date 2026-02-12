@@ -423,3 +423,14 @@ export const ArchiveFromMenu: Story = {
     await expect(args.onArchive).toHaveBeenCalledWith(args.thing.id);
   },
 };
+
+/** Action with tags shown as amber chips. */
+export const WithTags: Story = {
+  args: {
+    thing: createActionItem({
+      name: "Review 1099-INT",
+      bucket: "next",
+      tags: ["1099-int", "schedule-b"],
+    }),
+  },
+};

@@ -1,14 +1,60 @@
 import { useCallback } from "react";
-import type { ChatCompletionResponse } from "@/model/chat-types";
+import type { StreamEvent } from "@/model/chat-types";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
+/**
+ * Parse NDJSON lines from a ReadableStream, calling onEvent for each.
+ */
+export async function readNdjsonStream(
+  body: ReadableStream<Uint8Array>,
+  onEvent: (event: StreamEvent) => void,
+): Promise<void> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      // Keep the last (potentially incomplete) line in the buffer
+      buffer = lines.pop() ?? "";
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        try {
+          onEvent(JSON.parse(trimmed) as StreamEvent);
+        } catch {
+          // Skip malformed lines
+        }
+      }
+    }
+
+    // Process any remaining data in buffer
+    if (buffer.trim()) {
+      try {
+        onEvent(JSON.parse(buffer.trim()) as StreamEvent);
+      } catch {
+        // Skip
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 export function useTayApi() {
-  const sendMessage = useCallback(
+  const sendMessageStreaming = useCallback(
     async (
       message: string,
       conversationId: string,
-    ): Promise<ChatCompletionResponse> => {
+      onEvent: (event: StreamEvent) => void,
+    ): Promise<void> => {
       const res = await fetch(`${API_BASE}/chat/completions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -20,10 +66,14 @@ export function useTayApi() {
         throw new Error(`Chat request failed: ${res.status}`);
       }
 
-      return res.json() as Promise<ChatCompletionResponse>;
+      if (!res.body) {
+        throw new Error("No response body for streaming");
+      }
+
+      await readNdjsonStream(res.body, onEvent);
     },
     [],
   );
 
-  return { sendMessage };
+  return { sendMessageStreaming };
 }

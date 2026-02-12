@@ -1,0 +1,84 @@
+"""Chat conversation and message persistence."""
+
+from __future__ import annotations
+
+from ..db import db_conn, jsonb
+
+
+def get_or_create_conversation(org_id: str, user_id: str, external_id: str) -> dict:
+    """Find existing conversation by external_id, or create one.
+
+    Uses INSERT ... ON CONFLICT DO NOTHING + SELECT for idempotency.
+    """
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO conversations (org_id, user_id, external_id)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (org_id, external_id) WHERE archived_at IS NULL
+                DO NOTHING
+                """,
+                (org_id, user_id, external_id),
+            )
+            cur.execute(
+                """
+                SELECT conversation_id, org_id, user_id, external_id,
+                       title, created_at, updated_at
+                FROM conversations
+                WHERE org_id = %s AND external_id = %s AND archived_at IS NULL
+                """,
+                (org_id, external_id),
+            )
+            row = cur.fetchone()
+        conn.commit()
+    assert row is not None
+    return row
+
+
+def save_message(
+    conversation_id: str,
+    role: str,
+    content: str,
+    tool_calls: list[dict] | None = None,
+) -> dict:
+    """Insert a chat message. Returns the message row."""
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO chat_messages (conversation_id, role, content, tool_calls)
+                VALUES (%s, %s, %s, %s)
+                RETURNING message_id, conversation_id, role, content, tool_calls, created_at
+                """,
+                (conversation_id, role, content, jsonb(tool_calls) if tool_calls else None),
+            )
+            row = cur.fetchone()
+        conn.commit()
+    assert row is not None
+    return row
+
+
+def get_conversation_messages(conversation_id: str, limit: int = 50) -> list[dict]:
+    """Fetch last N messages for a conversation, ordered chronologically.
+
+    Uses a subquery to get the last N messages by created_at DESC,
+    then re-orders them ASC so the conversation reads naturally.
+    """
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT * FROM (
+                    SELECT message_id, conversation_id, role, content, tool_calls, created_at
+                    FROM chat_messages
+                    WHERE conversation_id = %s
+                    ORDER BY created_at DESC
+                    LIMIT %s
+                ) sub
+                ORDER BY created_at ASC
+                """,
+                (conversation_id, limit),
+            )
+            rows = cur.fetchall()
+    return rows

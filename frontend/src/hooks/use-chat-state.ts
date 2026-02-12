@@ -9,6 +9,7 @@ import type {
   TayErrorMessage,
   TaySuggestion,
   CreatedItemRef,
+  StreamEvent,
 } from "@/model/chat-types";
 import { useTayApi } from "./use-tay-api";
 import { useTayActions } from "./use-tay-actions";
@@ -23,7 +24,7 @@ export function useChatState() {
   const conversationIdRef = useRef(
     `conv-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
   );
-  const { sendMessage: apiSend } = useTayApi();
+  const { sendMessageStreaming } = useTayApi();
   const { executeSuggestion } = useTayActions();
 
   const sendMessage = useCallback(
@@ -46,47 +47,118 @@ export function useChatState() {
       setMessages((prev) => [...prev, userMsg, thinkingMsg]);
       setIsLoading(true);
 
+      // Track streaming text message ID so we can append to it
+      let streamingMsgId: string | null = null;
+
       try {
-        const response = await apiSend(text, conversationIdRef.current);
+        const onEvent = (event: StreamEvent) => {
+          switch (event.type) {
+            case "text_delta": {
+              if (!streamingMsgId) {
+                // First text chunk — replace thinking indicator with streaming text
+                streamingMsgId = generateId();
+                const initialMsg: TayTextMessage = {
+                  id: streamingMsgId,
+                  role: "tay",
+                  kind: "text",
+                  content: event.content,
+                  isStreaming: true,
+                  timestamp: new Date().toISOString(),
+                };
+                setMessages((prev) => {
+                  const withoutThinking = prev.filter(
+                    (m) => m.id !== thinkingMsg.id,
+                  );
+                  return [...withoutThinking, initialMsg];
+                });
+              } else {
+                // Append to existing streaming message
+                const msgId = streamingMsgId;
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === msgId && m.kind === "text"
+                      ? { ...m, content: m.content + event.content }
+                      : m,
+                  ),
+                );
+              }
+              break;
+            }
 
-        setMessages((prev) => {
-          // Remove thinking indicator
-          const withoutThinking = prev.filter((m) => m.id !== thinkingMsg.id);
+            case "tool_calls": {
+              // Add suggestion cards for tool calls
+              const newSuggestions: ChatMessage[] = [];
+              for (const tc of event.toolCalls) {
+                const args = { ...tc.arguments, type: tc.name };
+                const suggestion: TaySuggestionMessage = {
+                  id: generateId(),
+                  role: "tay",
+                  kind: "suggestion",
+                  suggestion: args as TaySuggestion,
+                  status: "pending",
+                  timestamp: new Date().toISOString(),
+                };
+                newSuggestions.push(suggestion);
+              }
+              setMessages((prev) => [...prev, ...newSuggestions]);
+              break;
+            }
 
-          const newMessages: ChatMessage[] = [];
+            case "done": {
+              // Finalize: mark streaming as done, ensure text is complete
+              if (streamingMsgId) {
+                const msgId = streamingMsgId;
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === msgId && m.kind === "text"
+                      ? { ...m, isStreaming: false }
+                      : m,
+                  ),
+                );
+              } else if (event.text) {
+                // No streaming chunks received (e.g. cache hit) — show full text
+                const fullTextMsg: TayTextMessage = {
+                  id: generateId(),
+                  role: "tay",
+                  kind: "text",
+                  content: event.text,
+                  timestamp: new Date().toISOString(),
+                };
+                setMessages((prev) => {
+                  const withoutThinking = prev.filter(
+                    (m) => m.id !== thinkingMsg.id,
+                  );
+                  return [...withoutThinking, fullTextMsg];
+                });
+              }
+              break;
+            }
 
-          // Add text response
-          if (response.text) {
-            const tayText: TayTextMessage = {
-              id: generateId(),
-              role: "tay",
-              kind: "text",
-              content: response.text,
-              timestamp: new Date().toISOString(),
-            };
-            newMessages.push(tayText);
-          }
-
-          // Add suggestion cards for tool calls
-          if (response.toolCalls) {
-            for (const tc of response.toolCalls) {
-              // Ensure `type` discriminator is set — some LLMs omit it
-              // from arguments even though it's in the tool name.
-              const args = { ...tc.arguments, type: tc.name };
-              const suggestion: TaySuggestionMessage = {
+            case "error": {
+              const errorMsg: TayErrorMessage = {
                 id: generateId(),
                 role: "tay",
-                kind: "suggestion",
-                suggestion: args as TaySuggestion,
-                status: "pending",
+                kind: "error",
+                content: event.detail,
                 timestamp: new Date().toISOString(),
               };
-              newMessages.push(suggestion);
+              setMessages((prev) => {
+                const withoutThinking = prev.filter(
+                  (m) => m.id !== thinkingMsg.id,
+                );
+                return [...withoutThinking, errorMsg];
+              });
+              break;
             }
           }
+        };
 
-          return [...withoutThinking, ...newMessages];
-        });
+        await sendMessageStreaming(text, conversationIdRef.current, onEvent);
+
+        // If no events arrived at all, remove thinking indicator
+        if (!streamingMsgId) {
+          setMessages((prev) => prev.filter((m) => m.id !== thinkingMsg.id));
+        }
       } catch {
         setMessages((prev) => {
           const withoutThinking = prev.filter((m) => m.id !== thinkingMsg.id);
@@ -103,7 +175,7 @@ export function useChatState() {
         setIsLoading(false);
       }
     },
-    [apiSend],
+    [sendMessageStreaming],
   );
 
   const acceptSuggestion = useCallback(

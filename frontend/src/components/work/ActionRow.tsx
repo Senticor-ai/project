@@ -57,6 +57,7 @@ function actionItemToEditorValues(thing: ActionItem): ItemEditableFields {
   );
   return {
     contexts: (thing.contexts as string[]) ?? [],
+    tags: thing.tags ?? [],
     dueDate: thing.dueDate,
     scheduledDate: thing.scheduledDate,
     projectId: thing.projectIds[0],
@@ -295,6 +296,20 @@ export function ActionRow({
           >
             <Icon name="description" size={14} />
           </button>
+        )}
+
+        {/* Tag chips */}
+        {thing.tags.length > 0 && (
+          <div className="flex shrink-0 gap-0.5">
+            {thing.tags.map((tag) => (
+              <span
+                key={tag}
+                className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
         )}
 
         {/* Due date */}

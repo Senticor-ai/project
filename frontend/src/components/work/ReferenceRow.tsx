@@ -89,6 +89,7 @@ function isBrowserViewable(encodingFormat: string | undefined): boolean {
 function referenceToEditorValues(ref: ReferenceMaterial): ItemEditableFields {
   return {
     contexts: [],
+    tags: ref.tags ?? [],
     description: ref.description,
     projectId: ref.projectIds[0],
   };
@@ -162,6 +163,20 @@ export function ReferenceRow({
         <span className="shrink-0 rounded-[var(--radius-sm)] bg-paper-200 px-1.5 py-0.5 text-[10px] font-medium uppercase text-text-muted">
           {formatEncodingFormat(reference.encodingFormat)}
         </span>
+      )}
+
+      {/* Tag chips */}
+      {reference.tags.length > 0 && (
+        <div className="flex shrink-0 gap-0.5">
+          {reference.tags.map((tag) => (
+            <span
+              key={tag}
+              className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700"
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
       )}
 
       {/* Origin badge */}

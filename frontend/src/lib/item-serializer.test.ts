@@ -999,6 +999,21 @@ describe("buildTriagePatch", () => {
 
     expectPropertyValue(patch, "app:contexts", ["@phone"]);
   });
+
+  it("preserves item tags as keywords in triage to action bucket", () => {
+    const item = createInboxItem({ name: "Task", tags: ["1099-int"] });
+    const patch = buildTriagePatch(item, { targetBucket: "next" });
+    expect(patch.keywords).toEqual(["1099-int"]);
+  });
+
+  it("preserves item tags as keywords in triage to reference", () => {
+    const item = createInboxItem({
+      name: "Doc",
+      tags: ["schedule-b", "1099-div"],
+    });
+    const patch = buildTriagePatch(item, { targetBucket: "reference" });
+    expect(patch.keywords).toEqual(["schedule-b", "1099-div"]);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1058,6 +1073,16 @@ describe("buildItemEditPatch", () => {
     expect(patch).not.toHaveProperty("startTime");
     expect(patch).not.toHaveProperty("isPartOf");
     expect(patch).not.toHaveProperty("description");
+  });
+
+  it("maps tags to schema.org keywords", () => {
+    const patch = buildItemEditPatch({ tags: ["1099-int", "schedule-b"] });
+    expect(patch.keywords).toEqual(["1099-int", "schedule-b"]);
+  });
+
+  it("only includes keywords when tags provided", () => {
+    const patch = buildItemEditPatch({ contexts: ["@home"] });
+    expect(patch).not.toHaveProperty("keywords");
   });
 });
 

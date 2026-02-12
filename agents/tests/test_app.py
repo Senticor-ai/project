@@ -6,6 +6,7 @@ without calling any real LLM.
 
 from __future__ import annotations
 
+import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -18,6 +19,11 @@ def client():
     from app import app
 
     return TestClient(app)
+
+
+def _msgs(text: str) -> list[dict]:
+    """Build a single-user-message payload for the API."""
+    return [{"role": "user", "content": text}]
 
 
 # ---------------------------------------------------------------------------
@@ -42,7 +48,7 @@ def test_chat_text_response(client: TestClient):
     with patch("app.run_agent", new_callable=AsyncMock, return_value=reply):
         resp = client.post(
             "/chat/completions",
-            json={"message": "Hallo", "conversationId": "conv-1"},
+            json={"messages": _msgs("Hallo"), "conversationId": "conv-1"},
         )
 
     assert resp.status_code == 200
@@ -75,7 +81,7 @@ def test_chat_tool_call_response(client: TestClient):
     with patch("app.run_agent", new_callable=AsyncMock, return_value=reply):
         resp = client.post(
             "/chat/completions",
-            json={"message": "Ich muss eine Mail beantworten", "conversationId": "conv-2"},
+            json={"messages": _msgs("Ich muss eine Mail beantworten"), "conversationId": "conv-2"},
         )
 
     assert resp.status_code == 200
@@ -101,7 +107,7 @@ def test_chat_error_handling(client: TestClient):
     ):
         resp = client.post(
             "/chat/completions",
-            json={"message": "Hilfe", "conversationId": "conv-3"},
+            json={"messages": _msgs("Hilfe"), "conversationId": "conv-3"},
         )
 
     assert resp.status_code == 500
@@ -172,12 +178,12 @@ class TestModelFallback:
     @pytest.mark.anyio
     async def test_fallback_to_second_model(self):
         """First model fails, second succeeds."""
-        from app import run_agent
+        from app import MessagePayload, run_agent
 
         reply = ChatMessage.from_assistant("Erfolg!")
         call_count = 0
 
-        async def _mock_run_async(messages):
+        async def _mock_run_async(messages, **kwargs):
             nonlocal call_count
             call_count += 1
             if call_count == 1:
@@ -191,7 +197,7 @@ class TestModelFallback:
             patch("app.MODELS", ["model-a", "model-b"]),
             patch("app.create_agent", return_value=mock_agent),
         ):
-            result = await run_agent("Hallo")
+            result = await run_agent([MessagePayload(role="user", content="Hallo")])
 
         assert result.text == "Erfolg!"
         assert call_count == 2
@@ -199,7 +205,7 @@ class TestModelFallback:
     @pytest.mark.anyio
     async def test_all_models_fail(self):
         """All models fail — raises RuntimeError."""
-        from app import run_agent
+        from app import MessagePayload, run_agent
 
         mock_agent = AsyncMock()
         mock_agent.run_async = AsyncMock(side_effect=RuntimeError("Kaputt"))
@@ -209,12 +215,12 @@ class TestModelFallback:
             patch("app.create_agent", return_value=mock_agent),
         ):
             with pytest.raises(RuntimeError, match="All 2 models failed"):
-                await run_agent("Hallo")
+                await run_agent([MessagePayload(role="user", content="Hallo")])
 
     @pytest.mark.anyio
     async def test_first_model_succeeds_no_fallback(self):
         """First model works — no fallback needed."""
-        from app import run_agent
+        from app import MessagePayload, run_agent
 
         reply = ChatMessage.from_assistant("Sofort!")
 
@@ -225,7 +231,7 @@ class TestModelFallback:
         create_agent_mock = patch("app.create_agent", return_value=mock_agent)
 
         with patch("app.MODELS", ["model-a", "model-b"]), create_agent_mock as ca_mock:
-            result = await run_agent("Hallo")
+            result = await run_agent([MessagePayload(role="user", content="Hallo")])
 
         assert result.text == "Sofort!"
         # create_agent called only once (for model-a)
@@ -234,7 +240,7 @@ class TestModelFallback:
     @pytest.mark.anyio
     async def test_tool_exit_extracts_assistant_message(self):
         """Agent exits on tool name — run_agent returns assistant msg, not tool result."""
-        from app import run_agent
+        from app import MessagePayload, run_agent
 
         assistant_msg = ChatMessage.from_assistant(
             "Hier ist dein Projekt:",
@@ -262,11 +268,245 @@ class TestModelFallback:
             patch("app.MODELS", ["model-a"]),
             patch("app.create_agent", return_value=mock_agent),
         ):
-            result = await run_agent("Erstelle ein Projekt")
+            result = await run_agent([MessagePayload(role="user", content="Erstelle ein Projekt")])
 
         assert result.tool_calls is not None
         assert result.tool_calls[0].tool_name == "create_project_with_actions"
         assert result.text == "Hier ist dein Projekt:"
+
+
+# ---------------------------------------------------------------------------
+# Multi-turn conversation
+# ---------------------------------------------------------------------------
+
+
+class TestMultiTurn:
+    """Test that conversation history is passed to the Haystack Agent."""
+
+    @pytest.mark.anyio
+    async def test_multi_turn_messages_passed_to_agent(self):
+        """Agent receives full conversation history."""
+        from app import MessagePayload, run_agent
+
+        reply = ChatMessage.from_assistant("Klar, hier sind die Details.")
+        captured_messages: list = []
+
+        async def _capture_run_async(messages, **kwargs):
+            captured_messages.extend(messages)
+            return {"last_message": reply, "messages": [reply]}
+
+        mock_agent = AsyncMock()
+        mock_agent.run_async = _capture_run_async
+
+        with (
+            patch("app.MODELS", ["model-a"]),
+            patch("app.create_agent", return_value=mock_agent),
+        ):
+            result = await run_agent(
+                [
+                    MessagePayload(role="user", content="Erstelle ein Projekt für Steuererklärung"),
+                    MessagePayload(role="assistant", content="Ich habe ein Projekt erstellt."),
+                    MessagePayload(role="user", content="Füge noch eine Aktion hinzu"),
+                ]
+            )
+
+        assert result.text == "Klar, hier sind die Details."
+        # Agent should have received 3 Haystack ChatMessages
+        assert len(captured_messages) == 3
+        assert captured_messages[0].text == "Erstelle ein Projekt für Steuererklärung"
+        assert captured_messages[1].text == "Ich habe ein Projekt erstellt."
+        assert captured_messages[2].text == "Füge noch eine Aktion hinzu"
+
+    @pytest.mark.anyio
+    async def test_assistant_tool_calls_in_history(self):
+        """Assistant messages with tool_calls are reconstructed properly."""
+        from app import MessagePayload, run_agent
+
+        reply = ChatMessage.from_assistant("Erledigt!")
+        captured_messages: list = []
+
+        async def _capture_run_async(messages, **kwargs):
+            captured_messages.extend(messages)
+            return {"last_message": reply, "messages": [reply]}
+
+        mock_agent = AsyncMock()
+        mock_agent.run_async = _capture_run_async
+
+        with (
+            patch("app.MODELS", ["model-a"]),
+            patch("app.create_agent", return_value=mock_agent),
+        ):
+            from app import ChatToolCallResponse
+
+            await run_agent(
+                [
+                    MessagePayload(role="user", content="Erstelle eine Aktion"),
+                    MessagePayload(
+                        role="assistant",
+                        content="Hier mein Vorschlag:",
+                        toolCalls=[
+                            ChatToolCallResponse(
+                                id="call_abc123",
+                                name="create_action",
+                                arguments={"name": "Test", "bucket": "next"},
+                            )
+                        ],
+                    ),
+                    MessagePayload(role="user", content="Noch eine bitte"),
+                ]
+            )
+
+        assert len(captured_messages) == 3
+        assistant_msg = captured_messages[1]
+        assert assistant_msg.tool_calls is not None
+        assert assistant_msg.tool_calls[0].tool_name == "create_action"
+        # ToolCall must preserve the original id (required by OpenAI API format)
+        assert assistant_msg.tool_calls[0].id == "call_abc123"
+
+    @pytest.mark.asyncio
+    async def test_tool_calls_without_id_get_synthetic_id(self):
+        """Tool calls from old history (no id) get a synthetic id for OpenAI compat."""
+        from app import MessagePayload, run_agent
+
+        reply = ChatMessage.from_assistant("OK!")
+        captured_messages: list = []
+
+        async def _capture_run_async(messages, **kwargs):
+            captured_messages.extend(messages)
+            return {"last_message": reply, "messages": [reply]}
+
+        mock_agent = AsyncMock()
+        mock_agent.run_async = _capture_run_async
+
+        with (
+            patch("app.MODELS", ["model-a"]),
+            patch("app.create_agent", return_value=mock_agent),
+        ):
+            from app import ChatToolCallResponse
+
+            await run_agent(
+                [
+                    MessagePayload(role="user", content="Erstelle eine Aktion"),
+                    MessagePayload(
+                        role="assistant",
+                        content="Hier:",
+                        toolCalls=[
+                            ChatToolCallResponse(
+                                # No id — simulates old DB records
+                                name="create_action",
+                                arguments={"name": "Test", "bucket": "next"},
+                            )
+                        ],
+                    ),
+                    MessagePayload(role="user", content="Danke, noch eine"),
+                ]
+            )
+
+        assistant_msg = captured_messages[1]
+        assert assistant_msg.tool_calls is not None
+        # Should have a synthetic fallback id, not None
+        assert assistant_msg.tool_calls[0].id is not None
+        assert assistant_msg.tool_calls[0].id == "call_history_0"
+
+
+# ---------------------------------------------------------------------------
+# Streaming endpoint
+# ---------------------------------------------------------------------------
+
+
+class TestStreaming:
+    """Test the streaming (NDJSON) response path."""
+
+    def test_streaming_text_response(self, client: TestClient):
+        """Streaming returns NDJSON events ending with done."""
+        reply = ChatMessage.from_assistant("Hallo Welt!")
+
+        async def _mock_run_async(messages, streaming_callback=None, **kwargs):
+            # Simulate streaming by calling the callback
+            if streaming_callback:
+                from haystack.dataclasses import StreamingChunk
+
+                await streaming_callback(StreamingChunk(content="Hallo "))
+                await streaming_callback(StreamingChunk(content="Welt!"))
+            return {"last_message": reply, "messages": [reply]}
+
+        mock_agent = AsyncMock()
+        mock_agent.run_async = _mock_run_async
+
+        with (
+            patch("app.MODELS", ["model-a"]),
+            patch("app.create_agent", return_value=mock_agent),
+        ):
+            resp = client.post(
+                "/chat/completions",
+                json={
+                    "messages": _msgs("Hallo"),
+                    "conversationId": "conv-stream",
+                    "stream": True,
+                },
+            )
+
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("application/x-ndjson")
+
+        lines = [line for line in resp.text.strip().split("\n") if line]
+        events = [json.loads(line) for line in lines]
+
+        # Should have text_delta events and a done event
+        text_deltas = [e for e in events if e["type"] == "text_delta"]
+        assert len(text_deltas) >= 1
+
+        done_events = [e for e in events if e["type"] == "done"]
+        assert len(done_events) == 1
+
+    def test_streaming_with_tool_calls(self, client: TestClient):
+        """Streaming emits tool_calls event after text."""
+        tool_calls = [
+            ToolCall(tool_name="create_action", arguments={"name": "Test", "bucket": "next"}),
+        ]
+        reply = ChatMessage.from_assistant("Hier:", tool_calls=tool_calls)
+
+        async def _mock_run_async(messages, streaming_callback=None, **kwargs):
+            if streaming_callback:
+                from haystack.dataclasses import StreamingChunk
+
+                await streaming_callback(StreamingChunk(content="Hier:"))
+            return {"last_message": reply, "messages": [reply]}
+
+        mock_agent = AsyncMock()
+        mock_agent.run_async = _mock_run_async
+
+        with (
+            patch("app.MODELS", ["model-a"]),
+            patch("app.create_agent", return_value=mock_agent),
+        ):
+            resp = client.post(
+                "/chat/completions",
+                json={
+                    "messages": _msgs("Erstelle"),
+                    "conversationId": "conv-stream-tools",
+                    "stream": True,
+                },
+            )
+
+        events = [json.loads(line) for line in resp.text.strip().split("\n") if line]
+        tool_events = [e for e in events if e["type"] == "tool_calls"]
+        assert len(tool_events) == 1
+        assert tool_events[0]["toolCalls"][0]["name"] == "create_action"
+
+    def test_non_streaming_default(self, client: TestClient):
+        """Without stream=True, returns normal JSON response."""
+        reply = ChatMessage.from_assistant("Normal response")
+
+        with patch("app.run_agent", new_callable=AsyncMock, return_value=reply):
+            resp = client.post(
+                "/chat/completions",
+                json={"messages": _msgs("Hallo"), "conversationId": "conv-no-stream"},
+            )
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["text"] == "Normal response"
 
 
 # ---------------------------------------------------------------------------

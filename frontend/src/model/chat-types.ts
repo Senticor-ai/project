@@ -31,6 +31,7 @@ export interface TayTextMessage extends ChatMessageBase {
   role: "tay";
   kind: "text";
   content: string;
+  isStreaming?: boolean;
 }
 
 export interface TayThinkingMessage extends ChatMessageBase {
@@ -131,3 +132,13 @@ export interface ChatCompletionResponse {
   text: string;
   toolCalls?: ChatToolCall[];
 }
+
+// ---------------------------------------------------------------------------
+// Streaming Events (NDJSON from backend)
+// ---------------------------------------------------------------------------
+
+export type StreamEvent =
+  | { type: "text_delta"; content: string }
+  | { type: "tool_calls"; toolCalls: ChatToolCall[] }
+  | { type: "done"; text: string }
+  | { type: "error"; detail: string };

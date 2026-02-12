@@ -893,3 +893,28 @@ describe("ReadAction indicator", () => {
     expect(screen.queryByLabelText("Go to reference")).not.toBeInTheDocument();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Tag chips
+// ---------------------------------------------------------------------------
+
+describe("ActionRow tag chips", () => {
+  it("shows tag chips on collapsed row when tags exist", () => {
+    renderRow({
+      thing: createActionItem({
+        name: "Tagged task",
+        bucket: "next",
+        tags: ["1099-int", "schedule-b"],
+      }),
+    });
+    expect(screen.getByText("1099-int")).toBeInTheDocument();
+    expect(screen.getByText("schedule-b")).toBeInTheDocument();
+  });
+
+  it("does not show tag chips when tags array is empty", () => {
+    renderRow({
+      thing: createActionItem({ name: "No tags", bucket: "next", tags: [] }),
+    });
+    expect(screen.queryByText("1099-int")).not.toBeInTheDocument();
+  });
+});

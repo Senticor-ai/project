@@ -8,10 +8,12 @@ resetFactoryCounter();
 
 const defaults: ItemEditableFields = {
   contexts: [],
+  tags: [],
 };
 
 const withNotes: ItemEditableFields = {
   contexts: ["@phone", "@office"],
+  tags: [],
   description:
     "Discussed in last team meeting.\nFollow up with HR before Friday.",
   energyLevel: "medium",
@@ -89,5 +91,22 @@ export const AddContext: Story = {
     await expect(args.onChange).toHaveBeenCalledWith({
       contexts: ["@errands"],
     });
+  },
+};
+
+/** Pre-filled with tags (IRS document types). */
+export const WithTags: Story = {
+  args: {
+    values: { ...defaults, tags: ["1099-int", "schedule-b"] },
+  },
+};
+
+/** Add a tag via Enter key. */
+export const AddTag: Story = {
+  args: { values: defaults },
+  play: async ({ canvas, userEvent, args }) => {
+    const input = canvas.getByPlaceholderText("1099-int, schedule-b...");
+    await userEvent.type(input, "w-2{Enter}");
+    await expect(args.onChange).toHaveBeenCalledWith({ tags: ["w-2"] });
   },
 };

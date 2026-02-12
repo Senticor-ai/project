@@ -243,6 +243,7 @@ export interface ItemEditableFields {
   dueDate?: string;
   scheduledDate?: string;
   contexts: string[];
+  tags: string[];
   energyLevel?: EnergyLevel;
   projectId?: CanonicalId;
   description?: string;

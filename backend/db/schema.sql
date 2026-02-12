@@ -329,3 +329,31 @@ ALTER TABLE email_connections ADD COLUMN IF NOT EXISTS watch_history_id BIGINT;
 
 CREATE INDEX IF NOT EXISTS idx_email_connections_watch_expiration
   ON email_connections (watch_expiration) WHERE is_active = true AND watch_expiration IS NOT NULL;
+
+-- Chat conversations
+CREATE TABLE IF NOT EXISTS conversations (
+  conversation_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id          UUID NOT NULL REFERENCES organizations(id),
+  user_id         UUID NOT NULL REFERENCES users(id),
+  external_id     TEXT NOT NULL,
+  title           TEXT,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  archived_at     TIMESTAMPTZ
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_conversations_org_external
+  ON conversations (org_id, external_id) WHERE archived_at IS NULL;
+
+-- Chat messages
+CREATE TABLE IF NOT EXISTS chat_messages (
+  message_id      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  conversation_id UUID NOT NULL REFERENCES conversations(conversation_id),
+  role            TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+  content         TEXT NOT NULL DEFAULT '',
+  tool_calls      JSONB,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_messages_conversation
+  ON chat_messages (conversation_id, created_at ASC);

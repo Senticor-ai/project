@@ -7,6 +7,7 @@ import type { CanonicalId } from "@/model/canonical-id";
 
 const defaults: ItemEditableFields = {
   contexts: [],
+  tags: [],
 };
 
 describe("ItemEditor", () => {
@@ -233,6 +234,72 @@ describe("ItemEditor", () => {
 
     const input = screen.getByPlaceholderText("@phone, @office...");
     await user.type(input, "@phone{Enter}");
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  // -----------------------------------------------------------------------
+  // Tags
+  // -----------------------------------------------------------------------
+
+  it("renders tag chips from values", () => {
+    render(
+      <ItemEditor
+        values={{ ...defaults, tags: ["1099-int", "schedule-b"] }}
+        onChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("1099-int")).toBeInTheDocument();
+    expect(screen.getByText("schedule-b")).toBeInTheDocument();
+  });
+
+  it("adds tag on Enter and calls onChange", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<ItemEditor values={defaults} onChange={onChange} />);
+
+    const input = screen.getByPlaceholderText("1099-int, schedule-b...");
+    await user.type(input, "w-2{Enter}");
+    expect(onChange).toHaveBeenCalledWith({ tags: ["w-2"] });
+  });
+
+  it("adds tag via Add tag button", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<ItemEditor values={defaults} onChange={onChange} />);
+
+    const input = screen.getByPlaceholderText("1099-int, schedule-b...");
+    await user.type(input, "w-2");
+    await user.click(screen.getByRole("button", { name: "Add tag" }));
+    expect(onChange).toHaveBeenCalledWith({ tags: ["w-2"] });
+  });
+
+  it("removes tag and calls onChange", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <ItemEditor
+        values={{ ...defaults, tags: ["1099-int", "schedule-b"] }}
+        onChange={onChange}
+      />,
+    );
+
+    await user.click(screen.getByLabelText("Remove tag 1099-int"));
+    expect(onChange).toHaveBeenCalledWith({ tags: ["schedule-b"] });
+  });
+
+  it("prevents duplicate tags", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <ItemEditor
+        values={{ ...defaults, tags: ["w-2"] }}
+        onChange={onChange}
+      />,
+    );
+
+    const input = screen.getByPlaceholderText("1099-int, schedule-b...");
+    await user.type(input, "w-2{Enter}");
     expect(onChange).not.toHaveBeenCalled();
   });
 });

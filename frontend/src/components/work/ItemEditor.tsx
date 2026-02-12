@@ -19,6 +19,7 @@ export function ItemEditor({
   className,
 }: ItemEditorProps) {
   const [contextInput, setContextInput] = useState("");
+  const [tagInput, setTagInput] = useState("");
   const notesRef = useRef<HTMLTextAreaElement>(null);
 
   const addContext = () => {
@@ -31,6 +32,18 @@ export function ItemEditor({
 
   const removeContext = (ctx: string) => {
     onChange({ contexts: values.contexts.filter((c) => c !== ctx) });
+  };
+
+  const addTag = () => {
+    const trimmed = tagInput.trim();
+    if (trimmed && !values.tags.includes(trimmed)) {
+      onChange({ tags: [...values.tags, trimmed] });
+      setTagInput("");
+    }
+  };
+
+  const removeTag = (tag: string) => {
+    onChange({ tags: values.tags.filter((t) => t !== tag) });
   };
 
   const toggleEnergy = (level: EnergyLevel) => {
@@ -183,6 +196,56 @@ export function ItemEditor({
                   onClick={() => removeContext(ctx)}
                   className="text-blueprint-400 hover:text-blueprint-700"
                   aria-label={`Remove ${ctx}`}
+                >
+                  &times;
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Tags / keywords */}
+      <div>
+        <label className="mb-1 flex items-center gap-1 text-xs text-text-muted">
+          <Icon name="sell" size={10} />
+          Tags
+        </label>
+        <div className="flex gap-1">
+          <input
+            type="text"
+            value={tagInput}
+            onChange={(e) => setTagInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addTag();
+              }
+            }}
+            placeholder="1099-int, schedule-b..."
+            aria-label="Add tag"
+            className="flex-1 rounded-[var(--radius-sm)] border border-border bg-surface px-2 py-1 text-xs"
+          />
+          <button
+            onClick={addTag}
+            aria-label="Add tag"
+            className="rounded-[var(--radius-sm)] border border-border px-2 py-1 text-xs hover:bg-paper-100"
+          >
+            Add
+          </button>
+        </div>
+        {values.tags.length > 0 && (
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {values.tags.map((tag) => (
+              <span
+                key={tag}
+                className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700"
+              >
+                {tag}
+                <button
+                  onClick={() => removeTag(tag)}
+                  className="text-amber-400 hover:text-amber-700"
+                  aria-label={`Remove tag ${tag}`}
                 >
                   &times;
                 </button>

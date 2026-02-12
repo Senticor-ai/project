@@ -7,8 +7,8 @@ import {
 } from "@testing-library/react";
 import { useChatState } from "./use-chat-state";
 import type {
-  ChatCompletionResponse,
   ChatMessage,
+  StreamEvent,
   TaySuggestionMessage,
 } from "@/model/chat-types";
 
@@ -16,11 +16,11 @@ import type {
 // Mock dependencies
 // ---------------------------------------------------------------------------
 
-const mockApiSend: ReturnType<typeof vi.fn> = vi.fn();
+const mockSendMessageStreaming: ReturnType<typeof vi.fn> = vi.fn();
 const mockExecuteSuggestion: ReturnType<typeof vi.fn> = vi.fn();
 
 vi.mock("./use-tay-api", () => ({
-  useTayApi: () => ({ sendMessage: mockApiSend }),
+  useTayApi: () => ({ sendMessageStreaming: mockSendMessageStreaming }),
 }));
 
 vi.mock("./use-tay-actions", () => ({
@@ -60,19 +60,30 @@ async function sendAndWait(hook: ChatHookResult, text: string) {
  * then return the suggestion message ID.
  */
 async function setupSuggestion(hook: ChatHookResult): Promise<string> {
-  mockApiSend.mockResolvedValueOnce({
-    text: "Vorschlag:",
-    toolCalls: [
-      {
-        name: "create_action",
-        arguments: {
-          type: "create_action" as const,
-          name: "Testaufgabe",
-          bucket: "next" as const,
-        },
-      },
-    ],
-  } satisfies ChatCompletionResponse);
+  mockSendMessageStreaming.mockImplementationOnce(
+    (
+      _message: string,
+      _conversationId: string,
+      onEvent: (event: StreamEvent) => void,
+    ) => {
+      onEvent({ type: "text_delta", content: "Vorschlag:" });
+      onEvent({
+        type: "tool_calls",
+        toolCalls: [
+          {
+            name: "create_action",
+            arguments: {
+              type: "create_action" as const,
+              name: "Testaufgabe",
+              bucket: "next" as const,
+            },
+          },
+        ],
+      });
+      onEvent({ type: "done", text: "Vorschlag:" });
+      return Promise.resolve();
+    },
+  );
 
   await sendAndWait(hook, "Erstelle eine Aufgabe");
 
@@ -86,9 +97,18 @@ async function setupSuggestion(hook: ChatHookResult): Promise<string> {
 
 beforeEach(() => {
   vi.resetAllMocks();
-  mockApiSend.mockResolvedValue({
-    text: "OK",
-  } satisfies ChatCompletionResponse);
+  // Default: simple text response
+  mockSendMessageStreaming.mockImplementation(
+    (
+      _message: string,
+      _conversationId: string,
+      onEvent: (event: StreamEvent) => void,
+    ) => {
+      onEvent({ type: "text_delta", content: "OK" });
+      onEvent({ type: "done", text: "OK" });
+      return Promise.resolve();
+    },
+  );
   mockExecuteSuggestion.mockResolvedValue([]);
 });
 
@@ -96,9 +116,9 @@ describe("useChatState", () => {
   describe("sendMessage", () => {
     it("adds user message and thinking indicator when sending", async () => {
       // Use a never-resolving promise so we can inspect mid-flight state
-      let resolve!: (v: ChatCompletionResponse) => void;
-      mockApiSend.mockReturnValueOnce(
-        new Promise<ChatCompletionResponse>((r) => {
+      let resolve!: () => void;
+      mockSendMessageStreaming.mockReturnValueOnce(
+        new Promise<void>((r) => {
           resolve = r;
         }),
       );
@@ -125,7 +145,7 @@ describe("useChatState", () => {
 
       // Clean up
       await act(async () => {
-        resolve({ text: "Done" });
+        resolve();
       });
     });
 
@@ -141,10 +161,19 @@ describe("useChatState", () => {
       expect(hook.result.current.isLoading).toBe(false);
     });
 
-    it("replaces thinking with text response on success", async () => {
-      mockApiSend.mockResolvedValueOnce({
-        text: "Antwort",
-      } satisfies ChatCompletionResponse);
+    it("replaces thinking with streamed text response on text_delta", async () => {
+      mockSendMessageStreaming.mockImplementationOnce(
+        (
+          _message: string,
+          _conversationId: string,
+          onEvent: (event: StreamEvent) => void,
+        ) => {
+          onEvent({ type: "text_delta", content: "Ant" });
+          onEvent({ type: "text_delta", content: "wort" });
+          onEvent({ type: "done", text: "Antwort" });
+          return Promise.resolve();
+        },
+      );
       const hook = renderHook(() => useChatState());
 
       await sendAndWait(hook, "Test");
@@ -160,20 +189,53 @@ describe("useChatState", () => {
       expect(tayTexts[0]!.content).toBe("Antwort");
     });
 
-    it("replaces thinking with text + suggestion when toolCalls present", async () => {
-      mockApiSend.mockResolvedValueOnce({
-        text: "Vorschlag:",
-        toolCalls: [
-          {
-            name: "create_action",
-            arguments: {
-              type: "create_action",
-              name: "Task",
-              bucket: "next",
-            },
-          },
-        ],
-      } satisfies ChatCompletionResponse);
+    it("marks streaming message as not streaming after done event", async () => {
+      mockSendMessageStreaming.mockImplementationOnce(
+        (
+          _message: string,
+          _conversationId: string,
+          onEvent: (event: StreamEvent) => void,
+        ) => {
+          onEvent({ type: "text_delta", content: "Hello" });
+          onEvent({ type: "done", text: "Hello" });
+          return Promise.resolve();
+        },
+      );
+      const hook = renderHook(() => useChatState());
+
+      await sendAndWait(hook, "Test");
+
+      const tayTexts = findByKind(hook.result.current.messages, "text").filter(
+        (m) => m.role === "tay",
+      );
+      expect(tayTexts[0]!.isStreaming).toBeFalsy();
+    });
+
+    it("adds suggestion cards when tool_calls event arrives", async () => {
+      mockSendMessageStreaming.mockImplementationOnce(
+        (
+          _message: string,
+          _conversationId: string,
+          onEvent: (event: StreamEvent) => void,
+        ) => {
+          onEvent({ type: "text_delta", content: "Vorschlag:" });
+          onEvent({
+            type: "tool_calls",
+            toolCalls: [
+              {
+                name: "create_action",
+                arguments: {
+                  type: "create_action",
+                  name: "Task",
+                  bucket: "next",
+                },
+              },
+            ],
+          });
+          onEvent({ type: "done", text: "Vorschlag:" });
+          return Promise.resolve();
+        },
+      );
 
       const hook = renderHook(() => useChatState());
 
@@ -194,23 +256,32 @@ describe("useChatState", () => {
     });
 
     it("infers suggestion type from tool name when missing in arguments", async () => {
-      // Some LLMs omit the `type` field from tool call arguments
-      mockApiSend.mockResolvedValueOnce({
-        text: "Vorschlag:",
-        toolCalls: [
-          {
-            name: "create_project_with_actions",
-            arguments: {
-              // no `type` field — LLM omitted it
-              project: {
-                name: "Geburtstagsfeier",
-                desiredOutcome: "Tolle Party",
+      mockSendMessageStreaming.mockImplementationOnce(
+        (
+          _message: string,
+          _conversationId: string,
+          onEvent: (event: StreamEvent) => void,
+        ) => {
+          onEvent({
+            type: "tool_calls",
+            toolCalls: [
+              {
+                name: "create_project_with_actions",
+                arguments: {
+                  // no `type` field — LLM omitted it
+                  project: {
+                    name: "Geburtstagsfeier",
+                    desiredOutcome: "Tolle Party",
+                  },
+                  actions: [{ name: "Gäste einladen", bucket: "next" }],
+                },
               },
-              actions: [{ name: "Gäste einladen", bucket: "next" }],
-            },
-          },
-        ],
-      } as ChatCompletionResponse);
+            ],
+          } as StreamEvent);
+          onEvent({ type: "done", text: "" });
+          return Promise.resolve();
+        },
+      );
 
       const hook = renderHook(() => useChatState());
 
@@ -227,19 +298,29 @@ describe("useChatState", () => {
     });
 
     it("handles response with only toolCalls and no text", async () => {
-      mockApiSend.mockResolvedValueOnce({
-        text: "",
-        toolCalls: [
-          {
-            name: "create_action",
-            arguments: {
-              type: "create_action",
-              name: "Task",
-              bucket: "next",
-            },
-          },
-        ],
-      } satisfies ChatCompletionResponse);
+      mockSendMessageStreaming.mockImplementationOnce(
+        (
+          _message: string,
+          _conversationId: string,
+          onEvent: (event: StreamEvent) => void,
+        ) => {
+          onEvent({
+            type: "tool_calls",
+            toolCalls: [
+              {
+                name: "create_action",
+                arguments: {
+                  type: "create_action",
+                  name: "Task",
+                  bucket: "next",
+                },
+              },
+            ],
+          });
+          onEvent({ type: "done", text: "" });
+          return Promise.resolve();
+        },
+      );
 
       const hook = renderHook(() => useChatState());
 
@@ -257,8 +338,59 @@ describe("useChatState", () => {
       expect(suggestions).toHaveLength(1);
     });
 
-    it("replaces thinking with error message on failure", async () => {
-      mockApiSend.mockRejectedValueOnce(new Error("API down"));
+    it("shows full text from done event when no text_delta received (cache hit)", async () => {
+      mockSendMessageStreaming.mockImplementationOnce(
+        (
+          _message: string,
+          _conversationId: string,
+          onEvent: (event: StreamEvent) => void,
+        ) => {
+          // Cache hit: no text_delta, only done with full text
+          onEvent({ type: "done", text: "Cached response" });
+          return Promise.resolve();
+        },
+      );
+
+      const hook = renderHook(() => useChatState());
+
+      await sendAndWait(hook, "Test");
+
+      const tayTexts = findByKind(hook.result.current.messages, "text").filter(
+        (m) => m.role === "tay",
+      );
+      expect(tayTexts).toHaveLength(1);
+      expect(tayTexts[0]!.content).toBe("Cached response");
+      expect(findByKind(hook.result.current.messages, "thinking")).toHaveLength(
+        0,
+      );
+    });
+
+    it("handles error event from stream", async () => {
+      mockSendMessageStreaming.mockImplementationOnce(
+        (
+          _message: string,
+          _conversationId: string,
+          onEvent: (event: StreamEvent) => void,
+        ) => {
+          onEvent({ type: "error", detail: "Agents service unreachable" });
+          return Promise.resolve();
+        },
+      );
+
+      const hook = renderHook(() => useChatState());
+
+      await sendAndWait(hook, "Test");
+
+      expect(findByKind(hook.result.current.messages, "thinking")).toHaveLength(
+        0,
+      );
+      const errors = findByKind(hook.result.current.messages, "error");
+      expect(errors).toHaveLength(1);
+      expect(errors[0]!.content).toBe("Agents service unreachable");
+    });
+
+    it("replaces thinking with error message on fetch failure", async () => {
+      mockSendMessageStreaming.mockRejectedValueOnce(new Error("API down"));
       const hook = renderHook(() => useChatState());
 
       await sendAndWait(hook, "Test");
@@ -276,13 +408,29 @@ describe("useChatState", () => {
     });
 
     it("preserves existing messages across multiple sends", async () => {
-      mockApiSend
-        .mockResolvedValueOnce({
-          text: "Erste Antwort",
-        } satisfies ChatCompletionResponse)
-        .mockResolvedValueOnce({
-          text: "Zweite Antwort",
-        } satisfies ChatCompletionResponse);
+      mockSendMessageStreaming
+        .mockImplementationOnce(
+          (
+            _message: string,
+            _conversationId: string,
+            onEvent: (event: StreamEvent) => void,
+          ) => {
+            onEvent({ type: "text_delta", content: "Erste Antwort" });
+            onEvent({ type: "done", text: "Erste Antwort" });
+            return Promise.resolve();
+          },
+        )
+        .mockImplementationOnce(
+          (
+            _message: string,
+            _conversationId: string,
+            onEvent: (event: StreamEvent) => void,
+          ) => {
+            onEvent({ type: "text_delta", content: "Zweite Antwort" });
+            onEvent({ type: "done", text: "Zweite Antwort" });
+            return Promise.resolve();
+          },
+        );
 
       const hook = renderHook(() => useChatState());
 
@@ -299,14 +447,28 @@ describe("useChatState", () => {
       expect(tayMsgs).toHaveLength(2);
     });
 
-    it("passes conversationId to API", async () => {
+    it("passes conversationId to streaming API", async () => {
       const hook = renderHook(() => useChatState());
 
       await sendAndWait(hook, "Test");
 
-      expect(mockApiSend).toHaveBeenCalledWith(
+      expect(mockSendMessageStreaming).toHaveBeenCalledWith(
         "Test",
         hook.result.current.conversationId,
+        expect.any(Function),
+      );
+    });
+
+    it("removes thinking indicator if no events arrive", async () => {
+      // sendMessageStreaming resolves without calling onEvent at all
+      mockSendMessageStreaming.mockImplementationOnce(() => Promise.resolve());
+
+      const hook = renderHook(() => useChatState());
+
+      await sendAndWait(hook, "Test");
+
+      expect(findByKind(hook.result.current.messages, "thinking")).toHaveLength(
+        0,
       );
     });
   });

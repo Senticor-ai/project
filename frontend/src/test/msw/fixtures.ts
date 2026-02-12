@@ -59,6 +59,7 @@ export function createItemRecord(
     downloadUrl?: string;
     /** For ReadAction: canonical ID of the referenced item. */
     objectRef?: string;
+    tags?: string[];
   } = {},
 ): ItemRecord {
   counter++;
@@ -87,7 +88,7 @@ export function createItemRecord(
     _schemaVersion: 2,
     name: overrides.name ?? (bucket !== "inbox" ? displayName : undefined),
     description: null,
-    keywords: [],
+    keywords: overrides.tags ?? [],
     dateCreated: now,
     dateModified: now,
   };
