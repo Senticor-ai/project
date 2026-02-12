@@ -237,7 +237,7 @@ def _validate_action_bucket(item: dict) -> None:
     bucket = _get_additional_property(item, "app:bucket")
     if not isinstance(bucket, str) or not bucket.strip():
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="app:bucket is required in additionalProperty for Action types",
         )
 

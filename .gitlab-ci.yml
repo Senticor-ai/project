@@ -48,6 +48,14 @@ variables:
   tags:
     - large
 
+.retry-infra:
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - scheduler_failure
+
 .failure-issue:
   after_script:
     - chmod +x ci/handle-failure-issue.sh && ci/handle-failure-issue.sh
@@ -127,7 +135,7 @@ frontend-lint:
   needs: []
   allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
-  extends: [.default-rules, .failure-issue, .frontend-cache]
+  extends: [.default-rules, .retry-infra, .failure-issue, .frontend-cache]
   before_script:
     - cd frontend && npm ci --ignore-scripts --silent
   script:
@@ -138,7 +146,7 @@ frontend-typecheck:
   needs: []
   allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
-  extends: [.default-rules, .failure-issue, .frontend-cache]
+  extends: [.default-rules, .retry-infra, .failure-issue, .frontend-cache]
   before_script:
     - cd frontend && npm ci --ignore-scripts --silent
   script:
@@ -149,7 +157,7 @@ backend-lint:
   needs: []
   allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
-  extends: [.default-rules, .failure-issue, .backend-cache]
+  extends: [.default-rules, .retry-infra, .failure-issue, .backend-cache]
   before_script:
     - cd backend && uv sync --quiet --all-groups --all-extras
   script:
@@ -160,7 +168,7 @@ backend-typecheck:
   needs: []
   allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
-  extends: [.default-rules, .failure-issue, .backend-cache]
+  extends: [.default-rules, .retry-infra, .failure-issue, .backend-cache]
   before_script:
     - cd backend && uv sync --quiet --all-groups --all-extras
   script:
@@ -172,7 +180,7 @@ frontend-unit:
   stage: test-1
   allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
-  extends: [.default-rules, .large-runner, .failure-issue, .frontend-cache-readonly]
+  extends: [.default-rules, .large-runner, .retry-infra, .failure-issue, .frontend-cache-readonly]
   before_script:
     - cd frontend && npm ci --ignore-scripts --silent
   script:
@@ -191,7 +199,7 @@ backend-unit:
   stage: test-1
   allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
-  extends: [.default-rules, .large-runner, .backend-postgres, .failure-issue, .backend-cache-readonly]
+  extends: [.default-rules, .large-runner, .retry-infra, .backend-postgres, .failure-issue, .backend-cache-readonly]
   before_script:
     - cd backend && uv sync --quiet --all-groups --all-extras
   script:
@@ -210,7 +218,7 @@ backend-integration:
   stage: test-1
   allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
-  extends: [.default-rules, .large-runner, .backend-postgres, .failure-issue, .backend-cache-readonly]
+  extends: [.default-rules, .large-runner, .retry-infra, .backend-postgres, .failure-issue, .backend-cache-readonly]
   before_script:
     - cd backend && uv sync --quiet --all-groups --all-extras
   script:
@@ -229,7 +237,7 @@ frontend-storybook:
   stage: test-1
   allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
-  extends: [.default-rules, .large-runner, .failure-issue, .frontend-cache-readonly]
+  extends: [.default-rules, .large-runner, .retry-infra, .failure-issue, .frontend-cache-readonly]
   before_script:
     - cd frontend && npm ci --silent
   script:
@@ -241,7 +249,7 @@ frontend-integration:
   stage: test-2
   allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
-  extends: [.default-rules, .large-runner, .backend-postgres, .failure-issue, .fullstack-cache-readonly]
+  extends: [.default-rules, .large-runner, .retry-infra, .backend-postgres, .failure-issue, .fullstack-cache-readonly]
   before_script:
     - cd $CI_PROJECT_DIR/backend && uv sync --quiet --all-groups --all-extras
     - cd $CI_PROJECT_DIR/frontend && npm ci --ignore-scripts --silent
@@ -268,18 +276,18 @@ backend-e2e:
   stage: test-2
   allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
-  extends: [.default-rules, .large-runner, .backend-postgres, .failure-issue, .backend-cache-readonly]
+  extends: [.default-rules, .large-runner, .retry-infra, .backend-postgres, .failure-issue, .backend-cache-readonly]
   before_script:
     - cd backend && uv sync --quiet --all-groups --all-extras
   script:
     - |
       echo "Waiting for postgres..."
-      for i in $(seq 1 30); do
+      for i in $(seq 1 60); do
         if uv run python -c "import psycopg; psycopg.connect('$DATABASE_URL').close()" 2>/dev/null; then
           echo "Postgres is ready"
           break
         fi
-        if [ "$i" -eq 30 ]; then
+        if [ "$i" -eq 60 ]; then
           echo "Postgres failed to become ready"
           exit 1
         fi
@@ -292,7 +300,7 @@ frontend-e2e:
   stage: test-2
   allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
-  extends: [.default-rules, .large-runner, .backend-postgres, .failure-issue, .fullstack-cache-readonly]
+  extends: [.default-rules, .large-runner, .retry-infra, .backend-postgres, .failure-issue, .fullstack-cache-readonly]
   before_script:
     - cd $CI_PROJECT_DIR/backend && uv sync --quiet --all-groups --all-extras
     - cd $CI_PROJECT_DIR/frontend && npm ci --ignore-scripts --silent

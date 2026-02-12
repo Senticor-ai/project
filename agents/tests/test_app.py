@@ -363,7 +363,7 @@ class TestMultiTurn:
         # ToolCall must preserve the original id (required by OpenAI API format)
         assert assistant_msg.tool_calls[0].id == "call_abc123"
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_tool_calls_without_id_get_synthetic_id(self):
         """Tool calls from old history (no id) get a synthetic id for OpenAI compat."""
         from app import MessagePayload, run_agent

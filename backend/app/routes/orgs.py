@@ -39,7 +39,7 @@ def create_org(payload: OrgCreateRequest, current_user=Depends(get_current_user)
     name = payload.name.strip()
     if not name:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Name is required",
         )
 
@@ -95,7 +95,7 @@ def add_member(
     role = (payload.role or "member").strip().lower()
     if role not in {"member", "admin"}:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Invalid role",
         )
 
@@ -105,7 +105,7 @@ def add_member(
     email = payload.email.strip().lower()
     if not email:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Email is required",
         )
 

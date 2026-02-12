@@ -63,7 +63,7 @@ def configure_logging() -> None:
     processors = shared_processors + [renderer]
 
     structlog.configure(
-        processors=processors,
+        processors=processors,  # type: ignore[arg-type]  # structlog stubs are overly narrow
         logger_factory=structlog.stdlib.LoggerFactory(),
         wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
         cache_logger_on_first_use=True,

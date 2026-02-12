@@ -13,7 +13,7 @@ from unittest.mock import MagicMock
 
 import httpx
 
-from app.chat.queries import get_conversation_messages, save_message
+from app.chat.queries import get_conversation_messages
 from app.config import settings
 
 _DUMMY_REQUEST = httpx.Request("POST", "http://localhost:8002/chat/completions")
@@ -107,9 +107,12 @@ class TestChatCompletions:
 
         events = [
             {"type": "text_delta", "content": "Hier:"},
-            {"type": "tool_calls", "toolCalls": [
-                {"name": "create_action", "arguments": {"name": "Test", "bucket": "next"}},
-            ]},
+            {
+                "type": "tool_calls",
+                "toolCalls": [
+                    {"name": "create_action", "arguments": {"name": "Test", "bucket": "next"}},
+                ],
+            },
             {"type": "done", "text": "Hier:"},
         ]
         monkeypatch.setattr("app.chat.routes.httpx.stream", _make_stream_response(events))
@@ -170,10 +173,12 @@ class TestChatCompletions:
             if isinstance(payload, str):
                 payload = json.loads(payload)
             captured_payloads.append(payload)
-            return _make_stream_response([
-                {"type": "text_delta", "content": "ok"},
-                {"type": "done", "text": "ok"},
-            ])(*args, **kwargs)
+            return _make_stream_response(
+                [
+                    {"type": "text_delta", "content": "ok"},
+                    {"type": "done", "text": "ok"},
+                ]
+            )(*args, **kwargs)
 
         monkeypatch.setattr("app.chat.routes.httpx.stream", capturing_stream)
 
@@ -211,7 +216,7 @@ class TestChatCompletions:
         @contextmanager
         def _raise_connection(*args, **kwargs):
             raise httpx.ConnectError("Connection refused")
-            yield  # noqa: unreachable — required for generator syntax
+            yield  # required for @contextmanager generator syntax
 
         monkeypatch.setattr("app.chat.routes.httpx.stream", _raise_connection)
 
@@ -232,7 +237,7 @@ class TestChatCompletions:
         @contextmanager
         def _raise_timeout(*args, **kwargs):
             raise httpx.ReadTimeout("Read timed out")
-            yield  # noqa: unreachable
+            yield  # required for @contextmanager generator syntax
 
         monkeypatch.setattr("app.chat.routes.httpx.stream", _raise_timeout)
 

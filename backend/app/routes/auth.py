@@ -44,9 +44,14 @@ def _create_session(user_id, request: Request, response: Response) -> None:
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
-                    user_id, token, refresh_token_hash,
-                    expires_at, refresh_expires_at,
-                    client_ip, user_agent, utc_now(),
+                    user_id,
+                    token,
+                    refresh_token_hash,
+                    expires_at,
+                    refresh_expires_at,
+                    client_ip,
+                    user_agent,
+                    utc_now(),
                 ),
             )
             cur.execute(
@@ -91,7 +96,7 @@ def _normalize_username(username: str) -> str:
     value = username.strip()
     if not value:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Username is required",
         )
     return value
@@ -101,23 +106,23 @@ def _validate_email(email: str) -> str:
     value = email.strip()
     if not value:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Email is required",
         )
     if "@" not in value:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Email must include a domain",
         )
     local, domain = value.rsplit("@", 1)
     if not local or not domain:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Email must include a domain",
         )
     if DOMAIN_RE.match(domain) is None:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Email domain must be valid (e.g. example.com)",
         )
     return value
@@ -126,7 +131,7 @@ def _validate_email(email: str) -> str:
 def _validate_password(password: str) -> None:
     if len(password) < 8:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Password must be at least 8 characters",
         )
     has_letter = any(ch.isalpha() for ch in password)
@@ -134,12 +139,12 @@ def _validate_password(password: str) -> None:
     has_symbol = any(not ch.isalnum() for ch in password)
     if not has_letter:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Password must include at least one letter",
         )
     if not (has_digit or has_symbol):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Password must include at least one digit or symbol",
         )
 
