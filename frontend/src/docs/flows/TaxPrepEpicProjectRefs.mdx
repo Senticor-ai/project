@@ -1,0 +1,177 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+import { Mermaid } from "../../components/docs/Mermaid";
+
+<Meta title="Flows/Tax Prep/Epic: Project-Reference Linking" />
+
+# Epic: Project-Reference Linking
+
+**Status:** Not started
+**Priority:** Current
+
+---
+
+## Context
+
+After importing and triaging tax PDFs, each document lives in the reference
+bucket — but with no project link. The user created a "2025 Tax Return" project
+with actions like "Download W-2" and "Download 1099-INT", and those actions can
+belong to the project. But the actual PDF documents (references) cannot.
+
+The split-on-triage flow already works: triaging a DigitalDocument from inbox to
+an action bucket creates a ReadAction (in the target bucket) + a DigitalDocument
+reference (in the reference bucket). The ReadAction gets `app:projectRefs` from
+the triage result, but the reference copy does not.
+
+**Result:** The ReadAction says "read this document" and belongs to the project.
+The document itself floats unlinked in the global reference list.
+
+---
+
+## User Story
+
+> "I triaged my W-2 PDF to reference and assigned it to my 2025 Tax Return
+> project. I want to see all my tax documents listed under that project,
+> alongside the actions."
+
+---
+
+## Flow
+
+Three paths to project-reference linking:
+
+<Mermaid chart={`flowchart TD
+    A["PDF in inbox"] --> B{"Triage to..."}
+    B -- "Action bucket (next/waiting)" --> C["Split-on-triage"]
+    C --> D["ReadAction in target bucket\\n✅ gets projectId"]
+    C --> E["DigitalDocument in reference\\n❌ loses projectId"]
+    B -- "Reference bucket" --> F["buildTriagePatch"]
+    F --> G["CreativeWork in reference\\n❌ drops projectId"]
+
+    H["Later: ReferenceRow editor"] --> I["Assign project via picker\\n✅ works (new)"]
+
+    E -.->|"fix needed"| J["Reference gets projectId"]
+    G -.->|"fix needed"| J
+    I --> J
+    J --> K["ProjectTree shows\\nfile chips under project"]
+
+    style D fill:#e8f5e9,stroke:#2e7d32
+    style E fill:#fce4ec,stroke:#c62828
+    style G fill:#fce4ec,stroke:#c62828
+    style I fill:#e8f5e9,stroke:#2e7d32
+    style J fill:#e3f2fd,stroke:#1976d2
+    style K fill:#e3f2fd,stroke:#1976d2
+`} />
+
+**Path A — Triage with project (during triage):**
+The project picker already appears in the triage options for action buckets.
+It should also appear for the reference bucket (optional). When set, both
+the ReadAction and the DigitalDocument reference inherit the project.
+
+**Path B — Assign project later (inline editor):**
+In the reference list, expand a ReferenceRow → inline ItemEditor shows the
+project picker. User selects a project → reference is linked.
+
+**Path C — View in ProjectTree:**
+When viewing the project tab, each project shows its actions AND its
+reference files as compact chips below the action list.
+
+---
+
+## Visual Sketches
+
+### ProjectTree with file chips
+
+```
+┌─────────────────────────────────────────────┐
+│ ▶ 2025 Tax Return                     5     │
+│   ┌─────────────────────────────────────────│
+│   │ ○ Download W-2 from employer        ★  │
+│   │ ○ Download 1099-INT from Schwab        │
+│   │ ● Download 1099-DIV from Vanguard  ✓   │
+│   │                                         │
+│   │ 📄 W-2 Form.pdf                        │
+│   │ 📄 1099-DIV Vanguard.pdf               │
+│   └─────────────────────────────────────────│
+└─────────────────────────────────────────────┘
+```
+
+- Actions listed first (with complete/focus controls)
+- Reference files shown below as compact rows: file icon + name
+- Count badge includes both: 3 actions + 2 references = 5
+
+### ReferenceRow with project badge
+
+```
+┌──────────────────────────────────────────────────────┐
+│ ≡  📄 W-2 Form.pdf    triaged  pdf  2025 Tax Return │
+└──────────────────────────────────────────────────────┘
+```
+
+- Project badge appears as a small pill (same style as origin badge)
+- Only shown when the reference belongs to a project
+
+---
+
+## Capability Assessment
+
+| Capability                       | Status      | Notes                                                             |
+| -------------------------------- | ----------- | ----------------------------------------------------------------- |
+| `ReferenceMaterial.projectIds`   | **Gap**     | Type has no `projectIds` field                                    |
+| Serialization round-trip         | **Gap**     | `fromJsonLd`/`toJsonLd` don't handle `app:projectRefs` for refs  |
+| `buildTriagePatch` (reference)   | **Gap**     | Line 409: drops `result.projectId`                                |
+| `buildNewFileReferenceJsonLd`    | **Gap**     | Split reference copy: no `app:projectRefs` emitted               |
+| Project picker in triage         | Partial     | Works for action buckets, not shown for reference                 |
+| Project picker in ReferenceRow   | **Gap**     | `referenceToEditorValues` returns no `projectId`; no projects prop|
+| ProjectTree shows references     | **Gap**     | Only renders `ActionItem[]`                                       |
+| Project badge on ReferenceRow    | **Gap**     | No visual indicator of which project a reference belongs to       |
+| Backend PATCH support            | **Works**   | `additionalProperty` accepts any `propertyID` including `app:projectRefs` |
+
+---
+
+## Schema.org Fit
+
+`app:projectRefs` is already used on Actions via `additionalProperty`. The same
+mechanism works for CreativeWork — it's just a PropertyValue with a list of
+canonical IDs. No new schema concepts needed.
+
+```json
+{
+  "@type": "CreativeWork",
+  "additionalProperty": [
+    { "@type": "PropertyValue", "propertyID": "app:bucket", "value": "reference" },
+    { "@type": "PropertyValue", "propertyID": "app:projectRefs", "value": ["urn:tay:project:abc"] }
+  ]
+}
+```
+
+---
+
+## Implementation Scope
+
+### Data model
+- Add `projectIds: CanonicalId[]` to `ReferenceMaterial` interface
+- Update `createReferenceMaterial` factory
+
+### Serialization (3 fixes)
+- `fromJsonLd`: extract `app:projectRefs` in CreativeWork + DigitalDocument reference branches
+- `toJsonLd`: serialize `projectIds` as `app:projectRefs` in reference branch
+- `buildTriagePatch`: include `app:projectRefs` when target is "reference"
+- `buildNewFileReferenceJsonLd`: propagate project from source item to split reference
+
+### UI (3 components)
+- `ProjectTree`: accept `references` prop, render compact file chips per project
+- `ReferenceRow`: accept `projects` prop, show project badge, update editor values
+- `ReferenceList` / `BucketView` / `ConnectedBucketView`: thread `projects` prop
+
+---
+
+## Tay Automation Potential
+
+Tay could auto-assign references to the correct project based on content:
+
+> "I see you uploaded a 1099-INT from Schwab. Your '2025 Tax Return' project
+> has an action 'Download 1099-INT from Schwab'. Want me to link this
+> document to that project?"
+
+This requires the project-reference linking to be in place first — Tay needs
+the `app:projectRefs` field on CreativeWork to write to.

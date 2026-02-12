@@ -16,6 +16,12 @@ export class ApiError extends Error {
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
+
+/** Construct an absolute URL for a backend file path (e.g. `/files/{id}`). */
+export function getFileUrl(relativePath: string): string {
+  return `${API_BASE_URL}${relativePath}`;
+}
+
 const REQUEST_ID_HEADER = "X-Request-ID";
 const USER_ID_HEADER = "X-User-ID";
 const CSRF_HEADER = "X-CSRF-Token";

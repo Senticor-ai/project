@@ -313,7 +313,7 @@ describe("ConnectedBucketView", () => {
       onUpdateTitle("thing:test-4" as CanonicalId, "Updated title");
       expect(mockUpdate.mutate).toHaveBeenCalledWith({
         canonicalId: "thing:test-4",
-        patch: { title: "Updated title" },
+        patch: { name: "Updated title" },
       });
     });
 

@@ -3,6 +3,7 @@ import { expect, fn } from "storybook/test";
 import { ReferenceRow } from "./ReferenceRow";
 import {
   createReferenceMaterial,
+  createProject,
   resetFactoryCounter,
 } from "@/model/factories";
 
@@ -132,5 +133,121 @@ export const ClickNotesIcon: Story = {
       canvas.getByLabelText(`Show notes for ${urlRef.name}`),
     );
     await expect(args.onToggleExpand).toHaveBeenCalledOnce();
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Split-on-triage (ReadAction ↔ Reference relationship)
+// ---------------------------------------------------------------------------
+
+const splitPdfRef = createReferenceMaterial({
+  name: "BSI-TR-03183-2.pdf",
+  encodingFormat: "application/pdf",
+  origin: "triaged",
+});
+
+/** DigitalDocument split from inbox triage — shows "Triaged" origin badge. */
+export const TriagedFromInbox: Story = {
+  args: { reference: splitPdfRef },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText("Triaged")).toBeInTheDocument();
+    await expect(canvas.getByText("PDF")).toBeInTheDocument();
+  },
+};
+
+/** Split reference with linked action — shows bucket badge for the ReadAction. */
+export const TriagedWithActionLink: Story = {
+  args: {
+    reference: splitPdfRef,
+    linkedActionBucket: "next",
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText("Triaged")).toBeInTheDocument();
+    await expect(canvas.getByText("Next")).toBeInTheDocument();
+  },
+};
+
+// ---------------------------------------------------------------------------
+// File view + download links
+// ---------------------------------------------------------------------------
+
+const downloadableRef = createReferenceMaterial({
+  name: "Quarterly Report.pdf",
+  encodingFormat: "application/pdf",
+  origin: "triaged",
+  downloadUrl: "/files/file-42",
+});
+
+/** PDF — browser-viewable: shows eye icon (view) + download icon. */
+export const WithViewAndDownload: Story = {
+  args: { reference: downloadableRef },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByLabelText("View file")).toBeInTheDocument();
+    await expect(canvas.getByLabelText("Download file")).toBeInTheDocument();
+  },
+};
+
+const docxRef = createReferenceMaterial({
+  name: "Meeting Notes.docx",
+  encodingFormat:
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  origin: "triaged",
+  downloadUrl: "/files/file-docx",
+});
+
+/** DOCX — not browser-viewable: shows only download icon, no view. */
+export const NonViewableDownloadOnly: Story = {
+  args: { reference: docxRef },
+  play: async ({ canvas }) => {
+    await expect(canvas.queryByLabelText("View file")).not.toBeInTheDocument();
+    await expect(canvas.getByLabelText("Download file")).toBeInTheDocument();
+  },
+};
+
+const downloadableUrlRef = createReferenceMaterial({
+  name: "Spec document",
+  encodingFormat: "application/pdf",
+  origin: "captured",
+  url: "https://example.com/spec",
+  downloadUrl: "/files/file-99",
+});
+
+/** Reference with external URL + file — shows all three icons. */
+export const WithAllLinks: Story = {
+  args: { reference: downloadableUrlRef },
+  play: async ({ canvas }) => {
+    await expect(
+      canvas.getByLabelText("Open external link"),
+    ).toBeInTheDocument();
+    await expect(canvas.getByLabelText("View file")).toBeInTheDocument();
+    await expect(canvas.getByLabelText("Download file")).toBeInTheDocument();
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Project badge
+// ---------------------------------------------------------------------------
+
+const taxProject = createProject({
+  name: "Steuererklärung 2025",
+  desiredOutcome: "CPA Übergabe",
+});
+
+const projectLinkedRef = createReferenceMaterial({
+  name: "W-2 Form.pdf",
+  encodingFormat: "application/pdf",
+  origin: "triaged",
+  projectId: taxProject.id,
+});
+
+/** Reference linked to a project — shows project name badge. */
+export const WithProjectBadge: Story = {
+  args: {
+    reference: projectLinkedRef,
+    projects: [taxProject],
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText("Steuererklärung 2025")).toBeInTheDocument();
+    await expect(canvas.getByText("PDF")).toBeInTheDocument();
   },
 };

@@ -760,11 +760,24 @@ export function useUpdateItem() {
     onMutate: async ({ canonicalId, patch }) => {
       const prev = await snapshotActive(qc);
       qc.setQueryData<ItemRecord[]>(ACTIVE_KEY, (old) =>
-        old?.map((r) =>
-          r.canonical_id === canonicalId
-            ? { ...r, item: { ...r.item, ...patch } }
-            : r,
-        ),
+        old?.map((r) => {
+          if (r.canonical_id !== canonicalId) return r;
+          const merged = { ...r.item, ...patch };
+          // Merge additionalProperty by propertyID (matching backend _deep_merge)
+          if (Array.isArray(patch.additionalProperty)) {
+            const byId = new Map<string, unknown>();
+            for (const pv of (r.item.additionalProperty as AdditionalProp[]) ??
+              []) {
+              if (pv.propertyID) byId.set(pv.propertyID, pv);
+            }
+            for (const pv of patch.additionalProperty as AdditionalProp[]) {
+              if ((pv as AdditionalProp).propertyID)
+                byId.set((pv as AdditionalProp).propertyID, pv);
+            }
+            merged.additionalProperty = Array.from(byId.values());
+          }
+          return { ...r, item: merged };
+        }),
       );
       return { prev };
     },

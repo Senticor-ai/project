@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { ActionRow, type ActionRowProps } from "./ActionRow";
 import { createActionItem } from "@/model/factories";
 import { resetFactoryCounter } from "@/model/factories";
+import type { CanonicalId } from "@/model/canonical-id";
 
 // dnd-kit stub
 vi.mock("@dnd-kit/core", () => ({
@@ -808,5 +809,87 @@ describe("ActionRow calendar triage", () => {
     });
     await user.click(screen.getByLabelText("Move to Next"));
     expect(props.onMove).toHaveBeenCalledWith(props.thing.id, "next");
+  });
+});
+
+describe("ReadAction indicator", () => {
+  it("shows Read subtitle for items with objectRef", () => {
+    renderRow({
+      thing: createActionItem({
+        name: "Report.pdf",
+        bucket: "next",
+        objectRef: "urn:app:reference:doc-1" as CanonicalId,
+        captureSource: {
+          kind: "file",
+          fileName: "Report.pdf",
+          mimeType: "application/pdf",
+        },
+      }),
+    });
+    expect(screen.getByText("Read")).toBeInTheDocument();
+  });
+
+  it("does not show Read subtitle for regular actions", () => {
+    renderRow({
+      thing: createActionItem({ name: "Buy milk", bucket: "next" }),
+    });
+    expect(screen.queryByText("Read")).not.toBeInTheDocument();
+  });
+
+  it("renders Read subtitle as a button when onNavigateToReference is provided", () => {
+    renderRow({
+      thing: createActionItem({
+        name: "Report.pdf",
+        bucket: "next",
+        objectRef: "urn:app:reference:doc-1" as CanonicalId,
+        captureSource: {
+          kind: "file",
+          fileName: "Report.pdf",
+          mimeType: "application/pdf",
+        },
+      }),
+      onNavigateToReference: vi.fn(),
+    });
+    const btn = screen.getByLabelText("Go to reference");
+    expect(btn).toBeInTheDocument();
+    expect(btn.tagName).toBe("BUTTON");
+  });
+
+  it("calls onNavigateToReference with objectRef when clicked", async () => {
+    const user = userEvent.setup();
+    const onNavigateToReference = vi.fn();
+    const refId = "urn:app:reference:doc-1" as CanonicalId;
+    renderRow({
+      thing: createActionItem({
+        name: "Report.pdf",
+        bucket: "next",
+        objectRef: refId,
+        captureSource: {
+          kind: "file",
+          fileName: "Report.pdf",
+          mimeType: "application/pdf",
+        },
+      }),
+      onNavigateToReference,
+    });
+    await user.click(screen.getByLabelText("Go to reference"));
+    expect(onNavigateToReference).toHaveBeenCalledWith(refId);
+  });
+
+  it("renders Read subtitle as non-clickable span when onNavigateToReference is absent", () => {
+    renderRow({
+      thing: createActionItem({
+        name: "Report.pdf",
+        bucket: "next",
+        objectRef: "urn:app:reference:doc-1" as CanonicalId,
+        captureSource: {
+          kind: "file",
+          fileName: "Report.pdf",
+          mimeType: "application/pdf",
+        },
+      }),
+    });
+    expect(screen.getByText("Read")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Go to reference")).not.toBeInTheDocument();
   });
 });

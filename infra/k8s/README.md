@@ -24,12 +24,18 @@ k8s/
     └── production/         # Production (Harbor registry)
         ├── kustomization.yaml
         ├── configmap.yaml
+        ├── secret.yaml             # SOPS-encrypted app secrets
+        ├── secret-pubsub-sa.yaml   # SOPS-encrypted GCP service account
+        ├── ingress.yaml
         └── patches/
             ├── backend.yaml
             ├── worker.yaml
             ├── push-worker.yaml
             ├── frontend.yaml
-            └── postgres.yaml
+            ├── storybook.yaml
+            ├── postgres.yaml
+            ├── backend-pubsub.yaml  # PubSub SA volume mount
+            └── worker-pubsub.yaml   # PubSub SA volume mount
 ```
 
 ## Base
@@ -138,9 +144,51 @@ The production overlay:
 - Provides production ConfigMap (HTTPS CORS, CSRF enabled, JSON logging, OTEL)
 - Exposes Prometheus metrics: backend API on `:8000/metrics`, worker on `:9090/metrics`, push-worker on `:9091/metrics`
 
-Namespace, Secret, and Ingress are managed by ops (not in version control).
+Namespace is managed by ops. Secrets are SOPS-encrypted in version control and auto-deployed by Flux.
 
-The `app-secrets` Secret must include these keys (in addition to `POSTGRES_PASSWORD`):
+### Secret management (SOPS + age)
+
+Production secrets are encrypted with [SOPS](https://github.com/getsops/sops) using [age](https://github.com/FiloSottile/age). Flux decrypts them automatically on the cluster.
+
+**Two secret files:**
+
+| File | Secret name | Contents |
+|------|-------------|----------|
+| `secret.yaml` | `app-secrets` | Env vars (DB password, JWT, OAuth, VAPID, API keys) |
+| `secret-pubsub-sa.yaml` | `pubsub-sa` | GCP service account JSON for Gmail Pub/Sub |
+
+The `pubsub-sa` secret is volume-mounted at `/etc/gcp/pubsub-sa.json` on backend and worker pods.
+
+**Prerequisites:**
+
+```bash
+brew install sops age
+```
+
+**To edit secrets** (requires the age private key from 1Password):
+
+```bash
+# Set SOPS_AGE_KEY_FILE to point to your private key
+export SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt
+
+# Edit in-place (opens decrypted in $EDITOR, re-encrypts on save)
+sops infra/k8s/overlays/production/secret.yaml
+
+# Or decrypt to stdout for inspection
+sops --decrypt infra/k8s/overlays/production/secret.yaml
+```
+
+**To add a new secret file:**
+
+```bash
+# 1. Create plaintext YAML
+# 2. Encrypt in-place (uses .sops.yaml creation_rules)
+sops --encrypt --in-place infra/k8s/overlays/production/my-new-secret.yaml
+# 3. Add to kustomization.yaml resources list
+# 4. Commit and push — Flux auto-deploys within 5 minutes
+```
+
+**Key reference:**
 
 | Key | Description | How to generate |
 |-----|-------------|-----------------|
@@ -150,6 +198,9 @@ The `app-secrets` Secret must include these keys (in addition to `POSTGRES_PASSW
 | `GMAIL_CLIENT_SECRET` | Google OAuth client secret | Same as above |
 | `GMAIL_STATE_SECRET` | OAuth CSRF state signing | `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
 | `ENCRYPTION_KEY` | Fernet key for token encryption | `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
+| `VAPID_PUBLIC_KEY` | Web Push public key | `npx web-push generate-vapid-keys` |
+| `VAPID_PRIVATE_KEY` | Web Push private key | Same as above |
+| `OPENROUTER_API_KEY` | LLM API key | [OpenRouter dashboard](https://openrouter.ai/keys) |
 
 Full setup guide: Storybook > Engineering > Email Integration (`?path=/docs/engineering-email-integration--docs`).
 

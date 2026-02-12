@@ -57,6 +57,8 @@ export function createItemRecord(
     encodingFormat?: string;
     fileId?: string;
     downloadUrl?: string;
+    /** For ReadAction: canonical ID of the referenced item. */
+    objectRef?: string;
   } = {},
 ): ItemRecord {
   counter++;
@@ -65,11 +67,13 @@ export function createItemRecord(
   const bucket = overrides.bucket ?? "inbox";
   const type =
     overrides.type ??
-    (bucket === "project"
-      ? "Project"
-      : bucket === "reference"
-        ? "CreativeWork"
-        : "Action");
+    (overrides.objectRef
+      ? "ReadAction"
+      : bucket === "project"
+        ? "Project"
+        : bucket === "reference"
+          ? "CreativeWork"
+          : "Action");
   const isEvent = type === "Event";
   const canonicalId =
     overrides.canonical_id ??
@@ -88,9 +92,12 @@ export function createItemRecord(
     dateModified: now,
   };
 
-  if (type === "Action") {
+  if (type === "Action" || type === "ReadAction") {
     base.startTime = null;
     base.endTime = overrides.completedAt ?? null;
+    if (overrides.objectRef) {
+      base.object = { "@id": overrides.objectRef };
+    }
     base.additionalProperty = [
       pv("app:bucket", bucket),
       pv("app:rawCapture", overrides.rawCapture ?? displayName),
@@ -129,6 +136,34 @@ export function createItemRecord(
       pv("app:ports", []),
       pv("app:typedReferences", []),
       pv("app:provenanceHistory", [{ timestamp: now, action: "created" }]),
+      pv("app:projectRefs", overrides.projectId ? [overrides.projectId] : []),
+    ];
+  } else if (
+    (type === "DigitalDocument" || type === "EmailMessage") &&
+    bucket === "reference"
+  ) {
+    // DigitalDocument in reference bucket (e.g. from split-on-triage)
+    base.name = overrides.name ?? displayName;
+    base.encodingFormat = overrides.encodingFormat ?? null;
+    base.additionalProperty = [
+      pv("app:bucket", "reference"),
+      pv("app:needsEnrichment", false),
+      pv("app:confidence", "high"),
+      pv(
+        "app:captureSource",
+        type === "EmailMessage"
+          ? { kind: "email" }
+          : {
+              kind: "file",
+              fileName: displayName,
+              mimeType: overrides.encodingFormat ?? "application/pdf",
+            },
+      ),
+      pv("app:origin", overrides.origin ?? "triaged"),
+      pv("app:ports", []),
+      pv("app:typedReferences", []),
+      pv("app:provenanceHistory", [{ timestamp: now, action: "created" }]),
+      pv("app:projectRefs", overrides.projectId ? [overrides.projectId] : []),
     ];
   } else if (type === "DigitalDocument" || type === "EmailMessage") {
     base.name = overrides.name ?? displayName;
@@ -411,6 +446,85 @@ export function createEmailConnection(
 // ---------------------------------------------------------------------------
 // Seed helpers with email items
 // ---------------------------------------------------------------------------
+
+export function seedReadActionSplit(): ItemRecord[] {
+  const refCanonicalId = "urn:app:reference:split-ref-1" as CanonicalId;
+  const records = [
+    ...seedMixedBuckets(),
+    // ReadAction in "next" bucket — linked to the reference
+    createItemRecord({
+      item_id: "read-action-1",
+      bucket: "next",
+      name: "BSI-TR-03183-2.pdf",
+      objectRef: refCanonicalId,
+      type: "ReadAction",
+    }),
+    // DigitalDocument in "reference" bucket — the split artifact
+    createItemRecord({
+      item_id: "split-ref-1",
+      canonical_id: refCanonicalId,
+      bucket: "reference",
+      type: "DigitalDocument",
+      name: "BSI-TR-03183-2.pdf",
+      encodingFormat: "application/pdf",
+      origin: "triaged",
+      fileId: "file-bsi-1",
+      downloadUrl: "/files/file-bsi-1",
+    }),
+  ];
+  store.seed(records);
+  return records;
+}
+
+export function seedProjectWithReferences(): ItemRecord[] {
+  const projectCanonicalId = "urn:app:project:project-tax" as CanonicalId;
+  const records = [
+    ...seedMixedBuckets(),
+    // Tax Return project
+    createItemRecord({
+      item_id: "project-tax",
+      canonical_id: projectCanonicalId,
+      bucket: "project",
+      name: "Steuererklärung 2025",
+      desiredOutcome: "CPA Übergabe komplett",
+    }),
+    // Action linked to project
+    createItemRecord({
+      item_id: "tax-action-1",
+      bucket: "next",
+      name: "Belege sortieren",
+      projectId: projectCanonicalId,
+    }),
+    // References linked to project
+    createItemRecord({
+      item_id: "tax-ref-w2",
+      bucket: "reference",
+      type: "DigitalDocument",
+      name: "W-2 Form.pdf",
+      encodingFormat: "application/pdf",
+      origin: "triaged",
+      projectId: projectCanonicalId,
+    }),
+    createItemRecord({
+      item_id: "tax-ref-1099",
+      bucket: "reference",
+      type: "CreativeWork",
+      name: "1099-INT Schwab.pdf",
+      origin: "captured",
+      projectId: projectCanonicalId,
+    }),
+    // Unlinked reference (no project)
+    createItemRecord({
+      item_id: "ref-unlinked",
+      bucket: "reference",
+      type: "CreativeWork",
+      name: "General notes",
+      origin: "captured",
+    }),
+  ];
+  store.seed(records);
+  return records;
+}
 
 export function seedMixedBucketsWithEmail(): ItemRecord[] {
   const records = [

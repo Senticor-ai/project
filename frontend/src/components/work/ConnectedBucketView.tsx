@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useState, useEffect, useMemo } from "react";
 import { BucketView } from "./BucketView";
 import { useAllItems, useProjects, useReferences } from "@/hooks/use-items";
 import {
@@ -15,6 +15,7 @@ import {
   useCreateProject,
 } from "@/hooks/use-mutations";
 import { Icon } from "@/components/ui/Icon";
+import { buildItemEditPatch } from "@/lib/item-serializer";
 import type { ActionItemBucket, ItemEditableFields } from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
 import { cn } from "@/lib/utils";
@@ -117,14 +118,17 @@ export function ConnectedBucketView({
     (id: CanonicalId, newTitle: string) =>
       updateItemMutation.mutate({
         canonicalId: id,
-        patch: { title: newTitle },
+        patch: { name: newTitle },
       }),
     [updateItemMutation],
   );
 
   const handleEditItem = useCallback(
     (id: CanonicalId, fields: Partial<ItemEditableFields>) =>
-      updateItemMutation.mutate({ canonicalId: id, patch: fields }),
+      updateItemMutation.mutate({
+        canonicalId: id,
+        patch: buildItemEditPatch(fields),
+      }),
     [updateItemMutation],
   );
 
@@ -148,6 +152,21 @@ export function ConnectedBucketView({
     },
     [captureFileMutation],
   );
+
+  const handleNavigateToReference = useCallback(() => {
+    onBucketChange("reference");
+  }, [onBucketChange]);
+
+  // Derive map: reference canonical ID → bucket of the linked ReadAction
+  const linkedActionBuckets = useMemo(() => {
+    const map = new Map<CanonicalId, ActionItemBucket>();
+    for (const item of actionItemsQuery.data ?? []) {
+      if (item.objectRef) {
+        map.set(item.objectRef, item.bucket);
+      }
+    }
+    return map;
+  }, [actionItemsQuery.data]);
 
   if (isLoading) {
     return (
@@ -207,6 +226,8 @@ export function ConnectedBucketView({
         onCreateProject={handleCreateProject}
         onEditReference={handleEditItem}
         onFileDrop={handleFileDrop}
+        onNavigateToReference={handleNavigateToReference}
+        linkedActionBuckets={linkedActionBuckets}
       />
     </div>
   );

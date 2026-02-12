@@ -5,15 +5,18 @@ import { AutoGrowTextarea } from "@/components/ui/AutoGrowTextarea";
 import { ActionRow } from "./ActionRow";
 import {
   getProjectActions,
+  getProjectReferences,
   getNextActionId,
   isProjectStalled,
 } from "@/lib/project-utils";
-import type { ActionItem, Project } from "@/model/types";
+import type { ActionItem, Project, ReferenceMaterial } from "@/model/types";
+import { getDisplayName } from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
 
 export interface ProjectTreeProps {
   projects: Project[];
   actions: ActionItem[];
+  references?: ReferenceMaterial[];
   onCompleteAction: (id: CanonicalId) => void;
   onToggleFocus: (id: CanonicalId) => void;
   onAddAction: (projectId: CanonicalId, title: string) => void;
@@ -25,6 +28,7 @@ export interface ProjectTreeProps {
 export function ProjectTree({
   projects,
   actions,
+  references = [],
   onCompleteAction,
   onToggleFocus,
   onAddAction,
@@ -112,6 +116,7 @@ export function ProjectTree({
               key={project.id}
               project={project}
               actions={getProjectActions(project, actions)}
+              references={getProjectReferences(project, references)}
               allActions={actions}
               isExpanded={expandedId === project.id}
               onToggleExpand={() =>
@@ -143,6 +148,7 @@ export function ProjectTree({
               key={project.id}
               project={project}
               actions={getProjectActions(project, actions)}
+              references={getProjectReferences(project, references)}
               allActions={actions}
               isExpanded={expandedId === project.id}
               onToggleExpand={() =>
@@ -182,6 +188,7 @@ export function ProjectTree({
 interface ProjectRowProps {
   project: Project;
   actions: ActionItem[];
+  references: ReferenceMaterial[];
   allActions: ActionItem[];
   isExpanded: boolean;
   onToggleExpand: () => void;
@@ -195,6 +202,7 @@ interface ProjectRowProps {
 function ProjectRow({
   project,
   actions,
+  references,
   allActions,
   isExpanded,
   onToggleExpand,
@@ -205,6 +213,7 @@ function ProjectRow({
   statusBadge,
 }: ProjectRowProps) {
   const stalled = isProjectStalled(project, allActions);
+  const totalCount = actions.length + references.length;
 
   return (
     <div data-project-id={project.id} className="rounded-lg">
@@ -230,9 +239,9 @@ function ProjectRow({
           {project.name ?? "Untitled"}
         </span>
 
-        {/* Action count badge */}
+        {/* Item count badge */}
         <span className="shrink-0 rounded-full bg-paper-100 px-1.5 text-xs text-text-muted">
-          {actions.length}
+          {totalCount}
         </span>
 
         {/* Status badge (non-active projects) */}
@@ -271,6 +280,29 @@ function ProjectRow({
             onAdd={onAddAction}
             onUpdateTitle={onUpdateTitle}
           />
+
+          {/* Reference file chips */}
+          {references.length > 0 && (
+            <div className="mt-2 space-y-0.5">
+              {references.map((ref) => (
+                <div
+                  key={ref.id}
+                  className="flex items-center gap-1.5 rounded-[var(--radius-sm)] px-1.5 py-0.5 text-xs text-text-muted"
+                >
+                  <Icon
+                    name={
+                      ref.encodingFormat === "application/pdf"
+                        ? "picture_as_pdf"
+                        : "description"
+                    }
+                    size={14}
+                    className="shrink-0 text-text-subtle"
+                  />
+                  <span className="truncate">{getDisplayName(ref)}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

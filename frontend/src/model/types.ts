@@ -269,6 +269,7 @@ export type ReferenceOrigin = "triaged" | "captured" | "file";
 
 export interface ReferenceMaterial extends BaseEntity {
   bucket: "reference";
+  projectIds: CanonicalId[];
   encodingFormat?: string;
   url?: string;
   origin?: ReferenceOrigin;

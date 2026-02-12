@@ -34,12 +34,13 @@ and Tay AI agent potential.
 
 ## Phases at a Glance
 
-| # | Phase                    | Epic                                                              | Status      |
-| - | ------------------------ | ----------------------------------------------------------------- | ----------- |
-| 1 | Import What You Have     | [Epic →](?path=/docs/flows-tax-prep-epic-import--docs)            | **Works**   |
-| 2 | Triage & Label           | [Epic →](?path=/docs/flows-tax-prep-epic-triage-label--docs)      | Partial     |
-| 3 | Identify Missing Docs    | [Epic →](?path=/docs/flows-tax-prep-epic-missing-docs--docs)      | Works       |
-| 4 | Download & Attach        | _(below)_                                                         | **Gap**     |
+| #   | Phase                    | Epic                                                                            | Status    |
+| --- | ------------------------ | ------------------------------------------------------------------------------- | --------- |
+| 1   | Import What You Have     | [Epic →](?path=/docs/flows-tax-prep-epic-import--docs)                          | **Works** |
+| 2   | Triage & Label           | [Epic →](?path=/docs/flows-tax-prep-epic-triage-label--docs)                    | Partial   |
+| 2b  | Project-Reference Link   | [Epic →](?path=/docs/flows-tax-prep-epic-project-reference-linking--docs)       | **Gap**   |
+| 3   | Identify Missing Docs    | [Epic →](?path=/docs/flows-tax-prep-epic-missing-docs--docs)                    | Works     |
+| 4   | Download & Attach        | _(below)_                                                                       | **Gap**   |
 | 5 | Extract Key Details      | _(below)_                                                         | **Gap**     |
 | 6 | Tax Organizer            | _(below)_                                                         | **Gap**     |
 | 7 | Export & Handoff to CPA  | _(below)_                                                         | **Gap**     |
@@ -320,7 +321,8 @@ Make documents flow from inbox to organized project.
 
 1. ~~**File→Thing linking**~~ — Done. `app:fileId` + `app:downloadUrl` on BaseEntity
 2. ~~**PDF drag-drop to inbox**~~ — Done. FileDropZone + `useCaptureFile` uploads binary
-3. **Project-scoped filtering** — filter any bucket view by project
+3. **Project-reference linking** — [Epic →](?path=/docs/flows-tax-prep-epic-project-reference-linking--docs) — `app:projectRefs` on CreativeWork, ProjectTree file chips
+4. **Project-scoped filtering** — filter any bucket view by project
 
 ### Layer 2: Structured Data
 

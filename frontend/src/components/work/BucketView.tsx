@@ -65,6 +65,10 @@ export interface BucketViewProps {
   onSelectReference?: (id: CanonicalId) => void;
   /** Called when files are dropped onto the inbox area. */
   onFileDrop?: (files: File[]) => void;
+  /** Called when user clicks the ReadAction "Read" subtitle to navigate to its reference. */
+  onNavigateToReference?: (refId: CanonicalId) => void;
+  /** Map from reference canonical ID → bucket of the linked ReadAction. */
+  linkedActionBuckets?: Map<CanonicalId, ActionItemBucket>;
   className?: string;
 }
 
@@ -88,6 +92,8 @@ export function BucketView({
   onCreateProject,
   onSelectReference,
   onFileDrop,
+  onNavigateToReference,
+  linkedActionBuckets,
   className,
 }: BucketViewProps) {
   const isMobile = useIsMobile();
@@ -156,6 +162,7 @@ export function BucketView({
               onEdit={onEditActionItem}
               onUpdateTitle={onUpdateTitle}
               onFileDrop={onFileDrop}
+              onNavigateToReference={onNavigateToReference}
               projects={projects}
             />
           ) : activeBucket === "reference" ? (
@@ -165,11 +172,14 @@ export function BucketView({
               onArchive={onArchiveReference ?? (() => {})}
               onSelect={onSelectReference ?? (() => {})}
               onEditReference={onEditReference}
+              linkedActionBuckets={linkedActionBuckets}
+              projects={projects}
             />
           ) : activeBucket === "project" ? (
             <ProjectTree
               projects={projects}
               actions={actionItems.filter((t) => t.bucket !== "inbox")}
+              references={referenceItems}
               onCompleteAction={onCompleteActionItem}
               onToggleFocus={onToggleFocus}
               onAddAction={onAddProjectAction ?? (() => {})}

@@ -63,6 +63,8 @@ export interface ActionListProps {
   onUpdateTitle?: (id: CanonicalId, newTitle: string) => void;
   /** Called when files are dropped onto the inbox. Only active when bucket is "inbox". */
   onFileDrop?: (files: File[]) => void;
+  /** Called when user clicks the ReadAction "Read" subtitle to navigate to its reference. */
+  onNavigateToReference?: (refId: CanonicalId) => void;
   projects?: Pick<Project, "id" | "name">[];
   className?: string;
 }
@@ -82,6 +84,7 @@ export function ActionList({
   onEdit,
   onUpdateTitle,
   onFileDrop,
+  onNavigateToReference,
   projects,
   className,
 }: ActionListProps) {
@@ -270,6 +273,7 @@ export function ActionList({
           onToggleExpand={onEdit || onUpdateTitle ? onToggleExpand : undefined}
           onEdit={onEdit}
           onUpdateTitle={onUpdateTitle}
+          onNavigateToReference={onNavigateToReference}
           projects={projects}
           showBucket={isFocusView}
         />

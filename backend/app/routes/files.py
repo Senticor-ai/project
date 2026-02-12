@@ -1,6 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, status
 from fastapi.responses import JSONResponse
 
 from ..config import settings
@@ -370,6 +370,11 @@ def complete_upload(
 @router.get("/{file_id}", summary="Download a file")
 def get_file(
     file_id: str,
+    inline: bool = Query(
+        default=False,
+        description="Serve with Content-Disposition: inline"
+        " (view in browser) instead of attachment (download).",
+    ),
     if_none_match: str | None = Header(
         default=None,
         alias="If-None-Match",
@@ -410,15 +415,27 @@ def get_file(
         )
 
     storage = get_storage()
+    response_headers = {
+        "ETag": etag,
+        "Last-Modified": last_modified,
+        "Content-Length": str(row["size_bytes"]),
+    }
+    if inline:
+        # Serve inline — browser renders supported formats (PDF, images, etc.)
+        # Pass filename=None to skip FileResponse's auto Content-Disposition: attachment
+        safe_name = row["original_name"].replace('"', '\\"')
+        response_headers["Content-Disposition"] = f'inline; filename="{safe_name}"'
+        return storage.get_file_response(
+            row["storage_path"],
+            media_type=row["content_type"] or "application/octet-stream",
+            filename=None,
+            headers=response_headers,
+        )
     return storage.get_file_response(
         row["storage_path"],
         media_type=row["content_type"] or "application/octet-stream",
         filename=row["original_name"],
-        headers={
-            "ETag": etag,
-            "Last-Modified": last_modified,
-            "Content-Length": str(row["size_bytes"]),
-        },
+        headers=response_headers,
     )
 
 

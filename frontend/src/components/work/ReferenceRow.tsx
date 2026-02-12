@@ -2,11 +2,15 @@ import { useState } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
+import { BucketBadge } from "@/components/paperclip/BucketBadge";
+import { getFileUrl } from "@/lib/api-client";
 import { ItemEditor } from "./ItemEditor";
 import type {
   ReferenceMaterial,
   ReferenceOrigin,
+  ActionItemBucket,
   ItemEditableFields,
+  Project,
 } from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
 
@@ -17,6 +21,9 @@ export interface ReferenceRowProps {
   isExpanded?: boolean;
   onToggleExpand?: () => void;
   onEdit?: (id: CanonicalId, fields: Partial<ItemEditableFields>) => void;
+  /** Bucket where the linked ReadAction lives (shown as a badge). */
+  linkedActionBucket?: ActionItemBucket;
+  projects?: Pick<Project, "id" | "name">[];
   className?: string;
 }
 
@@ -58,10 +65,32 @@ function formatEncodingFormat(encodingFormat: string): string {
   );
 }
 
+/** Formats that browsers can render inline in a new tab. */
+const BROWSER_VIEWABLE = new Set([
+  "application/pdf",
+  "text/plain",
+  "text/html",
+  "text/csv",
+  "text/xml",
+  "application/xml",
+  "application/json",
+  "image/png",
+  "image/jpeg",
+  "image/gif",
+  "image/svg+xml",
+  "image/webp",
+]);
+
+function isBrowserViewable(encodingFormat: string | undefined): boolean {
+  if (!encodingFormat) return false;
+  return BROWSER_VIEWABLE.has(encodingFormat);
+}
+
 function referenceToEditorValues(ref: ReferenceMaterial): ItemEditableFields {
   return {
     contexts: [],
     description: ref.description,
+    projectId: ref.projectIds[0],
   };
 }
 
@@ -72,10 +101,15 @@ export function ReferenceRow({
   isExpanded = false,
   onToggleExpand,
   onEdit,
+  linkedActionBucket,
+  projects,
   className,
 }: ReferenceRowProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const origin = reference.origin ? originConfig[reference.origin] : null;
+  const projectName = projects?.find(
+    (p) => p.id === reference.projectIds[0],
+  )?.name;
 
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: reference.id,
@@ -143,6 +177,19 @@ export function ReferenceRow({
         </span>
       )}
 
+      {/* Project badge */}
+      {projectName && (
+        <span className="flex shrink-0 items-center gap-0.5 text-xs text-blueprint-500">
+          <Icon name="folder" size={14} />
+          {projectName}
+        </span>
+      )}
+
+      {/* Linked action bucket badge (split-on-triage) */}
+      {linkedActionBucket && (
+        <BucketBadge bucket={linkedActionBucket} className="shrink-0" />
+      )}
+
       {/* Note indicator */}
       {reference.description && (
         <button
@@ -166,6 +213,33 @@ export function ReferenceRow({
           className="shrink-0 text-text-subtle hover:text-blueprint-500"
         >
           <Icon name="open_in_new" size={14} />
+        </a>
+      )}
+
+      {/* View in browser (only for formats browsers can render inline) */}
+      {reference.downloadUrl && isBrowserViewable(reference.encodingFormat) && (
+        <a
+          href={`${getFileUrl(reference.downloadUrl)}?inline=true`}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="View file"
+          className="shrink-0 text-text-subtle hover:text-blueprint-500"
+        >
+          <Icon name="visibility" size={14} />
+        </a>
+      )}
+
+      {/* Download file */}
+      {reference.downloadUrl && (
+        <a
+          href={getFileUrl(reference.downloadUrl)}
+          target="_blank"
+          rel="noopener noreferrer"
+          download
+          aria-label="Download file"
+          className="shrink-0 text-text-subtle hover:text-blueprint-500"
+        >
+          <Icon name="download" size={14} />
         </a>
       )}
 
@@ -206,6 +280,7 @@ export function ReferenceRow({
           <ItemEditor
             values={referenceToEditorValues(reference)}
             onChange={handleEditorChange}
+            projects={projects}
           />
         </div>
       )}

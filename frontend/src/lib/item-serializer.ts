@@ -179,6 +179,9 @@ export function toJsonLd(
       pv("app:provenanceHistory", ref.provenance.history),
       pv("app:origin", ref.origin ?? null),
     ];
+    if (ref.projectIds.length > 0) {
+      refProps.push(pv("app:projectRefs", ref.projectIds));
+    }
     if (ref.fileId) {
       refProps.push(pv("app:fileId", ref.fileId));
     }
@@ -322,6 +325,9 @@ export function fromJsonLd(record: ItemRecord): AppItem {
     return {
       ...base,
       bucket: "reference" as const,
+      projectIds:
+        (getAdditionalProperty(props, "app:projectRefs") as CanonicalId[]) ??
+        [],
       encodingFormat: (t.encodingFormat as string) || undefined,
       url: (t.url as string) || undefined,
       origin:
@@ -353,6 +359,9 @@ export function fromJsonLd(record: ItemRecord): AppItem {
       return {
         ...base,
         bucket: "reference" as const,
+        projectIds:
+          (getAdditionalProperty(props, "app:projectRefs") as CanonicalId[]) ??
+          [],
         encodingFormat: (t.encodingFormat as string) || undefined,
         url: (t.url as string) || undefined,
         origin:
@@ -407,9 +416,13 @@ export function buildTriagePatch(
   result: TriageResult,
 ): Record<string, unknown> {
   if (result.targetBucket === "reference") {
+    const refProps: PropertyValue[] = [pv("app:bucket", "reference")];
+    if (result.projectId) {
+      refProps.push(pv("app:projectRefs", [result.projectId]));
+    }
     return {
       "@type": TYPE_MAP.reference,
-      additionalProperty: [pv("app:bucket", "reference")],
+      additionalProperty: refProps,
     };
   }
 
@@ -465,6 +478,9 @@ export function buildItemEditPatch(
     additionalProps.push(
       pv("app:projectRefs", fields.projectId ? [fields.projectId] : []),
     );
+  }
+  if ("title" in fields && fields.title !== undefined) {
+    patch.name = fields.title;
   }
   if ("description" in fields) {
     patch.description = fields.description || null;
@@ -669,7 +685,10 @@ export function buildNewProjectJsonLd(
 // buildNewReferenceJsonLd — name → full JSON-LD for POST /items
 // ---------------------------------------------------------------------------
 
-export function buildNewReferenceJsonLd(name: string): Record<string, unknown> {
+export function buildNewReferenceJsonLd(
+  name: string,
+  opts?: { projectId?: CanonicalId },
+): Record<string, unknown> {
   const id = createCanonicalId("reference", crypto.randomUUID());
   const now = new Date().toISOString();
 
@@ -693,6 +712,7 @@ export function buildNewReferenceJsonLd(name: string): Record<string, unknown> {
       pv("app:ports", []),
       pv("app:typedReferences", []),
       pv("app:provenanceHistory", [{ timestamp: now, action: "created" }]),
+      pv("app:projectRefs", opts?.projectId ? [opts.projectId] : []),
     ],
   };
 }
@@ -721,6 +741,7 @@ export function buildNewFileReferenceJsonLd(
     dateModified: now,
     additionalProperty: [
       pv("app:bucket", "reference"),
+      pv("app:origin", "triaged"),
       pv("app:needsEnrichment", false),
       pv("app:confidence", "high"),
       pv("app:captureSource", sourceItem.captureSource),
@@ -729,6 +750,9 @@ export function buildNewFileReferenceJsonLd(
       pv("app:provenanceHistory", [
         { timestamp: now, action: "created", splitFrom: sourceItem.id },
       ]),
+      ...(sourceItem.projectIds.length > 0
+        ? [pv("app:projectRefs", sourceItem.projectIds)]
+        : []),
       ...(sourceItem.fileId ? [pv("app:fileId", sourceItem.fileId)] : []),
       ...(sourceItem.downloadUrl
         ? [pv("app:downloadUrl", sourceItem.downloadUrl)]

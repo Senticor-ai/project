@@ -23,7 +23,7 @@ const config: StorybookConfig = {
   ],
   framework: "@storybook/react-vite",
   managerHead: (head) =>
-    `${head}<link rel="icon" type="image/svg+xml" href="/favicon.svg" />`,
+    `${head}<link rel="icon" type="image/svg+xml" href="/storybook-favicon.svg" />`,
   viteFinal: (config) => {
     if (process.env.STORYBOOK_BASE) {
       config.base = process.env.STORYBOOK_BASE;

@@ -1,7 +1,12 @@
 import { useState, useMemo } from "react";
 import { ItemList } from "./ItemList";
 import { ReferenceRow } from "./ReferenceRow";
-import type { ReferenceMaterial, ItemEditableFields } from "@/model/types";
+import type {
+  ReferenceMaterial,
+  ItemEditableFields,
+  ActionItemBucket,
+  Project,
+} from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
 
 export interface ReferenceListProps {
@@ -13,6 +18,9 @@ export interface ReferenceListProps {
     id: CanonicalId,
     fields: Partial<ItemEditableFields>,
   ) => void;
+  /** Map from reference canonical ID → bucket of the linked ReadAction. */
+  linkedActionBuckets?: Map<CanonicalId, ActionItemBucket>;
+  projects?: Pick<Project, "id" | "name">[];
   className?: string;
 }
 
@@ -22,6 +30,8 @@ export function ReferenceList({
   onArchive,
   onSelect,
   onEditReference,
+  linkedActionBuckets,
+  projects,
   className,
 }: ReferenceListProps) {
   const [expandedId, setExpandedId] = useState<CanonicalId | null>(null);
@@ -68,6 +78,8 @@ export function ReferenceList({
           isExpanded={isExpanded}
           onToggleExpand={onEditReference ? onToggleExpand : undefined}
           onEdit={onEditReference}
+          linkedActionBucket={linkedActionBuckets?.get(ref.id)}
+          projects={projects}
         />
       )}
       emptyMessage="No reference items yet"

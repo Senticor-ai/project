@@ -20,6 +20,8 @@ export interface ActionRowProps {
   onToggleExpand?: () => void;
   onEdit?: (id: CanonicalId, fields: Partial<ItemEditableFields>) => void;
   onUpdateTitle?: (id: CanonicalId, newTitle: string) => void;
+  /** Called when user clicks the ReadAction "Read" subtitle to navigate to the reference. */
+  onNavigateToReference?: (refId: CanonicalId) => void;
   projects?: Pick<Project, "id" | "name">[];
   showBucket?: boolean;
   className?: string;
@@ -108,6 +110,7 @@ export function ActionRow({
   onToggleExpand,
   onEdit,
   onUpdateTitle,
+  onNavigateToReference,
   projects,
   showBucket = false,
   className,
@@ -134,13 +137,20 @@ export function ActionRow({
 
   const { captureSource } = thing;
   const isEmail = captureSource.kind === "email";
+  const isReadAction = !!thing.objectRef;
   const subtitle = (() => {
+    if (isReadAction) return "Read";
     if (captureSource.kind === "email") {
       return captureSource.from ?? "via email";
     }
     if (captureSource.kind !== "thought") {
       return `via ${captureSource.kind}`;
     }
+    return undefined;
+  })();
+  const subtitleIcon = (() => {
+    if (isReadAction) return "auto_stories";
+    if (isEmail) return "mail";
     return undefined;
   })();
 
@@ -257,13 +267,24 @@ export function ActionRow({
           )}
         </div>
 
-        {/* Subtitle for non-thought sources */}
-        {subtitle && (
-          <span className="flex shrink-0 items-center gap-1 text-xs text-text-muted">
-            {isEmail && <Icon name="mail" size={12} />}
-            {subtitle}
-          </span>
-        )}
+        {/* Subtitle for non-thought sources / ReadAction indicator */}
+        {subtitle &&
+          (isReadAction && onNavigateToReference && thing.objectRef ? (
+            <button
+              type="button"
+              onClick={() => onNavigateToReference(thing.objectRef!)}
+              aria-label="Go to reference"
+              className="flex shrink-0 items-center gap-1 text-xs text-text-muted transition-colors hover:text-blueprint-500"
+            >
+              {subtitleIcon && <Icon name={subtitleIcon} size={12} />}
+              {subtitle}
+            </button>
+          ) : (
+            <span className="flex shrink-0 items-center gap-1 text-xs text-text-muted">
+              {subtitleIcon && <Icon name={subtitleIcon} size={12} />}
+              {subtitle}
+            </span>
+          ))}
 
         {/* Note indicator — only when expanded (collapsed shows text preview instead) */}
         {isExpanded && thing.description && (

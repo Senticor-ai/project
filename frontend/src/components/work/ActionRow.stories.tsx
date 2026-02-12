@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, expect, within } from "storybook/test";
 import { ActionRow } from "./ActionRow";
 import { createActionItem } from "@/model/factories";
+import type { CanonicalId } from "@/model/canonical-id";
 
 const meta = {
   title: "Work/ActionRow",
@@ -310,6 +311,100 @@ export const TriageCalendar: Story = {
   play: async ({ canvas, userEvent }) => {
     await userEvent.click(canvas.getByLabelText("Move to Calendar"));
     await expect(canvas.getByLabelText("Schedule date")).toBeInTheDocument();
+  },
+};
+
+// ---------------------------------------------------------------------------
+// ReadAction stories — file split-on-triage produces ReadAction with objectRef
+// ---------------------------------------------------------------------------
+
+/** ReadAction — collapsed, shows "Read" subtitle with auto_stories icon. */
+export const ReadAction: Story = {
+  args: {
+    thing: createActionItem({
+      name: "Quarterly Report.pdf",
+      bucket: "next",
+      objectRef: "urn:app:reference:doc-1" as CanonicalId,
+      captureSource: {
+        kind: "file",
+        fileName: "Quarterly Report.pdf",
+        mimeType: "application/pdf",
+      },
+    }),
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText("Read")).toBeInTheDocument();
+    await expect(canvas.getByText("Quarterly Report.pdf")).toBeInTheDocument();
+  },
+};
+
+/** ReadAction — expanded, shows subtitle in context with editor. */
+export const ReadActionExpanded: Story = {
+  args: {
+    thing: createActionItem({
+      name: "BSI-TR-03183-2.pdf",
+      bucket: "next",
+      objectRef: "urn:app:reference:doc-2" as CanonicalId,
+      captureSource: {
+        kind: "file",
+        fileName: "BSI-TR-03183-2.pdf",
+        mimeType: "application/pdf",
+      },
+      description: "Technical guideline for secure email transport.",
+    }),
+    isExpanded: true,
+    onToggleExpand: fn(),
+    onEdit: fn(),
+    onUpdateTitle: fn(),
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText("Read")).toBeInTheDocument();
+  },
+};
+
+/** ReadAction with clickable "Read" subtitle — navigates to reference on click. */
+export const ReadActionNavigate: Story = {
+  args: {
+    thing: createActionItem({
+      name: "BSI-TR-03183-2.pdf",
+      bucket: "next",
+      objectRef: "urn:app:reference:doc-nav" as CanonicalId,
+      captureSource: {
+        kind: "file",
+        fileName: "BSI-TR-03183-2.pdf",
+        mimeType: "application/pdf",
+      },
+    }),
+    onNavigateToReference: fn(),
+  },
+  play: async ({ canvas, args, userEvent }) => {
+    const readBtn = canvas.getByLabelText("Go to reference");
+    await expect(readBtn).toBeInTheDocument();
+    await userEvent.click(readBtn);
+    await expect(args.onNavigateToReference).toHaveBeenCalledWith(
+      "urn:app:reference:doc-nav",
+    );
+  },
+};
+
+/** ReadAction in focus view with bucket badge. */
+export const ReadActionFocused: Story = {
+  args: {
+    thing: createActionItem({
+      name: "Amtsblatt-2026.pdf",
+      bucket: "next",
+      isFocused: true,
+      objectRef: "urn:app:reference:doc-3" as CanonicalId,
+      captureSource: {
+        kind: "file",
+        fileName: "Amtsblatt-2026.pdf",
+        mimeType: "application/pdf",
+      },
+    }),
+    showBucket: true,
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText("Read")).toBeInTheDocument();
   },
 };
 

@@ -202,7 +202,7 @@ export class ApiSeed {
   /** Create a DigitalDocument inbox item via API (simulates file drop). Returns the item_id. */
   async createDigitalDocumentInboxItem(
     name: string,
-    options?: { encodingFormat?: string },
+    options?: { encodingFormat?: string; projectId?: string },
   ): Promise<string> {
     const id = `urn:app:inbox:${crypto.randomUUID()}`;
     const now = new Date().toISOString();
@@ -237,12 +237,68 @@ export class ApiSeed {
             pv("app:provenanceHistory", [
               { timestamp: now, action: "created" },
             ]),
+            pv(
+              "app:projectRefs",
+              options?.projectId ? [options.projectId] : [],
+            ),
           ],
         },
       },
     });
     const json = await response.json();
     return json.item_id;
+  }
+
+  /** Create a reference item via API (CreativeWork or DigitalDocument). Returns the canonical ID. */
+  async createReference(
+    name: string,
+    options?: {
+      type?: "CreativeWork" | "DigitalDocument";
+      encodingFormat?: string;
+      origin?: string;
+      projectId?: string;
+    },
+  ): Promise<string> {
+    const id = `urn:app:reference:${crypto.randomUUID()}`;
+    const now = new Date().toISOString();
+    const type = options?.type ?? "CreativeWork";
+
+    const response = await this.request.post("/api/items", {
+      data: {
+        source: "manual",
+        item: {
+          "@id": id,
+          "@type": type,
+          _schemaVersion: 2,
+          name,
+          description: null,
+          keywords: [],
+          ...(options?.encodingFormat
+            ? { encodingFormat: options.encodingFormat }
+            : {}),
+          dateCreated: now,
+          dateModified: now,
+          additionalProperty: [
+            pv("app:bucket", "reference"),
+            pv("app:needsEnrichment", false),
+            pv("app:confidence", "high"),
+            pv("app:captureSource", { kind: "thought" }),
+            pv("app:origin", options?.origin ?? "captured"),
+            pv("app:ports", []),
+            pv("app:typedReferences", []),
+            pv("app:provenanceHistory", [
+              { timestamp: now, action: "created" },
+            ]),
+            pv(
+              "app:projectRefs",
+              options?.projectId ? [options.projectId] : [],
+            ),
+          ],
+        },
+      },
+    });
+    const json = await response.json();
+    return json.canonical_id;
   }
 
   /** Create multiple inbox items sequentially (ensures FIFO order by createdAt). */

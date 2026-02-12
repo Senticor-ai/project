@@ -212,4 +212,115 @@ describe("ReferenceRow", () => {
       screen.getByLabelText("Drag Company style guide"),
     ).toBeInTheDocument();
   });
+
+  // -----------------------------------------------------------------------
+  // Linked action indicator (split-on-triage)
+  // -----------------------------------------------------------------------
+
+  it("shows linked action bucket badge when linkedActionBucket is set", () => {
+    const ref = createReferenceMaterial({
+      name: "Linked ref",
+      origin: "triaged",
+      encodingFormat: "application/pdf",
+    });
+    render(
+      <ReferenceRow
+        reference={ref}
+        onArchive={vi.fn()}
+        onSelect={vi.fn()}
+        linkedActionBucket="next"
+      />,
+    );
+    expect(screen.getByText("Next")).toBeInTheDocument();
+  });
+
+  it("does not show linked action badge when linkedActionBucket is absent", () => {
+    const ref = createReferenceMaterial({
+      name: "Standalone ref",
+      origin: "triaged",
+    });
+    render(
+      <ReferenceRow reference={ref} onArchive={vi.fn()} onSelect={vi.fn()} />,
+    );
+    // "Next" badge should not appear
+    expect(screen.queryByText("Next")).not.toBeInTheDocument();
+  });
+
+  // -----------------------------------------------------------------------
+  // File view + download links
+  // -----------------------------------------------------------------------
+
+  it("shows view link for browser-viewable format (PDF)", () => {
+    const ref = createReferenceMaterial({
+      name: "Annual report",
+      encodingFormat: "application/pdf",
+      downloadUrl: "/files/file-123",
+    });
+    render(
+      <ReferenceRow reference={ref} onArchive={vi.fn()} onSelect={vi.fn()} />,
+    );
+    const link = screen.getByLabelText("View file");
+    expect(link).toBeInTheDocument();
+    expect(link.tagName).toBe("A");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).not.toHaveAttribute("download");
+    expect(link).toHaveAttribute(
+      "href",
+      expect.stringContaining("/files/file-123?inline=true"),
+    );
+  });
+
+  it("shows download link when downloadUrl is set", () => {
+    const ref = createReferenceMaterial({
+      name: "Annual report",
+      encodingFormat: "application/pdf",
+      downloadUrl: "/files/file-123",
+    });
+    render(
+      <ReferenceRow reference={ref} onArchive={vi.fn()} onSelect={vi.fn()} />,
+    );
+    const link = screen.getByLabelText("Download file");
+    expect(link).toBeInTheDocument();
+    expect(link.tagName).toBe("A");
+    expect(link).toHaveAttribute("download");
+  });
+
+  it("does not show view link for non-viewable format (DOCX)", () => {
+    const ref = createReferenceMaterial({
+      name: "Word doc",
+      encodingFormat:
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      downloadUrl: "/files/file-456",
+    });
+    render(
+      <ReferenceRow reference={ref} onArchive={vi.fn()} onSelect={vi.fn()} />,
+    );
+    expect(screen.queryByLabelText("View file")).not.toBeInTheDocument();
+    // Download should still be there
+    expect(screen.getByLabelText("Download file")).toBeInTheDocument();
+  });
+
+  it("shows view link for image formats", () => {
+    const ref = createReferenceMaterial({
+      name: "Photo",
+      encodingFormat: "image/png",
+      downloadUrl: "/files/file-789",
+    });
+    render(
+      <ReferenceRow reference={ref} onArchive={vi.fn()} onSelect={vi.fn()} />,
+    );
+    expect(screen.getByLabelText("View file")).toBeInTheDocument();
+  });
+
+  it("does not show any file links when downloadUrl is absent", () => {
+    const ref = createReferenceMaterial({
+      name: "Plain ref",
+      encodingFormat: "application/pdf",
+    });
+    render(
+      <ReferenceRow reference={ref} onArchive={vi.fn()} onSelect={vi.fn()} />,
+    );
+    expect(screen.queryByLabelText("View file")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Download file")).not.toBeInTheDocument();
+  });
 });

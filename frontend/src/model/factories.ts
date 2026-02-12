@@ -150,8 +150,16 @@ export function createProject(
 // Reference Material Factory
 // ---------------------------------------------------------------------------
 
+/** Overrides for createReferenceMaterial — accepts `projectId` (convenience) or `projectIds`. */
+type ReferenceMaterialOverrides = Partial<ReferenceMaterial> & {
+  name: string;
+} & {
+  /** Convenience: single project ID (wrapped into projectIds). */
+  projectId?: CanonicalId;
+};
+
 export function createReferenceMaterial(
-  overrides: Partial<ReferenceMaterial> & { name: string },
+  overrides: ReferenceMaterialOverrides,
 ): ReferenceMaterial {
   const id = overrides.id ?? createCanonicalId("reference", nextId());
   return {
@@ -166,6 +174,9 @@ export function createReferenceMaterial(
     ports: overrides.ports ?? [],
     needsEnrichment: overrides.needsEnrichment ?? false,
     confidence: overrides.confidence ?? "medium",
+    projectIds:
+      overrides.projectIds ??
+      (overrides.projectId ? [overrides.projectId] : []),
     encodingFormat: overrides.encodingFormat,
     url: overrides.url,
     origin: overrides.origin ?? "captured",

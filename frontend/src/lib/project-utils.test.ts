@@ -2,10 +2,12 @@ import { describe, it, expect, beforeEach } from "vitest";
 import {
   createAction,
   createProject,
+  createReferenceMaterial,
   resetFactoryCounter,
 } from "@/model/factories";
 import {
   getProjectActions,
+  getProjectReferences,
   getNextActionId,
   isProjectStalled,
 } from "./project-utils";
@@ -103,6 +105,41 @@ describe("getNextActionId", () => {
     const a2 = createAction({ name: "Second", sequenceOrder: 2 });
 
     expect(getNextActionId([a1, a2])).toBe(a1.id);
+  });
+});
+
+describe("getProjectReferences", () => {
+  it("returns references belonging to the project", () => {
+    const project = createProject({
+      name: "Tax Prep 2025",
+      desiredOutcome: "CPA handoff",
+    });
+    const r1 = createReferenceMaterial({
+      name: "W-2 Form.pdf",
+      projectId: project.id,
+    });
+    const r2 = createReferenceMaterial({
+      name: "1099-INT Schwab.pdf",
+      projectId: project.id,
+    });
+    const r3 = createReferenceMaterial({ name: "Unrelated doc" });
+
+    const result = getProjectReferences(project, [r1, r2, r3]);
+    expect(result).toHaveLength(2);
+    expect(result.map((r) => r.name)).toEqual([
+      "W-2 Form.pdf",
+      "1099-INT Schwab.pdf",
+    ]);
+  });
+
+  it("returns empty array when no references belong to the project", () => {
+    const project = createProject({
+      name: "Empty",
+      desiredOutcome: "TBD",
+    });
+    const r1 = createReferenceMaterial({ name: "Orphan doc" });
+
+    expect(getProjectReferences(project, [r1])).toEqual([]);
   });
 });
 

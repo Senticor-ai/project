@@ -4,6 +4,8 @@ resources:
   - ../../base
   - configmap.yaml
   - ingress.yaml
+  - secret.yaml
+  - secret-pubsub-sa.yaml
 
 images:
   - name: terminandoyo-backend
@@ -23,3 +25,5 @@ patches:
   - path: patches/frontend.yaml
   - path: patches/storybook.yaml
   - path: patches/postgres.yaml
+  - path: patches/backend-pubsub.yaml
+  - path: patches/worker-pubsub.yaml

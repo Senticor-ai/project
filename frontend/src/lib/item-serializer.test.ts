@@ -951,6 +951,30 @@ describe("buildTriagePatch", () => {
     expectPropertyValue(patch, "app:bucket", "reference");
   });
 
+  it("includes projectRefs when triaging to reference with projectId", () => {
+    const item = createInboxItem({ name: "W-2.pdf" });
+    const patch = buildTriagePatch(item, {
+      targetBucket: "reference",
+      projectId: "urn:tay:project:tax2025" as CanonicalId,
+    });
+
+    expect(patch["@type"]).toBe("CreativeWork");
+    expectPropertyValue(patch, "app:bucket", "reference");
+    expectPropertyValue(patch, "app:projectRefs", ["urn:tay:project:tax2025"]);
+  });
+
+  it("omits projectRefs when triaging to reference without projectId", () => {
+    const item = createInboxItem({ name: "Random doc" });
+    const patch = buildTriagePatch(item, { targetBucket: "reference" });
+
+    const props = patch.additionalProperty as Array<{
+      propertyID: string;
+    }>;
+    expect(
+      props.find((p) => p.propertyID === "app:projectRefs"),
+    ).toBeUndefined();
+  });
+
   it("includes energy level as additionalProperty", () => {
     const item = createInboxItem({ name: "Task" });
     const patch = buildTriagePatch(item, {
@@ -2472,6 +2496,7 @@ describe("buildNewFileReferenceJsonLd", () => {
     expect(ld.encodingFormat).toBe("application/pdf");
     expect(ld.name).toBe("Presupuesto.pdf");
     expectPropertyValue(ld, "app:bucket", "reference");
+    expectPropertyValue(ld, "app:origin", "triaged");
     expectPropertyValue(ld, "app:confidence", "high");
     expectPropertyValue(ld, "app:fileId", "file-123");
     expectPropertyValue(ld, "app:downloadUrl", "/files/file-123");
@@ -2516,5 +2541,149 @@ describe("buildReadActionTriagePatch", () => {
     // File-specific props cleared
     expectPropertyValue(patch, "app:fileId", null);
     expectPropertyValue(patch, "app:downloadUrl", null);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Reference projectIds round-trip
+// ---------------------------------------------------------------------------
+
+describe("reference projectIds", () => {
+  beforeEach(() => resetFactoryCounter());
+
+  const PROJECT_ID = "urn:tay:project:tax2025" as CanonicalId;
+
+  it("fromJsonLd extracts projectIds from CreativeWork reference", () => {
+    const record = wrapAsItemRecord({
+      "@id": "urn:app:reference:r1",
+      "@type": "CreativeWork",
+      _schemaVersion: 2,
+      name: "W-2 Form.pdf",
+      keywords: [],
+      dateCreated: "2026-01-01T00:00:00Z",
+      dateModified: "2026-01-01T00:00:00Z",
+      additionalProperty: [
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:bucket",
+          value: "reference",
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:projectRefs",
+          value: [PROJECT_ID],
+        },
+      ],
+    });
+    const item = fromJsonLd(record) as ReferenceMaterial;
+    expect(item.bucket).toBe("reference");
+    expect(item.projectIds).toEqual([PROJECT_ID]);
+  });
+
+  it("fromJsonLd extracts projectIds from DigitalDocument reference", () => {
+    const record = wrapAsItemRecord({
+      "@id": "urn:app:reference:r2",
+      "@type": "DigitalDocument",
+      _schemaVersion: 2,
+      name: "1099-INT.pdf",
+      keywords: [],
+      encodingFormat: "application/pdf",
+      dateCreated: "2026-01-01T00:00:00Z",
+      dateModified: "2026-01-01T00:00:00Z",
+      additionalProperty: [
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:bucket",
+          value: "reference",
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:projectRefs",
+          value: [PROJECT_ID],
+        },
+      ],
+    });
+    const item = fromJsonLd(record) as ReferenceMaterial;
+    expect(item.bucket).toBe("reference");
+    expect(item.projectIds).toEqual([PROJECT_ID]);
+  });
+
+  it("fromJsonLd defaults projectIds to empty array", () => {
+    const record = wrapAsItemRecord({
+      "@id": "urn:app:reference:r3",
+      "@type": "CreativeWork",
+      _schemaVersion: 2,
+      name: "Unlinked doc",
+      keywords: [],
+      dateCreated: "2026-01-01T00:00:00Z",
+      dateModified: "2026-01-01T00:00:00Z",
+      additionalProperty: [
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:bucket",
+          value: "reference",
+        },
+      ],
+    });
+    const item = fromJsonLd(record) as ReferenceMaterial;
+    expect(item.projectIds).toEqual([]);
+  });
+
+  it("toJsonLd serializes projectIds for reference material", () => {
+    const ref = createReferenceMaterial({
+      name: "W-2 Form.pdf",
+      projectId: PROJECT_ID,
+    });
+    const ld = toJsonLd(ref);
+    expectPropertyValue(ld, "app:projectRefs", [PROJECT_ID]);
+  });
+
+  it("toJsonLd omits projectRefs when empty", () => {
+    const ref = createReferenceMaterial({ name: "Orphan doc" });
+    const ld = toJsonLd(ref);
+    expect(getProp(ld, "app:projectRefs")).toBeUndefined();
+  });
+
+  it("buildNewFileReferenceJsonLd propagates sourceItem projectIds", async () => {
+    const { buildNewFileReferenceJsonLd } = await import("./item-serializer");
+    resetFactoryCounter();
+
+    const sourceItem = createAction({
+      name: "W-2.pdf",
+      bucket: "inbox",
+      projectId: PROJECT_ID,
+      fileId: "file-w2",
+      downloadUrl: "/files/file-w2",
+      captureSource: {
+        kind: "file",
+        fileName: "W-2.pdf",
+        mimeType: "application/pdf",
+      },
+    });
+
+    const sourceRecord = wrapAsItemRecord({
+      "@type": "DigitalDocument",
+      "@id": sourceItem.id,
+      _schemaVersion: 2,
+      name: "W-2.pdf",
+      encodingFormat: "application/pdf",
+      dateCreated: "2026-01-01T00:00:00Z",
+      dateModified: "2026-01-01T00:00:00Z",
+    });
+
+    const ld = buildNewFileReferenceJsonLd(sourceItem, sourceRecord);
+    expectPropertyValue(ld, "app:projectRefs", [PROJECT_ID]);
+  });
+
+  it("buildNewReferenceJsonLd includes projectRefs when provided", () => {
+    const ld = buildNewReferenceJsonLd("Tax Receipt", {
+      projectId: PROJECT_ID,
+    });
+    expectPropertyValue(ld, "app:projectRefs", [PROJECT_ID]);
+  });
+
+  it("buildNewReferenceJsonLd defaults projectRefs to empty", () => {
+    const ld = buildNewReferenceJsonLd("Random Note");
+    expectPropertyValue(ld, "app:projectRefs", []);
   });
 });

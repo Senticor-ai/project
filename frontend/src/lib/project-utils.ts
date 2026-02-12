@@ -1,4 +1,4 @@
-import type { ActionItem, Project } from "@/model/types";
+import type { ActionItem, Project, ReferenceMaterial } from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
 
 /** Returns things belonging to a project, sorted by sequenceOrder. */
@@ -19,6 +19,14 @@ export function getNextActionId(
 ): CanonicalId | null {
   const next = sortedActionItems.find((t) => !t.completedAt);
   return next?.id ?? null;
+}
+
+/** Returns references belonging to a project. */
+export function getProjectReferences(
+  project: Project,
+  allReferences: ReferenceMaterial[],
+): ReferenceMaterial[] {
+  return allReferences.filter((r) => r.projectIds.includes(project.id));
 }
 
 /** Checks if a project is "stalled" (active but has no incomplete actions). */

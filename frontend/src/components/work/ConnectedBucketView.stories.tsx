@@ -8,6 +8,8 @@ import {
   seedMixedBuckets,
   seedMixedBucketsWithEmail,
   seedMixedBucketsWithFiles,
+  seedReadActionSplit,
+  seedProjectWithReferences,
 } from "@/test/msw/fixtures";
 import type { Bucket } from "@/model/types";
 
@@ -430,6 +432,116 @@ export const InboxWithEmail: Story = {
     await step("Verify email mail icon is visible", async () => {
       const mailIcons = canvas.getAllByText("mail");
       expect(mailIcons.length).toBeGreaterThanOrEqual(2);
+    });
+  },
+};
+
+// ---------------------------------------------------------------------------
+// ReadActionSplit — split-on-triage: ReadAction in Next + DigitalDocument in Reference
+// ---------------------------------------------------------------------------
+
+export const ReadActionSplit: Story = {
+  args: { activeBucket: "next", onBucketChange: fn() },
+  beforeEach: () => {
+    seedReadActionSplit();
+  },
+  render: () => <ConnectedBucketViewDemo initialBucket="next" />,
+  play: async ({ canvas, userEvent, step }) => {
+    await step(
+      "Verify ReadAction appears in Next with clickable 'Read' subtitle",
+      async () => {
+        await waitFor(() => {
+          expect(canvas.getByText("BSI-TR-03183-2.pdf")).toBeInTheDocument();
+        }, WAIT);
+        await waitFor(() => {
+          expect(canvas.getByLabelText("Go to reference")).toBeInTheDocument();
+        }, WAIT);
+      },
+    );
+
+    await step(
+      "Click 'Go to reference' to navigate to Reference bucket",
+      async () => {
+        await userEvent.click(canvas.getByLabelText("Go to reference"));
+        await waitFor(() => {
+          expect(canvas.getByText("BSI-TR-03183-2.pdf")).toBeInTheDocument();
+          expect(canvas.getByText("Triaged")).toBeInTheDocument();
+        }, WAIT);
+      },
+    );
+
+    await step(
+      "Verify linked bucket badge and file view/download links in Reference",
+      async () => {
+        const main = within(
+          canvas.getByRole("main", { name: "Bucket content" }),
+        );
+        await waitFor(() => {
+          expect(main.getByText("Next")).toBeInTheDocument();
+        }, WAIT);
+        expect(main.getByLabelText("View file")).toBeInTheDocument();
+        expect(main.getByLabelText("Download file")).toBeInTheDocument();
+      },
+    );
+  },
+};
+
+// ---------------------------------------------------------------------------
+// ProjectViewWithReferences — project shows file chips for linked references
+// ---------------------------------------------------------------------------
+
+export const ProjectViewWithReferences: Story = {
+  args: { activeBucket: "project", onBucketChange: fn() },
+  beforeEach: () => {
+    seedProjectWithReferences();
+  },
+  render: () => <ConnectedBucketViewDemo initialBucket="project" />,
+  play: async ({ canvas, userEvent, step }) => {
+    await step("Verify tax project appears", async () => {
+      await waitFor(() => {
+        expect(canvas.getByText("Steuererklärung 2025")).toBeInTheDocument();
+      }, WAIT);
+    });
+
+    await step("Expand tax project to see file chips", async () => {
+      await userEvent.click(
+        canvas.getByLabelText("Expand Steuererklärung 2025"),
+      );
+      await waitFor(() => {
+        expect(canvas.getByText("W-2 Form.pdf")).toBeInTheDocument();
+        expect(canvas.getByText("1099-INT Schwab.pdf")).toBeInTheDocument();
+      }, WAIT);
+    });
+
+    await step("Verify project action also appears", async () => {
+      expect(canvas.getByText("Belege sortieren")).toBeInTheDocument();
+    });
+  },
+};
+
+// ---------------------------------------------------------------------------
+// ReferenceWithProjectBadge — reference list shows project badge
+// ---------------------------------------------------------------------------
+
+export const ReferenceWithProjectBadge: Story = {
+  args: { activeBucket: "reference", onBucketChange: fn() },
+  beforeEach: () => {
+    seedProjectWithReferences();
+  },
+  render: () => <ConnectedBucketViewDemo initialBucket="reference" />,
+  play: async ({ canvas, step }) => {
+    await step("Verify reference items with project badge", async () => {
+      await waitFor(() => {
+        expect(canvas.getByText("W-2 Form.pdf")).toBeInTheDocument();
+        expect(canvas.getByText("1099-INT Schwab.pdf")).toBeInTheDocument();
+      }, WAIT);
+      // Project badge should show on linked references
+      const badges = canvas.getAllByText("Steuererklärung 2025");
+      expect(badges.length).toBeGreaterThanOrEqual(2);
+    });
+
+    await step("Verify unlinked reference has no project badge", async () => {
+      expect(canvas.getByText("General notes")).toBeInTheDocument();
     });
   },
 };
