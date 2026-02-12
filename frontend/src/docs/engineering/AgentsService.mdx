@@ -1,0 +1,268 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Engineering/Agents Service" />
+
+# Agents Service
+
+The agents service is a stateless FastAPI application (port 8002) that runs the Tay GTD
+copilot. It uses a [Haystack](https://haystack.deepset.ai/) Agent with OpenRouter for LLM
+inference and tool calling. For the high-level system context see
+[Architecture](?path=/docs/engineering-architecture--docs). For LLM cache, traces, and
+evaluation see [LLM Evaluation](?path=/docs/engineering-llm-evaluation--docs).
+
+**Core design principle**: The LLM only *suggests* — it never creates items directly. Tool
+functions are no-ops that return their arguments as JSON. Actual item creation happens via
+the backend API after the user explicitly accepts the suggestion in the chat UI.
+
+---
+
+## Directory Structure
+
+```
+agents/
+├── app.py                    # FastAPI entry point (lifespan, endpoints)
+├── tay.py                    # Haystack Agent factory, tools, system prompt
+├── backend_client.py         # HTTP client for backend POST /items
+├── tool_executor.py          # Tool call dispatch and execution
+├── jsonld_builders.py        # JSON-LD item serialization (mirrors frontend)
+├── llm_cache.py              # CachedTracedChatGenerator (cache + traces)
+├── tracing.py                # OpenTelemetry instrumentation (optional)
+├── pyproject.toml            # Dependencies (Python >=3.12)
+├── prompts/
+│   └── de/tay_system.j2     # System prompt template (German, Jinja2)
+└── tests/
+    ├── test_app.py           # HTTP layer + agent integration
+    ├── test_backend_client.py
+    ├── test_tool_executor.py
+    └── test_jsonld_builders.py
+```
+
+---
+
+## Endpoints
+
+| Method | Path | Auth | Description |
+| ------ | ---- | ---- | ----------- |
+| `GET` | `/health` | None | Health check (`{"status": "ok"}`) |
+| `POST` | `/chat/completions` | None | Run Haystack Agent, return text + optional toolCalls |
+| `POST` | `/execute-tool` | Delegated JWT | Dispatch approved tool call, create items via backend |
+
+The backend proxies all requests to these endpoints — the frontend never calls the agents
+service directly.
+
+---
+
+## Request Flow
+
+Two separate flows handle chat and tool execution:
+
+### 1. Chat Completion (LLM suggestion)
+
+```
+Frontend                     Backend                      Agents
+   │                            │                            │
+   ├─ POST /chat/completions ──►│                            │
+   │                            ├─ POST /chat/completions ──►│
+   │                            │                            ├─ Haystack Agent
+   │                            │                            │  └─ OpenRouter LLM
+   │                            │                            │     (cached + traced)
+   │                            │◄── { text, toolCalls[] } ──┤
+   │◄── { text, toolCalls[] } ──┤                            │
+```
+
+The backend is a thin proxy — it forwards the request to agents and returns the response.
+No auth context is needed for chat completions (the agents service doesn't validate sessions).
+
+### 2. Tool Execution (after user accepts)
+
+```
+Frontend                     Backend                      Agents                    Backend
+   │                            │                            │                         │
+   ├─ POST /chat/execute-tool ─►│                            │                         │
+   │                            ├─ create delegated JWT      │                         │
+   │                            ├─ POST /execute-tool ──────►│                         │
+   │                            │   + auth: { token, orgId } │                         │
+   │                            │                            ├─ build JSON-LD          │
+   │                            │                            ├─ POST /items ──────────►│
+   │                            │                            │   (Bearer: delegated JWT)│
+   │                            │                            │◄── { canonical_id } ────┤
+   │                            │◄── { createdItems[] } ─────┤                         │
+   │◄── { createdItems[] } ─────┤                            │                         │
+```
+
+The backend creates a short-lived delegated JWT, forwards it to agents, and agents use it
+to call back to the backend's `POST /items` endpoint on behalf of the user.
+
+---
+
+## Model Fallback
+
+`AGENT_MODEL` is a comma-separated list of OpenRouter model IDs. The `run_agent()` function
+tries each model in order until one succeeds:
+
+```python
+# .env
+AGENT_MODEL=deepseek/deepseek-v3.2,openai/gpt-4o-mini
+```
+
+If a model fails (rate limit, timeout, error), the next model is tried. If all models fail,
+the endpoint returns HTTP 500.
+
+---
+
+## Delegated JWT Authentication
+
+Session cookies are HTTP-only and can't be forwarded across service boundaries. Instead,
+the backend creates a short-lived delegated JWT for agent-to-backend calls.
+
+**Token creation** (`backend/app/delegation.py`):
+
+| Claim | Value | Purpose |
+| ----- | ----- | ------- |
+| `iss` | `"terminandoyo-backend"` | Issuer |
+| `aud` | `"terminandoyo-backend"` | Audience (self-issued) |
+| `sub` | User UUID | Item ownership |
+| `org` | Org UUID | Organization context |
+| `act.sub` | `"tay"` | Identifies the acting agent (audit trail) |
+| `scope` | `"items:write"` | Permitted operations |
+| `token_type` | `"delegated"` | Distinguishes from user session tokens |
+| `exp` | Now + 60s | Short TTL to minimize exposure |
+
+**Signing**: HS256 with `DELEGATION_JWT_SECRET` (falls back to `JWT_SECRET`).
+
+The agents service sends this token as `Authorization: Bearer {token}` plus `X-Agent: tay`
+when calling `POST /items`.
+
+---
+
+## Tool Execution Pipeline
+
+When the user accepts a suggestion, `tool_executor.py` dispatches by tool name using a
+`match` statement:
+
+### `create_project_with_actions`
+
+1. Build project JSON-LD → `POST /items` → get `project_id`
+2. For each action: build action JSON-LD (linked to `project_id`) → `POST /items`
+3. For each document: build reference JSON-LD → `POST /items`
+4. Return all created item refs
+
+### `create_action`
+
+1. Build action JSON-LD (optionally linked to `projectId`) → `POST /items`
+
+### `create_reference`
+
+1. Build reference JSON-LD (optional `url`, `description`) → `POST /items`
+
+### JSON-LD Builders (`jsonld_builders.py`)
+
+Each builder produces JSON-LD matching the frontend's `item-serializer.ts` format:
+
+- Schema version: 2
+- Canonical IDs: `urn:app:{type}:{uuid}`
+- Capture source: `{"kind": "tay", "conversationId": "..."}`
+- Provenance history: `[{"timestamp": "...", "action": "created"}]`
+- Type mapping: Project → `"Project"`, Action → `"Action"`, Reference → `"CreativeWork"`
+
+---
+
+## Backend Proxy (`backend/app/chat/routes.py`)
+
+The backend proxies all chat requests to the agents service. Both endpoints require
+authentication (session cookie).
+
+| Endpoint | Proxy Target | Auth Context | Timeout |
+| -------- | ------------ | ------------ | ------- |
+| `POST /chat/completions` | `{AGENTS_URL}/chat/completions` | None (forwarded as-is) | 60s |
+| `POST /chat/execute-tool` | `{AGENTS_URL}/execute-tool` | Delegated JWT + orgId | 60s |
+
+**Error handling**:
+
+| Status | Condition |
+| ------ | --------- |
+| 401 | Not authenticated (session missing/expired) |
+| 503 | `AGENTS_URL` not configured |
+| 502 | Agents service unreachable or returned error |
+| 504 | Agents service timeout (>60s) |
+
+---
+
+## Configuration
+
+### Agents Service
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `AGENT_MODEL` | `openai/gpt-4o-mini` | Comma-separated OpenRouter model IDs (fallback chain) |
+| `OPENROUTER_API_KEY` | *required* | OpenRouter API authentication |
+| `OPENROUTER_APP_URL` | `""` | Sent as `HTTP-Referer` header to OpenRouter |
+| `OPENROUTER_APP_TITLE` | `TerminAndoYo` | Sent as `X-Title` header to OpenRouter |
+| `BACKEND_URL` | `http://localhost:8000` | Backend API base URL (for POST /items calls) |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | *(unset)* | OTLP collector endpoint; tracing disabled if absent |
+
+### Backend (for proxy)
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `AGENTS_URL` | *(unset)* | Agents service URL; endpoints return 503 if absent |
+| `DELEGATION_JWT_SECRET` | `JWT_SECRET` | Secret for signing delegated tokens |
+| `DELEGATION_JWT_TTL_SECONDS` | `60` | Delegated token lifetime in seconds |
+
+---
+
+## OpenTelemetry (`tracing.py`)
+
+Tracing is optional and gracefully degrades when not configured:
+
+- **Enabled**: When `OTEL_EXPORTER_OTLP_ENDPOINT` is set
+- **Disabled**: Silently skipped (no error, no import failures)
+- **Instruments**: FastAPI (automatic spans per request) + httpx (W3C traceparent propagation to backend)
+- **Shutdown**: Flushes pending spans on app shutdown via lifespan handler
+
+This mirrors the backend's `tracing.py` pattern.
+
+---
+
+## Running the Service
+
+```bash
+# Development (from monorepo root)
+cd agents && uv run uvicorn app:app --host 0.0.0.0 --port 8002
+
+# Tests
+cd agents && uv run python -m pytest tests/
+
+# Type check + lint
+cd agents && uv run ruff check . && uv run mypy .
+cd agents && uv run ruff format --check .
+```
+
+For E2E testing, `scripts/e2e-stack.sh` starts the agents service automatically on port 8002
+alongside the backend and frontend.
+
+---
+
+## Dependencies
+
+| Package | Purpose |
+| ------- | ------- |
+| `haystack-ai` | LLM orchestration, Agent framework, tool definitions |
+| `fastapi` + `uvicorn[standard]` | Web framework + ASGI server |
+| `httpx` | Async HTTP client (backend API calls) |
+| `jinja2` | System prompt templating |
+| `python-dotenv` | Environment variable loading from `.env` |
+| `opentelemetry-sdk` | Distributed tracing (optional) |
+| `opentelemetry-exporter-otlp-proto-http` | OTLP exporter |
+| `opentelemetry-instrumentation-fastapi` | Auto-instrument FastAPI |
+| `opentelemetry-instrumentation-httpx` | Propagate traceparent to backend |
+
+Python requirement: `>=3.12`
+
+---
+
+## Related Documentation
+
+- [Architecture](?path=/docs/engineering-architecture--docs) — C4 diagrams, system context, technology stack
+- [LLM Evaluation](?path=/docs/engineering-llm-evaluation--docs) — Golden dataset, LLM cache, trace files, evaluation layers
+- [Testing](?path=/docs/engineering-testing--docs) — Test layers, isolation, patterns

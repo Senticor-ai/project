@@ -395,7 +395,7 @@ describe("DigitalDocument and EmailMessage items in action buckets", () => {
     expect(emailItem?.bucket).toBe("waiting");
   });
 
-  it("useReferences does NOT include DigitalDocument in non-inbox bucket", async () => {
+  it("useReferences does NOT include DigitalDocument in action bucket", async () => {
     mockedItems.sync.mockResolvedValue(
       makeSyncPage([DIGITAL_DOC_NEXT, REFERENCE_RECORD], false),
     );
@@ -406,9 +406,84 @@ describe("DigitalDocument and EmailMessage items in action buckets", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    // Only the CreativeWork reference, not the DigitalDocument
+    // Only the CreativeWork reference, not the DigitalDocument in "next"
     expect(result.current.data).toHaveLength(1);
     expect(result.current.data[0]?.name).toBe("Style guide");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// DigitalDocument in reference bucket (split-on-triage result)
+// ---------------------------------------------------------------------------
+
+describe("DigitalDocument in reference bucket", () => {
+  const DIGITAL_DOC_REFERENCE = makeRecord({
+    item: {
+      "@type": "DigitalDocument",
+      "@id": "urn:app:reference:split-pdf1",
+      _schemaVersion: 2,
+      name: "Bekanntmachung.pdf",
+      keywords: [],
+      encodingFormat: "application/pdf",
+      dateCreated: "2026-01-01T00:00:00Z",
+      dateModified: "2026-01-01T00:00:00Z",
+      additionalProperty: [
+        pvFixture("app:bucket", "reference"),
+        pvFixture("app:needsEnrichment", false),
+        pvFixture("app:confidence", "high"),
+        pvFixture("app:captureSource", {
+          kind: "file",
+          fileName: "Bekanntmachung.pdf",
+          mimeType: "application/pdf",
+        }),
+        pvFixture("app:ports", []),
+        pvFixture("app:typedReferences", []),
+        pvFixture("app:provenanceHistory", [
+          {
+            timestamp: "2026-01-01T00:00:00Z",
+            action: "created",
+            splitFrom: "urn:app:inbox:orig-1",
+          },
+        ]),
+      ],
+    },
+  });
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it("useReferences includes DigitalDocument with app:bucket=reference", async () => {
+    mockedItems.sync.mockResolvedValue(
+      makeSyncPage([DIGITAL_DOC_REFERENCE, REFERENCE_RECORD], false),
+    );
+
+    const { result } = renderHook(() => useReferences(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(result.current.data).toHaveLength(2);
+    const names = result.current.data.map((r) => r.name);
+    expect(names).toContain("Bekanntmachung.pdf");
+    expect(names).toContain("Style guide");
+  });
+
+  it("useActions does NOT include DigitalDocument with app:bucket=reference", async () => {
+    mockedItems.sync.mockResolvedValue(
+      makeSyncPage([DIGITAL_DOC_REFERENCE, ACTION_RECORD], false),
+    );
+
+    const { result } = renderHook(() => useActions(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    // Only the Action, not the DigitalDocument in reference bucket
+    expect(result.current.data).toHaveLength(1);
+    expect(result.current.data[0]?.name).toBe("Buy milk");
   });
 });
 

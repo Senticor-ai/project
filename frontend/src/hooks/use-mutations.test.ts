@@ -668,20 +668,40 @@ describe("useMoveAction", () => {
     ]);
   });
 
-  it("promotes @type to Action when moving DigitalDocument to next", async () => {
+  it("splits DigitalDocument from inbox to next into ReadAction + reference", async () => {
     const digitalDocRecord = makeRecord({
       item_id: "tid-doc-1",
       canonical_id: "urn:app:inbox:doc1",
       item: {
         "@type": "DigitalDocument",
         "@id": "urn:app:inbox:doc1",
+        _schemaVersion: 2,
         name: "report.pdf",
+        encodingFormat: "application/pdf",
         additionalProperty: [
           pv("app:bucket", "inbox"),
           pv("app:isFocused", false),
+          pv("app:captureSource", {
+            kind: "file",
+            fileName: "report.pdf",
+            mimeType: "application/pdf",
+          }),
+          pv("app:contexts", []),
+          pv("app:ports", []),
+          pv("app:typedReferences", []),
+          pv("app:provenanceHistory", []),
+          pv("app:confidence", "medium"),
+          pv("app:needsEnrichment", false),
         ],
       },
     });
+    // create returns the reference record
+    const refRecord = makeRecord({
+      item_id: "ref-1",
+      canonical_id: "urn:app:reference:ref1",
+      item: { "@type": "DigitalDocument", "@id": "urn:app:reference:ref1" },
+    });
+    mocked.create.mockResolvedValue(refRecord);
     mocked.update.mockResolvedValue(digitalDocRecord);
 
     const { result } = renderHook(() => useMoveAction(), {
@@ -696,11 +716,21 @@ describe("useMoveAction", () => {
     );
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    // Should have created a reference
+    expect(mocked.create).toHaveBeenCalledTimes(1);
+    const [refJsonLd, source] = mocked.create.mock.calls[0]!;
+    expect(source).toBe("auto-split");
+    expect((refJsonLd as Record<string, unknown>)["@type"]).toBe(
+      "DigitalDocument",
+    );
+
+    // Should have patched to ReadAction
     const [, patch] = mocked.update.mock.calls[0]!;
-    expect(patch["@type"]).toBe("Action");
-    expect(patch.additionalProperty).toEqual([
-      { "@type": "PropertyValue", propertyID: "app:bucket", value: "next" },
-    ]);
+    expect((patch as Record<string, unknown>)["@type"]).toBe("ReadAction");
+    expect((patch as Record<string, unknown>).object).toEqual({
+      "@id": "urn:app:reference:ref1",
+    });
   });
 
   it("promotes @type to CreativeWork when moving inbox item to reference", async () => {

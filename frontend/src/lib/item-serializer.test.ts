@@ -1383,6 +1383,82 @@ describe("fromJsonLd — intake classification types in inbox", () => {
     expect(item.needsEnrichment).toBe(true);
   });
 
+  it("deserializes DigitalDocument with app:bucket=reference as ReferenceMaterial", () => {
+    const record = wrapAsItemRecord({
+      "@id": "urn:app:reference:split-1",
+      "@type": "DigitalDocument",
+      _schemaVersion: 2,
+      name: "Bekanntmachung.pdf",
+      description: null,
+      keywords: [],
+      encodingFormat: "application/pdf",
+      dateCreated: "2026-01-01T00:00:00.000Z",
+      dateModified: "2026-01-01T00:00:00.000Z",
+      additionalProperty: [
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:bucket",
+          value: "reference",
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:needsEnrichment",
+          value: false,
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:confidence",
+          value: "high",
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:captureSource",
+          value: {
+            kind: "file",
+            fileName: "Bekanntmachung.pdf",
+            mimeType: "application/pdf",
+          },
+        },
+        { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:typedReferences",
+          value: [],
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:provenanceHistory",
+          value: [
+            {
+              timestamp: "2026-01-01T00:00:00.000Z",
+              action: "created",
+              splitFrom: "urn:app:inbox:orig-1",
+            },
+          ],
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:fileId",
+          value: "file-abc",
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:downloadUrl",
+          value: "/files/download/file-abc",
+        },
+      ],
+    });
+
+    const item = fromJsonLd(record);
+    expect(item.bucket).toBe("reference");
+    expect(item.name).toBe("Bekanntmachung.pdf");
+    // Should be a ReferenceMaterial shape (with encodingFormat), not an ActionItem
+    const ref = item as ReferenceMaterial;
+    expect(ref.encodingFormat).toBe("application/pdf");
+    expect(ref.fileId).toBe("file-abc");
+    expect(ref.downloadUrl).toBe("/files/download/file-abc");
+  });
+
   it("deserializes EmailMessage as inbox ActionItem with email captureSource", () => {
     const record = wrapAsItemRecord({
       "@id": "urn:app:email:abc123",

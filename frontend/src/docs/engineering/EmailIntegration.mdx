@@ -82,14 +82,32 @@ Gmail mailbox change
 ```
 
 The watch worker (`python -m app.email.watch_worker --loop`) runs as a
-separate process alongside the projection worker. It groups notifications by
-email address, deduplicates, and enqueues one `email_sync_job` per account.
+separate process alongside the projection worker. It is included in `npm run dev`
+(`dev:stack`) and starts automatically. It groups notifications by email address,
+deduplicates, and enqueues one `email_sync_job` per account.
+
+**Startup behavior**: On startup, the watch worker automatically registers watches
+for any active connections that don't have one yet (`register_missing_watches()`).
+This means connections created before Pub/Sub was configured get watches
+automatically — no need to disconnect and reconnect Gmail.
 
 Gmail watches expire after ~7 days. The watch worker periodically checks for
 expiring watches (within 12 hours of expiry) and renews them automatically.
 
+**Auto-detection**: Pub/Sub is enabled when all three required env vars are set:
+`GMAIL_PUBSUB_PROJECT_ID`, `GMAIL_PUBSUB_SUBSCRIPTION`, and
+`GMAIL_PUBSUB_CREDENTIALS_FILE`. There is no separate feature flag — if the
+config is present, watch is active. If not, the watch worker exits gracefully.
+
 The Settings UI shows the current sync method: **"Echtzeit-Sync (Push)"** when
 watch is active, or **"Polling alle X Min."** when falling back to polling only.
+
+### Startup Sync
+
+On every restart, the projection worker immediately enqueues sync jobs for
+**all active email connections** via `enqueue_all_active_syncs()`, regardless of
+when the last sync ran. This ensures new emails appear in the inbox within
+seconds of `npm run dev`.
 
 ### Fallback: Periodic Polling (every 5 min)
 
@@ -164,27 +182,64 @@ no longer in the inbox get archived. This handles connectivity gaps longer than
 ### 2. Set Up Pub/Sub (for real-time notifications)
 
 > This step is optional. Without Pub/Sub, email sync falls back to periodic
-> polling every 5 minutes.
+> polling every 5 minutes (plus immediate sync on startup).
+
+#### Automated Setup (Ansible)
+
+An Ansible playbook creates all GCP resources idempotently — topic, subscription,
+service account, IAM bindings, and credentials file:
+
+```bash
+ansible-playbook infra/gcp-pubsub.yml -e gcp_project=<your-gcp-project-id>
+```
+
+The playbook:
+1. Creates the Pub/Sub topic (`gmail-push`)
+2. Grants `gmail-api-push@system.gserviceaccount.com` Publisher role on the topic
+3. Creates a pull subscription (`gmail-push-sub`) with 30s ack deadline
+4. Creates a service account (`gmail-push-sub@<project>.iam.gserviceaccount.com`)
+5. Grants Subscriber role on the subscription
+6. Downloads the service account JSON key to `tmp/<project>-pubsub-sa.json`
+7. Prints the `.env` variables to add
+
+Re-run safely at any time — all tasks are idempotent.
+
+#### Validation
+
+Verify the configuration without making changes:
+
+```bash
+./scripts/validate-pubsub.sh
+```
+
+Checks: credentials file, topic exists, Gmail publisher IAM, subscription exists
+and points to correct topic, service account subscriber IAM. Prints fix commands
+for any failures.
+
+#### Manual Setup
+
+If you prefer manual setup or need to customize resource names:
 
 1. Enable **Gmail API** and **Cloud Pub/Sub API** in GCP Console
 2. Create a Pub/Sub topic:
    ```bash
-   gcloud pubsub topics create gmail-notifications
+   gcloud pubsub topics create gmail-push --project=<project>
    ```
 3. Grant Gmail permission to publish to the topic:
    ```bash
-   gcloud pubsub topics add-iam-policy-binding gmail-notifications \
+   gcloud pubsub topics add-iam-policy-binding projects/<project>/topics/gmail-push \
      --member="serviceAccount:gmail-api-push@system.gserviceaccount.com" \
-     --role="roles/pubsub.publisher"
+     --role="roles/pubsub.publisher" --project=<project>
    ```
 4. Create a pull subscription:
    ```bash
-   gcloud pubsub subscriptions create gmail-notifications-pull \
-     --topic=gmail-notifications --ack-deadline=60
+   gcloud pubsub subscriptions create gmail-push-sub \
+     --topic=gmail-push --ack-deadline=30 --project=<project>
    ```
-5. Create a service account with **Pub/Sub Subscriber** role and download
-   the JSON key file
-6. Set `GMAIL_WATCH_ENABLED=true` and the `GMAIL_PUBSUB_*` env vars (see below)
+5. Create a service account with **Pub/Sub Subscriber** role on the subscription
+   and download the JSON key file
+6. Set the `GMAIL_PUBSUB_*` env vars (see below) — no feature flag needed,
+   Pub/Sub is auto-detected from config presence
 
 ### 3. Generate Encryption Keys
 
@@ -216,12 +271,11 @@ ENCRYPTION_KEY=<generated-fernet-key>
 # Frontend URL (OAuth callback redirects here after success)
 FRONTEND_BASE_URL=http://localhost:5173
 
-# Gmail Watch + Pub/Sub (optional — enables real-time sync)
-GMAIL_WATCH_ENABLED=false
+# Gmail Watch + Pub/Sub (optional — auto-detected when all vars are set)
 GMAIL_PUBSUB_PROJECT_ID=<your-gcp-project-id>
-GMAIL_PUBSUB_TOPIC=gmail-notifications
-GMAIL_PUBSUB_SUBSCRIPTION=gmail-notifications-pull
-GMAIL_PUBSUB_CREDENTIALS_FILE=/path/to/service-account.json
+GMAIL_PUBSUB_TOPIC=projects/<your-gcp-project-id>/topics/gmail-push
+GMAIL_PUBSUB_SUBSCRIPTION=gmail-push-sub
+GMAIL_PUBSUB_CREDENTIALS_FILE=tmp/<project>-pubsub-sa.json
 ```
 
 #### Kubernetes Production
@@ -231,10 +285,9 @@ Non-secret values go in the **ConfigMap** (`infra/k8s/overlays/production/config
 ```yaml
 GMAIL_REDIRECT_URI: "https://<your-domain>/api/email/oauth/gmail/callback"
 FRONTEND_BASE_URL: "https://<your-domain>"
-GMAIL_WATCH_ENABLED: "true"
 GMAIL_PUBSUB_PROJECT_ID: "<your-gcp-project-id>"
-GMAIL_PUBSUB_TOPIC: "gmail-notifications"
-GMAIL_PUBSUB_SUBSCRIPTION: "gmail-notifications-pull"
+GMAIL_PUBSUB_TOPIC: "projects/<your-gcp-project-id>/topics/gmail-push"
+GMAIL_PUBSUB_SUBSCRIPTION: "gmail-push-sub"
 GMAIL_PUBSUB_CREDENTIALS_FILE: "/etc/secrets/pubsub/credentials.json"
 ```
 
@@ -279,9 +332,17 @@ via the `GMAIL_SCOPES` environment variable.
 | `app/email/sync.py` | Sync orchestrator (Gmail API history → parse → upsert → archive) + watch lifecycle + reconciliation |
 | `app/email/transform.py` | EmailMessage dataclass + `build_email_item()` JSON-LD transform |
 | `app/email/pubsub.py` | Pub/Sub pull client (service account auth, message parsing) |
-| `app/email/watch_worker.py` | Dedicated Pub/Sub pull loop process |
+| `app/email/watch_worker.py` | Dedicated Pub/Sub pull loop process (started by `dev:stack`) |
 | `app/email/imap_client.py` | Generic IMAP client (see IMAP section below) |
 | `app/crypto.py` | Fernet encryption/decryption for OAuth tokens at rest |
+
+### Infrastructure
+
+| File | Purpose |
+|------|---------|
+| `infra/gcp-pubsub.yml` | Ansible playbook — creates topic, subscription, SA, IAM bindings |
+| `scripts/validate-pubsub.sh` | Validates Pub/Sub config (credentials, topic, subscription, IAM) |
+| `scripts/start_watch_worker.sh` | Watch worker startup script (used by `dev:stack`) |
 
 ### Frontend Components
 
@@ -352,6 +413,10 @@ If a second email provider is needed, the recommended approach is:
 | "internal_failure" from Google | OAuth consent screen in "Testing" mode; user not in test list | Add your Google account to test users, or publish the app |
 | Stale items after reconnect | History expired during disconnect period (>7 days) | Full-sync fallback + reconciliation handles this automatically |
 | Archive not syncing to Gmail | Check worker logs for `sync_email_archive:` entries | Verify connection is active, token valid, gmailMessageId present |
+| Watch worker exits immediately | Pub/Sub env vars not set | Set `GMAIL_PUBSUB_PROJECT_ID`, `GMAIL_PUBSUB_SUBSCRIPTION`, `GMAIL_PUBSUB_CREDENTIALS_FILE`; or run `ansible-playbook infra/gcp-pubsub.yml` |
+| Watch worker auth error | Service account missing Subscriber role | Run `./scripts/validate-pubsub.sh` and apply suggested fix commands |
+| Push notifications not arriving | Gmail can't publish to topic | Verify `gmail-api-push@system.gserviceaccount.com` has Publisher role: `./scripts/validate-pubsub.sh` |
+| No emails on restart | Startup sync didn't trigger | Check worker logs for `enqueue_all_active_syncs`; verify active connection exists |
 
 ---
 

@@ -70,11 +70,14 @@ export function useChatState() {
           // Add suggestion cards for tool calls
           if (response.toolCalls) {
             for (const tc of response.toolCalls) {
+              // Ensure `type` discriminator is set — some LLMs omit it
+              // from arguments even though it's in the tool name.
+              const args = { ...tc.arguments, type: tc.name };
               const suggestion: TaySuggestionMessage = {
                 id: generateId(),
                 role: "tay",
                 kind: "suggestion",
-                suggestion: tc.arguments as TaySuggestion,
+                suggestion: args as TaySuggestion,
                 status: "pending",
                 timestamp: new Date().toISOString(),
               };

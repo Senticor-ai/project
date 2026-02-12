@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from .config import settings
 from .db import db_conn, jsonb
 from .email.sync import (
+    enqueue_all_active_syncs,
     enqueue_due_syncs,
     register_watch,
     run_email_sync,
@@ -646,6 +647,12 @@ def main() -> None:
     # Periodic email sync reconciliation (every 5 min)
     email_sync_interval = 300.0  # 5 minutes
     last_email_sync_check = 0.0
+
+    # Sync all active email connections immediately on startup
+    try:
+        enqueue_all_active_syncs()
+    except Exception:
+        logger.warning("outbox.startup_sync_failed", exc_info=True)
 
     logger.info("outbox.loop_started", batch_size=batch_size, interval_seconds=interval)
     try:

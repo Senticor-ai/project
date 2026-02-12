@@ -1,0 +1,182 @@
+---
+# Ansible playbook: Set up Gmail Pub/Sub infrastructure
+#
+# Creates topic, subscription, service account, and IAM bindings
+# needed for Gmail push notifications via Pub/Sub.
+#
+# Uses gcloud CLI (no ADC required — works with `gcloud auth login`).
+#
+# Usage:
+#   ansible-playbook infra/gcp-pubsub.yml -e gcp_project=procedere
+#
+# Re-run safely — all tasks are idempotent.
+
+- name: Gmail Pub/Sub setup
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    gcp_project: "{{ gcp_project }}"
+    topic_name: gmail-push
+    subscription_name: gmail-push-sub
+    service_account_name: gmail-push-sub
+    credentials_dest: "{{ playbook_dir }}/../tmp/{{ gcp_project }}-pubsub-sa.json"
+    gmail_publisher: "serviceAccount:gmail-api-push@system.gserviceaccount.com"
+    sa_email: "{{ service_account_name }}@{{ gcp_project }}.iam.gserviceaccount.com"
+    sa_member: "serviceAccount:{{ sa_email }}"
+    full_topic: "projects/{{ gcp_project }}/topics/{{ topic_name }}"
+    full_sub: "projects/{{ gcp_project }}/subscriptions/{{ subscription_name }}"
+
+  tasks:
+    # ── 1. Pub/Sub topic ────────────────────────────────────────────────
+    - name: Check if topic exists
+      ansible.builtin.command:
+        cmd: "gcloud pubsub topics describe {{ full_topic }} --project={{ gcp_project }} --format=value(name)"
+      register: topic_check
+      changed_when: false
+      failed_when: false
+
+    - name: Create Pub/Sub topic
+      ansible.builtin.command:
+        cmd: "gcloud pubsub topics create {{ topic_name }} --project={{ gcp_project }}"
+      when: topic_check.rc != 0
+      changed_when: true
+
+    - name: Topic status
+      ansible.builtin.debug:
+        msg: "{{ 'Created' if topic_check.rc != 0 else 'Exists' }}: {{ full_topic }}"
+
+    # ── 2. Gmail publish permission on topic ────────────────────────────
+    - name: Check Gmail publisher IAM binding
+      ansible.builtin.command:
+        cmd: "gcloud pubsub topics get-iam-policy {{ full_topic }} --project={{ gcp_project }} --format=json"
+      register: topic_iam_raw
+      changed_when: false
+
+    - name: Parse topic IAM policy
+      ansible.builtin.set_fact:
+        topic_has_gmail_publisher: >-
+          {{
+            (topic_iam_raw.stdout | from_json).get('bindings', [])
+            | selectattr('role', 'equalto', 'roles/pubsub.publisher')
+            | map(attribute='members')
+            | flatten
+            | select('equalto', gmail_publisher)
+            | list
+            | length > 0
+          }}
+
+    - name: Grant Gmail publisher role on topic
+      ansible.builtin.command:
+        cmd: >-
+          gcloud pubsub topics add-iam-policy-binding {{ full_topic }}
+          --member={{ gmail_publisher }}
+          --role=roles/pubsub.publisher
+          --project={{ gcp_project }}
+      when: not topic_has_gmail_publisher
+      changed_when: true
+
+    # ── 3. Pub/Sub subscription ─────────────────────────────────────────
+    - name: Check if subscription exists
+      ansible.builtin.command:
+        cmd: "gcloud pubsub subscriptions describe {{ full_sub }} --project={{ gcp_project }} --format=value(name)"
+      register: sub_check
+      changed_when: false
+      failed_when: false
+
+    - name: Create Pub/Sub subscription
+      ansible.builtin.command:
+        cmd: >-
+          gcloud pubsub subscriptions create {{ subscription_name }}
+          --topic={{ topic_name }}
+          --ack-deadline=30
+          --project={{ gcp_project }}
+      when: sub_check.rc != 0
+      changed_when: true
+
+    - name: Subscription status
+      ansible.builtin.debug:
+        msg: "{{ 'Created' if sub_check.rc != 0 else 'Exists' }}: {{ full_sub }}"
+
+    # ── 4. Service account ──────────────────────────────────────────────
+    - name: Check if service account exists
+      ansible.builtin.command:
+        cmd: "gcloud iam service-accounts describe {{ sa_email }} --project={{ gcp_project }} --format=value(email)"
+      register: sa_check
+      changed_when: false
+      failed_when: false
+
+    - name: Create service account
+      ansible.builtin.command:
+        cmd: >-
+          gcloud iam service-accounts create {{ service_account_name }}
+          --display-name="Gmail Push Subscriber"
+          --project={{ gcp_project }}
+      when: sa_check.rc != 0
+      changed_when: true
+
+    - name: Service account status
+      ansible.builtin.debug:
+        msg: "{{ 'Created' if sa_check.rc != 0 else 'Exists' }}: {{ sa_email }}"
+
+    # ── 5. Subscriber permission on subscription ────────────────────────
+    - name: Check subscriber IAM binding
+      ansible.builtin.command:
+        cmd: "gcloud pubsub subscriptions get-iam-policy {{ full_sub }} --project={{ gcp_project }} --format=json"
+      register: sub_iam_raw
+      changed_when: false
+
+    - name: Parse subscription IAM policy
+      ansible.builtin.set_fact:
+        sub_has_subscriber: >-
+          {{
+            (sub_iam_raw.stdout | from_json).get('bindings', [])
+            | selectattr('role', 'equalto', 'roles/pubsub.subscriber')
+            | map(attribute='members')
+            | flatten
+            | select('equalto', sa_member)
+            | list
+            | length > 0
+          }}
+
+    - name: Grant subscriber role on subscription
+      ansible.builtin.command:
+        cmd: >-
+          gcloud pubsub subscriptions add-iam-policy-binding {{ full_sub }}
+          --member={{ sa_member }}
+          --role=roles/pubsub.subscriber
+          --project={{ gcp_project }}
+      when: not sub_has_subscriber
+      changed_when: true
+
+    # ── 6. Service account key ──────────────────────────────────────────
+    - name: Check if credentials file exists
+      ansible.builtin.stat:
+        path: "{{ credentials_dest }}"
+      register: creds_file
+
+    - name: Create service account key
+      ansible.builtin.command:
+        cmd: >-
+          gcloud iam service-accounts keys create {{ credentials_dest }}
+          --iam-account={{ sa_email }}
+          --project={{ gcp_project }}
+      when: not creds_file.stat.exists
+      changed_when: true
+
+    - name: Protect credentials file
+      ansible.builtin.file:
+        path: "{{ credentials_dest }}"
+        mode: "0600"
+
+    # ── 7. Summary ──────────────────────────────────────────────────────
+    - name: Print .env configuration
+      ansible.builtin.debug:
+        msg: |
+          Add to .env:
+
+          GMAIL_PUBSUB_PROJECT_ID={{ gcp_project }}
+          GMAIL_PUBSUB_TOPIC={{ full_topic }}
+          GMAIL_PUBSUB_SUBSCRIPTION={{ subscription_name }}
+          GMAIL_PUBSUB_CREDENTIALS_FILE=tmp/{{ gcp_project }}-pubsub-sa.json

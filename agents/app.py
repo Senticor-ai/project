@@ -115,6 +115,26 @@ async def health():
     return {"status": "ok"}
 
 
+def _find_assistant_message(result: dict) -> ChatMessage:
+    """Extract the last assistant message from agent result.
+
+    When the Haystack Agent exits on a tool-name exit condition, it executes
+    the tool's no-op function and ``result["last_message"]`` is the *tool
+    result* (role=tool).  The actual LLM message with text and tool_calls is
+    one step earlier in ``result["messages"]``.
+    """
+    last = result["last_message"]
+    if last.tool_calls:
+        return last  # Already the assistant message (text exit condition)
+
+    # Search backwards for the assistant message with tool_calls
+    for msg in reversed(result.get("messages", [])):
+        if msg.tool_calls:
+            return msg
+
+    return last  # Fallback: pure-text reply
+
+
 async def run_agent(message: str) -> ChatMessage:
     """Run the Haystack agent with model fallback.
 
@@ -128,7 +148,7 @@ async def run_agent(message: str) -> ChatMessage:
         try:
             agent = create_agent(model)
             result = await agent.run_async(messages=[user_msg])
-            return result["last_message"]
+            return _find_assistant_message(result)
         except Exception as exc:
             last_error = exc
             logger.warning("Model %s failed: %s. Trying next model...", model, exc)

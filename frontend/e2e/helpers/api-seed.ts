@@ -199,6 +199,52 @@ export class ApiSeed {
     return json.item_id;
   }
 
+  /** Create a DigitalDocument inbox item via API (simulates file drop). Returns the item_id. */
+  async createDigitalDocumentInboxItem(
+    name: string,
+    options?: { encodingFormat?: string },
+  ): Promise<string> {
+    const id = `urn:app:inbox:${crypto.randomUUID()}`;
+    const now = new Date().toISOString();
+    const encodingFormat = options?.encodingFormat ?? "application/pdf";
+
+    const response = await this.request.post("/api/items", {
+      data: {
+        source: "manual",
+        item: {
+          "@id": id,
+          "@type": "DigitalDocument",
+          _schemaVersion: 2,
+          name,
+          description: null,
+          keywords: [],
+          encodingFormat,
+          dateCreated: now,
+          dateModified: now,
+          additionalProperty: [
+            pv("app:bucket", "inbox"),
+            pv("app:needsEnrichment", true),
+            pv("app:confidence", "medium"),
+            pv("app:captureSource", {
+              kind: "file",
+              fileName: name,
+              mimeType: encodingFormat,
+            }),
+            pv("app:contexts", []),
+            pv("app:isFocused", false),
+            pv("app:ports", []),
+            pv("app:typedReferences", []),
+            pv("app:provenanceHistory", [
+              { timestamp: now, action: "created" },
+            ]),
+          ],
+        },
+      },
+    });
+    const json = await response.json();
+    return json.item_id;
+  }
+
   /** Create multiple inbox items sequentially (ensures FIFO order by createdAt). */
   async createInboxItems(titles: string[]): Promise<string[]> {
     const ids: string[] = [];

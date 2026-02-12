@@ -128,13 +128,53 @@ def renew_expiring_watches(buffer_hours: int = 12) -> int:
     return renewed
 
 
+def register_missing_watches() -> int:
+    """Register watches for active connections that don't have one yet.
+
+    Called once on startup so connections created before Pub/Sub was
+    configured get watches automatically (no need to re-connect Gmail).
+    """
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT connection_id, org_id
+                FROM email_connections
+                WHERE is_active = true
+                  AND watch_expiration IS NULL
+                """,
+            )
+            rows = cur.fetchall()
+
+    registered = 0
+    for row in rows:
+        try:
+            register_watch(str(row["connection_id"]), str(row["org_id"]))
+            registered += 1
+            logger.info(
+                "watch_worker.registered_missing connection=%s",
+                row["connection_id"],
+            )
+        except Exception:
+            logger.warning(
+                "watch_worker.register_missing_failed connection=%s",
+                row["connection_id"],
+                exc_info=True,
+            )
+
+    return registered
+
+
 def run_loop(
     poll_seconds: float = 5.0,
     renew_buffer_hours: int = 12,
 ) -> None:
     """Main worker loop — pull notifications and renew watches."""
-    if not settings.gmail_watch_enabled:
-        logger.info("watch_worker.disabled (GMAIL_WATCH_ENABLED=false)")
+    if not settings.gmail_watch_configured:
+        logger.info(
+            "watch_worker.not_configured — set GMAIL_PUBSUB_PROJECT_ID, "
+            "GMAIL_PUBSUB_SUBSCRIPTION, and GMAIL_PUBSUB_CREDENTIALS_FILE to enable"
+        )
         return
 
     creds_file = settings.gmail_pubsub_credentials_file
@@ -154,7 +194,17 @@ def run_loop(
         credentials_file=creds_file,
     )
 
-    # Check for watch renewals every 10 minutes
+    # Register watches for connections that never had one
+    try:
+        registered = register_missing_watches()
+        if registered:
+            logger.info("watch_worker.startup_registrations count=%d", registered)
+    except Exception:
+        logger.exception("watch_worker.startup_registration_failed")
+
+    # Check for watch renewals every 10 minutes.
+    # last_renew_check=0.0 with time.monotonic() ensures the first check
+    # runs immediately on the first loop iteration (intentional).
     renew_interval = 600.0
     last_renew_check = 0.0
 

@@ -114,6 +114,11 @@ cleanup() {
     kill "$AGENTS_PID" 2>/dev/null || true
     wait "$AGENTS_PID" 2>/dev/null || true
   fi
+  # Kill any orphaned uvicorn workers on the agents port
+  stale_agents=$(lsof -ti ":$AGENTS_PORT" 2>/dev/null || true)
+  if [ -n "$stale_agents" ]; then
+    echo "$stale_agents" | xargs kill -9 2>/dev/null || true
+  fi
   if [ -n "$WORKER_PID" ]; then
     kill "$WORKER_PID" 2>/dev/null || true
     wait "$WORKER_PID" 2>/dev/null || true
@@ -167,6 +172,16 @@ echo "[e2e] Schema applied."
 export DATABASE_URL="postgresql://${PG_USER}:${PG_PASSWORD}@${PG_HOST}:${PG_PORT}/${E2E_DB}"
 export AGENTS_URL="http://localhost:${AGENTS_PORT}"
 mkdir -p "$ROOT_DIR/storage-e2e"
+
+# Kill stale processes on E2E ports (uvicorn workers may survive parent kill)
+for port in "$BACKEND_PORT" "$AGENTS_PORT" "$FRONTEND_PORT"; do
+  stale_pids=$(lsof -ti ":$port" 2>/dev/null || true)
+  if [ -n "$stale_pids" ]; then
+    echo "[e2e] Killing stale process(es) on port $port..."
+    echo "$stale_pids" | xargs kill -9 2>/dev/null || true
+    sleep 1
+  fi
+done
 
 # ── Step 6: Start backend ────────────────────────────────────────────
 echo "[e2e] Starting backend on :$BACKEND_PORT..."

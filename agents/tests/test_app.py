@@ -115,6 +115,57 @@ def test_chat_error_handling(client: TestClient):
 # ---------------------------------------------------------------------------
 
 
+class TestFindAssistantMessage:
+    """Test _find_assistant_message extracts the right message from agent results."""
+
+    def test_text_reply_returned_directly(self):
+        """Pure text reply — last_message is already the assistant message."""
+        from app import _find_assistant_message
+
+        reply = ChatMessage.from_assistant("Hallo!")
+        result = {"last_message": reply, "messages": [reply]}
+
+        assert _find_assistant_message(result) is reply
+
+    def test_tool_exit_returns_assistant_with_tool_calls(self):
+        """Tool exit condition — last_message is tool result, but assistant msg has tool_calls."""
+        from app import _find_assistant_message
+
+        # Simulate Haystack Agent result when exiting on tool name
+        assistant_msg = ChatMessage.from_assistant(
+            "Hier mein Vorschlag:",
+            tool_calls=[
+                ToolCall(
+                    tool_name="create_action",
+                    arguments={"name": "Test", "bucket": "next"},
+                ),
+            ],
+        )
+        tool_result_msg = ChatMessage.from_tool(
+            tool_result='{"name": "Test", "bucket": "next"}',
+            origin=assistant_msg.tool_calls[0],
+        )
+
+        result = {
+            "last_message": tool_result_msg,
+            "messages": [assistant_msg, tool_result_msg],
+        }
+
+        found = _find_assistant_message(result)
+        assert found is assistant_msg
+        assert found.tool_calls is not None
+        assert found.tool_calls[0].tool_name == "create_action"
+
+    def test_fallback_when_no_messages(self):
+        """No messages list — falls back to last_message."""
+        from app import _find_assistant_message
+
+        reply = ChatMessage.from_assistant("Fallback")
+        result = {"last_message": reply}
+
+        assert _find_assistant_message(result) is reply
+
+
 class TestModelFallback:
     """Test that run_agent tries multiple models when earlier ones fail."""
 
@@ -131,7 +182,7 @@ class TestModelFallback:
             call_count += 1
             if call_count == 1:
                 raise RuntimeError("Model unavailable")
-            return {"last_message": reply}
+            return {"last_message": reply, "messages": [reply]}
 
         mock_agent = AsyncMock()
         mock_agent.run_async = _mock_run_async
@@ -168,7 +219,9 @@ class TestModelFallback:
         reply = ChatMessage.from_assistant("Sofort!")
 
         mock_agent = AsyncMock()
-        mock_agent.run_async = AsyncMock(return_value={"last_message": reply})
+        mock_agent.run_async = AsyncMock(
+            return_value={"last_message": reply, "messages": [reply]},
+        )
         create_agent_mock = patch("app.create_agent", return_value=mock_agent)
 
         with patch("app.MODELS", ["model-a", "model-b"]), create_agent_mock as ca_mock:
@@ -177,6 +230,43 @@ class TestModelFallback:
         assert result.text == "Sofort!"
         # create_agent called only once (for model-a)
         ca_mock.assert_called_once_with("model-a")
+
+    @pytest.mark.anyio
+    async def test_tool_exit_extracts_assistant_message(self):
+        """Agent exits on tool name — run_agent returns assistant msg, not tool result."""
+        from app import run_agent
+
+        assistant_msg = ChatMessage.from_assistant(
+            "Hier ist dein Projekt:",
+            tool_calls=[
+                ToolCall(
+                    tool_name="create_project_with_actions",
+                    arguments={"project": {"name": "Test"}, "actions": []},
+                ),
+            ],
+        )
+        tool_result = ChatMessage.from_tool(
+            tool_result="{}",
+            origin=assistant_msg.tool_calls[0],
+        )
+
+        mock_agent = AsyncMock()
+        mock_agent.run_async = AsyncMock(
+            return_value={
+                "last_message": tool_result,
+                "messages": [assistant_msg, tool_result],
+            },
+        )
+
+        with (
+            patch("app.MODELS", ["model-a"]),
+            patch("app.create_agent", return_value=mock_agent),
+        ):
+            result = await run_agent("Erstelle ein Projekt")
+
+        assert result.tool_calls is not None
+        assert result.tool_calls[0].tool_name == "create_project_with_actions"
+        assert result.text == "Hier ist dein Projekt:"
 
 
 # ---------------------------------------------------------------------------

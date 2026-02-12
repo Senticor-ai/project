@@ -538,7 +538,7 @@ def register_watch(connection_id: str, org_id: str) -> dict | None:
 
     Returns the watch response dict or None if watch is not enabled.
     """
-    if not settings.gmail_watch_enabled:
+    if not settings.gmail_watch_configured:
         return None
 
     topic = settings.gmail_pubsub_topic
@@ -651,6 +651,42 @@ def stop_watch_for_connection(connection_id: str, org_id: str) -> None:
 # ---------------------------------------------------------------------------
 # Periodic reconciliation
 # ---------------------------------------------------------------------------
+
+
+def enqueue_all_active_syncs() -> int:
+    """Enqueue sync for ALL active connections, ignoring interval.
+
+    Used on worker startup to ensure emails are fetched immediately
+    regardless of when the last sync happened.
+
+    Returns the number of events enqueued.
+    """
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT connection_id, org_id, user_id
+                FROM email_connections
+                WHERE is_active = true AND sync_interval_minutes > 0
+                """,
+            )
+            rows = cur.fetchall()
+
+    count = 0
+    for row in rows:
+        enqueue_event(
+            "email_sync_job",
+            {
+                "connection_id": str(row["connection_id"]),
+                "org_id": str(row["org_id"]),
+                "user_id": str(row["user_id"]),
+            },
+        )
+        count += 1
+
+    if count:
+        logger.info("Startup: enqueued %d email sync jobs", count)
+    return count
 
 
 def enqueue_due_syncs() -> int:

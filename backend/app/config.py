@@ -111,8 +111,7 @@ class Settings:
     # Delegated JWT (agent On-Behalf-Of flows)
     delegation_jwt_secret: str
     delegation_jwt_ttl_seconds: int
-    # Gmail Watch + Pub/Sub
-    gmail_watch_enabled: bool
+    # Gmail Watch + Pub/Sub (auto-detected from config presence)
     gmail_pubsub_project_id: str
     gmail_pubsub_topic: str
     gmail_pubsub_subscription: str
@@ -120,6 +119,15 @@ class Settings:
     gmail_watch_renew_buffer_hours: int
     gmail_watch_worker_poll_seconds: float
     gmail_watch_worker_health_port: int
+
+    @property
+    def gmail_watch_configured(self) -> bool:
+        """Auto-detect: watch is enabled when all required Pub/Sub vars are set."""
+        return bool(
+            self.gmail_pubsub_project_id
+            and self.gmail_pubsub_subscription
+            and self.gmail_pubsub_credentials_file
+        )
 
 
 def _build_database_url() -> str:
@@ -243,9 +251,9 @@ def load_settings() -> Settings:
         ),
         cors_methods=[
             m.strip()
-            for m in (
-                _get_env("CORS_METHODS", "GET,POST,PUT,PATCH,DELETE,OPTIONS") or ""
-            ).split(",")
+            for m in (_get_env("CORS_METHODS", "GET,POST,PUT,PATCH,DELETE,OPTIONS") or "").split(
+                ","
+            )
             if m.strip()
         ],
         cors_headers=[
@@ -277,8 +285,7 @@ def load_settings() -> Settings:
         gmail_state_secret=_get_env("GMAIL_STATE_SECRET", "") or "",
         frontend_base_url=_get_env("FRONTEND_BASE_URL", "http://localhost:5173")
         or "http://localhost:5173",
-        # Gmail Watch + Pub/Sub
-        gmail_watch_enabled=_get_bool_env("GMAIL_WATCH_ENABLED", False),
+        # Gmail Watch + Pub/Sub (auto-detected from config presence)
         gmail_pubsub_project_id=_get_env("GMAIL_PUBSUB_PROJECT_ID", "") or "",
         gmail_pubsub_topic=_get_env("GMAIL_PUBSUB_TOPIC", "") or "",
         gmail_pubsub_subscription=_get_env("GMAIL_PUBSUB_SUBSCRIPTION", "") or "",

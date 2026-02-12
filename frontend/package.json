@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:stack": "dotenv -e ../.env -- concurrently -k -n backend,worker,agents,frontend,storybook -c blue,magenta,yellow,green,cyan \"bash ../scripts/start_backend.sh\" \"bash ../scripts/start_worker.sh\" \"bash ../scripts/start_agents.sh\" \"bash ../scripts/start_frontend.sh\" \"bash ../scripts/start_storybook.sh\"",
+    "dev:stack": "dotenv -e ../.env -- concurrently -k -n backend,worker,watch,agents,frontend,storybook -c blue,magenta,yellow,green,cyan,white \"bash ../scripts/start_backend.sh\" \"bash ../scripts/start_worker.sh\" \"bash ../scripts/start_watch_worker.sh\" \"bash ../scripts/start_agents.sh\" \"bash ../scripts/start_frontend.sh\" \"bash ../scripts/start_storybook.sh\"",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "storybook": "storybook dev -p 6006",

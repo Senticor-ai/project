@@ -1,0 +1,308 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Engineering/LLM Evaluation" />
+
+# LLM Evaluation
+
+This page documents the Tay agent architecture, tool definitions, observability infrastructure
+(cache + traces), and the golden dataset evaluation framework. For the agent service setup
+and configuration see [Agents Service](?path=/docs/engineering-agents-service--docs). For the
+general testing strategy see [Testing](?path=/docs/engineering-testing--docs).
+
+---
+
+## Agent Architecture
+
+Tay is a [Haystack](https://haystack.deepset.ai/) `Agent` that uses OpenRouter (OpenAI-compatible)
+for LLM inference with tool calling. The agent is defined in `agents/tay.py`.
+
+```
+Frontend                Backend                 Agents                  OpenRouter
+   │                       │                       │                       │
+   ├─ sendMessage ────────►│                       │                       │
+   │                       ├─ POST /chat/completions ─►│                   │
+   │                       │                       ├─ Agent.run_async() ──►│
+   │                       │                       │◄── tool_call ─────────┤
+   │                       │◄──────────────────────┤                       │
+   │◄── { text, toolCalls }┤                       │                       │
+   │                       │                       │                       │
+   │  [user accepts]       │                       │                       │
+   │                       │                       │                       │
+   ├─ acceptSuggestion ──►│                       │                       │
+   │                       ├─ POST /chat/execute-tool ►│                   │
+   │                       │  (+ delegated JWT)    │                       │
+   │                       │                       ├─ POST /items ────────►│ (backend)
+   │                       │◄──────────────────────┤                       │
+   │◄── confirmation ──────┤                       │                       │
+```
+
+**Key design**: The LLM only *suggests* — it never creates items directly. The user must
+explicitly accept each suggestion. Tool functions are no-ops that return their arguments as JSON;
+actual item creation happens via the backend API after user confirmation.
+
+### Agent Factory (`agents/tay.py`)
+
+```python
+def create_agent(model: str | None = None) -> Agent:
+    generator = CachedTracedChatGenerator(
+        api_key=Secret.from_env_var("OPENROUTER_API_KEY"),
+        model=model or MODELS[0],
+        api_base_url="https://openrouter.ai/api/v1",
+    )
+    return Agent(
+        chat_generator=generator,
+        tools=TOOLS,
+        system_prompt=SYSTEM_PROMPT,
+        exit_conditions=["text", "create_project_with_actions",
+                         "create_action", "create_reference"],
+    )
+```
+
+The `exit_conditions` include all three tool names — when the LLM calls a tool, the Agent
+exits immediately and returns the tool call to the frontend (instead of executing it server-side).
+
+### Model Fallback
+
+`AGENT_MODEL` is a comma-separated list of OpenRouter model IDs. The agents service tries each
+model in order until one succeeds. Default: `openai/gpt-4o-mini`.
+
+```bash
+# .env
+AGENT_MODEL=deepseek/deepseek-v3.2,openai/gpt-4o-mini
+```
+
+### System Prompt
+
+The system prompt is a Jinja2 template (`agents/prompts/de/tay_system.j2`) rendered with
+GTD bucket definitions. It instructs Tay to:
+
+1. Suggest, never execute directly — the user must confirm every action
+2. Use `create_project_with_actions` for complex goals with multiple steps
+3. Use `create_action` for single tasks
+4. Use `create_reference` for reference material (links, documents, notes)
+5. Respond in German, concisely
+6. Assign new actions to sensible GTD buckets (usually "next")
+
+---
+
+## Tool Definitions
+
+Three tools are available to the LLM. All tool functions are no-ops that return their arguments
+as JSON — actual item creation happens after user acceptance.
+
+### `create_project_with_actions`
+
+Create a project with associated actions and optional documents. Used for complex goals with
+multiple steps.
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `project.name` | string | Yes | Project name |
+| `project.desiredOutcome` | string | Yes | Desired outcome |
+| `actions[].name` | string | Yes | Action name |
+| `actions[].bucket` | enum | Yes | GTD bucket: `inbox`, `next`, `waiting`, `calendar`, `someday` |
+| `documents[].name` | string | Yes | Document name |
+| `documents[].description` | string | No | Document description |
+
+### `create_action`
+
+Create a single action/task.
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | Action name |
+| `bucket` | enum | Yes | GTD bucket |
+| `projectId` | string | No | Canonical ID of an existing project |
+
+### `create_reference`
+
+Create a reference item (link, document, note).
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | Reference name |
+| `description` | string | No | Description |
+| `url` | string | No | URL |
+
+### Type Discriminator Normalization
+
+All tool schemas include a `type` field with a `const` value matching the tool name. Some LLMs
+(notably DeepSeek) omit this field from their tool call arguments. The frontend normalizes this
+in `use-chat-state.ts`:
+
+```typescript
+// Ensure `type` discriminator is set — some LLMs omit it
+const args = { ...tc.arguments, type: tc.name };
+```
+
+This ensures the `TaySuggestion` discriminated union always has its `type` field set,
+regardless of LLM behavior.
+
+---
+
+## CachedTracedChatGenerator
+
+`agents/llm_cache.py` provides `CachedTracedChatGenerator`, a drop-in replacement for
+Haystack's `OpenAIChatGenerator` that adds file-based response caching and per-call trace logging.
+
+Every LLM call follows this flow:
+
+1. **Cache check** — compute SHA-256 of `model + messages + tool names`; if a cache file exists,
+   return it (0ms, no API call)
+2. **API call** — if no cache hit, call OpenRouter via the parent class
+3. **Cache write** — store the response for future identical requests
+4. **Trace write** — log a JSON trace file (always, whether cached or not)
+
+### Cache
+
+| Aspect | Detail |
+| ------ | ------ |
+| **Location** | `storage/llm_cache/{sha256_hash}.json` |
+| **Key** | SHA-256 of `{ model, messages, tools }` (JSON, sorted keys) |
+| **Format** | `{ model, cached_at, replies[] }` |
+| **TTL** | None — delete files when system prompt or tool schemas change |
+| **Scope** | Per-model, per-conversation (includes full message history) |
+
+**When to clear the cache**: Delete `storage/llm_cache/*.json` when you change the system prompt
+template, tool schemas, or bucket definitions. Cached responses reflect the old prompt/tools
+and may produce invalid suggestions.
+
+### Trace Files
+
+Every LLM call (cached or not) produces a JSON trace in `storage/traces/`.
+
+**File naming**: `YYYYMMdd_HHMMSS_microseconds_model.json`
+
+**Structure:**
+
+```json
+{
+  "timestamp": "2026-02-12T05:01:51.358053+00:00",
+  "model": "deepseek/deepseek-v3.2",
+  "duration_ms": 7859.5,
+  "cache_hit": false,
+  "request": { "messages": ["..."], "tools": ["..."] },
+  "response": { "replies": ["..."] }
+}
+```
+
+**Key fields for debugging:**
+
+| Field | Meaning |
+| ----- | ------- |
+| `cache_hit` | `true` = from cache (0ms), `false` = real API call |
+| `duration_ms` | API call duration (spot slow models) |
+| `request.messages` | Full conversation including system prompt |
+| `response.replies[].meta.usage` | Token counts + cost |
+| `response.replies[].meta.finish_reason` | `"tool_calls"` or `"stop"` |
+
+**Trace review workflow:**
+
+1. Run the test: `npm run test:e2e:llm`
+2. Check `storage/traces/` for the latest trace file
+3. Verify the LLM called the expected tool with reasonable arguments
+4. Check `cache_hit` to understand if the response was cached
+
+---
+
+## Golden Dataset
+
+The **golden dataset** (`e2e/fixtures/golden-prompts.ts`) is the single source of truth for
+Tay chat evaluation scenarios. Each scenario defines a prompt, expected tool call, canned
+response (for mocked tests), and workspace assertions (for both layers).
+
+```typescript
+interface GoldenScenario {
+  id: string;                    // unique slug (e.g. "birthday-planning")
+  description: string;           // human-readable test title
+  prompt: string;                // German user message sent to Tay
+  expectedToolCall: string;      // which tool should be called
+  cannedResponse: { ... };       // deterministic response for mocked tests
+  assertions: BucketAssertion[]; // what to verify in the workspace
+}
+```
+
+### Current Scenarios
+
+| ID | Prompt | Tool | Assertions |
+| -- | ------ | ---- | ---------- |
+| `birthday-planning` | "Ich plane eine Geburtstagsfeier und brauche Hilfe" | `create_project_with_actions` | Projects (structural), Next (structural) |
+| `umzug-planen` | "Erstelle mir bitte ein Projekt 'Umzug planen'..." | `create_project_with_actions` | Projects (exact), Next (structural) |
+
+### Adding a New Scenario
+
+1. **Define** the `GoldenScenario` entry in `e2e/fixtures/golden-prompts.ts`
+2. **Craft** the `cannedResponse` matching the `ChatCompletionResponse` shape (`text` + `toolCalls`)
+3. **Set assertions** per bucket — use `structural: true` for buckets where the LLM picks its
+   own item names
+4. **Run integration tests**: `npm run test:e2e` (verifies the canned response flow)
+5. **Run E2E tests**: `npm run test:e2e:llm` (verifies the real LLM produces structurally valid results)
+
+Both `tay-chat-mocked.spec.ts` and `tay-chat-llm.spec.ts` import from the golden dataset.
+Adding a new scenario automatically creates tests in both layers.
+
+---
+
+## Evaluation Layers
+
+### Integration vs E2E
+
+| Aspect | Integration (`*-mocked.spec.ts`) | E2E (`*-llm.spec.ts`) |
+| ------ | -------------------------------- | --------------------- |
+| **LLM** | Mocked via `page.route()` | Real via OpenRouter |
+| **Response** | Canned from golden dataset | Non-deterministic |
+| **Tool execution** | Real (backend -> agents -> items) | Real (backend -> agents -> items) |
+| **Assertions** | Exact text match | Structural (bucket non-empty) |
+| **Speed** | Fast (~5s per scenario) | Slow (~30-60s per scenario) |
+| **CI** | Always runs | Gated on `OPENROUTER_API_KEY` |
+| **Deterministic** | Yes | No |
+
+The integration test mocks **only** `/api/chat/completions` (the LLM inference call). The
+`/api/chat/execute-tool` call flows through the real stack, validating the full tool execution
+pipeline without LLM non-determinism.
+
+### Non-Deterministic Assertions
+
+Real LLM output varies between runs. Use **structural assertions** that verify the *shape*
+of the result rather than exact text:
+
+```typescript
+// WRONG: exact text match on LLM-generated content
+await expect(page.getByText("Umzugskartons besorgen")).toBeVisible();
+
+// CORRECT: structural assertion — bucket is non-empty
+const main = page.getByRole("main", { name: "Bucket content" });
+await expect(main).not.toContainText("is empty");
+
+// CORRECT: project name appears (was in the prompt, LLM echoes it)
+await expect(page.getByText("Umzug planen")).toBeVisible();
+```
+
+In the golden dataset, set `structural: true` on bucket assertions where the LLM picks its
+own item names. Project names from the prompt are safe to match exactly because the LLM
+echoes them.
+
+---
+
+## Running LLM Tests
+
+```bash
+# Integration tests (mocked LLM, always runs in CI)
+cd frontend && npm run test:e2e
+
+# E2E tests (real LLM, requires OPENROUTER_API_KEY + running services)
+cd frontend && npm run test:e2e:llm
+```
+
+---
+
+## Environment Configuration
+
+| Variable | Service | Description |
+| -------- | ------- | ----------- |
+| `AGENT_MODEL` | Agents | Comma-separated OpenRouter model IDs (fallback chain) |
+| `OPENROUTER_API_KEY` | Agents | OpenRouter API key for LLM inference |
+| `AGENT_BASE_URL` | Backend | URL of agents service (default: `http://localhost:8002`) |
+| `VITE_API_BASE_URL` | Frontend | Backend URL (default: `http://localhost:8000`) |
+| `OPENROUTER_APP_URL` | Agents | App URL sent in `HTTP-Referer` header to OpenRouter |
+| `OPENROUTER_APP_TITLE` | Agents | App name sent in `X-Title` header (default: `TerminAndoYo`) |

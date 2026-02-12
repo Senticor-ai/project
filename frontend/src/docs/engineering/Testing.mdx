@@ -355,6 +355,23 @@ workspace has loaded. Each test gets a fresh user with no data.
 
 ---
 
+## LLM & AI Testing
+
+Tay chat scenarios are tested at two layers: **integration** (mocked LLM, deterministic)
+and **E2E** (real LLM via OpenRouter, structural assertions). Both layers share a
+**golden dataset** (`e2e/fixtures/golden-prompts.ts`) as their single source of truth.
+
+For full documentation of the agent architecture, tool schemas, golden dataset format,
+LLM cache, trace files, and evaluation workflow, see the dedicated
+[LLM Evaluation](?path=/docs/engineering-llm-evaluation--docs) page.
+
+**Quick reference:**
+
+- Integration tests: `npm run test:e2e` (always runs in CI)
+- E2E tests: `npm run test:e2e:llm` (requires `OPENROUTER_API_KEY`)
+
+---
+
 ## Component Test Patterns
 
 ### Rendering with Providers

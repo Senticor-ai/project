@@ -193,6 +193,39 @@ describe("useChatState", () => {
       expect(suggestions[0]!.status).toBe("pending");
     });
 
+    it("infers suggestion type from tool name when missing in arguments", async () => {
+      // Some LLMs omit the `type` field from tool call arguments
+      mockApiSend.mockResolvedValueOnce({
+        text: "Vorschlag:",
+        toolCalls: [
+          {
+            name: "create_project_with_actions",
+            arguments: {
+              // no `type` field — LLM omitted it
+              project: {
+                name: "Geburtstagsfeier",
+                desiredOutcome: "Tolle Party",
+              },
+              actions: [{ name: "Gäste einladen", bucket: "next" }],
+            },
+          },
+        ],
+      } as ChatCompletionResponse);
+
+      const hook = renderHook(() => useChatState());
+
+      await sendAndWait(hook, "Geburtstag planen");
+
+      const suggestions = findByKind(
+        hook.result.current.messages,
+        "suggestion",
+      );
+      expect(suggestions).toHaveLength(1);
+      expect(suggestions[0]!.suggestion.type).toBe(
+        "create_project_with_actions",
+      );
+    });
+
     it("handles response with only toolCalls and no text", async () => {
       mockApiSend.mockResolvedValueOnce({
         text: "",

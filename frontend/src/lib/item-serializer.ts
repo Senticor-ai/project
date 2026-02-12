@@ -346,6 +346,24 @@ export function fromJsonLd(record: ItemRecord): AppItem {
     } satisfies CalendarEntry;
   }
 
+  // DigitalDocument in reference bucket → ReferenceMaterial (split-on-triage result)
+  if (type === "DigitalDocument") {
+    const bucket = getAdditionalProperty(props, "app:bucket") as string;
+    if (bucket === "reference") {
+      return {
+        ...base,
+        bucket: "reference" as const,
+        encodingFormat: (t.encodingFormat as string) || undefined,
+        url: (t.url as string) || undefined,
+        origin:
+          (getAdditionalProperty(props, "app:origin") as
+            | "triaged"
+            | "captured"
+            | "file") || undefined,
+      };
+    }
+  }
+
   if (type === "EmailMessage" || type === "DigitalDocument") {
     const bucket =
       (getAdditionalProperty(props, "app:bucket") as ActionItemBucket) ??

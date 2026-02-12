@@ -17,8 +17,10 @@ import {
   buildNewUrlInboxJsonLd,
   buildNewFileReferenceJsonLd,
   buildReadActionTriagePatch,
+  fromJsonLd,
 } from "@/lib/item-serializer";
 import { classifyText, classifyFile } from "@/lib/intake-classifier";
+import { isActionItem } from "@/model/types";
 import type { ActionItem, ActionItemBucket, TriageResult } from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
 import { ITEMS_QUERY_KEY } from "./use-items";
@@ -614,7 +616,16 @@ export function useToggleFocus() {
 export function useMoveAction() {
   const qc = useQueryClient();
   const savedMeta = useRef(
-    new Map<string, { itemId: string; needsPromotion: boolean }>(),
+    new Map<
+      string,
+      {
+        itemId: string;
+        needsPromotion: boolean;
+        shouldSplit?: boolean;
+        record?: ItemRecord;
+        actionItem?: ActionItem;
+      }
+    >(),
   );
 
   return useMutation({
@@ -628,6 +639,26 @@ export function useMoveAction() {
       const meta = savedMeta.current.get(canonicalId);
       const itemId = meta?.itemId ?? findItemId(qc, canonicalId);
       if (!itemId) throw new Error(`Item not found: ${canonicalId}`);
+
+      // Split path: DigitalDocument from inbox → action bucket
+      if (meta?.shouldSplit && meta.record && meta.actionItem) {
+        // 1. Create the reference (DigitalDocument in reference bucket)
+        const refJsonLd = buildNewFileReferenceJsonLd(
+          meta.actionItem,
+          meta.record,
+        );
+        const refRecord = await ItemsApi.create(refJsonLd, "auto-split");
+        // 2. Patch existing item → ReadAction with object ref
+        const triageResult: TriageResult = {
+          targetBucket: bucket as TriageResult["targetBucket"],
+        };
+        const patch = buildReadActionTriagePatch(
+          meta.actionItem,
+          triageResult,
+          refRecord.canonical_id as CanonicalId,
+        );
+        return ItemsApi.update(itemId, patch);
+      }
 
       const needsPromotion =
         meta?.needsPromotion ?? needsTypePromotion(qc, canonicalId, bucket);
@@ -649,12 +680,49 @@ export function useMoveAction() {
     onMutate: async ({ canonicalId, bucket }) => {
       const itemId = findItemId(qc, canonicalId);
       const needsPromotion = needsTypePromotion(qc, canonicalId, bucket);
+      const doSplit = shouldSplitOnTriage(qc, canonicalId, bucket);
+      const record = doSplit ? findRecord(qc, canonicalId) : undefined;
+      const actionItem =
+        doSplit && record
+          ? (() => {
+              const item = fromJsonLd(record);
+              return isActionItem(item) ? item : undefined;
+            })()
+          : undefined;
+
       if (itemId)
-        savedMeta.current.set(canonicalId, { itemId, needsPromotion });
+        savedMeta.current.set(canonicalId, {
+          itemId,
+          needsPromotion,
+          shouldSplit: doSplit,
+          record,
+          actionItem,
+        });
 
       const prev = await snapshotActive(qc);
+
+      if (doSplit && record) {
+        // Optimistically add a reference record to the cache
+        const refJsonLd =
+          actionItem && buildNewFileReferenceJsonLd(actionItem, record);
+        if (refJsonLd) {
+          const now = new Date().toISOString();
+          const optimisticRef: ItemRecord = {
+            item_id: `temp-ref-${Date.now()}`,
+            canonical_id: refJsonLd["@id"] as string,
+            source: "auto-split",
+            item: refJsonLd,
+            created_at: now,
+            updated_at: now,
+          };
+          addToCache(qc, ACTIVE_KEY, optimisticRef);
+        }
+        // Promote type to ReadAction
+        promoteTypeInCache(qc, canonicalId, "ReadAction");
+      }
+
       updateBucketInCache(qc, canonicalId, bucket);
-      if (needsPromotion) {
+      if (!doSplit && needsPromotion) {
         promoteTypeInCache(qc, canonicalId, targetTypeForBucket(bucket));
       }
       return { prev };
