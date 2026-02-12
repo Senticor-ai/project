@@ -17,9 +17,14 @@ test.describe("Email Triage", () => {
     // Email item visible with subject
     await expect(page.getByText("Re: Antrag auf Verlängerung")).toBeVisible();
 
-    // Mail icon and sender address shown
-    await expect(page.getByText("h.schmidt@example.de")).toBeVisible();
-    await expect(page.getByText("mail")).toBeVisible();
+    // Mail icon and sender address shown (subtitle + email viewer header)
+    const emailIndicator = page
+      .locator("span.shrink-0")
+      .filter({ hasText: "h.schmidt@example.de" });
+    await expect(emailIndicator).toBeVisible();
+    await expect(
+      emailIndicator.locator(".material-symbols-outlined"),
+    ).toBeVisible();
   });
 
   test("triages email item to Next", async ({

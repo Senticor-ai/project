@@ -1,12 +1,19 @@
 include:
   - template: Jobs/SAST.gitlab-ci.yml
 
+# Override SAST template: assign to our runner tag + stage
+sast:
+  stage: test-2
+  tags:
+    - large
+
 stages:
-  - quality
-  - test
-  - build
-  - push
-  - deploy
+  - quality    # 4 jobs: lint + typecheck
+  - test-1     # 4 jobs: unit + storybook
+  - test-2     # 3 + SAST: integration + e2e
+  - build      # 3 jobs: docker images
+  - push       # 3 jobs: push to Harbor (main only)
+  - deploy     # 1 job: update k8s manifests (main only)
 
 variables:
   # Pre-built CI image with Node 24 + Python 3.12 + Playwright + uv.
@@ -113,7 +120,7 @@ build-ci-image:
   rules:
     - if: $BUILD_CI_IMAGE == "true"
 
-# ==================== QUALITY ====================
+# ==================== QUALITY (4 jobs: lint + typecheck) ====================
 
 frontend-lint:
   stage: quality
@@ -159,11 +166,10 @@ backend-typecheck:
   script:
     - uv run mypy app/
 
-# ==================== TEST (starts after quality gates) ====================
+# ==================== TEST-1 (4 jobs: unit + storybook, gated by quality) ====================
 
 frontend-unit:
-  stage: test
-  needs: [frontend-typecheck]
+  stage: test-1
   allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
   extends: [.default-rules, .large-runner, .failure-issue, .frontend-cache-readonly]
@@ -182,8 +188,7 @@ frontend-unit:
   coverage: '/All files[^|]*\|[^|]*\s([0-9]+(?:\.[0-9]+)?)\s/'
 
 backend-unit:
-  stage: test
-  needs: [backend-typecheck]
+  stage: test-1
   allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
   extends: [.default-rules, .large-runner, .backend-postgres, .failure-issue, .backend-cache-readonly]
@@ -202,8 +207,7 @@ backend-unit:
   coverage: '/TOTAL.*\s+([0-9]+%)$/'
 
 backend-integration:
-  stage: test
-  needs: [backend-typecheck]
+  stage: test-1
   allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
   extends: [.default-rules, .large-runner, .backend-postgres, .failure-issue, .backend-cache-readonly]
@@ -221,9 +225,20 @@ backend-integration:
         path: backend/coverage/integration.xml
   coverage: '/TOTAL.*\s+([0-9]+%)$/'
 
+frontend-storybook:
+  stage: test-1
+  allow_failure: true
+  image: $CI_NODE_PYTHON_IMAGE
+  extends: [.default-rules, .large-runner, .failure-issue, .frontend-cache-readonly]
+  before_script:
+    - cd frontend && npm ci --silent
+  script:
+    - STORYBOOK_TESTS=1 CI=1 npx vitest run --project=storybook
+
+# ==================== TEST-2 (3 + SAST: integration + e2e, gated by test-1) ====================
+
 frontend-integration:
-  stage: test
-  needs: [frontend-typecheck, backend-typecheck]
+  stage: test-2
   allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
   extends: [.default-rules, .large-runner, .backend-postgres, .failure-issue, .fullstack-cache-readonly]
@@ -249,20 +264,8 @@ frontend-integration:
       fi
     - cd $CI_PROJECT_DIR/frontend && CI=1 npx vitest run --project=unit -t "JSON Schema contract"
 
-frontend-storybook:
-  stage: test
-  needs: [frontend-typecheck]
-  allow_failure: true
-  image: $CI_NODE_PYTHON_IMAGE
-  extends: [.default-rules, .large-runner, .failure-issue, .frontend-cache-readonly]
-  before_script:
-    - cd frontend && npm ci --silent
-  script:
-    - STORYBOOK_TESTS=1 CI=1 npx vitest run --project=storybook
-
 backend-e2e:
-  stage: test
-  needs: [backend-typecheck]
+  stage: test-2
   allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
   extends: [.default-rules, .large-runner, .backend-postgres, .failure-issue, .backend-cache-readonly]
@@ -286,8 +289,7 @@ backend-e2e:
     - uv run pytest -q tests/test_flow_playwright.py
 
 frontend-e2e:
-  stage: test
-  needs: [frontend-typecheck, backend-typecheck]
+  stage: test-2
   allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
   extends: [.default-rules, .large-runner, .backend-postgres, .failure-issue, .fullstack-cache-readonly]
@@ -333,7 +335,7 @@ frontend-e2e:
       - frontend/playwright-report/
       - frontend/test-results/
 
-# ==================== BUILD (parallel frontend + backend + storybook, starts immediately) ====================
+# ==================== BUILD (3 jobs: docker images, gated by test-2) ====================
 
 .build-base:
   stage: build
@@ -344,7 +346,6 @@ frontend-e2e:
 
 build-frontend:
   extends: .build-base
-  needs: []
   script:
     - /kaniko/executor --context "$CI_PROJECT_DIR" --dockerfile "$CI_PROJECT_DIR/frontend/Dockerfile" --no-push --tarPath /tmp/frontend.tar
   artifacts:
@@ -353,7 +354,6 @@ build-frontend:
 
 build-backend:
   extends: .build-base
-  needs: []
   script:
     - /kaniko/executor --context "$CI_PROJECT_DIR" --dockerfile "$CI_PROJECT_DIR/backend/Dockerfile" --no-push --tarPath /tmp/backend.tar
   artifacts:
@@ -362,14 +362,13 @@ build-backend:
 
 build-storybook:
   extends: .build-base
-  needs: []
   script:
     - /kaniko/executor --context "$CI_PROJECT_DIR" --dockerfile "$CI_PROJECT_DIR/frontend/Dockerfile.storybook" --build-arg STORYBOOK_BASE=/storybook/ --no-push --tarPath /tmp/storybook.tar
   artifacts:
     paths: [/tmp/storybook.tar]
     expire_in: 1 hour
 
-# ==================== PUSH (parallel frontend + backend + storybook) ====================
+# ==================== PUSH (3 jobs: push to Harbor, main only) ====================
 
 .push-base:
   stage: push
