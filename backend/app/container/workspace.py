@@ -27,8 +27,10 @@ def provision_workspace(
 
     Returns (workspace_dir, runtime_dir).
     """
-    workspace_dir = storage_base / "openclaw" / user_id
-    runtime_dir = storage_base / "openclaw-runtime" / user_id
+    # Docker volume mounts require absolute paths
+    abs_base = storage_base.resolve()
+    workspace_dir = abs_base / "openclaw" / user_id
+    runtime_dir = abs_base / "openclaw-runtime" / user_id
 
     if not workspace_dir.exists():
         shutil.copytree(TEMPLATE_DIR, workspace_dir)

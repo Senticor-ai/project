@@ -49,7 +49,7 @@ def _allocate_port(cur) -> int:  # noqa: ANN001
     """Find next available port in the pool. Must be called inside a transaction."""
     cur.execute(
         """
-        SELECT port FROM generate_series(%s, %s) AS port
+        SELECT port FROM generate_series(%s::int, %s::int) AS port
         WHERE port NOT IN (
             SELECT container_port FROM user_agent_settings
             WHERE container_port IS NOT NULL
@@ -233,7 +233,7 @@ def _wait_for_healthy(user_id: str, url: str) -> None:
                         )
                     conn.commit()
                 return
-        except (httpx.ConnectError, httpx.TimeoutException):
+        except (httpx.ConnectError, httpx.TimeoutException, httpx.RemoteProtocolError):
             pass
         time.sleep(1.0)
 
@@ -303,7 +303,7 @@ def write_token_file(user_id: str, token: str) -> None:
     The token file is read by the OpenClaw agent's backend-api skill
     via ``$(cat /runtime/token)`` in curl commands.
     """
-    runtime_dir = settings.file_storage_path / "openclaw-runtime" / user_id
+    runtime_dir = settings.file_storage_path.resolve() / "openclaw-runtime" / user_id
     token_path = runtime_dir / "token"
     token_path.write_text(token)
 
@@ -355,7 +355,7 @@ def ensure_running(user_id: str) -> tuple[str, str]:
 
 def _read_gateway_token(user_id: str) -> str:
     """Read the gateway token from the user's provisioned openclaw.json."""
-    config_path = settings.file_storage_path / "openclaw" / user_id / "openclaw.json"
+    config_path = settings.file_storage_path.resolve() / "openclaw" / user_id / "openclaw.json"
     config = json.loads(config_path.read_text())
     return config["gateway"]["auth"]["token"]
 

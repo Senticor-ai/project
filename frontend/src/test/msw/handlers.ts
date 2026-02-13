@@ -4,6 +4,7 @@ import {
   buildSyncResponse,
   createFileRecord,
   createEmailConnection,
+  createItemRecord,
 } from "./fixtures";
 import type {
   ItemRecord,
@@ -376,41 +377,57 @@ const chatHandlers = [
     const body = (await request.json()) as { message: string };
     const msg = body.message.toLowerCase();
 
-    // Birthday scenario — project with actions
+    // Birthday scenario — project with actions (NDJSON stream)
     if (
       msg.includes("geburtstag") ||
       msg.includes("birthday") ||
       msg.includes("party") ||
       msg.includes("feier")
     ) {
-      return HttpResponse.json({
-        text: "Klingt nach einem Projekt! Hier ist mein Vorschlag:",
-        toolCalls: [
-          {
-            name: "create_project_with_actions",
-            arguments: {
-              type: "create_project_with_actions",
-              project: {
-                name: "Geburtstagsfeier planen",
-                desiredOutcome: "Erfolgreiche Geburtstagsfeier",
+      const text = "Klingt nach einem Projekt! Hier ist mein Vorschlag:";
+      const events = [
+        { type: "text_delta", content: text },
+        {
+          type: "tool_calls",
+          toolCalls: [
+            {
+              name: "create_project_with_actions",
+              arguments: {
+                type: "create_project_with_actions",
+                project: {
+                  name: "Geburtstagsfeier planen",
+                  desiredOutcome: "Erfolgreiche Geburtstagsfeier",
+                },
+                actions: [
+                  { name: "Gästeliste erstellen", bucket: "next" },
+                  { name: "Einladungen versenden", bucket: "next" },
+                  { name: "Location buchen", bucket: "next" },
+                  { name: "Essen & Getränke organisieren", bucket: "next" },
+                  { name: "Dekoration besorgen", bucket: "next" },
+                ],
+                documents: [{ name: "Einladungsvorlage" }],
               },
-              actions: [
-                { name: "Gästeliste erstellen", bucket: "next" },
-                { name: "Einladungen versenden", bucket: "next" },
-                { name: "Location buchen", bucket: "next" },
-                { name: "Essen & Getränke organisieren", bucket: "next" },
-                { name: "Dekoration besorgen", bucket: "next" },
-              ],
-              documents: [{ name: "Einladungsvorlage" }],
             },
-          },
-        ],
+          ],
+        },
+        { type: "done", text },
+      ];
+      const ndjson = events.map((e) => JSON.stringify(e)).join("\n") + "\n";
+      return new HttpResponse(ndjson, {
+        headers: { "Content-Type": "application/x-ndjson" },
       });
     }
 
-    // Simple text response for greetings
-    return HttpResponse.json({
-      text: "Hallo! Ich bin Tay, dein Assistent. Wie kann ich dir helfen?",
+    // Simple text response for greetings (NDJSON stream)
+    const text =
+      "Hallo! Ich bin Tay, dein Assistent. Wie kann ich dir helfen?";
+    const events = [
+      { type: "text_delta", content: text },
+      { type: "done", text },
+    ];
+    const ndjson = events.map((e) => JSON.stringify(e)).join("\n") + "\n";
+    return new HttpResponse(ndjson, {
+      headers: { "Content-Type": "application/x-ndjson" },
     });
   }),
 
@@ -441,6 +458,14 @@ const chatHandlers = [
           name: project.name,
           type: "project",
         });
+        // Persist in store so stories can verify
+        const projRecord = createItemRecord({
+          item_id: `msw-${ts}`,
+          bucket: "project",
+          name: project.name,
+          desiredOutcome: project.desiredOutcome,
+        });
+        store.items.set(projRecord.item_id, projRecord);
 
         const actions =
           (args.actions as Array<{ name: string; bucket: string }>) ?? [];
@@ -450,6 +475,13 @@ const chatHandlers = [
             name: action.name,
             type: "action",
           });
+          const actionRecord = createItemRecord({
+            item_id: `msw-${ts}-${i}`,
+            bucket: action.bucket || "next",
+            name: action.name,
+            projectId: projectId as import("@/model/canonical-id").CanonicalId,
+          });
+          store.items.set(actionRecord.item_id, actionRecord);
         }
 
         const docs = (args.documents as Array<{ name: string }>) ?? [];
@@ -459,23 +491,45 @@ const chatHandlers = [
             name: doc.name,
             type: "reference",
           });
+          const refRecord = createItemRecord({
+            item_id: `msw-ref-${ts}-${i}`,
+            bucket: "reference",
+            type: "CreativeWork",
+            name: doc.name,
+          });
+          store.items.set(refRecord.item_id, refRecord);
         }
         break;
       }
-      case "create_action":
+      case "create_action": {
         createdItems.push({
           canonicalId: `urn:app:action:msw-${ts}`,
           name: args.name as string,
           type: "action",
         });
+        const actionRecord = createItemRecord({
+          item_id: `msw-${ts}`,
+          bucket: (args.bucket as string) || "next",
+          name: args.name as string,
+        });
+        store.items.set(actionRecord.item_id, actionRecord);
         break;
-      case "create_reference":
+      }
+      case "create_reference": {
         createdItems.push({
           canonicalId: `urn:app:reference:msw-${ts}`,
           name: args.name as string,
           type: "reference",
         });
+        const refRecord = createItemRecord({
+          item_id: `msw-${ts}`,
+          bucket: "reference",
+          type: "CreativeWork",
+          name: args.name as string,
+        });
+        store.items.set(refRecord.item_id, refRecord);
         break;
+      }
     }
 
     return HttpResponse.json({ createdItems });
