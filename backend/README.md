@@ -123,6 +123,12 @@ uv run alembic revision -m "describe change"
 uv run alembic upgrade head
 ```
 
+Migration policy (enforced in CI):
+
+- All schema changes must ship as Alembic revisions under `backend/alembic/versions/`.
+- Do not change `backend/db/schema.sql` by itself for feature work.
+- If `backend/db/schema.sql` changes, the same change must include a matching Alembic revision.
+
 ## Run API
 
 > **Tip:** `npm run dev` from the repo root starts the backend, worker, frontend, and Storybook together. The commands below are for running services individually.
