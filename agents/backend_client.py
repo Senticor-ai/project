@@ -152,16 +152,16 @@ class BackendClient:
 
     async def render_pdf(
         self,
-        cv: dict,
+        markdown: str,
         css: str,
         filename: str,
         auth: AuthContext,
     ) -> dict:
-        """POST /files/render-pdf — render CV data to PDF."""
+        """POST /files/render-pdf — render markdown content to PDF."""
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
                 f"{self._base_url}/files/render-pdf",
-                json={"cv": cv, "css": css, "filename": filename},
+                json={"markdown": markdown, "css": css, "filename": filename},
                 headers=self._headers(auth),
             )
             response.raise_for_status()

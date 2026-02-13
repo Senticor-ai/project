@@ -250,7 +250,11 @@ export function fromJsonLd(record: ItemRecord): AppItem {
     ports: (getAdditionalProperty(props, "app:ports") as Port[]) ?? [],
     fileId: (getAdditionalProperty(props, "app:fileId") as string) || undefined,
     downloadUrl:
-      (getAdditionalProperty(props, "app:downloadUrl") as string) || undefined,
+      (getAdditionalProperty(props, "app:downloadUrl") as string) ||
+      // Derive from fileId when agents create items without explicit downloadUrl
+      ((getAdditionalProperty(props, "app:fileId") as string)
+        ? `/files/${getAdditionalProperty(props, "app:fileId") as string}`
+        : undefined),
     needsEnrichment:
       (getAdditionalProperty(props, "app:needsEnrichment") as boolean) ?? true,
     confidence:

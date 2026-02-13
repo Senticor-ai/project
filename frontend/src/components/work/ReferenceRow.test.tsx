@@ -157,7 +157,31 @@ describe("ReferenceRow", () => {
     expect(onSelect).not.toHaveBeenCalled();
   });
 
-  it("renders ItemEditor when expanded with onEdit", () => {
+  it("renders markdown view by default when expanded with description", () => {
+    const ref = createReferenceMaterial({
+      name: "Editable ref",
+      description: "Some **bold** notes",
+    });
+    render(
+      <ReferenceRow
+        reference={ref}
+        onArchive={vi.fn()}
+        onSelect={vi.fn()}
+        isExpanded={true}
+        onToggleExpand={vi.fn()}
+        onEdit={vi.fn()}
+      />,
+    );
+    // Markdown viewer is shown, not the editor
+    expect(screen.getByText("bold")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Notes")).not.toBeInTheDocument();
+    // Toggle buttons are present
+    expect(screen.getByLabelText("View markdown")).toBeInTheDocument();
+    expect(screen.getByLabelText("Edit content")).toBeInTheDocument();
+  });
+
+  it("switches to editor when edit toggle is clicked", async () => {
+    const user = userEvent.setup();
     const ref = createReferenceMaterial({
       name: "Editable ref",
       description: "Some notes",
@@ -172,8 +196,28 @@ describe("ReferenceRow", () => {
         onEdit={vi.fn()}
       />,
     );
+    await user.click(screen.getByLabelText("Edit content"));
     expect(screen.getByLabelText("Notes")).toBeInTheDocument();
     expect(screen.getByLabelText("Notes")).toHaveValue("Some notes");
+  });
+
+  it("renders ItemEditor directly when expanded without description", () => {
+    const ref = createReferenceMaterial({
+      name: "No desc ref",
+    });
+    render(
+      <ReferenceRow
+        reference={ref}
+        onArchive={vi.fn()}
+        onSelect={vi.fn()}
+        isExpanded={true}
+        onToggleExpand={vi.fn()}
+        onEdit={vi.fn()}
+      />,
+    );
+    // No toggle buttons — goes straight to editor
+    expect(screen.queryByLabelText("View markdown")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Notes")).toBeInTheDocument();
   });
 
   it("does not render ItemEditor when collapsed", () => {

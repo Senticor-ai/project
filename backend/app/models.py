@@ -521,7 +521,8 @@ class ItemContentResponse(BaseModel):
 
 
 class RenderPdfRequest(BaseModel):
-    cv: dict
+    cv: dict | None = None
+    markdown: str | None = None
     css: str
     filename: str
 

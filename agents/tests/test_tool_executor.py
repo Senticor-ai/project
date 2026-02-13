@@ -264,6 +264,154 @@ class TestCreateReference:
         ref_jsonld = mock_client.create_item.call_args.args[0]
         assert ref_jsonld["description"] == "A useful doc"
 
+    @pytest.mark.anyio
+    async def test_with_project_id(self, auth_ctx, mock_client):
+        mock_client.create_item = AsyncMock(
+            return_value=_make_item_response("urn:app:reference:r1")
+        )
+
+        await execute_tool(
+            ToolCallInput(
+                name="create_reference",
+                arguments={
+                    "name": "Tailored CV",
+                    "description": "# Wolfgang Ihloff\n\nProduct Leader...",
+                    "projectId": "urn:app:project:p1",
+                },
+            ),
+            conversation_id="conv-1",
+            auth=auth_ctx,
+            client=mock_client,
+        )
+
+        ref_jsonld = mock_client.create_item.call_args.args[0]
+        props = {p["propertyID"]: p["value"] for p in ref_jsonld["additionalProperty"]}
+        assert props["app:projectRefs"] == ["urn:app:project:p1"]
+        assert ref_jsonld["description"] == "# Wolfgang Ihloff\n\nProduct Leader..."
+
+
+# ---------------------------------------------------------------------------
+# render_cv
+# ---------------------------------------------------------------------------
+
+
+class TestRenderCv:
+    @pytest.mark.anyio
+    async def test_reads_source_then_renders_pdf(self, auth_ctx, mock_client):
+        """render_cv reads markdown from source item, renders PDF, creates reference."""
+        mock_client.get_item_content = AsyncMock(
+            return_value={
+                "name": "Tailored CV",
+                "description": "# Wolfgang Ihloff\n\n## Experience\n\n- Adobe",
+            }
+        )
+        mock_client.render_pdf = AsyncMock(return_value={"file_id": "file-abc123"})
+        mock_client.create_item = AsyncMock(
+            return_value=_make_item_response("urn:app:reference:pdf1")
+        )
+
+        result = await execute_tool(
+            ToolCallInput(
+                name="render_cv",
+                arguments={
+                    "sourceItemId": "urn:app:reference:md1",
+                    "css": "body { font-family: Inter; }",
+                    "filename": "lebenslauf-anthropic.pdf",
+                    "projectId": "urn:app:project:p1",
+                },
+            ),
+            conversation_id="conv-1",
+            auth=auth_ctx,
+            client=mock_client,
+        )
+
+        # 1. Read source item
+        mock_client.get_item_content.assert_called_once_with("urn:app:reference:md1", auth_ctx)
+
+        # 2. Render PDF with markdown content
+        mock_client.render_pdf.assert_called_once_with(
+            markdown="# Wolfgang Ihloff\n\n## Experience\n\n- Adobe",
+            css="body { font-family: Inter; }",
+            filename="lebenslauf-anthropic.pdf",
+            auth=auth_ctx,
+        )
+
+        # 3. Create file reference
+        assert mock_client.create_item.call_count == 1
+        ref_jsonld = mock_client.create_item.call_args.args[0]
+        props = {p["propertyID"]: p["value"] for p in ref_jsonld["additionalProperty"]}
+        assert props["app:fileId"] == "file-abc123"
+        assert props["app:downloadUrl"] == "/files/file-abc123"
+        assert props["app:projectRefs"] == ["urn:app:project:p1"]
+
+        # Return value
+        assert len(result) == 1
+        assert result[0].item_type == "reference"
+        assert result[0].name == "lebenslauf-anthropic.pdf"
+
+    @pytest.mark.anyio
+    async def test_falls_back_to_file_content(self, auth_ctx, mock_client):
+        """render_cv uses file_content when description is empty (uploaded file)."""
+        mock_client.get_item_content = AsyncMock(
+            return_value={
+                "name": "CV.md",
+                "description": None,
+                "file_content": "# CV from file\n\n## Skills\n\n- Python",
+            }
+        )
+        mock_client.render_pdf = AsyncMock(return_value={"file_id": "file-xyz"})
+        mock_client.create_item = AsyncMock(
+            return_value=_make_item_response("urn:app:reference:pdf2")
+        )
+
+        result = await execute_tool(
+            ToolCallInput(
+                name="render_cv",
+                arguments={
+                    "sourceItemId": "urn:app:reference:uploaded-cv",
+                    "css": "body { font-family: Inter; }",
+                    "filename": "cv-rendered.pdf",
+                    "projectId": "urn:app:project:p1",
+                },
+            ),
+            conversation_id="conv-1",
+            auth=auth_ctx,
+            client=mock_client,
+        )
+
+        # Should use file_content since description is None
+        mock_client.render_pdf.assert_called_once_with(
+            markdown="# CV from file\n\n## Skills\n\n- Python",
+            css="body { font-family: Inter; }",
+            filename="cv-rendered.pdf",
+            auth=auth_ctx,
+        )
+        assert len(result) == 1
+        assert result[0].name == "cv-rendered.pdf"
+
+    @pytest.mark.anyio
+    async def test_raises_when_source_has_no_content(self, auth_ctx, mock_client):
+        """render_cv raises ValueError when source has neither description nor file_content."""
+        mock_client.get_item_content = AsyncMock(
+            return_value={"name": "Empty", "description": None, "file_content": None}
+        )
+
+        with pytest.raises(ValueError, match="no description or file content"):
+            await execute_tool(
+                ToolCallInput(
+                    name="render_cv",
+                    arguments={
+                        "sourceItemId": "urn:app:reference:empty",
+                        "css": "",
+                        "filename": "test.pdf",
+                        "projectId": "urn:app:project:p1",
+                    },
+                ),
+                conversation_id="conv-1",
+                auth=auth_ctx,
+                client=mock_client,
+            )
+
 
 # ---------------------------------------------------------------------------
 # Error handling

@@ -1,10 +1,12 @@
-"""Document renderer — converts structured CV data to PDF via WeasyPrint.
+"""Document renderer — converts CV data to PDF via WeasyPrint.
 
-Pipeline: CV data (dict) + agent CSS → Jinja2 HTML → WeasyPrint → PDF bytes.
+Two pipelines:
+- Structured JSON: CV dict + CSS → Jinja2 ``base.html.j2`` → WeasyPrint → PDF
+- Markdown: text + CSS → ``markdown`` lib → ``markdown.html.j2`` → WeasyPrint → PDF
 
-WeasyPrint requires system libraries (pango, cairo, gobject). The import is
-deferred to ``render_cv_to_pdf()`` so the backend can start even when these
-libraries are missing — only the render endpoint will fail.
+WeasyPrint requires system libraries (pango, cairo, gobject). The imports are
+deferred so the backend can start even when these libraries are missing —
+only the render endpoint will fail.
 """
 
 from __future__ import annotations
@@ -84,4 +86,44 @@ def render_cv_to_pdf(cv: dict, custom_css: str) -> bytes:
 
     pdf_bytes = html.write_pdf(stylesheets=[css], font_config=font_config)
     logger.info("Rendered CV PDF (%d bytes) for %s", len(pdf_bytes), cv.get("name", "unknown"))
+    return pdf_bytes
+
+
+def render_markdown_to_pdf(markdown_text: str, custom_css: str) -> bytes:
+    """Render a markdown document to a PDF.
+
+    Args:
+        markdown_text: Markdown source (e.g. a tailored CV).
+        custom_css: Agent-generated CSS for visual styling.
+
+    Returns:
+        PDF file contents as bytes.
+    """
+    import markdown as md  # type: ignore[import-untyped]
+
+    body_html = md.markdown(
+        markdown_text,
+        extensions=["tables", "fenced_code", "toc"],
+    )
+
+    base_css = _load_base_css()
+    font_css = _build_font_face_css()
+    combined_css = f"{font_css}\n\n{base_css}"
+
+    template = _jinja_env.get_template("markdown.html.j2")
+    html_content = template.render(
+        body_html=body_html,
+        base_css=combined_css,
+        custom_css=custom_css,
+    )
+
+    from weasyprint import CSS, HTML
+    from weasyprint.text.fonts import FontConfiguration
+
+    font_config = FontConfiguration()
+    html = HTML(string=html_content)
+    css = CSS(string=combined_css + "\n" + custom_css, font_config=font_config)
+
+    pdf_bytes = html.write_pdf(stylesheets=[css], font_config=font_config)
+    logger.info("Rendered markdown PDF (%d bytes)", len(pdf_bytes))
     return pdf_bytes

@@ -531,6 +531,22 @@ const chatHandlers = [
         store.items.set(refRecord.item_id, refRecord);
         break;
       }
+      case "render_cv": {
+        const pdfName = (args.filename as string) || "rendered.pdf";
+        createdItems.push({
+          canonicalId: `urn:app:reference:msw-pdf-${ts}`,
+          name: pdfName,
+          type: "reference",
+        });
+        const pdfRecord = createItemRecord({
+          item_id: `msw-pdf-${ts}`,
+          bucket: "reference",
+          type: "CreativeWork",
+          name: pdfName,
+        });
+        store.items.set(pdfRecord.item_id, pdfRecord);
+        break;
+      }
     }
 
     return HttpResponse.json({ createdItems });

@@ -5,7 +5,7 @@ import { Mermaid } from "../../components/docs/Mermaid";
 
 # Flow: Job Search — CV Tailoring with Tay
 
-Upload a job description, let Tay analyse it against your CV, and generate a tailored PDF resume — all within TerminAndoYo.
+Upload a job description, let Tay analyse it against your CV, create a tailored markdown version you can review and edit, then render a professional PDF — all within TerminAndoYo.
 
 ---
 
@@ -26,12 +26,15 @@ Upload a job description, let Tay analyse it against your CV, and generate a tai
 3. **Ask for analysis** — Say: _"Vergleiche meinen Lebenslauf mit der Stellenanzeige."_
    Tay reads both documents, then lists strengths, gaps, and concrete suggestions.
 
-4. **Request a tailored CV** — Say: _"Erstelle eine angepasste Version. Stil: modern, clean, Schriftart Inter."_
-   Tay generates a `render_cv` suggestion card with the structured CV data + custom CSS.
+4. **Request a tailored CV** — Say: _"Erstelle eine angepasste Version für diese Stelle."_
+   Tay creates a new markdown reference with the tailored CV content, linked to your project.
 
-5. **Review and accept** — Check the suggestion card, then click Accept. The PDF is rendered and saved as a reference in your project.
+5. **Review and edit** — Find the new markdown reference in your project. It renders as formatted markdown. Click the edit icon to make changes directly.
 
-6. **Download** — Find the PDF in your project's reference bucket. Click the download icon.
+6. **Render PDF** — Say: _"Rendere die angepasste Version als PDF. Stil: modern, clean, Inter."_
+   Tay calls `render_cv` with the markdown reference + custom CSS. Accept the suggestion card.
+
+7. **Download** — Find the PDF in your project's reference bucket. Click the download icon.
 
 ---
 
@@ -41,17 +44,17 @@ Upload a job description, let Tay analyse it against your CV, and generate a tai
 graph LR
   U["<b>UPLOAD</b><br/>CV + Job Description"]
   A["<b>ANALYSE</b><br/>Tay reads & compares"]
-  T["<b>TAILOR</b><br/>Tay adapts CV content"]
-  D["<b>DESIGN</b><br/>User picks style"]
+  T["<b>TAILOR</b><br/>Tay creates markdown"]
+  E["<b>EDIT</b><br/>User reviews & edits"]
   R["<b>RENDER</b><br/>PDF generated"]
   S["<b>SAVE</b><br/>Reference in project"]
 
-  U --> A --> T --> D --> R --> S
+  U --> A --> T --> E --> R --> S
 
   style U fill:#e3f2fd,stroke:#1976d2
   style A fill:#e3f2fd,stroke:#1976d2
   style T fill:#fff3e0,stroke:#ef6c00
-  style D fill:#fff3e0,stroke:#ef6c00
+  style E fill:#fff3e0,stroke:#ef6c00
   style R fill:#e8f5e9,stroke:#2e7d32
   style S fill:#e8f5e9,stroke:#2e7d32
 `} />
@@ -122,13 +125,21 @@ sequenceDiagram
 
 ---
 
-## Phase 3: Tailor — Tay Adapts the CV
+## Phase 3: Tailor — Tay Creates a Markdown CV
 
-**User story**: _"Create a tailored version. This role is onsite in San Francisco, so change my Adobe location from 'Remote - USA' to 'San Jose, CA & Hamburg, Germany' and emphasise platform experience."_
+**User story**: _"Create a tailored version. Emphasise platform experience and use concrete locations instead of 'Remote'."_
+
+**Two-step flow** (markdown first, then PDF):
+
+1. Tay reads the original CV via `read_item_content`
+2. Tay writes a **new tailored markdown CV** using `create_reference` with:
+   - `description`: the full markdown content
+   - `projectId`: linked to the application project
+3. The original CV stays untouched — each tailored version is a new reference
+4. User reviews the rendered markdown in the reference bucket
+5. User can edit the markdown directly (click edit icon in the reference row)
 
 **What Tay can change**:
-
-The agent produces **new** structured CV data in the `render_cv` tool call. It can modify anything:
 
 - **Locations** — Change "Remote" to actual office cities for onsite roles
 - **Bullets** — Rewrite to emphasise skills matching the job description
@@ -136,20 +147,71 @@ The agent produces **new** structured CV data in the `render_cv` tool call. It c
 - **Skills** — Reorder or add skills that match the posting
 - **Job titles** — Keep official titles but adjust emphasis in summaries
 - **Education** — Highlight relevant coursework or projects
-
-The original CV file stays untouched as the master. Each tailored version is a fresh PDF.
+- **Structure** — Reorder sections to front-load the most relevant experience
 
 ---
 
-## Phase 4: Design — User Picks Visual Style
+## Phase 4: Review & Edit — User Refines the Markdown
 
-**User story**: _"Modern, clean, mit dezenten blauen Akzenten. Schrift: Inter."_
+**User story**: _"The tailored version looks good but I want to adjust the summary paragraph."_
 
 **Flow**:
 
-1. Tay asks for design preferences (prompted by system instructions)
-2. User describes the desired look in natural language
-3. Tay generates custom CSS based on the description
+1. Navigate to the project's reference bucket
+2. Find the tailored markdown CV (newest reference)
+3. Click to expand — markdown renders in a formatted viewer
+4. Click the edit icon to switch to the text editor
+5. Make changes and save
+
+**MarkdownViewer** renders headings, lists, tables, bold/italic, and links. The view/edit toggle lets you switch between the rendered view and the raw markdown editor.
+
+---
+
+## Phase 5: Render — PDF Generation
+
+**User story**: _"I'm happy with the content. Render it as a professional PDF."_
+
+**Flow**:
+
+1. User asks Tay to render the tailored CV as PDF with style preferences
+2. Tay calls `render_cv` with `sourceItemId` (the markdown reference) + CSS + filename + projectId
+3. This IS an exit condition — user sees a suggestion card and must approve
+4. On Accept, backend executes the rendering pipeline:
+
+<Mermaid chart={`
+graph TD
+  A["Agent calls render_cv<br/><b>sourceItemId + CSS</b>"]
+  B["Read markdown<br/><b>get_item_content(sourceItemId)</b>"]
+  C["Markdown → HTML<br/><b>Python markdown lib</b>"]
+  D["Merge CSS<br/><b>@font-face + base.css + agent CSS</b>"]
+  E["WeasyPrint<br/><b>HTML+CSS → PDF</b>"]
+  F["Store file<br/><b>POST /files/render-pdf</b>"]
+  G["Create reference<br/><b>CreativeWork in project</b>"]
+
+  A --> B --> C
+  C --> E
+  D --> E
+  E --> F --> G
+
+  style A fill:#fff3e0,stroke:#ef6c00
+  style B fill:#e3f2fd,stroke:#1976d2
+  style C fill:#e3f2fd,stroke:#1976d2
+  style D fill:#e3f2fd,stroke:#1976d2
+  style E fill:#e8f5e9,stroke:#2e7d32
+  style F fill:#e8f5e9,stroke:#2e7d32
+  style G fill:#e8f5e9,stroke:#2e7d32
+`} />
+
+**`render_cv` tool call** (what Tay produces):
+
+```json
+{
+  "sourceItemId": "urn:app:reference:tailored-cv-1",
+  "css": "body { font-family: 'Inter', sans-serif; color: #1a1a1a; } h1 { font-size: 24pt; } ...",
+  "filename": "lebenslauf-anthropic-pm.pdf",
+  "projectId": "urn:app:project:abc123"
+}
+```
 
 **Available fonts** (self-hosted, no network needed):
 
@@ -158,96 +220,10 @@ The original CV file stays untouched as the master. Each tailored version is a f
 | Inter | Clean, modern sans-serif | Regular (400), Bold (700) |
 | Source Sans 3 | Readable, professional sans-serif | Regular (400), Bold (700) |
 
-**What the agent controls via CSS**:
-
-- Font family and sizes
-- Colors and accent colors
-- Spacing and margins
-- Section heading styles
-- Skills badge appearance
-- Overall density (compact vs. spacious)
-
-**What the base template provides** (not overridable):
-
-- A4 page size with print margins
-- Page numbers ("Seite 1 / 2") in bottom-right
-- Running header (name) on pages 2+ in bottom-left
-- Structural HTML (header, sections, articles)
-- Separators between title/company (—) and period/location (|)
-- Page-break avoidance on headings and job entries
-
----
-
-## Phase 5: Render — PDF Generation
-
-**User story**: _"The suggestion looks good — create the PDF."_
-
-**Flow**:
-
-1. Tay calls `render_cv` with structured CV data + CSS + filename + projectId
-2. This IS an exit condition — user sees a suggestion card and must approve
-3. On Accept, backend executes the rendering pipeline:
-
-<Mermaid chart={`
-graph TD
-  A["Agent produces<br/><b>CV JSON + CSS</b>"]
-  B["Jinja2 template<br/><b>base.html.j2</b>"]
-  C["Merge CSS<br/><b>@font-face + base.css + agent CSS</b>"]
-  D["WeasyPrint<br/><b>HTML+CSS → PDF</b>"]
-  E["Store file<br/><b>POST /files/render-pdf</b>"]
-  F["Create reference<br/><b>CreativeWork in project</b>"]
-
-  A --> B
-  A --> C
-  B --> D
-  C --> D
-  D --> E --> F
-
-  style A fill:#fff3e0,stroke:#ef6c00
-  style B fill:#e3f2fd,stroke:#1976d2
-  style C fill:#e3f2fd,stroke:#1976d2
-  style D fill:#e8f5e9,stroke:#2e7d32
-  style E fill:#e8f5e9,stroke:#2e7d32
-  style F fill:#e8f5e9,stroke:#2e7d32
-`} />
-
-**CV data structure** (what Tay produces):
-
-```json
-{
-  "cv": {
-    "name": "Wolfgang Ihloff",
-    "headline": "Product Leader, Technologist...",
-    "contact": {
-      "location": "Las Palmas, Spain",
-      "phone": "+34...",
-      "email": "wolfgang@ihloff.de",
-      "linkedin": "linkedin.com/in/wolfgangilhoff"
-    },
-    "summary": "Can do leader with 20+ years...",
-    "skills": ["AI Adoption", "Cloud Services", ...],
-    "experience": [
-      {
-        "company": "Aleph Alpha",
-        "title": "Team Lead Product",
-        "period": "Feb 2024 - Aug 2025",
-        "location": "Heidelberg (51% onsite)",
-        "summary": "Build out product teams...",
-        "bullets": ["Established product metrics...", ...]
-      }
-    ],
-    "education": [...],
-    "certifications": [...]
-  },
-  "css": "body { font-family: 'Inter', sans-serif; ... }",
-  "filename": "lebenslauf-anthropic-pm.pdf",
-  "projectId": "urn:app:project:abc123"
-}
-```
-
 | Capability | Status |
 |---|---|
 | `render_cv` agent tool | Works |
+| Markdown → HTML conversion | Works |
 | WeasyPrint PDF rendering | Works |
 | Self-hosted fonts (Inter, Source Sans 3) | Works |
 | Page numbers + running header | Works |
@@ -271,12 +247,12 @@ graph TD
 
 The flow is designed for multiple rounds:
 
-- **"The summary is too long, shorten it."** → Tay produces a new `render_cv` with a shorter summary
-- **"Use Source Sans 3 instead of Inter."** → Tay generates new CSS with the different font
-- **"Add my volunteer work."** → Tay adds a new section to the structured data
-- **"Make a version for the Berlin office."** → Tay adjusts locations and language emphasis
+- **"The summary is too long, shorten it."** → Edit the markdown reference directly, then ask Tay to re-render
+- **"Use Source Sans 3 instead of Inter."** → Tay generates new CSS with `render_cv`, same `sourceItemId`
+- **"Add my volunteer work."** → Edit the markdown, or ask Tay to create a new version
+- **"Make a version for the Berlin office."** → Tay creates another tailored markdown + renders PDF
 
-Each accepted `render_cv` creates a separate PDF reference in the project. Old versions are preserved (no-delete policy).
+Each tailored markdown is a separate reference. Each rendered PDF is another reference. All versions preserved (no-delete policy).
 
 ---
 
@@ -294,21 +270,27 @@ graph TD
   end
 
   subgraph "Agent Tools (exit condition)"
-    RCV["render_cv"]
+    CR["create_reference<br/><i>markdown CV</i>"]
+    RCV["render_cv<br/><i>PDF from markdown</i>"]
   end
 
+  MV["MarkdownViewer<br/><i>review & edit</i>"]
   TSC["TaySuggestionCard<br/><i>review & accept</i>"]
   TE["Tool Executor<br/><i>agents/tool_executor.py</i>"]
-  DR["Document Renderer<br/><i>WeasyPrint pipeline</i>"]
+  DR["Document Renderer<br/><i>Markdown → WeasyPrint</i>"]
   FS["File Storage"]
   REF["Reference Item<br/><i>CreativeWork in project</i>"]
 
   IC --> IT --> TCP
   TCP --> LPI
   TCP --> RIC
+  TCP --> CR
   TCP --> RCV
+  CR --> TSC
   RCV --> TSC
   TSC -->|"Accept"| TE
+  CR -.->|"creates"| REF
+  REF -->|"view/edit"| MV
   TE --> DR
   DR --> FS
   TE --> REF
@@ -318,7 +300,9 @@ graph TD
   style TCP fill:#e3f2fd,stroke:#1976d2
   style LPI fill:#f5f5f5,stroke:#999
   style RIC fill:#f5f5f5,stroke:#999
+  style CR fill:#fff3e0,stroke:#ef6c00
   style RCV fill:#fff3e0,stroke:#ef6c00
+  style MV fill:#fff3e0,stroke:#ef6c00
   style TSC fill:#fff3e0,stroke:#ef6c00
   style TE fill:#e8f5e9,stroke:#2e7d32
   style DR fill:#e8f5e9,stroke:#2e7d32
@@ -332,16 +316,19 @@ graph TD
 
 | Layer | File | Purpose |
 |---|---|---|
-| **Template** | `backend/app/templates/cv/base.html.j2` | Structural HTML (sections, separators, running header) |
+| **MD Template** | `backend/app/templates/cv/markdown.html.j2` | Minimal HTML wrapper for markdown content |
+| **CV Template** | `backend/app/templates/cv/base.html.j2` | Structured HTML for JSON CV (legacy) |
 | **Base CSS** | `backend/app/templates/cv/base.css` | Print foundations, page layout, page numbers |
 | **Fonts** | `backend/app/templates/cv/fonts/` | Inter + Source Sans 3 (woff2, self-hosted) |
-| **Renderer** | `backend/app/document_renderer.py` | Jinja2 + WeasyPrint pipeline |
-| **Endpoint** | `backend/app/routes/files.py` | `POST /files/render-pdf` |
-| **Agent tools** | `agents/tay.py` | `render_cv`, `read_item_content`, `list_project_items` |
-| **Tool executor** | `agents/tool_executor.py` | `_exec_render_cv` — renders PDF + creates reference |
-| **Frontend types** | `frontend/src/model/chat-types.ts` | `RenderCvSuggestion` interface |
+| **Renderer** | `backend/app/document_renderer.py` | `render_markdown_to_pdf()` + `render_cv_to_pdf()` |
+| **Endpoint** | `backend/app/routes/files.py` | `POST /files/render-pdf` (accepts `markdown` or `cv`) |
+| **Agent tools** | `agents/tay.py` | `render_cv`, `create_reference`, `read_item_content`, `list_project_items` |
+| **Tool executor** | `agents/tool_executor.py` | `_exec_render_cv` — reads markdown source → renders PDF → creates reference |
+| **Frontend types** | `frontend/src/model/chat-types.ts` | `RenderCvSuggestion` (with `sourceItemId`) |
+| **Markdown viewer** | `frontend/src/components/ui/MarkdownViewer.tsx` | Renders markdown content in reference view |
+| **Reference row** | `frontend/src/components/work/ReferenceRow.tsx` | View/edit toggle for markdown references |
 | **Frontend hook** | `frontend/src/hooks/use-tay-actions.ts` | Dispatches `render_cv` to backend |
-| **System prompt** | `agents/prompts/de/tay_system.j2` | CV analysis + rendering instructions for Tay |
+| **System prompt** | `agents/prompts/de/tay_system.j2` | Two-step CV flow instructions for Tay |
 
 ---
 
@@ -371,9 +358,15 @@ Tay:   [reads both documents via inline tools]
        Empfehlung: Summary auf AI Safety fokussieren, Adobe-Erfahrung
        mit konkreten Standorten statt "Remote" angeben.
 
-User:  Erstelle eine angepasste Version. Modern, clean, Inter.
-       Adobe war San Jose und Hamburg. Sycle war San Francisco.
-Tay:   [render_cv suggestion card with tailored data + CSS]
+User:  Erstelle eine angepasste Version. Adobe war San Jose und Hamburg.
+Tay:   [create_reference suggestion card — tailored markdown CV]
 User:  ✓ Accept
-       → PDF rendered, saved as reference in project
+       → New markdown reference created in project
+
+User:  [reviews rendered markdown in reference bucket, edits summary]
+
+User:  Rendere als PDF. Modern, clean, Inter.
+Tay:   [render_cv suggestion card — filename + "from markdown reference"]
+User:  ✓ Accept
+       → PDF rendered from markdown, saved as reference in project
 ```

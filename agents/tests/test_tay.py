@@ -127,3 +127,35 @@ def test_tools_defined():
         "create_reference",
         "render_cv",
     ]
+
+
+def test_run_async_from_sync_context():
+    """_run_async can call an async function from sync code."""
+    from tay import _run_async
+
+    async def add(a, b):
+        return a + b
+
+    result = _run_async(add(3, 4))
+    assert result == 7
+
+
+def test_run_async_from_within_running_loop():
+    """_run_async works even when called from within an existing event loop.
+
+    This is the exact scenario that broke before — Haystack Agent.run_async()
+    already owns the event loop, and the sync tool function needs to call
+    an async backend method.
+    """
+    import asyncio
+
+    from tay import _run_async
+
+    async def outer():
+        async def inner():
+            return "ok"
+
+        return _run_async(inner())
+
+    result = asyncio.run(outer())
+    assert result == "ok"

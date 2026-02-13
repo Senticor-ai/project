@@ -6,14 +6,17 @@ import { ApiSeed } from "../helpers/api-seed";
 /**
  * CV Enhancement Journey — full E2E with real LLM.
  *
- * Tests the complete flow:
+ * Tests the two-step markdown-first flow:
  *   1. Register and log in via UI
  *   2. Seed a project with two documents (CV + job posting) via API
- *   3. Open Tay chat, ask to analyze CV against job posting
- *   4. Tay uses list_project_items → read_item_content tools
- *   5. Tay suggests a render_cv tool call with tailored CV
- *   6. Accept → agents render PDF via backend → reference created
- *   7. Verify PDF reference appears in project
+ *   3. Open Tay chat, ask to create a tailored markdown CV
+ *   4. Tay uses list_project_items → read_item_content, then
+ *      suggests create_reference with tailored markdown
+ *   5. Accept → markdown reference saved in project
+ *   6. Ask Tay to render the markdown CV as PDF
+ *   7. Tay suggests render_cv with sourceItemId pointing to the markdown ref
+ *   8. Accept → PDF rendered and saved as reference
+ *   9. Verify both new references appear in project
  *
  * Requires: OPENROUTER_API_KEY, full e2e stack (backend + agents + frontend)
  *
@@ -28,9 +31,9 @@ test.skip(
 );
 
 test.describe("CV Enhancement Journey", () => {
-  test.setTimeout(180_000); // 3 min — multiple LLM round-trips
+  test.setTimeout(240_000); // 4 min — multiple LLM round-trips (two-step flow)
 
-  test("upload docs → triage → Tay analyzes → render CV PDF", async ({
+  test("upload docs → triage → Tay tailors markdown → render PDF", async ({
     page,
   }, testInfo) => {
     const log = (msg: string) => console.log(`[cv-e2e] ${msg}`);
@@ -122,18 +125,23 @@ test.describe("CV Enhancement Journey", () => {
     log("Attached screenshot: 01-project-setup.png");
 
     // ── 5. Open Tay chat & intercept tool execution ────────────────────
-    // Capture what tool calls the agent suggests and what gets executed
-    let executedToolName: string | undefined;
-    let executedToolArgs: Record<string, unknown> | undefined;
+    const executedTools: Array<{
+      name: string;
+      args: Record<string, unknown>;
+    }> = [];
     page.on("request", (req) => {
       if (req.url().includes("/chat/execute-tool") && req.method() === "POST") {
         try {
           const body = req.postDataJSON() as {
             toolCall?: { name: string; arguments: Record<string, unknown> };
           };
-          executedToolName = body?.toolCall?.name;
-          executedToolArgs = body?.toolCall?.arguments;
-          log(`Execute-tool intercepted: ${executedToolName}`);
+          if (body?.toolCall) {
+            executedTools.push({
+              name: body.toolCall.name,
+              args: body.toolCall.arguments,
+            });
+            log(`Execute-tool intercepted: ${body.toolCall.name}`);
+          }
         } catch {
           /* ignore parse errors */
         }
@@ -150,21 +158,17 @@ test.describe("CV Enhancement Journey", () => {
       name: "Nachricht an Tay",
     });
 
-    // ── 6. Ask Tay to analyze the CV and render a new version ─────────
-    //    Use natural language with the project name — Tay should discover
-    //    IDs via list_workspace_overview / list_project_items.
+    // ── 6. Step 1: Ask Tay to create a tailored markdown CV ────────────
     const prompt =
       `In meinem Projekt "Bewerbung Senior Forward Deployed AI Engineer" ` +
       `liegen mein Lebenslauf und eine Stellenanzeige. ` +
-      `Bitte erstelle einen angepassten Lebenslauf als PDF mit ` +
-      `Schriftart Inter und modernem Design. ` +
-      `Speichere das Ergebnis im Projekt.`;
+      `Bitte erstelle eine auf die Stelle angepasste Version meines Lebenslaufs ` +
+      `als Markdown-Referenz im Projekt. Danach rendere ich das als PDF.`;
     log(`Sending prompt: ${prompt.slice(0, 80)}...`);
     await chatInput.fill(prompt);
     await chatInput.press("Enter");
 
-    // Wait for Tay to respond with a render_cv tool call suggestion.
-    // The "Übernehmen" button appears when Tay suggests a tool call.
+    // Wait for Tay to respond with a tool call suggestion (create_reference or render_cv).
     const acceptButton = page.getByRole("button", { name: /Übernehmen/ });
 
     let gotToolCall = await acceptButton
@@ -174,84 +178,148 @@ test.describe("CV Enhancement Journey", () => {
 
     if (!gotToolCall) {
       log("No tool call on first attempt — sending nudge prompt");
-      // LLM responded with text (analysis or questions) — nudge harder
       await page.waitForTimeout(1_000);
       await chatInput.fill(
-        "Bitte jetzt direkt einen render_cv Tool-Call vorschlagen. " +
-          "CV-Daten kannst du erfinden (Name: Wolfgang Müller, " +
-          "Headline: Senior AI Engineer, eine Berufserfahrung). " +
-          `Schriftart Inter, schlichte Farben, projectId: "${projectId}".`,
+        "Bitte jetzt direkt einen create_reference Tool-Call vorschlagen " +
+          "mit dem angepassten Lebenslauf als Markdown im description-Feld. " +
+          `projectId: "${projectId}".`,
       );
       await chatInput.press("Enter");
       await expect(acceptButton).toBeVisible({ timeout: 90_000 });
     }
-    log("Tool call suggestion received — Übernehmen button visible");
+    log("Step 1: Tool call suggestion received — Übernehmen button visible");
 
-    // Screenshot: tool call suggestion before accepting
-    const suggestionScreenshot = await page.screenshot();
-    await testInfo.attach("02-tool-call-suggestion.png", {
-      body: suggestionScreenshot,
+    // Screenshot: step 1 suggestion
+    const step1Screenshot = await page.screenshot();
+    await testInfo.attach("02-step1-markdown-suggestion.png", {
+      body: step1Screenshot,
       contentType: "image/png",
     });
-    log("Attached screenshot: 02-tool-call-suggestion.png");
 
-    // ── 7. Accept the tool call suggestion ────────────────────────────
+    // Accept the create_reference (or whichever tool Tay chose)
     await acceptButton.click();
-    log("Clicked Übernehmen — executing tool call");
+    log("Clicked Übernehmen — executing step 1 tool call");
 
-    // ── 8. Verify acceptance ──────────────────────────────────────────
-    // Suggestion card shows "Übernommen" when accepted.
-    // The tool execution may take time (PDF rendering).
     await expect(page.getByText("Übernommen")).toBeVisible({
       timeout: 60_000,
     });
-    log("Tool call accepted — Übernommen visible");
+    log("Step 1 accepted — Übernommen visible");
+    await page.waitForTimeout(3_000);
 
-    // Wait for confirmation message (could be "1 Dokument." or similar)
-    await page.waitForTimeout(5_000);
+    // Log what was executed
+    const step1Tool = executedTools[executedTools.length - 1];
     log(
-      `Executed tool: ${executedToolName ?? "unknown"}` +
-        (executedToolArgs
-          ? ` (args keys: ${Object.keys(executedToolArgs).join(", ")})`
-          : ""),
+      `Step 1 executed: ${step1Tool?.name ?? "unknown"}` +
+        (step1Tool ? ` (args keys: ${Object.keys(step1Tool.args).join(", ")})` : ""),
     );
 
-    // Attach the tool call details as a JSON artifact
-    if (executedToolName) {
-      await testInfo.attach("executed-tool-call.json", {
-        body: Buffer.from(
-          JSON.stringify(
-            { name: executedToolName, arguments: executedToolArgs },
-            null,
-            2,
-          ),
-        ),
+    // Attach tool call details
+    if (step1Tool) {
+      await testInfo.attach("step1-tool-call.json", {
+        body: Buffer.from(JSON.stringify(step1Tool, null, 2)),
         contentType: "application/json",
       });
-      log("Attached artifact: executed-tool-call.json");
     }
 
-    // Screenshot: confirmation after acceptance
+    // Screenshot after step 1 acceptance
+    const step1ConfirmScreenshot = await page.screenshot();
+    await testInfo.attach("03-step1-confirmation.png", {
+      body: step1ConfirmScreenshot,
+      contentType: "image/png",
+    });
+
+    // ── 7. Step 2: Ask Tay to render the markdown as PDF ───────────────
+    // If step 1 was already render_cv (Tay chose to go direct), skip step 2
+    const step1WasRenderCv = step1Tool?.name === "render_cv";
+    if (!step1WasRenderCv) {
+      log("Step 2: Asking Tay to render the markdown CV as PDF");
+      await chatInput.fill(
+        "Perfekt! Bitte rendere die angepasste Version jetzt als PDF. " +
+          "Schriftart Inter, modernes Design, dezente Farben.",
+      );
+      await chatInput.press("Enter");
+
+      // Wait for next tool call suggestion (render_cv)
+      // Need to wait for a NEW Übernehmen button (the old one is now "Übernommen")
+      const newAcceptButton = page
+        .getByRole("button", { name: /Übernehmen/ })
+        .last();
+
+      let gotRenderCall = await newAcceptButton
+        .waitFor({ state: "visible", timeout: 90_000 })
+        .then(() => true)
+        .catch(() => false);
+
+      if (!gotRenderCall) {
+        log("No render_cv on first attempt — sending nudge");
+        await page.waitForTimeout(1_000);
+        await chatInput.fill(
+          "Bitte jetzt einen render_cv Tool-Call vorschlagen. " +
+            "sourceItemId ist die eben erstellte Markdown-Referenz. " +
+            "Schriftart Inter, schlichte Farben. " +
+            `projectId: "${projectId}".`,
+        );
+        await chatInput.press("Enter");
+        await expect(newAcceptButton).toBeVisible({ timeout: 90_000 });
+      }
+      log("Step 2: render_cv suggestion received");
+
+      // Screenshot: step 2 suggestion
+      const step2Screenshot = await page.screenshot();
+      await testInfo.attach("04-step2-render-suggestion.png", {
+        body: step2Screenshot,
+        contentType: "image/png",
+      });
+
+      // Accept the render_cv
+      await newAcceptButton.click();
+      log("Clicked Übernehmen — executing render_cv");
+
+      // Wait for acceptance (second "Übernommen")
+      const allAccepted = page.getByText("Übernommen");
+      await expect(allAccepted.last()).toBeVisible({ timeout: 60_000 });
+      log("Step 2 accepted — Übernommen visible");
+
+      await page.waitForTimeout(5_000);
+
+      const step2Tool = executedTools[executedTools.length - 1];
+      log(
+        `Step 2 executed: ${step2Tool?.name ?? "unknown"}` +
+          (step2Tool
+            ? ` (args keys: ${Object.keys(step2Tool.args).join(", ")})`
+            : ""),
+      );
+
+      if (step2Tool) {
+        await testInfo.attach("step2-tool-call.json", {
+          body: Buffer.from(JSON.stringify(step2Tool, null, 2)),
+          contentType: "application/json",
+        });
+      }
+    } else {
+      log("Step 1 was already render_cv — skipping step 2");
+    }
+
+    // Screenshot: confirmation after all steps
     const confirmationScreenshot = await page.screenshot();
-    await testInfo.attach("03-confirmation.png", {
+    await testInfo.attach("05-final-confirmation.png", {
       body: confirmationScreenshot,
       contentType: "image/png",
     });
-    log("Attached screenshot: 03-confirmation.png");
 
-    // ── 9. Close chat panel ───────────────────────────────────────────
+    // ── 8. Close chat panel ───────────────────────────────────────────
     await page
       .getByRole("complementary", { name: "Tay Chat" })
       .getByRole("button", { name: "Chat schließen" })
       .click();
     log("Chat panel closed");
 
-    // ── 10. Verify the rendered PDF appears in Reference ──────────────
+    // ── 9. Verify new references appear in Reference bucket ────────────
     await ws.navigateTo("Reference");
     await page.waitForTimeout(2_000);
 
     // Structural assertion: at least 3 items in Reference
-    // (2 original docs + 1 rendered PDF)
+    // (2 original docs + at least 1 new item — markdown and/or PDF)
     const referenceItems = page
       .getByRole("main", { name: "Bucket content" })
       .locator("[class*='group']");
@@ -260,13 +328,20 @@ test.describe("CV Enhancement Journey", () => {
     log(`Reference bucket item count: ${refCount} (expected >= 3)`);
     expect(refCount).toBeGreaterThanOrEqual(3);
 
-    // ── 11. Verify in ProjectTree ─────────────────────────────────────
+    // Screenshot: reference bucket
+    const refScreenshot = await page.screenshot();
+    await testInfo.attach("06-reference-bucket.png", {
+      body: refScreenshot,
+      contentType: "image/png",
+    });
+
+    // ── 10. Verify in ProjectTree ─────────────────────────────────────
     await ws.navigateTo("Projects");
     await ws
       .projectRow("Bewerbung Senior Forward Deployed AI Engineer")
       .click();
 
-    // Project should show the original docs + the new rendered CV
+    // Project should show the original docs + new items
     await expect(page.getByText("Lebenslauf-Wolfgang.pdf")).toBeVisible({
       timeout: 10_000,
     });
@@ -276,14 +351,13 @@ test.describe("CV Enhancement Journey", () => {
 
     // Screenshot: final project state
     const projectScreenshot = await page.screenshot();
-    await testInfo.attach("04-project-final.png", {
+    await testInfo.attach("07-project-final.png", {
       body: projectScreenshot,
       contentType: "image/png",
     });
-    log("Attached screenshot: 04-project-final.png");
+    log("Attached screenshot: 07-project-final.png");
 
-    // ── 12. Fetch & attach rendered PDF via API ─────────────────────
-    // GET /api/items returns a flat list of { item_id, canonical_id, source, item }
+    // ── 11. Fetch & attach rendered PDF via API ─────────────────────
     type ItemEnvelope = {
       item_id: string;
       canonical_id: string;
@@ -297,8 +371,8 @@ test.describe("CV Enhancement Journey", () => {
         (p) => p.propertyID === pid,
       )?.value;
 
-    // Poll API for new items (the rendered PDF might take a moment to appear)
-    log("Polling API for rendered PDF item...");
+    // Poll API for new items
+    log("Polling API for new items...");
     let allEnvelopes: ItemEnvelope[] = [];
     let newRefs: ItemEnvelope[] = [];
     const maxPolls = 5;
@@ -331,18 +405,15 @@ test.describe("CV Enhancement Journey", () => {
     log(`Found ${newRefs.length} new reference item(s)`);
 
     for (const env of newRefs) {
-      const refName =
-        (env.item.name as string) ?? env.canonical_id;
+      const refName = (env.item.name as string) ?? env.canonical_id;
       log(`  New reference: "${refName}" (${env.canonical_id})`);
 
-      // Extract download URL — try app:downloadUrl first, fallback to app:fileId
+      // Try to download PDF if it has a fileId
       let downloadUrl = getProp(env.item, "app:downloadUrl") as
         | string
         | undefined;
       if (!downloadUrl) {
-        const fileId = getProp(env.item, "app:fileId") as
-          | string
-          | undefined;
+        const fileId = getProp(env.item, "app:fileId") as string | undefined;
         if (fileId) {
           downloadUrl = `/api/files/${fileId}`;
           log(`  Constructed download URL from fileId: ${downloadUrl}`);
@@ -371,13 +442,20 @@ test.describe("CV Enhancement Journey", () => {
         } catch (err) {
           log(`  PDF download error: ${err}`);
         }
-      } else {
-        log(`  No download URL found for this reference`);
+      }
+
+      // Attach markdown content if present (the tailored markdown reference)
+      const description = env.item.description as string | undefined;
+      if (description) {
+        await testInfo.attach(`${refName}-markdown.md`, {
+          body: Buffer.from(description),
+          contentType: "text/markdown",
+        });
+        log(`  Attached markdown content: ${refName}-markdown.md`);
       }
     }
 
-    // If no new refs found via canonical_id filter, try finding any item
-    // with a downloadUrl (the rendered PDF)
+    // Fallback: search by downloadUrl if no new refs found
     if (newRefs.length === 0) {
       log("No new refs by canonical_id — searching by downloadUrl...");
       const withDownload = allEnvelopes.filter(
@@ -411,7 +489,7 @@ test.describe("CV Enhancement Journey", () => {
       }
     }
 
-    // ── 13. Log all project items for review ──────────────────────────
+    // ── 12. Log all project items for review ──────────────────────────
     const projectItems = allEnvelopes.filter((env) => {
       const projectRefs = getProp(env.item, "app:projectRefs") as
         | string[]
@@ -424,6 +502,12 @@ test.describe("CV Enhancement Journey", () => {
       const type = env.item["@type"] as string;
       log(`  - ${type}: "${name}"`);
     }
+
+    // Attach summary of all executed tools
+    await testInfo.attach("all-executed-tools.json", {
+      body: Buffer.from(JSON.stringify(executedTools, null, 2)),
+      contentType: "application/json",
+    });
 
     log("CV Enhancement E2E test complete");
   });

@@ -10,6 +10,7 @@ import asyncio
 import json
 import logging
 import os
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Optional  # noqa: UP035 — Haystack needs typing.Optional
@@ -195,7 +196,10 @@ TOOLS = [
     ),
     Tool(
         name="create_reference",
-        description="Erstelle ein Referenzmaterial (Link, Dokument, Notiz).",
+        description=(
+            "Erstelle ein Referenzmaterial (Link, Dokument, Notiz, Markdown-Inhalt). "
+            "Kann einem Projekt zugeordnet werden."
+        ),
         parameters={
             "type": "object",
             "properties": {
@@ -206,9 +210,13 @@ TOOLS = [
                 "name": {"type": "string", "description": "Name der Referenz"},
                 "description": {
                     "type": "string",
-                    "description": "Beschreibung der Referenz",
+                    "description": "Inhalt der Referenz (Markdown, Notizen, etc.)",
                 },
                 "url": {"type": "string", "description": "URL der Referenz"},
+                "projectId": {
+                    "type": "string",
+                    "description": "Optionale ID eines bestehenden Projekts",
+                },
             },
             "required": ["type", "name"],
         },
@@ -217,67 +225,26 @@ TOOLS = [
     Tool(
         name="render_cv",
         description=(
-            "Rendere einen Lebenslauf als professionelle PDF-Datei und speichere "
-            "ihn als Referenz im Projekt. Generiere CSS basierend auf den "
-            "Gestaltungswünschen des Nutzers."
+            "Rendere eine Markdown-Referenz als professionelle PDF-Datei. "
+            "Liest den Markdown-Inhalt aus der angegebenen Referenz und "
+            "generiert daraus ein gestyltes PDF."
         ),
         parameters={
             "type": "object",
             "properties": {
                 "type": {"type": "string", "const": "render_cv"},
-                "cv": {
-                    "type": "object",
-                    "description": "Strukturierte Lebenslauf-Daten",
-                    "properties": {
-                        "name": {"type": "string"},
-                        "contact": {
-                            "type": "object",
-                            "properties": {
-                                "location": {"type": "string"},
-                                "phone": {"type": "string"},
-                                "email": {"type": "string"},
-                                "linkedin": {"type": "string"},
-                            },
-                        },
-                        "headline": {"type": "string"},
-                        "summary": {"type": "string"},
-                        "skills": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                        },
-                        "experience": {
-                            "type": "array",
-                            "items": {
-                                "type": "object",
-                                "properties": {
-                                    "company": {"type": "string"},
-                                    "title": {"type": "string"},
-                                    "period": {"type": "string"},
-                                    "location": {"type": "string"},
-                                    "summary": {"type": "string"},
-                                    "bullets": {
-                                        "type": "array",
-                                        "items": {"type": "string"},
-                                    },
-                                },
-                            },
-                        },
-                        "education": {
-                            "type": "array",
-                            "items": {"type": "object"},
-                        },
-                        "certifications": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                        },
-                    },
-                    "required": ["name", "headline", "experience"],
+                "sourceItemId": {
+                    "type": "string",
+                    "description": (
+                        "Kanonische ID der Markdown-Referenz, deren Inhalt "
+                        "als PDF gerendert werden soll."
+                    ),
                 },
                 "css": {
                     "type": "string",
                     "description": (
                         "Benutzerdefiniertes CSS fuer Layout, Typografie, Farben. "
-                        "Verfuegbare Schriftarten: Inter, Source Sans Pro."
+                        "Verfuegbare Schriftarten: Inter, Source Sans 3."
                     ),
                 },
                 "filename": {
@@ -289,7 +256,7 @@ TOOLS = [
                     "description": "Projekt-ID, in das die PDF als Referenz gespeichert wird",
                 },
             },
-            "required": ["type", "cv", "css", "filename", "projectId"],
+            "required": ["type", "sourceItemId", "css", "filename", "projectId"],
         },
         function=_noop_render_cv,
     ),
@@ -308,6 +275,18 @@ EXIT_TOOL_NAMES = [
 # ---------------------------------------------------------------------------
 
 
+def _run_async(coro) -> object:
+    """Run an async coroutine from a sync Haystack tool function.
+
+    Haystack Agent.run_async() already owns the event loop, so we can't
+    call run_until_complete() on it.  Instead, run the coroutine in a
+    separate thread with its own event loop via asyncio.run().
+    """
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(asyncio.run, coro)
+        return future.result(timeout=30)
+
+
 def _build_read_tools(auth: AuthContext) -> list[Tool]:
     """Build read-only tools that call the backend with the given auth.
 
@@ -319,9 +298,7 @@ def _build_read_tools(auth: AuthContext) -> list[Tool]:
     def _read_item_content(**kwargs) -> str:
         item_id = kwargs.get("itemId", "")
         try:
-            result = asyncio.get_event_loop().run_until_complete(
-                client.get_item_content(item_id, auth)
-            )
+            result = _run_async(client.get_item_content(item_id, auth))
             return json.dumps(result, ensure_ascii=False)
         except Exception as exc:
             logger.warning("read_item_content failed: %s", exc)
@@ -330,9 +307,7 @@ def _build_read_tools(auth: AuthContext) -> list[Tool]:
     def _list_project_items(**kwargs) -> str:
         project_id = kwargs.get("projectId", "")
         try:
-            result = asyncio.get_event_loop().run_until_complete(
-                client.list_project_items(project_id, auth)
-            )
+            result = _run_async(client.list_project_items(project_id, auth))
             return json.dumps(result, ensure_ascii=False)
         except Exception as exc:
             logger.warning("list_project_items failed: %s", exc)
@@ -340,9 +315,7 @@ def _build_read_tools(auth: AuthContext) -> list[Tool]:
 
     def _list_workspace_overview(**kwargs: object) -> str:
         try:
-            result = asyncio.get_event_loop().run_until_complete(
-                client.list_workspace_overview(auth)
-            )
+            result = _run_async(client.list_workspace_overview(auth))
             return json.dumps(result, ensure_ascii=False)
         except Exception as exc:
             logger.warning("list_workspace_overview failed: %s", exc)

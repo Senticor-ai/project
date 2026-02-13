@@ -571,10 +571,20 @@ def render_pdf(
     current_user=Depends(get_current_user),
     current_org=Depends(get_current_org),
 ):
-    from ..document_renderer import render_cv_to_pdf
+    from ..document_renderer import render_cv_to_pdf, render_markdown_to_pdf
+
+    if not payload.cv and not payload.markdown:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Either 'cv' or 'markdown' must be provided.",
+        )
 
     org_id = current_org["org_id"]
-    pdf_bytes = render_cv_to_pdf(payload.cv, payload.css)
+    if payload.markdown:
+        pdf_bytes = render_markdown_to_pdf(payload.markdown, payload.css)
+    else:
+        assert payload.cv is not None  # guarded by the check above
+        pdf_bytes = render_cv_to_pdf(payload.cv, payload.css)
     digest = hashlib.sha256(pdf_bytes).hexdigest()
     storage = get_storage()
 

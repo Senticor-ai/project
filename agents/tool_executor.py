@@ -142,6 +142,7 @@ async def _exec_create_reference(
         conversation_id=conversation_id,
         description=args.get("description"),
         url=args.get("url"),
+        project_id=args.get("projectId"),
     )
     resp = await client.create_item(ref_jsonld, auth)
     return [
@@ -159,23 +160,32 @@ async def _exec_render_cv(
     auth: AuthContext,
     client: BackendClient,
 ) -> list[CreatedItemRef]:
-    """Render a CV to PDF and create a reference item linked to the project."""
-    # 1. Render PDF via backend
+    """Render a markdown reference to PDF and create a file reference in the project."""
+    # 1. Read the source markdown reference
+    source_item = await client.get_item_content(args["sourceItemId"], auth)
+    # Prefer inline description (from create_reference), fall back to
+    # extracted file content (from uploaded .md/.txt files).
+    markdown_text = source_item.get("description") or source_item.get("file_content") or ""
+    if not markdown_text:
+        raise ValueError(f"Source item {args['sourceItemId']} has no description or file content.")
+
+    # 2. Render PDF via backend
     pdf_resp = await client.render_pdf(
-        cv=args["cv"],
+        markdown=markdown_text,
         css=args["css"],
         filename=args["filename"],
         auth=auth,
     )
     file_id = pdf_resp["file_id"]
 
-    # 2. Create reference item linked to the project, pointing to the PDF file
+    # 3. Create file reference linked to the project
+    source_name = source_item.get("name") or args["sourceItemId"]
     ref_jsonld = build_file_reference_jsonld(
         name=args["filename"],
         file_id=file_id,
         conversation_id=conversation_id,
         project_id=args.get("projectId"),
-        description=f"Rendered CV: {args['cv'].get('name', '')}",
+        description=f"PDF aus: {source_name}",
     )
     ref_resp = await client.create_item(ref_jsonld, auth)
 

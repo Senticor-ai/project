@@ -114,6 +114,7 @@ def build_reference_jsonld(
     conversation_id: str,
     description: str | None = None,
     url: str | None = None,
+    project_id: str | None = None,
 ) -> dict:
     """Build JSON-LD for a CreativeWork reference. Mirrors frontend buildNewReferenceJsonLd."""
     canonical_id = f"urn:app:reference:{uuid.uuid4()}"
@@ -138,6 +139,7 @@ def build_reference_jsonld(
             _pv("app:origin", "captured"),
             _pv("app:ports", []),
             _pv("app:typedReferences", []),
+            _pv("app:projectRefs", [project_id] if project_id else []),
             _pv("app:provenanceHistory", [{"timestamp": now, "action": "created"}]),
         ],
     }
@@ -169,6 +171,7 @@ def build_file_reference_jsonld(
         "additionalProperty": [
             _pv("app:bucket", "reference"),
             _pv("app:fileId", file_id),
+            _pv("app:downloadUrl", f"/files/{file_id}"),
             _pv("app:needsEnrichment", False),
             _pv("app:confidence", "high"),
             _pv("app:captureSource", _tay_capture_source(conversation_id)),

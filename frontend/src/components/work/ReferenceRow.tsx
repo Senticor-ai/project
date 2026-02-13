@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
+import { MarkdownViewer } from "@/components/ui/MarkdownViewer";
 import { BucketBadge } from "@/components/paperclip/BucketBadge";
 import { getFileUrl } from "@/lib/api-client";
 import { ItemEditor } from "./ItemEditor";
@@ -110,7 +111,9 @@ export function ReferenceRow({
   className,
 }: ReferenceRowProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"view" | "edit">("view");
   const origin = reference.origin ? originConfig[reference.origin] : null;
+  const hasMarkdownContent = Boolean(reference.description);
   const projectName = projects?.find(
     (p) => p.id === reference.projectIds[0],
   )?.name;
@@ -293,15 +296,50 @@ export function ReferenceRow({
         </div>
       </div>
 
-      {/* Inline editor — outside the flex row so it renders below */}
+      {/* Expanded content — markdown view or editor */}
       {isExpanded && onEdit && (
         <div className="mt-1 ml-8">
-          <ItemEditor
-            values={referenceToEditorValues(reference)}
-            onChange={handleEditorChange}
-            projects={projects}
-            organizations={organizations}
-          />
+          {hasMarkdownContent && (
+            <div className="mb-2 flex items-center gap-1">
+              <button
+                onClick={() => setViewMode("view")}
+                aria-label="View markdown"
+                className={cn(
+                  "rounded-[var(--radius-sm)] p-1 text-xs",
+                  viewMode === "view"
+                    ? "bg-paper-200 text-text"
+                    : "text-text-subtle hover:text-text",
+                )}
+              >
+                <Icon name="visibility" size={14} />
+              </button>
+              <button
+                onClick={() => setViewMode("edit")}
+                aria-label="Edit content"
+                className={cn(
+                  "rounded-[var(--radius-sm)] p-1 text-xs",
+                  viewMode === "edit"
+                    ? "bg-paper-200 text-text"
+                    : "text-text-subtle hover:text-text",
+                )}
+              >
+                <Icon name="edit" size={14} />
+              </button>
+            </div>
+          )}
+
+          {hasMarkdownContent && viewMode === "view" ? (
+            <div className="max-h-96 overflow-y-auto rounded-[var(--radius-md)] border border-border bg-white p-3 text-sm">
+              <MarkdownViewer content={reference.description!} />
+            </div>
+          ) : (
+            <ItemEditor
+              values={referenceToEditorValues(reference)}
+              onChange={handleEditorChange}
+              projects={projects}
+              organizations={organizations}
+            />
+          )}
         </div>
       )}
     </div>

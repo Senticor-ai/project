@@ -22,7 +22,7 @@ try:
 except (ImportError, OSError):
     _HAS_WEASYPRINT = False
 
-from app.document_renderer import render_cv_to_pdf
+from app.document_renderer import render_cv_to_pdf, render_markdown_to_pdf
 
 requires_weasyprint = pytest.mark.skipif(
     not _HAS_WEASYPRINT,
@@ -266,3 +266,42 @@ class TestRenderStructuredCv:
         assert "Snake Oil" in full_text
 
 
+@requires_weasyprint
+class TestRenderMarkdownCv:
+    """Render a markdown CV to PDF."""
+
+    MODERN_CSS = """
+    body {
+        font-family: 'Inter', sans-serif;
+        color: #1a1a1a;
+        line-height: 1.5;
+    }
+    h1 { font-size: 22pt; font-weight: 700; color: #0f172a; }
+    h2 { font-size: 12pt; font-weight: 700; border-bottom: 1.5pt solid #c2815b; padding-bottom: 3pt; }
+    h3 { font-size: 10.5pt; font-weight: 600; }
+    """
+
+    def test_renders_markdown_to_pdf(self):
+        """Markdown CV produces valid PDF."""
+        result = render_markdown_to_pdf(SAMPLE_CV_MARKDOWN, self.MODERN_CSS)
+        assert result[:5] == b"%PDF-"
+        assert len(result) > 3000, f"PDF too small: {len(result)} bytes"
+
+    def test_pdf_contains_text(self):
+        """Verify PDF contains text from the markdown source."""
+        import io
+
+        from pypdf import PdfReader
+
+        result = render_markdown_to_pdf(SAMPLE_CV_MARKDOWN, self.MODERN_CSS)
+        reader = PdfReader(io.BytesIO(result))
+        full_text = " ".join(page.extract_text() or "" for page in reader.pages)
+        assert "John" in full_text
+        assert "Johnson" in full_text
+        assert "Acme Corp" in full_text
+        assert "Snake Oil" in full_text
+
+    def test_empty_markdown_produces_pdf(self):
+        """Even empty markdown produces a valid (mostly blank) PDF."""
+        result = render_markdown_to_pdf("", self.MODERN_CSS)
+        assert result[:5] == b"%PDF-"

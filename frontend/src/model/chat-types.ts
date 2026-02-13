@@ -107,32 +107,12 @@ export interface CreateReferenceSuggestion {
   name: string;
   description?: string;
   url?: string;
+  projectId?: CanonicalId;
 }
 
 export interface RenderCvSuggestion {
   type: "render_cv";
-  cv: {
-    name: string;
-    headline: string;
-    contact?: {
-      location?: string;
-      phone?: string;
-      email?: string;
-      linkedin?: string;
-    };
-    summary?: string;
-    skills?: string[];
-    experience: Array<{
-      company?: string;
-      title: string;
-      period?: string;
-      location?: string;
-      summary?: string;
-      bullets?: string[];
-    }>;
-    education?: Array<Record<string, unknown>>;
-    certifications?: string[];
-  };
+  sourceItemId: CanonicalId;
   css: string;
   filename: string;
   projectId: CanonicalId;

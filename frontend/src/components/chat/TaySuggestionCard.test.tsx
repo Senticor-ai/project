@@ -184,30 +184,11 @@ describe("TaySuggestionCard", () => {
   describe("render_cv suggestion", () => {
     const cvSuggestion: RenderCvSuggestion = {
       type: "render_cv",
-      cv: {
-        name: "Wolfgang Müller",
-        headline: "Senior AI Engineer",
-        experience: [
-          { title: "AI Engineer", company: "TechCo", period: "2020-2024" },
-        ],
-      },
+      sourceItemId: "urn:app:reference:md-cv-1" as CanonicalId,
       css: "body { font-family: Inter; }",
       filename: "lebenslauf-angepasst.pdf",
       projectId: "urn:app:project:123" as CanonicalId,
     };
-
-    it("renders CV name and headline", () => {
-      render(
-        <TaySuggestionCard
-          suggestion={cvSuggestion}
-          status="pending"
-          onAccept={vi.fn()}
-          onDismiss={vi.fn()}
-        />,
-      );
-      expect(screen.getByText("Wolfgang Müller")).toBeInTheDocument();
-      expect(screen.getByText("Senior AI Engineer")).toBeInTheDocument();
-    });
 
     it("renders filename", () => {
       render(
@@ -221,7 +202,7 @@ describe("TaySuggestionCard", () => {
       expect(screen.getByText("lebenslauf-angepasst.pdf")).toBeInTheDocument();
     });
 
-    it("renders experience count", () => {
+    it("renders markdown reference indicator", () => {
       render(
         <TaySuggestionCard
           suggestion={cvSuggestion}
@@ -230,7 +211,9 @@ describe("TaySuggestionCard", () => {
           onDismiss={vi.fn()}
         />,
       );
-      expect(screen.getByText(/1 Position/)).toBeInTheDocument();
+      expect(
+        screen.getByText("Aus Markdown-Referenz rendern"),
+      ).toBeInTheDocument();
     });
   });
 

@@ -143,11 +143,7 @@ describe("useTayActions", () => {
 
       const suggestion: TaySuggestion = {
         type: "render_cv",
-        cv: {
-          name: "Max Mustermann",
-          headline: "Developer",
-          experience: [{ title: "Senior Dev", period: "2020-2024" }],
-        },
+        sourceItemId: "urn:app:reference:md-cv-1" as CanonicalId,
         css: "body { font-family: Inter; }",
         filename: "lebenslauf.pdf",
         projectId: "urn:app:project:p1" as CanonicalId,
