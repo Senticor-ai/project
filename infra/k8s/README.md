@@ -142,7 +142,7 @@ The production overlay:
 - Adds resource requests/limits via strategic merge patches
 - Sets `imagePullPolicy: Always` for application images
 - Provides production ConfigMap (HTTPS CORS, CSRF enabled, JSON logging, OTEL)
-- Exposes Prometheus metrics: backend API on `:8000/metrics`, worker on `:9090/metrics`, push-worker on `:9091/metrics`
+- Exposes Prometheus metrics: backend API on `:8000/metrics`, worker on `:9090/metrics`, push-worker on `:9091/metrics`, watch-worker on `:9092/metrics`
 
 Namespace is managed by ops. Secrets are SOPS-encrypted in version control and auto-deployed by Flux.
 
@@ -157,7 +157,7 @@ Production secrets are encrypted with [SOPS](https://github.com/getsops/sops) us
 | `secret.yaml` | `app-secrets` | Env vars (DB password, JWT, OAuth, VAPID, API keys) |
 | `secret-pubsub-sa.yaml` | `pubsub-sa` | GCP service account JSON for Gmail Pub/Sub |
 
-The `pubsub-sa` secret is volume-mounted at `/etc/gcp/pubsub-sa.json` on backend and worker pods.
+The `pubsub-sa` secret is volume-mounted at `/etc/gcp/pubsub-sa.json` on backend, worker, and watch-worker pods.
 
 **Prerequisites:**
 
@@ -218,13 +218,15 @@ kubectl kustomize infra/k8s/overlays/production
 | Backend API  | 200m        | 512Mi          | 1000m     | 2Gi          |
 | Worker       | 100m        | 256Mi          | 500m      | 1Gi          |
 | Push Worker  | 50m         | 128Mi          | 250m      | 512Mi        |
+| Watch Worker | 50m         | 128Mi          | 250m      | 512Mi        |
 | PostgreSQL   | 200m        | 256Mi          | 500m      | 1Gi          |
-| **Total**    | **600m**    | **1280Mi**     | **2450m** | **4.75Gi**   |
+| **Total**    | **650m**    | **1408Mi**     | **2700m** | **5.25Gi**   |
 
 ## Notes
 
 - The local overlay includes a Secret with a placeholder password — change it for anything beyond throwaway testing.
 - ConfigMap is entirely overlay-specific (not patched from base) because local and production values differ completely.
 - The `app-secrets` Secret name is standardized across both environments.
+- Local overlay scales `watch-worker` to 0 replicas by default.
 - PVCs use the default StorageClass (no explicit `storageClassName`). k3s bundles `local-path` provisioner which works for local/single-node setups.
 - Meilisearch is an optional service — enable via `MEILI_*` env vars in the ConfigMap.

@@ -8,3 +8,6 @@ resources:
   - gitlab-ci-exporter-config.yaml
   - secret.yaml
   - ingress.yaml
+
+patches:
+  - path: patch-watch-worker-disabled.yaml
