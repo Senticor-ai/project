@@ -105,9 +105,11 @@ export class WorkspacePage {
 
   /** Cmd/Ctrl+Click to toggle additive selection on an item. */
   async cmdClickItem(title: string) {
+    const additiveModifier: "Meta" | "Control" =
+      process.platform === "darwin" ? "Meta" : "Control";
     await this.page
       .getByText(title, { exact: true })
-      .click({ modifiers: ["Meta"] });
+      .click({ modifiers: [additiveModifier] });
   }
 
   /** Shift+Click for range selection from last selected to this item. */
