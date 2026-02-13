@@ -17,9 +17,11 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 E2E_ENV_FILE="${ROOT_DIR}/.env.e2e"
 SCHEMA_FILE="${ROOT_DIR}/backend/db/schema.sql"
-BACKEND_PORT=8001
-AGENTS_PORT=8002
-FRONTEND_PORT=5174
+
+# Ports are computed from PORT_OFFSET after loading .env (see below).
+BACKEND_PORT=""
+AGENTS_PORT=""
+FRONTEND_PORT=""
 
 CLEAN_DB=false
 RUN_TESTS=true
@@ -57,6 +59,25 @@ else
   echo "[e2e] ERROR: $E2E_ENV_FILE not found. Copy .env.example to .env.e2e and adjust."
   exit 1
 fi
+
+# ── Compute ports from PORT_OFFSET (after .env load) ─────────────────
+# shellcheck source=ports.sh
+source "$SCRIPT_DIR/ports.sh"
+BACKEND_PORT="$E2E_BACKEND_PORT"
+AGENTS_PORT="$E2E_AGENTS_PORT"
+FRONTEND_PORT="$E2E_FRONTEND_PORT"
+
+# Export port-derived vars for backend/agents/worker processes
+export PORT="$BACKEND_PORT"
+export CORS_ORIGINS="http://localhost:${FRONTEND_PORT}"
+export AGENTS_URL="http://localhost:${AGENTS_PORT}"
+export WORKER_HEALTH_PORT="${E2E_WORKER_HEALTH_PORT}"
+export PUSH_WORKER_HEALTH_PORT="${E2E_PUSH_WORKER_HEALTH_PORT}"
+export FRONTEND_BASE_URL="http://localhost:${FRONTEND_PORT}"
+export BACKEND_URL="http://localhost:${BACKEND_PORT}"
+
+echo "[e2e] PORT_OFFSET=${PORT_OFFSET}"
+echo "[e2e]   Frontend: :$FRONTEND_PORT | Backend: :$BACKEND_PORT | Agents: :$AGENTS_PORT"
 
 PG_USER="${POSTGRES_USER:-terminandoyo}"
 PG_PASSWORD="${POSTGRES_PASSWORD:-changeme}"
@@ -173,7 +194,6 @@ echo "[e2e] Schema applied."
 
 # ── Step 5: Prepare environment ──────────────────────────────────────
 export DATABASE_URL="postgresql://${PG_USER}:${PG_PASSWORD}@${PG_HOST}:${PG_PORT}/${E2E_DB}"
-export AGENTS_URL="http://localhost:${AGENTS_PORT}"
 mkdir -p "$ROOT_DIR/storage-e2e"
 
 # Kill stale processes on E2E ports (uvicorn workers may survive parent kill)

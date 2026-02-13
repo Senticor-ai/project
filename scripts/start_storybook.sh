@@ -1,3 +1,6 @@
 #!/usr/bin/env bash
-cd "$(dirname "$0")/../frontend"
-exec npx storybook dev -p 6006 --no-open
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=ports.sh
+source "$SCRIPT_DIR/ports.sh"
+cd "$SCRIPT_DIR/../frontend"
+exec npx storybook dev -p "${STORYBOOK_PORT:-$DEV_STORYBOOK_PORT}" --no-open
