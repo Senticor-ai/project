@@ -148,7 +148,6 @@ build-ci-image:
 frontend-lint:
   stage: quality
   needs: []
-  allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
   extends: [.default-rules, .retry-infra, .failure-issue, .frontend-cache]
   before_script:
@@ -159,7 +158,6 @@ frontend-lint:
 frontend-typecheck:
   stage: quality
   needs: []
-  allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
   extends: [.default-rules, .retry-infra, .failure-issue, .frontend-cache]
   before_script:
@@ -170,7 +168,6 @@ frontend-typecheck:
 backend-lint:
   stage: quality
   needs: []
-  allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
   extends: [.default-rules, .retry-infra, .failure-issue, .backend-cache]
   before_script:
@@ -181,7 +178,6 @@ backend-lint:
 backend-typecheck:
   stage: quality
   needs: []
-  allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
   extends: [.default-rules, .retry-infra, .failure-issue, .backend-cache]
   before_script:
@@ -213,7 +209,6 @@ agents-typecheck:
 
 frontend-unit:
   stage: unit
-  allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
   extends: [.default-rules, .large-runner, .retry-infra, .failure-issue, .frontend-cache-readonly]
   before_script:
@@ -232,7 +227,6 @@ frontend-unit:
 
 frontend-storybook:
   stage: unit
-  allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
   extends: [.default-rules, .large-runner, .retry-infra, .failure-issue, .frontend-cache-readonly]
   before_script:
@@ -242,7 +236,6 @@ frontend-storybook:
 
 backend-unit:
   stage: unit
-  allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
   extends: [.default-rules, .retry-infra, .failure-issue, .backend-cache-readonly]
   before_script:
@@ -252,7 +245,6 @@ backend-unit:
 
 agents-unit:
   stage: unit
-  allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
   extends: [.default-rules, .retry-infra, .failure-issue, .agents-cache]
   before_script:
@@ -264,7 +256,6 @@ agents-unit:
 
 backend-integration:
   stage: integration
-  allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
   extends: [.default-rules, .large-runner, .retry-infra, .backend-postgres, .failure-issue, .backend-cache-readonly]
   before_script:
@@ -283,7 +274,6 @@ backend-integration:
 
 frontend-contract:
   stage: integration
-  allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
   extends: [.default-rules, .retry-infra, .failure-issue, .fullstack-cache-readonly]
   before_script:
@@ -332,7 +322,6 @@ build-storybook:
 
 e2e:
   stage: e2e
-  allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
   extends: [.large-runner, .retry-infra, .backend-postgres, .failure-issue, .fullstack-cache-readonly]
   rules:
