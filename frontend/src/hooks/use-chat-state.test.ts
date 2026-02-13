@@ -18,13 +18,17 @@ import type {
 
 const mockSendMessageStreaming: ReturnType<typeof vi.fn> = vi.fn();
 const mockExecuteSuggestion: ReturnType<typeof vi.fn> = vi.fn();
+const mockOnItemsChanged: ReturnType<typeof vi.fn> = vi.fn();
 
 vi.mock("./use-tay-api", () => ({
   useTayApi: () => ({ sendMessageStreaming: mockSendMessageStreaming }),
 }));
 
 vi.mock("./use-tay-actions", () => ({
-  useTayActions: () => ({ executeSuggestion: mockExecuteSuggestion }),
+  useTayActions: () => ({
+    executeSuggestion: mockExecuteSuggestion,
+    onItemsChanged: mockOnItemsChanged,
+  }),
 }));
 
 // ---------------------------------------------------------------------------
@@ -457,6 +461,27 @@ describe("useChatState", () => {
         hook.result.current.conversationId,
         expect.any(Function),
       );
+    });
+
+    it("calls onItemsChanged when items_changed event arrives", async () => {
+      mockSendMessageStreaming.mockImplementationOnce(
+        (
+          _message: string,
+          _conversationId: string,
+          onEvent: (event: StreamEvent) => void,
+        ) => {
+          onEvent({ type: "text_delta", content: "Erledigt." });
+          onEvent({ type: "items_changed" });
+          onEvent({ type: "done", text: "Erledigt." });
+          return Promise.resolve();
+        },
+      );
+
+      const hook = renderHook(() => useChatState());
+
+      await sendAndWait(hook, "Erstelle etwas");
+
+      expect(mockOnItemsChanged).toHaveBeenCalledTimes(1);
     });
 
     it("removes thinking indicator if no events arrive", async () => {

@@ -1,4 +1,12 @@
-import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import React, {
+  useState,
+  useCallback,
+  useMemo,
+  useRef,
+  useEffect,
+} from "react";
+import { cn } from "@/lib/utils";
+import { Icon } from "@/components/ui/Icon";
 import { ItemList } from "./ItemList";
 import { ActionRow } from "./ActionRow";
 import { ContextFilterBar } from "./ContextFilterBar";
@@ -57,7 +65,7 @@ export interface ActionListProps {
   onAdd: (title: string) => Promise<void> | void;
   onComplete: (id: CanonicalId) => void;
   onToggleFocus: (id: CanonicalId) => void;
-  onMove: (id: CanonicalId, bucket: string) => void;
+  onMove: (id: CanonicalId, bucket: string, projectId?: CanonicalId) => void;
   onArchive: (id: CanonicalId) => void;
   onEdit?: (id: CanonicalId, fields: Partial<ItemEditableFields>) => void;
   onUpdateTitle?: (id: CanonicalId, newTitle: string) => void;
@@ -90,6 +98,8 @@ export function ActionList({
 }: ActionListProps) {
   const [expandedId, setExpandedId] = useState<CanonicalId | null>(null);
   const [selectedContexts, setSelectedContexts] = useState<string[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<CanonicalId>>(new Set());
+  const lastSelectedIndexRef = useRef<number | null>(null);
   const [prevBucket, setPrevBucket] = useState(bucket);
   const meta = bucketMeta[bucket];
   const isInbox = bucket === "inbox";
@@ -99,7 +109,13 @@ export function ActionList({
   if (prevBucket !== bucket) {
     setPrevBucket(bucket);
     setExpandedId(null);
+    setSelectedIds(new Set());
   }
+
+  // Reset selection anchor when bucket changes (refs cannot be written during render)
+  useEffect(() => {
+    lastSelectedIndexRef.current = null;
+  }, [bucket]);
 
   // Detect file drags at document level — show drop zone only when active.
   // Uses capture phase so events are seen before FileDropZone's stopPropagation.
@@ -245,6 +261,82 @@ export function ActionList({
     }
   }
 
+  // Explorer-style selection: click = exclusive, Ctrl/Cmd = toggle, Shift = range
+  const handleItemClick = useCallback(
+    (index: number, id: CanonicalId, event: React.MouseEvent) => {
+      const target = event.target as HTMLElement;
+      // Let interactive controls (buttons/links with aria-label, inputs, menus) handle their own clicks
+      if (
+        target.closest(
+          '[aria-label], input, textarea, select, [role="menu"], [role="menuitem"]',
+        )
+      )
+        return;
+
+      // Prevent click from reaching inner buttons (expand/collapse via title)
+      event.stopPropagation();
+      event.preventDefault();
+
+      if (event.shiftKey && lastSelectedIndexRef.current !== null) {
+        // Range select: replace selection with range from anchor to clicked
+        const start = Math.min(lastSelectedIndexRef.current, index);
+        const end = Math.max(lastSelectedIndexRef.current, index);
+        const rangeIds = sorted.slice(start, end + 1).map((t) => t.id);
+        setSelectedIds(new Set(rangeIds));
+      } else if (event.metaKey || event.ctrlKey) {
+        // Toggle additive
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          if (next.has(id)) next.delete(id);
+          else next.add(id);
+          return next;
+        });
+        lastSelectedIndexRef.current = index;
+      } else {
+        // Exclusive select
+        setSelectedIds(new Set([id]));
+        lastSelectedIndexRef.current = index;
+      }
+    },
+    [sorted],
+  );
+
+  const handleBatchTriage = useCallback(
+    (targetBucket: string) => {
+      for (const id of selectedIds) {
+        if (targetBucket === "archive") {
+          onArchive(id);
+        } else {
+          onMove(id, targetBucket);
+        }
+      }
+      setSelectedIds(new Set());
+      lastSelectedIndexRef.current = null;
+    },
+    [selectedIds, onMove, onArchive],
+  );
+
+  const handleSelectAll = useCallback(() => {
+    setSelectedIds(new Set(sorted.map((t) => t.id)));
+  }, [sorted]);
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+    lastSelectedIndexRef.current = null;
+  }, []);
+
+  // Clean stale selection IDs (items that were triaged away)
+  const currentIds = useMemo(() => new Set(sorted.map((t) => t.id)), [sorted]);
+  const hasStale = useMemo(
+    () => [...selectedIds].some((id) => !currentIds.has(id)),
+    [selectedIds, currentIds],
+  );
+  if (hasStale) {
+    setSelectedIds(
+      (prev) => new Set([...prev].filter((id) => currentIds.has(id))),
+    );
+  }
+
   return (
     <ItemList<ActionItem>
       items={sorted}
@@ -262,21 +354,35 @@ export function ActionList({
           : undefined
       }
       renderItem={(thing, { isExpanded, onToggleExpand }) => (
-        <ActionRow
-          key={thing.id}
-          thing={thing}
-          onComplete={onComplete}
-          onToggleFocus={handleToggleFocus}
-          onMove={onMove}
-          onArchive={onArchive}
-          isExpanded={isExpanded}
-          onToggleExpand={onEdit || onUpdateTitle ? onToggleExpand : undefined}
-          onEdit={onEdit}
-          onUpdateTitle={onUpdateTitle}
-          onNavigateToReference={onNavigateToReference}
-          projects={projects}
-          showBucket={isFocusView}
-        />
+        <div
+          onClickCapture={
+            isInbox
+              ? (e) => {
+                  const idx = sorted.indexOf(thing);
+                  handleItemClick(idx, thing.id, e);
+                }
+              : undefined
+          }
+        >
+          <ActionRow
+            key={thing.id}
+            thing={thing}
+            onComplete={onComplete}
+            onToggleFocus={handleToggleFocus}
+            onMove={onMove}
+            onArchive={onArchive}
+            isExpanded={isExpanded}
+            onToggleExpand={
+              onEdit || onUpdateTitle ? onToggleExpand : undefined
+            }
+            onEdit={onEdit}
+            onUpdateTitle={onUpdateTitle}
+            onNavigateToReference={onNavigateToReference}
+            projects={projects}
+            showBucket={isFocusView}
+            isSelected={isInbox ? selectedIds.has(thing.id) : undefined}
+          />
+        </div>
       )}
       emptyMessage={
         isInbox
@@ -314,6 +420,129 @@ export function ActionList({
       }
       beforeItems={
         <>
+          {/* Batch action bar — visible when inbox items are selected */}
+          {isInbox && selectedIds.size > 0 && (
+            <div
+              className={cn(
+                "flex flex-wrap items-center gap-2 rounded-[var(--radius-md)]",
+                "border border-blueprint-200 bg-blueprint-50/50 px-3 py-2",
+              )}
+              role="toolbar"
+              aria-label="Batch actions"
+            >
+              <span className="text-xs font-medium text-blueprint-700">
+                {selectedIds.size} selected
+              </span>
+              <div className="flex flex-wrap gap-1">
+                {(
+                  [
+                    {
+                      bucket: "next",
+                      label: "Next",
+                      icon: "bolt",
+                      colorClass: "text-app-next",
+                    },
+                    {
+                      bucket: "waiting",
+                      label: "Waiting",
+                      icon: "schedule",
+                      colorClass: "text-app-waiting",
+                    },
+                    {
+                      bucket: "calendar",
+                      label: "Calendar",
+                      icon: "calendar_month",
+                      colorClass: "text-app-calendar",
+                    },
+                    {
+                      bucket: "someday",
+                      label: "Later",
+                      icon: "cloud",
+                      colorClass: "text-app-someday",
+                    },
+                    {
+                      bucket: "reference",
+                      label: "Reference",
+                      icon: "description",
+                      colorClass: "text-text-muted",
+                    },
+                  ] as const
+                ).map(({ bucket: b, label, icon, colorClass }) => (
+                  <button
+                    key={b}
+                    onClick={() => handleBatchTriage(b)}
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-[var(--radius-md)]",
+                      "border border-border bg-surface px-2 py-1 text-xs font-medium",
+                      "transition-colors duration-[var(--duration-fast)]",
+                      "hover:bg-paper-100",
+                    )}
+                    aria-label={`Batch move to ${label}`}
+                  >
+                    <Icon name={icon} size={12} className={colorClass} />
+                    {label}
+                  </button>
+                ))}
+                <button
+                  onClick={() => handleBatchTriage("archive")}
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-[var(--radius-md)]",
+                    "border border-border bg-surface px-2 py-1 text-xs font-medium text-text-muted",
+                    "transition-colors duration-[var(--duration-fast)]",
+                    "hover:bg-paper-100",
+                  )}
+                  aria-label="Batch archive"
+                >
+                  <Icon name="archive" size={12} />
+                  Archive
+                </button>
+              </div>
+              {/* Project picker — auto-moves selected items to "next" + project */}
+              {projects && projects.length > 0 && (
+                <select
+                  value=""
+                  onChange={(e) => {
+                    const pid = e.target.value
+                      ? (e.target.value as CanonicalId)
+                      : undefined;
+                    if (pid) {
+                      for (const id of selectedIds) {
+                        onMove(id, "next", pid);
+                      }
+                      setSelectedIds(new Set());
+                      lastSelectedIndexRef.current = null;
+                    }
+                  }}
+                  aria-label="Move batch to project"
+                  className="rounded-[var(--radius-sm)] border border-border bg-surface px-2 py-1 text-xs"
+                >
+                  <option value="">Move to project...</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <div className="ml-auto flex gap-1">
+                <button
+                  onClick={handleSelectAll}
+                  className="text-xs text-blueprint-600 hover:text-blueprint-800"
+                  aria-label="Select all"
+                >
+                  Select all
+                </button>
+                <span className="text-text-subtle">|</span>
+                <button
+                  onClick={handleClearSelection}
+                  className="text-xs text-text-muted hover:text-text"
+                  aria-label="Clear selection"
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+          )}
           {isInbox && onFileDrop && isFileDragActive && (
             <FileDropZone
               onFilesDropped={(files) => {

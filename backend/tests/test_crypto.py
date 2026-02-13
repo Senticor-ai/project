@@ -5,6 +5,8 @@ from cryptography.fernet import Fernet
 
 from app.email.crypto import CryptoService
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture()
 def key():

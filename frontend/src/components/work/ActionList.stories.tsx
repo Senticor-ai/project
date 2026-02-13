@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, waitFor } from "storybook/test";
 import { ActionList } from "./ActionList";
 import type { ActionItem } from "@/model/types";
+import type { CanonicalId } from "@/model/canonical-id";
 import { createActionItem, resetFactoryCounter } from "@/model/factories";
 import { store, createItemRecord } from "@/test/msw/fixtures";
 
@@ -427,5 +428,247 @@ export const FocusFromList: Story = {
       focused.compareDocumentPosition(unfocused) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Multi-select stories (inbox only) — Explorer-style click selection
+// ---------------------------------------------------------------------------
+
+/** Click to select inbox items — batch action bar appears. */
+export const MultiSelectInbox: Story = {
+  args: { bucket: "inbox", items: [] },
+  render: function MultiSelectDemo() {
+    const [items, setItems] = useState<ActionItem[]>([
+      createActionItem({
+        rawCapture: "Steuerbescheid 2024.pdf",
+        bucket: "inbox",
+      }),
+      createActionItem({
+        rawCapture: "Lohnsteuerbescheinigung.pdf",
+        bucket: "inbox",
+      }),
+      createActionItem({ rawCapture: "Kontoauszug Q4.pdf", bucket: "inbox" }),
+      createActionItem({ rawCapture: "Spendenquittung.pdf", bucket: "inbox" }),
+      createActionItem({
+        rawCapture: "Versicherungsnachweis.pdf",
+        bucket: "inbox",
+      }),
+    ]);
+
+    return (
+      <ActionList
+        bucket="inbox"
+        items={items}
+        onAdd={fn()}
+        onComplete={fn()}
+        onToggleFocus={fn()}
+        onMove={(id) => {
+          setItems((prev) => prev.filter((t) => t.id !== id));
+        }}
+        onArchive={(id) => {
+          setItems((prev) => prev.filter((t) => t.id !== id));
+        }}
+        onEdit={fn()}
+      />
+    );
+  },
+  play: async ({ canvas, userEvent, step }) => {
+    await step("Click first item — selects it, batch bar appears", async () => {
+      await userEvent.click(canvas.getByText("Steuerbescheid 2024.pdf"));
+      await expect(canvas.getByText("1 selected")).toBeInTheDocument();
+    });
+
+    await step("Cmd+Click second item — adds to selection", async () => {
+      await userEvent.keyboard("{Meta>}");
+      await userEvent.click(canvas.getByText("Lohnsteuerbescheinigung.pdf"));
+      await userEvent.keyboard("{/Meta}");
+      await expect(canvas.getByText("2 selected")).toBeInTheDocument();
+      await expect(
+        canvas.getByLabelText("Batch move to Next"),
+      ).toBeInTheDocument();
+    });
+  },
+};
+
+/** Batch triage: click first, Cmd+Click rest, batch move to Next — items removed. */
+export const MultiSelectBatchTriage: Story = {
+  args: { bucket: "inbox", items: [] },
+  render: function BatchTriageDemo() {
+    const [items, setItems] = useState<ActionItem[]>([
+      createActionItem({ rawCapture: "Batch item A", bucket: "inbox" }),
+      createActionItem({ rawCapture: "Batch item B", bucket: "inbox" }),
+      createActionItem({ rawCapture: "Batch item C", bucket: "inbox" }),
+    ]);
+
+    return (
+      <ActionList
+        bucket="inbox"
+        items={items}
+        onAdd={fn()}
+        onComplete={fn()}
+        onToggleFocus={fn()}
+        onMove={(id) => {
+          setItems((prev) => prev.filter((t) => t.id !== id));
+        }}
+        onArchive={(id) => {
+          setItems((prev) => prev.filter((t) => t.id !== id));
+        }}
+        onEdit={fn()}
+      />
+    );
+  },
+  play: async ({ canvas, userEvent, step }) => {
+    await step("Click first, Cmd+Click to add the rest", async () => {
+      await userEvent.click(canvas.getByText("Batch item A"));
+      await userEvent.keyboard("{Meta>}");
+      await userEvent.click(canvas.getByText("Batch item B"));
+      await userEvent.click(canvas.getByText("Batch item C"));
+      await userEvent.keyboard("{/Meta}");
+      await expect(canvas.getByText("3 selected")).toBeInTheDocument();
+    });
+
+    await step("Click 'Next' in batch bar — all items triaged", async () => {
+      await userEvent.click(canvas.getByLabelText("Batch move to Next"));
+    });
+
+    await step("Inbox is now empty", async () => {
+      await expect(canvas.getByText("Inbox is empty")).toBeInTheDocument();
+    });
+  },
+};
+
+/** Select all / clear selection controls in batch bar. */
+export const MultiSelectControls: Story = {
+  args: { bucket: "inbox", items: [] },
+  render: function SelectAllDemo() {
+    const [items] = useState<ActionItem[]>([
+      createActionItem({ rawCapture: "Item one", bucket: "inbox" }),
+      createActionItem({ rawCapture: "Item two", bucket: "inbox" }),
+      createActionItem({ rawCapture: "Item three", bucket: "inbox" }),
+    ]);
+
+    return (
+      <ActionList
+        bucket="inbox"
+        items={items}
+        onAdd={fn()}
+        onComplete={fn()}
+        onToggleFocus={fn()}
+        onMove={fn()}
+        onArchive={fn()}
+        onEdit={fn()}
+      />
+    );
+  },
+  play: async ({ canvas, userEvent, step }) => {
+    await step("Click one item to show batch bar", async () => {
+      await userEvent.click(canvas.getByText("Item one"));
+      await expect(canvas.getByText("1 selected")).toBeInTheDocument();
+    });
+
+    await step("Click 'Select all' — all items selected", async () => {
+      await userEvent.click(canvas.getByLabelText("Select all"));
+      await expect(canvas.getByText("3 selected")).toBeInTheDocument();
+    });
+
+    await step("Click 'Clear' — selection cleared, bar hidden", async () => {
+      await userEvent.click(canvas.getByLabelText("Clear selection"));
+      await expect(canvas.queryByText("selected")).not.toBeInTheDocument();
+    });
+  },
+};
+
+/** Shift+Click to select a range of items. */
+export const MultiSelectShiftRange: Story = {
+  args: { bucket: "inbox", items: [] },
+  render: function ShiftRangeDemo() {
+    const [items] = useState<ActionItem[]>([
+      createActionItem({ rawCapture: "Item alpha", bucket: "inbox" }),
+      createActionItem({ rawCapture: "Item beta", bucket: "inbox" }),
+      createActionItem({ rawCapture: "Item gamma", bucket: "inbox" }),
+      createActionItem({ rawCapture: "Item delta", bucket: "inbox" }),
+    ]);
+
+    return (
+      <ActionList
+        bucket="inbox"
+        items={items}
+        onAdd={fn()}
+        onComplete={fn()}
+        onToggleFocus={fn()}
+        onMove={fn()}
+        onArchive={fn()}
+        onEdit={fn()}
+      />
+    );
+  },
+  play: async ({ canvas, userEvent, step }) => {
+    await step("Click first item to anchor selection", async () => {
+      await userEvent.click(canvas.getByText("Item alpha"));
+      await expect(canvas.getByText("1 selected")).toBeInTheDocument();
+    });
+
+    await step("Shift+Click third item to select range", async () => {
+      await userEvent.keyboard("{Shift>}");
+      await userEvent.click(canvas.getByText("Item gamma"));
+      await userEvent.keyboard("{/Shift}");
+      await expect(canvas.getByText("3 selected")).toBeInTheDocument();
+    });
+  },
+};
+
+/** Project picker auto-moves selected items to "next" + project. */
+export const ProjectPickerAutoMove: Story = {
+  args: { bucket: "inbox", items: [] },
+  render: function ProjectPickerDemo() {
+    const [items, setItems] = useState<ActionItem[]>([
+      createActionItem({ rawCapture: "Tax receipt A", bucket: "inbox" }),
+      createActionItem({ rawCapture: "Tax receipt B", bucket: "inbox" }),
+      createActionItem({ rawCapture: "Unrelated item", bucket: "inbox" }),
+    ]);
+    const projects = [
+      { id: "proj-1" as CanonicalId, name: "Steuererklärung 2025" },
+    ];
+
+    return (
+      <ActionList
+        bucket="inbox"
+        items={items}
+        onAdd={fn()}
+        onComplete={fn()}
+        onToggleFocus={fn()}
+        onMove={(id) => {
+          setItems((prev) => prev.filter((t) => t.id !== id));
+        }}
+        onArchive={fn()}
+        onEdit={fn()}
+        projects={projects}
+      />
+    );
+  },
+  play: async ({ canvas, userEvent, step }) => {
+    await step("Click first, Cmd+Click to add second", async () => {
+      await userEvent.click(canvas.getByText("Tax receipt A"));
+      await userEvent.keyboard("{Meta>}");
+      await userEvent.click(canvas.getByText("Tax receipt B"));
+      await userEvent.keyboard("{/Meta}");
+      await expect(canvas.getByText("2 selected")).toBeInTheDocument();
+    });
+
+    await step("Select project — items auto-move", async () => {
+      await userEvent.selectOptions(
+        canvas.getByLabelText("Move batch to project"),
+        "Steuererklärung 2025",
+      );
+    });
+
+    await step("Selected items disappeared, unrelated stays", async () => {
+      await waitFor(() => {
+        expect(canvas.queryByText("Tax receipt A")).not.toBeInTheDocument();
+        expect(canvas.queryByText("Tax receipt B")).not.toBeInTheDocument();
+      });
+      await expect(canvas.getByText("Unrelated item")).toBeInTheDocument();
+    });
   },
 };

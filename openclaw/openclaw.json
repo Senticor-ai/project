@@ -14,6 +14,11 @@
     }
   },
   "agents": {
+    "defaults": {
+      "model": {
+        "primary": "openrouter/google/gemini-3-flash-preview"
+      }
+    },
     "list": [
       {
         "id": "tay",
@@ -21,10 +26,8 @@
       }
     ]
   },
-  "agent": {
-    "model": "openrouter/openai/gpt-4o-mini"
-  },
   "tools": {
-    "profile": "none"
+    "profile": "minimal",
+    "exec": {}
   }
 }

@@ -14,6 +14,8 @@ from app.email.gmail_api import (
     watch,
 )
 
+pytestmark = pytest.mark.unit
+
 
 def _mock_response(status_code: int = 200, json_data: dict | None = None) -> httpx.Response:
     return httpx.Response(

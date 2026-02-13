@@ -78,12 +78,11 @@ UUID-based file storage. The `download_url` provides the retrieval path.
 | File preview/thumbnail in inbox     | **Gap** | No visual indicator that item has an attached file |
 | Download link in item detail        | **Gap** | `downloadUrl` stored but no UI to open/download    |
 | Link reference to project           | **Gap** | References have no `projectIds` field              |
-| Tay auto-classification (Docling)   | **Gap** | Backend has Docling; no extraction pipeline yet    |
+| Tay auto-classification             | **Gap** | Needs AI extraction pipeline                       |
 
 ---
 
 ## Tay Automation Potential
 
-When a PDF is dropped, Tay uses **Docling** (already in backend dependencies) to
-parse the document, identify the IRS form type, and auto-populate the name and
-tags.
+When a PDF is dropped, Tay could parse the document via an AI pipeline, identify
+the IRS form type, and auto-populate the name and tags.

@@ -273,6 +273,31 @@ export const CreateProject: Story = {
   },
 };
 
+/** Star/unstar a project via the star button on the project header. */
+export const StarProject: Story = {
+  args: {
+    projects: [project1, project2],
+    actions: sampleActions,
+  },
+  play: async ({ canvas, userEvent, args, step }) => {
+    await step("Star button visible on project row", async () => {
+      await expect(
+        canvas.getByLabelText("Star Website Redesign"),
+      ).toBeInTheDocument();
+      await expect(
+        canvas.getByLabelText("Star Mobile App Launch"),
+      ).toBeInTheDocument();
+    });
+
+    await step("Click star calls onToggleFocus with project ID", async () => {
+      await userEvent.click(canvas.getByLabelText("Star Website Redesign"));
+      await waitFor(() => {
+        expect(args.onToggleFocus).toHaveBeenCalledWith(project1.id);
+      });
+    });
+  },
+};
+
 /** Cancel closes the creation form without calling onCreateProject. */
 export const CreateProjectCancel: Story = {
   args: {

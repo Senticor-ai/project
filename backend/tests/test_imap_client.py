@@ -77,6 +77,7 @@ def _build_multipart_email(
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.unit
 class TestParseMessage:
     def test_simple_text_email(self):
         raw = _build_simple_email()
@@ -179,6 +180,7 @@ class TestParseMessage:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.unit
 class TestParseBody:
     def test_plain_text_only(self):
         msg = email.mime.text.MIMEText("plain content", "plain", "utf-8")

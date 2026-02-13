@@ -140,5 +140,11 @@ export interface ChatCompletionResponse {
 export type StreamEvent =
   | { type: "text_delta"; content: string }
   | { type: "tool_calls"; toolCalls: ChatToolCall[] }
+  | {
+      type: "auto_executed";
+      toolCall: ChatToolCall;
+      createdItems: CreatedItemRef[];
+    }
+  | { type: "items_changed" }
   | { type: "done"; text: string }
   | { type: "error"; detail: string };

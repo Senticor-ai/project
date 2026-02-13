@@ -511,6 +511,61 @@ export const ChatApi = {
 };
 
 // ---------------------------------------------------------------------------
+// Agent Settings API
+// ---------------------------------------------------------------------------
+
+export type AgentSettingsResponse = {
+  agentBackend: "haystack" | "openclaw";
+  provider: "openrouter" | "openai" | "anthropic";
+  hasApiKey: boolean;
+  model: string;
+  containerStatus: string | null;
+  containerError: string | null;
+};
+
+export type AgentContainerStatusResponse = {
+  status: string | null;
+  url: string | null;
+  error: string | null;
+  startedAt: string | null;
+  lastActivityAt: string | null;
+  port: number | null;
+};
+
+export type AgentSettingsUpdateRequest = {
+  agentBackend?: "haystack" | "openclaw";
+  provider?: "openrouter" | "openai" | "anthropic";
+  apiKey?: string;
+  model?: string;
+};
+
+export const AgentApi = {
+  getSettings: () => request<AgentSettingsResponse>("/agent/settings"),
+
+  updateSettings: (data: AgentSettingsUpdateRequest) =>
+    request<AgentSettingsResponse>("/agent/settings", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  deleteApiKey: () =>
+    request<{ ok: boolean }>("/agent/settings/api-key", {
+      method: "DELETE",
+    }),
+
+  getContainerStatus: () =>
+    request<AgentContainerStatusResponse>("/agent/status"),
+
+  stopContainer: () =>
+    request<{ ok: boolean }>("/agent/container/stop", { method: "POST" }),
+
+  restartContainer: () =>
+    request<{ ok: boolean; url: string }>("/agent/container/restart", {
+      method: "POST",
+    }),
+};
+
+// ---------------------------------------------------------------------------
 // Items API
 // ---------------------------------------------------------------------------
 

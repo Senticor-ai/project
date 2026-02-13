@@ -17,10 +17,8 @@ from .meili import (
     ensure_items_index,
     is_enabled,
 )
-from .ocr_settings import OcrConfig, default_ocr_config
 
 logger = get_logger("search-indexer")
-_DOCLING_CONVERTERS: dict[tuple, object] = {}
 
 
 def _normalize_types(value: Any) -> list[str]:
@@ -153,85 +151,10 @@ def _extract_pdf_text(path: Path, max_chars: int) -> str:
         return ""
 
 
-def _build_ocr_options(ocr_config: OcrConfig):
-    from docling.models.factories import get_ocr_factory
-
-    factory = get_ocr_factory()
-    try:
-        options = factory.create_options(ocr_config.engine)
-    except RuntimeError:
-        logger.warning("meili.ocr_unknown_engine", engine=ocr_config.engine)
-        options = factory.create_options("auto")
-
-    if ocr_config.languages and ocr_config.engine != "auto":
-        options.lang = list(ocr_config.languages)
-    options.force_full_page_ocr = ocr_config.force_full_page_ocr
-    options.bitmap_area_threshold = ocr_config.bitmap_area_threshold
-    return options
-
-
-def _build_pdf_pipeline_options(ocr_config: OcrConfig):
-    from docling.datamodel.pipeline_options import PdfPipelineOptions
-
-    return PdfPipelineOptions(
-        do_ocr=True,
-        ocr_options=_build_ocr_options(ocr_config),
-    )
-
-
-def _docling_converter(ocr_config: OcrConfig):
-    key = (
-        ocr_config.engine,
-        ocr_config.languages,
-        ocr_config.force_full_page_ocr,
-        ocr_config.bitmap_area_threshold,
-    )
-    if key in _DOCLING_CONVERTERS:
-        return _DOCLING_CONVERTERS[key]
-
-    from docling.datamodel.base_models import InputFormat
-    from docling.document_converter import (
-        DocumentConverter,
-        ImageFormatOption,
-        PdfFormatOption,
-    )
-
-    pdf_options = _build_pdf_pipeline_options(ocr_config)
-    converter = DocumentConverter(
-        format_options={
-            InputFormat.PDF: PdfFormatOption(pipeline_options=pdf_options),
-            InputFormat.IMAGE: ImageFormatOption(pipeline_options=pdf_options),
-        },
-    )
-    _DOCLING_CONVERTERS[key] = converter
-    return converter
-
-
-def _extract_docling_text(path: Path, max_chars: int, ocr_config: OcrConfig) -> str:
-    if not settings.docling_enabled or max_chars <= 0:
-        return ""
-    try:
-        converter = _docling_converter(ocr_config)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("meili.docling_unavailable", error=str(exc))
-        return ""
-    try:
-        result = converter.convert(str(path))
-        document = getattr(result, "document", None)
-        if not document:
-            return ""
-        text = document.export_to_markdown() or ""
-        return _truncate(text, max_chars)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("meili.docling_extract_failed", path=str(path), error=str(exc))
-        return ""
-
-
 def _extract_file_text(
     path: Path,
     content_type: str | None,
     size_bytes: int | None,
-    ocr_config: OcrConfig,
 ) -> str:
     if settings.meili_file_text_max_bytes <= 0:
         return ""
@@ -249,20 +172,12 @@ def _extract_file_text(
         normalized_type is None and path.suffix.lower() == ".pdf"
     )
     if is_pdf:
-        if settings.docling_enabled:
-            docling_text = _extract_docling_text(
-                path,
-                settings.meili_file_text_max_chars,
-                ocr_config,
-            )
-            if docling_text:
-                return docling_text
         return _extract_pdf_text(path, settings.meili_file_text_max_chars)
 
-    return _extract_docling_text(path, settings.meili_file_text_max_chars, ocr_config)
+    return ""
 
 
-def build_file_document(row: dict[str, Any], ocr_config: OcrConfig | None = None) -> dict[str, Any]:
+def build_file_document(row: dict[str, Any]) -> dict[str, Any]:
     original_name = row.get("original_name") or ""
     content_type = _guess_content_type(original_name, row.get("content_type"))
     storage_key = row.get("storage_path") or ""
@@ -275,7 +190,6 @@ def build_file_document(row: dict[str, Any], ocr_config: OcrConfig | None = None
                 local_path,
                 content_type,
                 row.get("size_bytes"),
-                ocr_config or default_ocr_config(),
             )
     search_text = "\n".join(part for part in [original_name, extracted_text] if part)
     return {
@@ -309,9 +223,9 @@ def delete_item(item_id: str) -> None:
     delete_document(settings.meili_index_items, item_id)
 
 
-def index_file(row: dict[str, Any], ocr_config: OcrConfig | None = None) -> None:
+def index_file(row: dict[str, Any]) -> None:
     if not is_enabled() or not settings.meili_index_files_enabled:
         return
     ensure_files_index()
-    doc = build_file_document(row, ocr_config=ocr_config)
+    doc = build_file_document(row)
     add_documents(settings.meili_index_files, [doc])

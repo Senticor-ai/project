@@ -117,9 +117,9 @@ needs to see gross wages from the W-2, interest amounts from the 1099-INT, etc."
 This is valid JSON-LD with schema.org extensibility. PropertyValue is already
 the carrier for all app-specific data in TAY. The gap is purely UI.
 
-**What Tay could do**: This is the **highest-value AI capability**. Docling
-(already installed in backend) parses the PDF, identifies IRS form layout,
-and extracts box values. Tay populates PropertyValues automatically:
+**What Tay could do**: This is the **highest-value AI capability**. An AI pipeline
+parses the PDF, identifies IRS form layout, and extracts box values. Tay
+populates PropertyValues automatically:
 
 > "I found your W-2 from Employer A. Gross wages: $85,000, Federal tax
 > withheld: $18,200. Does this look right?"
@@ -299,17 +299,16 @@ Use FRBR for **all** tax documents (personal and law references):
 
 | Capability                     | User Value    | Infrastructure Ready?                               |
 | ------------------------------ | ------------- | --------------------------------------------------- |
-| PDF parsing → field extraction | **Very High** | Partially — Docling + pypdf in backend, no pipeline |
-| Auto-categorize IRS form type  | High          | Partially — Docling for layout, no classifier model |
+| PDF parsing → field extraction | **Very High** | Partially — pypdf for text extraction, no pipeline  |
+| Auto-categorize IRS form type  | High          | No — needs classifier model                         |
 | Generate tax organizer table   | **Very High** | No — no table view, no aggregation                  |
 | Completeness check             | High          | No — no project-scoped review step                  |
 | Export formatted package       | High          | No — no file bundling, no PDF report                |
 | Suggest missing documents      | Medium        | No — no prior-year analysis                         |
 | FRBR version detection         | Medium        | No — no comparison logic for corrected docs         |
 
-**Highest-leverage Tay feature**: PDF upload → Docling extraction → structured
-PropertyValues with IRS box numbers and amounts. The backend has the library;
-it needs the pipeline.
+**Highest-leverage Tay feature**: PDF upload → text extraction → structured
+PropertyValues with IRS box numbers and amounts. Needs an AI extraction pipeline.
 
 ---
 
@@ -368,7 +367,7 @@ Handle corrected and re-issued documents.
 
 Let Tay parse and categorize documents.
 
-9. **Docling extraction pipeline** — PDF → text + layout → field identification
+9. **PDF extraction pipeline** — PDF → text + layout → field identification
 10. **IRS form classifier** — recognize form type from content
 11. **Box value extraction** — pull amounts into PropertyValues automatically
 

@@ -7,7 +7,6 @@ from ..db import db_conn
 from ..observability import configure_logging, get_logger
 from .indexer import build_file_document, build_item_document
 from .meili import add_documents, ensure_files_index, ensure_items_index, is_enabled
-from .ocr_settings import OcrConfig, get_ocr_config
 
 configure_logging()
 logger = get_logger("meili-reindex")
@@ -49,7 +48,6 @@ def _reindex_files(batch_size: int) -> None:
 
     ensure_files_index()
     total = 0
-    ocr_cache: dict[str, OcrConfig] = {}
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -71,12 +69,7 @@ def _reindex_files(batch_size: int) -> None:
                 rows = cur.fetchmany(batch_size)
                 if not rows:
                     break
-                documents = []
-                for row in rows:
-                    org_id = str(row.get("org_id") or "")
-                    if org_id not in ocr_cache:
-                        ocr_cache[org_id] = get_ocr_config(org_id)
-                    documents.append(build_file_document(row, ocr_config=ocr_cache[org_id]))
+                documents = [build_file_document(row) for row in rows]
                 add_documents(settings.meili_index_files, documents)
                 total += len(documents)
                 logger.info("meili.reindex_files_batch", count=len(documents), total=total)

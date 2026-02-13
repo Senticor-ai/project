@@ -191,3 +191,69 @@ def api_base_url(app):
 
     server.should_exit = True
     thread.join(timeout=5)
+
+
+# ---------------------------------------------------------------------------
+# Test layer enforcement
+# ---------------------------------------------------------------------------
+
+# Fixtures defined in THIS conftest that imply database access.
+# Uses only unambiguous names (excluding "client" which is commonly shadowed
+# by local fixtures, e.g. PubSubClient in test_pubsub.py).
+_DB_FIXTURES = frozenset(
+    {"test_database_url", "app", "auth_client", "auth_context", "api_base_url"}
+)
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """Enforce that @pytest.mark.unit tests don't use DB fixtures."""
+    for item in items:
+        if item.get_closest_marker("unit"):
+            requested = set(item.fixturenames)
+            violations = requested & _DB_FIXTURES
+            if violations:
+                item.add_marker(
+                    pytest.mark.xfail(
+                        reason=f"Unit test requests DB fixtures: {violations}",
+                        strict=True,
+                    )
+                )
+
+
+@pytest.fixture(autouse=True)
+def _enforce_no_network_in_unit(request):
+    """Disable socket access for @pytest.mark.unit tests.
+
+    Any network call (HTTP, DNS, etc.) raises SocketBlockedError.
+    """
+    if request.node.get_closest_marker("unit"):
+        import pytest_socket
+
+        pytest_socket.disable_socket()
+        yield
+        pytest_socket.enable_socket()
+    else:
+        yield
+
+
+@pytest.fixture(autouse=True)
+def _block_external_http(request):
+    """Block outbound HTTP in integration tests (allow localhost + postgres only).
+
+    Tests that need real external APIs must use @pytest.mark.external.
+    Unit tests are covered by the stricter socket block above.
+    """
+    if request.node.get_closest_marker("unit"):
+        yield
+        return
+    if request.node.get_closest_marker("external"):
+        yield
+        return
+
+    import respx
+
+    with respx.mock(assert_all_called=False) as router:
+        router.route(host="localhost").pass_through()
+        router.route(host="127.0.0.1").pass_through()
+        router.route(host="postgres").pass_through()
+        yield router

@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(DATABASE_URL=\"\" POSTGRES_PASSWORD=\"\" uv run pytest:*)"
+    ]
+  }
+}

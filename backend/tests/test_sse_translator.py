@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from app.chat.sse_translator import SseToNdjsonTranslator
+
+pytestmark = pytest.mark.unit
 
 
 def _sse(data: dict | str) -> str:

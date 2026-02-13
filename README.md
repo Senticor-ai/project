@@ -53,7 +53,7 @@ cd frontend && npm run storybook   # http://localhost:6006
 | Layer         | Technologies                                                                    |
 | ------------- | ------------------------------------------------------------------------------- |
 | Frontend      | React 19, Vite, TypeScript, Tailwind v4, shadcn/ui, Framer Motion, Storybook 10 |
-| Backend       | Python, FastAPI, PostgreSQL, Apache Jena Fuseki, Qdrant                          |
+| Backend       | Python, FastAPI, PostgreSQL, Meilisearch, Qdrant                                 |
 | Agents        | Python, Haystack, OpenRouter (separate service for Tay AI copilot)               |
 | Observability | OpenTelemetry, Grafana LGTM (Loki, Grafana, Tempo, Mimir)                       |
 | Auth          | Local JWT with HTTP-only cookies                                                |

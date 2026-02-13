@@ -51,6 +51,7 @@ vi.mock("@dnd-kit/core", () => ({
     transition: null,
     isDragging: false,
   }),
+  useDndMonitor: () => {},
 }));
 
 const baseProps = {
@@ -339,7 +340,11 @@ describe("BucketView drag and drop", () => {
       active: { id: thing.id },
       over: { data: { current: { bucket: "someday" } } },
     });
-    expect(onMoveActionItem).toHaveBeenCalledWith(thing.id, "someday");
+    expect(onMoveActionItem).toHaveBeenCalledWith(
+      thing.id,
+      "someday",
+      undefined,
+    );
   });
 
   it("does not call onMoveActionItem when drop target is null", () => {
@@ -424,6 +429,34 @@ describe("BucketView drag and drop", () => {
     });
     expect(onToggleFocus).toHaveBeenCalledWith(thing.id);
     expect(onMoveActionItem).not.toHaveBeenCalled();
+  });
+
+  it("passes projectId from drop target to onMoveActionItem", () => {
+    const onMoveActionItem = vi.fn();
+    const thing = createAction({ name: "Move to project", bucket: "inbox" });
+    render(
+      <BucketView
+        {...baseProps}
+        actionItems={[thing]}
+        onMoveActionItem={onMoveActionItem}
+      />,
+    );
+    capturedOnDragEnd?.({
+      active: { id: thing.id },
+      over: {
+        data: {
+          current: {
+            bucket: "next",
+            projectId: "urn:app:project:tax-2024",
+          },
+        },
+      },
+    });
+    expect(onMoveActionItem).toHaveBeenCalledWith(
+      thing.id,
+      "next",
+      "urn:app:project:tax-2024",
+    );
   });
 
   it("shows drag overlay for reference items", () => {

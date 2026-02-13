@@ -25,7 +25,7 @@ export function useChatState() {
     `conv-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
   );
   const { sendMessageStreaming } = useTayApi();
-  const { executeSuggestion } = useTayActions();
+  const { executeSuggestion, onItemsChanged } = useTayActions();
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -86,7 +86,7 @@ export function useChatState() {
             }
 
             case "tool_calls": {
-              // Add suggestion cards for tool calls
+              // Add suggestion cards for tool calls (Haystack approval flow)
               const newSuggestions: ChatMessage[] = [];
               for (const tc of event.toolCalls) {
                 const args = { ...tc.arguments, type: tc.name };
@@ -101,6 +101,30 @@ export function useChatState() {
                 newSuggestions.push(suggestion);
               }
               setMessages((prev) => [...prev, ...newSuggestions]);
+              break;
+            }
+
+            case "auto_executed": {
+              // OpenClaw path: tool already executed, show confirmation directly
+              const confirmation: TayConfirmationMessage = {
+                id: generateId(),
+                role: "tay",
+                kind: "confirmation",
+                content: buildConfirmationText(event.createdItems),
+                createdItems: event.createdItems,
+                timestamp: new Date().toISOString(),
+              };
+              setMessages((prev) => {
+                const withoutThinking = prev.filter(
+                  (m) => m.id !== thinkingMsg.id,
+                );
+                return [...withoutThinking, confirmation];
+              });
+              break;
+            }
+
+            case "items_changed": {
+              void onItemsChanged();
               break;
             }
 
@@ -175,7 +199,7 @@ export function useChatState() {
         setIsLoading(false);
       }
     },
-    [sendMessageStreaming],
+    [sendMessageStreaming, onItemsChanged],
   );
 
   const acceptSuggestion = useCallback(

@@ -366,6 +366,41 @@ describe("ProjectTree", () => {
     expect(screen.queryByText("Completed")).not.toBeInTheDocument();
   });
 
+  it("calls onToggleFocus with project ID when star clicked on project header", async () => {
+    const user = userEvent.setup();
+    const project = makeProject({ name: "Starrable Project" });
+    const onFocus = vi.fn();
+
+    renderTree([project], [], { onToggleFocus: onFocus });
+
+    const star = screen.getByRole("button", {
+      name: /star starrable project/i,
+    });
+    await user.click(star);
+    expect(onFocus).toHaveBeenCalledWith(project.id);
+  });
+
+  it("shows filled star when project is focused", () => {
+    const project = makeProject({ name: "Starred Project", isFocused: true });
+    renderTree([project]);
+
+    expect(
+      screen.getByRole("button", { name: /unstar starred project/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows outline star when project is not focused", () => {
+    const project = makeProject({
+      name: "Unstarred Project",
+      isFocused: false,
+    });
+    renderTree([project]);
+
+    expect(
+      screen.getByRole("button", { name: /star unstarred project/i }),
+    ).toBeInTheDocument();
+  });
+
   it("shows desired outcome when expanded", async () => {
     const user = userEvent.setup();
     const project = makeProject({

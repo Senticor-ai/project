@@ -96,6 +96,63 @@ export class WorkspacePage {
     return this.page.getByRole("menuitem", { name: `Move to ${bucket}` });
   }
 
+  // ----- Multi-select & Batch Actions -----
+
+  /** Click to select an item (Explorer-style exclusive select). */
+  async selectItem(title: string) {
+    await this.page.getByText(title, { exact: true }).click();
+  }
+
+  /** Cmd/Ctrl+Click to toggle additive selection on an item. */
+  async cmdClickItem(title: string) {
+    await this.page
+      .getByText(title, { exact: true })
+      .click({ modifiers: ["Meta"] });
+  }
+
+  /** Shift+Click for range selection from last selected to this item. */
+  async shiftClickItem(title: string) {
+    await this.page
+      .getByText(title, { exact: true })
+      .click({ modifiers: ["Shift"] });
+  }
+
+  batchBar(): Locator {
+    return this.page.getByRole("toolbar", { name: "Batch actions" });
+  }
+
+  batchTriageButton(label: string): Locator {
+    return this.batchBar().getByLabel(`Batch move to ${label}`);
+  }
+
+  batchArchiveButton(): Locator {
+    return this.batchBar().getByLabel("Batch archive");
+  }
+
+  batchProjectPicker(): Locator {
+    return this.batchBar().getByLabel("Move batch to project");
+  }
+
+  batchSelectAll(): Locator {
+    return this.batchBar().getByLabel("Select all");
+  }
+
+  batchClear(): Locator {
+    return this.batchBar().getByLabel("Clear selection");
+  }
+
+  // ----- Project star toggle -----
+
+  projectStar(title: string): Locator {
+    return this.page.getByLabel(new RegExp(`(Star|Unstar) ${title}`));
+  }
+
+  // ----- Starred projects in nav -----
+
+  navProjectSubItem(name: string): Locator {
+    return this.bucketNav.getByLabel(`Drop into ${name}`);
+  }
+
   // ----- Context Filter Bar -----
 
   contextFilterBar(): Locator {

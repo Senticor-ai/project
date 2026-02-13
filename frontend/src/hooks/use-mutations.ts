@@ -624,6 +624,7 @@ export function useMoveAction() {
         shouldSplit?: boolean;
         record?: ItemRecord;
         actionItem?: ActionItem;
+        projectId?: CanonicalId;
       }
     >(),
   );
@@ -632,25 +633,33 @@ export function useMoveAction() {
     mutationFn: async ({
       canonicalId,
       bucket,
+      projectId,
     }: {
       canonicalId: CanonicalId;
       bucket: string;
+      projectId?: CanonicalId;
     }) => {
       const meta = savedMeta.current.get(canonicalId);
       const itemId = meta?.itemId ?? findItemId(qc, canonicalId);
       if (!itemId) throw new Error(`Item not found: ${canonicalId}`);
+      const effectiveProjectId = meta?.projectId ?? projectId;
 
       // Split path: DigitalDocument from inbox → action bucket
       if (meta?.shouldSplit && meta.record && meta.actionItem) {
+        // Inject projectId into actionItem so the reference inherits it
+        const itemWithProject = effectiveProjectId
+          ? { ...meta.actionItem, projectIds: [effectiveProjectId] }
+          : meta.actionItem;
         // 1. Create the reference (DigitalDocument in reference bucket)
         const refJsonLd = buildNewFileReferenceJsonLd(
-          meta.actionItem,
+          itemWithProject,
           meta.record,
         );
         const refRecord = await ItemsApi.create(refJsonLd, "auto-split");
         // 2. Patch existing item → ReadAction with object ref
         const triageResult: TriageResult = {
           targetBucket: bucket as TriageResult["targetBucket"],
+          projectId: effectiveProjectId,
         };
         const patch = buildReadActionTriagePatch(
           meta.actionItem,
@@ -663,21 +672,34 @@ export function useMoveAction() {
       const needsPromotion =
         meta?.needsPromotion ?? needsTypePromotion(qc, canonicalId, bucket);
 
+      const additionalProps: Array<{
+        "@type": string;
+        propertyID: string;
+        value: unknown;
+      }> = [
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:bucket",
+          value: bucket,
+        },
+      ];
+      if (effectiveProjectId) {
+        additionalProps.push({
+          "@type": "PropertyValue",
+          propertyID: "app:projectRefs",
+          value: [effectiveProjectId],
+        });
+      }
+
       const patch: Record<string, unknown> = {
-        additionalProperty: [
-          {
-            "@type": "PropertyValue",
-            propertyID: "app:bucket",
-            value: bucket,
-          },
-        ],
+        additionalProperty: additionalProps,
       };
       if (needsPromotion) {
         patch["@type"] = targetTypeForBucket(bucket);
       }
       return ItemsApi.update(itemId, patch);
     },
-    onMutate: async ({ canonicalId, bucket }) => {
+    onMutate: async ({ canonicalId, bucket, projectId }) => {
       const itemId = findItemId(qc, canonicalId);
       const needsPromotion = needsTypePromotion(qc, canonicalId, bucket);
       const doSplit = shouldSplitOnTriage(qc, canonicalId, bucket);
@@ -697,14 +719,21 @@ export function useMoveAction() {
           shouldSplit: doSplit,
           record,
           actionItem,
+          projectId,
         });
 
       const prev = await snapshotActive(qc);
 
       if (doSplit && record) {
+        // Inject projectId so optimistic reference gets it
+        const itemWithProject =
+          projectId && actionItem
+            ? { ...actionItem, projectIds: [projectId] }
+            : actionItem;
         // Optimistically add a reference record to the cache
         const refJsonLd =
-          actionItem && buildNewFileReferenceJsonLd(actionItem, record);
+          itemWithProject &&
+          buildNewFileReferenceJsonLd(itemWithProject, record);
         if (refJsonLd) {
           const now = new Date().toISOString();
           const optimisticRef: ItemRecord = {

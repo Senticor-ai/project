@@ -357,3 +357,34 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 
 CREATE INDEX IF NOT EXISTS idx_chat_messages_conversation
   ON chat_messages (conversation_id, created_at ASC);
+
+-- User agent settings (OpenClaw vs Haystack backend choice)
+CREATE TABLE IF NOT EXISTS user_agent_settings (
+  user_id                UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  agent_backend          TEXT NOT NULL DEFAULT 'haystack',
+  provider               TEXT NOT NULL DEFAULT 'openrouter',
+  api_key_encrypted      BYTEA,
+  model                  TEXT NOT NULL DEFAULT 'google/gemini-3-flash-preview',
+  -- Container lifecycle (Phase 2 — per-user OpenClaw containers)
+  container_name         TEXT,
+  container_status       TEXT,  -- NULL | 'starting' | 'running' | 'stopped' | 'error'
+  container_url          TEXT,
+  container_port         INTEGER,
+  container_error        TEXT,
+  container_started_at   TIMESTAMPTZ,
+  last_activity_at       TIMESTAMPTZ,
+  created_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at             TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Phase 2 columns — safe to re-run on existing tables
+ALTER TABLE user_agent_settings ADD COLUMN IF NOT EXISTS container_name TEXT;
+ALTER TABLE user_agent_settings ADD COLUMN IF NOT EXISTS container_status TEXT;
+ALTER TABLE user_agent_settings ADD COLUMN IF NOT EXISTS container_url TEXT;
+ALTER TABLE user_agent_settings ADD COLUMN IF NOT EXISTS container_port INTEGER;
+ALTER TABLE user_agent_settings ADD COLUMN IF NOT EXISTS container_error TEXT;
+ALTER TABLE user_agent_settings ADD COLUMN IF NOT EXISTS container_started_at TIMESTAMPTZ;
+ALTER TABLE user_agent_settings ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMPTZ;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_uas_port
+  ON user_agent_settings (container_port) WHERE container_port IS NOT NULL;

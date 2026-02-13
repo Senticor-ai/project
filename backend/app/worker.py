@@ -13,13 +13,10 @@ from .email.sync import (
 )
 from .metrics import APP_IMPORTS_COMPLETED_TOTAL, APP_IMPORTS_FAILED_TOTAL
 from .observability import configure_logging, get_logger
-from .projection.fuseki import is_enabled as fuseki_enabled
-from .projection.fuseki import upsert_jsonld
 from .push_events import enqueue_push_payload
 from .search.indexer import delete_item, index_file, index_item
 from .search.jobs import mark_failed, mark_processing, mark_skipped, mark_succeeded
 from .search.meili import is_enabled
-from .search.ocr_settings import get_ocr_config
 from .worker_health import (
     WORKER_BATCH_DURATION_SECONDS,
     WORKER_BATCHES_TOTAL,
@@ -371,8 +368,6 @@ def process_batch(limit: int = 25) -> int:
                         row = cur.fetchone()
                     if row is None:
                         raise ValueError("item not found for indexing")
-                    if fuseki_enabled():
-                        upsert_jsonld(row["schema_jsonld"])
                     target_user_id = payload.get("_context", {}).get("user_id")
                     if not target_user_id:
                         target_user_id = (
@@ -486,8 +481,7 @@ def process_batch(limit: int = 25) -> int:
                         raise ValueError("file not found for indexing")
                     target_user_id = str(row.get("owner_id")) if row.get("owner_id") else None
                     if is_enabled() and settings.meili_index_files_enabled:
-                        ocr_config = get_ocr_config(str(row["org_id"]))
-                        index_file(row, ocr_config=ocr_config)
+                        index_file(row)
                         mark_succeeded(org_id, entity_type, entity_id, action=action)
                         _emit_index_event(
                             status="succeeded",
@@ -648,6 +642,10 @@ def main() -> None:
     email_sync_interval = 300.0  # 5 minutes
     last_email_sync_check = 0.0
 
+    # Periodic idle container reaping (every 60s)
+    container_reap_interval = 60.0
+    last_container_reap = 0.0
+
     # Sync all active email connections immediately on startup
     try:
         enqueue_all_active_syncs()
@@ -679,6 +677,18 @@ def main() -> None:
                 except Exception:
                     logger.warning("email.enqueue_due_syncs_failed", exc_info=True)
                 last_email_sync_check = now
+
+            # Periodic idle container reaping
+            if now - last_container_reap >= container_reap_interval:
+                try:
+                    from .container.manager import reap_idle
+
+                    reaped = reap_idle()
+                    if reaped:
+                        logger.info("container.idle_reaped_batch", count=reaped)
+                except Exception:
+                    logger.warning("container.reap_failed", exc_info=True)
+                last_container_reap = now
 
             # If we did not fill a full batch, pause briefly before polling again.
             if count < batch_size:

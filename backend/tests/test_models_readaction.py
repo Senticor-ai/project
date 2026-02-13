@@ -1,7 +1,11 @@
 """Unit tests for ReadAction support in Pydantic models."""
 
+import pytest
+
 from app.models import ActionItemJsonLd, ItemPatchModel, _resolve_item_type
 from app.routes.items import _is_action_type
+
+pytestmark = pytest.mark.unit
 
 
 class TestResolveItemType:

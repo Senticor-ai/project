@@ -464,7 +464,34 @@ describe("ActionRow expanded", () => {
       onToggleExpand: vi.fn(),
     });
     await user.click(screen.getByLabelText("Move to Next"));
-    expect(props.onMove).toHaveBeenCalledWith(props.thing.id, "next");
+    expect(props.onMove).toHaveBeenCalledWith(
+      props.thing.id,
+      "next",
+      undefined,
+    );
+  });
+
+  it("passes projectId from editor when triage button clicked", async () => {
+    const user = userEvent.setup();
+    const projectId = "urn:app:project:tax-2024" as CanonicalId;
+    const { props } = renderRow({
+      thing: createActionItem({ name: "W-2 PDF", bucket: "inbox" }),
+      isExpanded: true,
+      onToggleExpand: vi.fn(),
+      onEdit: vi.fn(),
+      projects: [{ id: projectId, name: "Tax 2024" }],
+    });
+    // Open "More options" and select the project
+    await user.click(screen.getByText("More options"));
+    const projectSelect = screen.getByLabelText("Assign to project");
+    await user.selectOptions(projectSelect, projectId);
+    // Click triage button — should pass projectId
+    await user.click(screen.getByLabelText("Move to Reference"));
+    expect(props.onMove).toHaveBeenCalledWith(
+      props.thing.id,
+      "reference",
+      projectId,
+    );
   });
 
   it("calls onArchive from triage archive button", async () => {
@@ -751,7 +778,7 @@ describe("ActionRow calendar triage", () => {
     expect(onEdit).toHaveBeenCalledWith(thing.id, {
       scheduledDate: "2026-03-15",
     });
-    expect(onMove).toHaveBeenCalledWith(thing.id, "calendar");
+    expect(onMove).toHaveBeenCalledWith(thing.id, "calendar", undefined);
   });
 
   it("dismisses date picker on Escape", async () => {
@@ -808,7 +835,11 @@ describe("ActionRow calendar triage", () => {
       onToggleExpand: vi.fn(),
     });
     await user.click(screen.getByLabelText("Move to Next"));
-    expect(props.onMove).toHaveBeenCalledWith(props.thing.id, "next");
+    expect(props.onMove).toHaveBeenCalledWith(
+      props.thing.id,
+      "next",
+      undefined,
+    );
   });
 });
 

@@ -57,12 +57,11 @@ C4Container
     Container(storybook, "Storybook", "Storybook 10, MDX", "Living documentation hub — product specs, design system, component demos, architecture docs")
     Container(api, "Backend API", "Python, FastAPI", "REST API for items, files, imports, email, auth, search, push notifications, chat proxy")
     Container(agents, "Agents Service", "Python, Haystack, FastAPI", "Tay AI copilot — chat completions with tool calling via OpenRouter (port 8002)")
-    Container(worker, "Projection Worker", "Python", "Outbox consumer: search indexing, RDF projection, email sync, import jobs")
+    Container(worker, "Projection Worker", "Python", "Outbox consumer: search indexing, email sync, import jobs")
     Container(pushworker, "Push Worker", "Python", "Web Push notification delivery via VAPID")
 
     ContainerDb(pg, "PostgreSQL 16", "Relational DB", "Source of truth: items (JSON-LD), files, assertions, outbox events, sessions, email connections")
     ContainerDb(meili, "Meilisearch", "Search engine", "Full-text index for items and file content (optional)")
-    ContainerDb(fuseki, "Apache Jena Fuseki", "RDF/SPARQL", "Relationship graph projection for FRBR/LexCEL queries (optional)")
     ContainerDb(files, "File Storage", "PVC / filesystem", "Uploaded files (SHA256 content-addressed)")
   }
 
@@ -76,7 +75,6 @@ C4Container
   Rel(api, files, "Stores/retrieves files", "filesystem")
   Rel(worker, pg, "Polls outbox_events", "SQL")
   Rel(worker, meili, "Indexes items", "REST")
-  Rel(worker, fuseki, "Upserts RDF", "HTTP Graph Store")
   Rel(worker, gmail, "IMAP sync", "IMAP + OAuth")
   Rel(pushworker, pg, "Polls push_outbox", "SQL")
   Rel(api, agents, "Proxies chat requests", "HTTP")
@@ -136,8 +134,7 @@ C4Component
 
   Container_Boundary(worker, "Projection Worker") {
     Component(poller, "Outbox Poller", "Python", "Polls outbox_events table. Batch processing with configurable interval and batch size.")
-    Component(searchidx, "Search Indexer", "Python", "Indexes items and file content in Meilisearch. Handles OCR for PDFs.")
-    Component(rdfproj, "RDF Projector", "Python", "Converts JSON-LD items to RDF triples. Validates via SHACL. Upserts to Fuseki graph store.")
+    Component(searchidx, "Search Indexer", "Python", "Indexes items and file content in Meilisearch. Extracts text from PDFs via pypdf.")
     Component(importer, "Import Processor", "Python", "Runs Nirvana and Native import jobs. Transform → dedup → batch upsert.")
     Component(emailsync, "Email Sync", "Python", "IMAP sync via Gmail. Fetches new messages, transforms to inbox items.")
     Component(pushemit, "Push Emitter", "Python", "Enqueues Web Push notifications in push_outbox on item events.")
@@ -146,12 +143,10 @@ C4Component
 
   ContainerDb(pg, "PostgreSQL", "", "Outbox events, items, import jobs")
   ContainerDb(meili, "Meilisearch", "", "Search indices")
-  ContainerDb(fuseki, "Fuseki", "", "RDF graph")
   System_Ext(gmail, "Gmail", "IMAP")
 
   Rel(poller, pg, "Polls + marks processed")
   Rel(searchidx, meili, "Index documents")
-  Rel(rdfproj, fuseki, "Upsert RDF triples")
   Rel(importer, pg, "Batch upsert items")
   Rel(emailsync, gmail, "IMAP fetch")
   Rel(emailsync, pg, "Create inbox items")
@@ -171,8 +166,6 @@ than a parallel type system. This applies across all layers:
 | Layer        | How schema.org is used                                                          |
 | ------------ | ------------------------------------------------------------------------------- |
 | **Postgres** | `schema_jsonld` column stores JSON-LD with `@type`, `name`, `description`, etc. |
-| **Fuseki**   | RDF projection uses `schema:isPartOf`, `schema:relatedTo`, etc.                 |
-| **SHACL**    | Shapes validate schema.org compliance at the graph boundary                     |
 | **Frontend** | TypeScript types map 1:1 to schema.org properties; serializer handles JSON-LD   |
 
 See [Data Model](?path=/docs/engineering-ontology--docs) for type mappings and
@@ -196,8 +189,8 @@ for the full type catalog.
 1. **Schema.org-first** — use schema.org types and properties; only add custom extensions when schema.org genuinely has no equivalent
 2. **Append-only by default** — no destructive updates; all changes are assertions
 3. **Facts before views** — UI state is derived from immutable facts
-4. **Postgres is source of truth** — no direct writes to Fuseki that bypass Postgres
-5. **Projections are rebuildable** — the graph can be regenerated from Postgres
+4. **Postgres is source of truth** — single source of truth for all data
+5. **Projections are rebuildable** — search indices can be regenerated from Postgres
 6. **AI parity** — AI and humans write the same assertion model
 7. **Deterministic tests** — fixtures over live integrations
 
@@ -226,11 +219,11 @@ for the full type catalog.
 
 ### Storage & Indexes
 
-| Store                  | Purpose                                                           |
-| ---------------------- | ----------------------------------------------------------------- |
-| **PostgreSQL**         | Immutable catalog (Items + Assertions, JSON-LD) — source of truth |
-| **Apache Jena Fuseki** | RDF relationship graph (derived projection)                       |
-| **Qdrant**             | Vector store (semantic retrieval)                                 |
+| Store          | Purpose                                                           |
+| -------------- | ----------------------------------------------------------------- |
+| **PostgreSQL** | Immutable catalog (Items + Assertions, JSON-LD) — source of truth |
+| **Meilisearch**| Full-text search index for items and file content (optional)      |
+| **Qdrant**     | Vector store (semantic retrieval)                                 |
 
 ### Observability
 
@@ -242,14 +235,13 @@ for the full type catalog.
 
 ---
 
-## Dual-Store Model
+## Data Store Model
 
 ### Core Invariants
 
-1. **Postgres is source of truth.** No direct writes to Fuseki that are not also in Postgres.
-2. **Stable canonical IDs.** Every item has a single canonical `@id` used across both stores.
-3. **One-way projection.** Data flows from Postgres to Fuseki only.
-4. **Rebuildable graph.** The graph can be regenerated from Postgres events.
+1. **Postgres is source of truth.** All persistent state lives in PostgreSQL.
+2. **Stable canonical IDs.** Every item has a single canonical `@id`.
+3. **Search is a projection.** Meilisearch indices are derived from Postgres and rebuildable.
 
 ### Items (Postgres)
 
@@ -304,50 +296,29 @@ otel_trace_id           TEXT            -- Required for AI assertions
 2. API validates basic fields and writes to Postgres.
 3. In the same transaction, an outbox event is recorded.
 4. A projection worker consumes the outbox.
-5. The worker converts the item to JSON-LD.
-6. The JSON-LD is validated against SHACL shapes.
-7. If valid, the worker upserts to Fuseki.
-8. If invalid, the worker records a validation error and leaves the graph unchanged.
+5. The worker indexes the item in Meilisearch (if enabled).
 
 ### Read Path
 
-1. Catalog and list views read from Postgres.
-2. Relationship-heavy views read from Fuseki via SPARQL.
-3. Cross-store joins are done in the application layer using canonical IDs.
+1. All views read from Postgres.
+2. Full-text search queries are proxied to Meilisearch.
 
 ### Schema.org Compliance
 
 1. A local schema.org profile defines allowed types and required properties.
 2. JSON-LD serializers enforce the profile at the application boundary.
-3. SHACL shapes enforce the profile at the graph boundary.
-4. Validation errors are stored and surfaced for remediation.
+3. Validation errors are stored and surfaced for remediation.
 
 ### Consistency Model
 
 1. **Postgres is strongly consistent.** Writes are transactional.
-2. **Fuseki is eventually consistent.** Projection lag is expected.
-3. **No bi-directional sync.** The graph does not write back to Postgres.
+2. **Meilisearch is eventually consistent.** Search index lag is expected.
 
 ---
 
 ## Projections
 
-Projections are _derived, validated views_ over the immutable catalog.
-
-### Relationship Graph (Fuseki)
-
-RDF triples derived from assertions:
-
-- Containment: `schema:isPartOf`
-- Relationships: `schema:relatedTo`
-
-**Projection pipeline:**
-
-1. Read assertion from Postgres
-2. Evaluate CEL rules -> candidate triples
-3. Validate with SHACL shapes
-4. If valid -> write to Fuseki
-5. If invalid -> reject and alert
+Projections are _derived views_ over the immutable catalog.
 
 ### Vector Index (Qdrant)
 
@@ -361,15 +332,12 @@ Payload includes: `item_id`, `type`, `labels`, `case_id`, `timestamp`
 ### Rebuild & Migration
 
 1. Rebuilds are driven from the outbox event stream.
-2. A full reindex can regenerate the graph from Postgres.
-3. Schema profile changes are applied by re-validating and re-projecting.
+2. A full reindex can regenerate search indices from Postgres.
 
 ### Failure Handling
 
-1. SHACL validation failures do not block Postgres writes.
-2. Invalid items are flagged and retried after fixes.
-3. Projection failures are retried with backoff.
-4. A dead-letter queue stores permanent failures for review.
+1. Projection failures are retried with backoff.
+2. A dead-letter queue stores permanent failures for review.
 
 ---
 
@@ -491,10 +459,8 @@ Frontend harness route `/__harness` provides UI for:
 
 ## Operational Notes
 
-1. Fuseki runs with TDB2 for persistence.
-2. SHACL validation can use the Jena SHACL API or a Fuseki SHACL endpoint.
-3. The projection worker is stateless and can be scaled horizontally.
-4. Graph rebuilds are safe because the graph is derived.
+1. The projection worker is stateless and can be scaled horizontally.
+2. Search index rebuilds are safe because they are derived from Postgres.
 
 ---
 

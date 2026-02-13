@@ -1,0 +1,33 @@
+{
+  "gateway": {
+    "port": 18800,
+    "bind": "lan",
+    "auth": {
+      "token": "test-gateway-token-123"
+    },
+    "http": {
+      "endpoints": {
+        "chatCompletions": {
+          "enabled": true
+        }
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "openrouter/google/gemini-3-flash-preview"
+      }
+    },
+    "list": [
+      {
+        "id": "tay",
+        "workspace": "/workspace"
+      }
+    ]
+  },
+  "tools": {
+    "profile": "minimal",
+    "exec": {}
+  }
+}

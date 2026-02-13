@@ -9,6 +9,8 @@ import pytest
 
 from app.email.pubsub import PubSubClient, PubSubMessage
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture
 def mock_credentials():

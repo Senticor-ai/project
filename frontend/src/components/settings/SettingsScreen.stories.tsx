@@ -85,6 +85,42 @@ export const PreferencesTab: Story = {
 };
 
 // ---------------------------------------------------------------------------
+// Agent Setup tab — Haystack default
+// ---------------------------------------------------------------------------
+
+export const AgentSetupTab: Story = {
+  args: {
+    initialTab: "agent-setup",
+    agentSettings: {
+      agentBackend: "haystack",
+      provider: "openrouter",
+      hasApiKey: false,
+      model: "google/gemini-3-flash-preview",
+      containerStatus: null,
+      containerError: null,
+    },
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Agent Setup tab — OpenClaw configured
+// ---------------------------------------------------------------------------
+
+export const AgentSetupOpenClaw: Story = {
+  args: {
+    initialTab: "agent-setup",
+    agentSettings: {
+      agentBackend: "openclaw",
+      provider: "anthropic",
+      hasApiKey: true,
+      model: "anthropic/claude-sonnet-4.5",
+      containerStatus: "running",
+      containerError: null,
+    },
+  },
+};
+
+// ---------------------------------------------------------------------------
 // Developer tab
 // ---------------------------------------------------------------------------
 

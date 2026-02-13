@@ -99,7 +99,7 @@ unique user per test.
 E2E tests run against a dedicated service stack started by `scripts/e2e-stack.sh`. The script
 creates an isolated PostgreSQL database (`terminandoyo_e2e`), starts the backend on port 8001,
 and the frontend on port 5174. Environment overrides live in `.env.e2e` (separate session
-cookies, file storage path, disabled Fuseki).
+cookies, file storage path).
 
 A custom Playwright fixture provides `authenticatedPage` (auto-registers a unique user via
 local JWT auth) and `apiSeed` (programmatic data setup via API).

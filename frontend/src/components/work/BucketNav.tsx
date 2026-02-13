@@ -1,8 +1,10 @@
-import { useDroppable } from "@dnd-kit/core";
+import { useState, useMemo } from "react";
+import { useDroppable, useDndMonitor } from "@dnd-kit/core";
+import { AnimatePresence, motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
 import { navItems } from "./bucket-nav-items";
-import type { Bucket } from "@/model/types";
+import type { Bucket, Project } from "@/model/types";
 
 // Drop targets: buckets where items can be dragged to
 const droppableBuckets = new Set<string>([
@@ -18,6 +20,7 @@ export interface BucketNavProps {
   activeBucket: Bucket;
   onSelect: (bucket: Bucket) => void;
   counts?: Partial<Record<Bucket, number>>;
+  projects?: Pick<Project, "id" | "name" | "isFocused" | "status">[];
   className?: string;
 }
 
@@ -75,24 +78,105 @@ function BucketNavItem({
   );
 }
 
+function ProjectNavItem({
+  project,
+}: {
+  project: Pick<Project, "id" | "name">;
+}) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: `project-${project.id}`,
+    data: { bucket: "next", projectId: project.id },
+  });
+
+  return (
+    <button
+      ref={setNodeRef}
+      className={cn(
+        "flex w-full items-center gap-2 rounded-[var(--radius-md)] py-1.5 pl-8 pr-3 text-xs",
+        "text-text-muted transition-colors duration-[var(--duration-fast)]",
+        "hover:bg-paper-100 hover:text-text",
+        isOver && "ring-2 ring-blueprint-300 bg-blueprint-50/50",
+      )}
+      aria-label={`Drop into ${project.name}`}
+    >
+      <Icon name="folder" size={14} className="shrink-0" />
+      <span className="flex-1 truncate text-left">{project.name}</span>
+    </button>
+  );
+}
+
 export function BucketNav({
   activeBucket,
   onSelect,
   counts = {},
+  projects = [],
   className,
 }: BucketNavProps) {
+  const [dragExpandedProjects, setDragExpandedProjects] = useState(false);
+
+  // Monitor drag events to expand/collapse project list
+  useDndMonitor({
+    onDragStart() {
+      // Auto-expand all active projects as drop targets when any drag begins
+      if (activeProjects.length > 0) {
+        setDragExpandedProjects(true);
+      }
+    },
+    onDragOver(event) {
+      const overId = event.over?.id;
+      if (overId === "bucket-project") {
+        setDragExpandedProjects(true);
+      }
+    },
+    onDragEnd() {
+      setDragExpandedProjects(false);
+    },
+    onDragCancel() {
+      setDragExpandedProjects(false);
+    },
+  });
+
+  const starredProjects = useMemo(
+    () => projects.filter((p) => p.isFocused && p.status === "active"),
+    [projects],
+  );
+
+  const activeProjects = projects.filter((p) => p.status === "active");
+
+  // When drag-expanded, show all active projects; otherwise show only starred
+  const visibleProjects = dragExpandedProjects
+    ? activeProjects
+    : starredProjects;
+
   return (
     <nav className={cn("space-y-0.5", className)} aria-label="Buckets">
       {navItems.map(({ bucket, label, icon }) => (
-        <BucketNavItem
-          key={bucket}
-          bucket={bucket}
-          label={label}
-          icon={icon}
-          isActive={activeBucket === bucket}
-          count={counts[bucket]}
-          onSelect={() => onSelect(bucket)}
-        />
+        <div key={bucket}>
+          <BucketNavItem
+            bucket={bucket}
+            label={label}
+            icon={icon}
+            isActive={activeBucket === bucket}
+            count={counts[bucket]}
+            onSelect={() => onSelect(bucket)}
+          />
+          {/* Project sub-items: starred or drag-expanded */}
+          {bucket === "project" && visibleProjects.length > 0 && (
+            <AnimatePresence>
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.15 }}
+                className="overflow-hidden"
+              >
+                {visibleProjects.map((p) => (
+                  <ProjectNavItem key={p.id} project={p} />
+                ))}
+              </motion.div>
+            </AnimatePresence>
+          )}
+        </div>
       ))}
     </nav>
   );

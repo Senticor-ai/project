@@ -39,9 +39,8 @@ class StorageBackend(Protocol):
     def resolve_path(self, key: str) -> Path | None:
         """Return a local ``Path`` if available, else ``None``.
 
-        Callers that need a real filesystem path (PdfReader, docling) use
-        this.  S3 backends return ``None`` and callers must download to a
-        temp file.
+        Callers that need a real filesystem path (e.g. PdfReader) use this.
+        S3 backends return ``None`` and callers must download to a temp file.
         """
         ...
 

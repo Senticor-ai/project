@@ -1,20 +1,33 @@
 /**
  * JSON Schema validation helper for serializer tests.
  *
- * Fetches JSON Schemas from the backend `/schemas` API endpoint and
- * validates serializer output against them using ajv. If the backend
- * changes its Pydantic models, these validations break — catching
- * contract drift automatically.
+ * Loads JSON Schemas from static files exported by the backend
+ * (`backend/scripts/export_schemas.py`). Falls back to fetching from
+ * the live backend API when static files are not available (local dev).
  *
- * Requires a running backend at VITE_API_BASE_URL (default: http://localhost:8000).
- * Tests using these validators should skip gracefully when the backend
- * is unreachable.
+ * If the backend changes its Pydantic models, re-run the export script
+ * to update the static files — contract drift is caught automatically.
  */
 import Ajv, { type ValidateFunction } from "ajv";
+import { readFileSync } from "node:fs";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const API_BASE = process.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
 const ajv = new Ajv({ allErrors: true, strict: false });
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const SCHEMAS_DIR = resolve(__dirname, "schemas");
+
+function loadStaticSchema(name: string): object | null {
+  try {
+    const content = readFileSync(resolve(SCHEMAS_DIR, `${name}.json`), "utf-8");
+    return JSON.parse(content) as object;
+  } catch {
+    return null;
+  }
+}
 
 async function fetchSchema(name: string): Promise<object> {
   const res = await fetch(`${API_BASE}/schemas/${name}`);
@@ -22,8 +35,17 @@ async function fetchSchema(name: string): Promise<object> {
   return (await res.json()) as object;
 }
 
-/** Check if the backend is reachable. */
+async function getSchema(name: string): Promise<object> {
+  const staticSchema = loadStaticSchema(name);
+  if (staticSchema) return staticSchema;
+  return fetchSchema(name);
+}
+
+/** Check if schemas are available (static files or live backend). */
 export async function isBackendAvailable(): Promise<boolean> {
+  // Static files always available if exported
+  if (loadStaticSchema("action-item")) return true;
+
   try {
     const res = await fetch(`${API_BASE}/schemas`, {
       signal: AbortSignal.timeout(2000),
@@ -42,14 +64,14 @@ export interface SchemaValidators {
   validateItemPatch: ValidateFunction;
 }
 
-/** Fetch and compile all schema validators from the backend API. */
+/** Load and compile all schema validators (static files first, backend fallback). */
 export async function loadValidators(): Promise<SchemaValidators> {
   const [inbox, action, project, reference, patch] = await Promise.all([
-    fetchSchema("inbox-item"),
-    fetchSchema("action-item"),
-    fetchSchema("project-item"),
-    fetchSchema("reference-item"),
-    fetchSchema("item-patch"),
+    getSchema("inbox-item"),
+    getSchema("action-item"),
+    getSchema("project-item"),
+    getSchema("reference-item"),
+    getSchema("item-patch"),
   ]);
 
   return {

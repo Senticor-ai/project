@@ -32,5 +32,9 @@ export function useTayActions() {
     [queryClient],
   );
 
-  return { executeSuggestion };
+  const onItemsChanged = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
+  }, [queryClient]);
+
+  return { executeSuggestion, onItemsChanged };
 }

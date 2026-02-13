@@ -47,7 +47,11 @@ export interface BucketViewProps {
   ) => Promise<void> | void;
   onCompleteActionItem: (id: CanonicalId) => void;
   onToggleFocus: (id: CanonicalId) => void;
-  onMoveActionItem: (id: CanonicalId, bucket: string) => void;
+  onMoveActionItem: (
+    id: CanonicalId,
+    bucket: string,
+    projectId?: CanonicalId,
+  ) => void;
   onArchiveActionItem: (id: CanonicalId) => void;
   onEditActionItem?: (
     id: CanonicalId,
@@ -122,7 +126,8 @@ export function BucketView({
         return;
       }
 
-      onMoveActionItem(active.id as CanonicalId, targetBucket);
+      const projectId = over.data.current?.projectId as CanonicalId | undefined;
+      onMoveActionItem(active.id as CanonicalId, targetBucket, projectId);
     },
     [onMoveActionItem, onToggleFocus],
   );
@@ -140,6 +145,7 @@ export function BucketView({
           activeBucket={activeBucket}
           onSelect={onBucketChange}
           counts={counts}
+          projects={projects}
           className="hidden w-56 shrink-0 md:block"
         />
 

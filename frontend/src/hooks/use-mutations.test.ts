@@ -751,6 +751,104 @@ describe("useMoveAction", () => {
     const [, patch] = mocked.update.mock.calls[0]!;
     expect(patch["@type"]).toBe("CreativeWork");
   });
+
+  it("includes projectRefs when moving to reference with projectId", async () => {
+    mocked.update.mockResolvedValue(REFERENCE_RECORD);
+
+    const { result } = renderHook(() => useMoveAction(), {
+      wrapper: createWrapper([INBOX_RECORD]),
+    });
+
+    act(() =>
+      result.current.mutate({
+        canonicalId: "urn:app:inbox:1" as CanonicalId,
+        bucket: "reference",
+        projectId: "urn:app:project:tax-2024" as CanonicalId,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const [, patch] = mocked.update.mock.calls[0]!;
+    expect(patch["@type"]).toBe("CreativeWork");
+    expect(
+      (
+        patch.additionalProperty as Array<{
+          propertyID: string;
+          value: unknown;
+        }>
+      ).find((p) => p.propertyID === "app:projectRefs"),
+    ).toEqual(pv("app:projectRefs", ["urn:app:project:tax-2024"]));
+  });
+
+  it("passes projectId through split path to both reference and ReadAction", async () => {
+    const digitalDocRecord = makeRecord({
+      item_id: "tid-doc-2",
+      canonical_id: "urn:app:inbox:doc2",
+      item: {
+        "@type": "DigitalDocument",
+        "@id": "urn:app:inbox:doc2",
+        _schemaVersion: 2,
+        name: "w2-form.pdf",
+        encodingFormat: "application/pdf",
+        additionalProperty: [
+          pv("app:bucket", "inbox"),
+          pv("app:isFocused", false),
+          pv("app:captureSource", {
+            kind: "file",
+            fileName: "w2-form.pdf",
+            mimeType: "application/pdf",
+          }),
+          pv("app:contexts", []),
+          pv("app:ports", []),
+          pv("app:typedReferences", []),
+          pv("app:provenanceHistory", []),
+          pv("app:confidence", "medium"),
+          pv("app:needsEnrichment", false),
+          pv("app:projectRefs", []),
+        ],
+      },
+    });
+    const refRecord = makeRecord({
+      item_id: "ref-2",
+      canonical_id: "urn:app:reference:ref2",
+      item: { "@type": "DigitalDocument", "@id": "urn:app:reference:ref2" },
+    });
+    mocked.create.mockResolvedValue(refRecord);
+    mocked.update.mockResolvedValue(digitalDocRecord);
+
+    const { result } = renderHook(() => useMoveAction(), {
+      wrapper: createWrapper([digitalDocRecord]),
+    });
+
+    const projectId = "urn:app:project:tax-2024" as CanonicalId;
+    act(() =>
+      result.current.mutate({
+        canonicalId: "urn:app:inbox:doc2" as CanonicalId,
+        bucket: "next",
+        projectId,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    // Reference should have projectRefs
+    const [refJsonLd] = mocked.create.mock.calls[0]!;
+    const refProps = (refJsonLd as Record<string, unknown>)
+      .additionalProperty as Array<{ propertyID: string; value: unknown }>;
+    const refProjectProp = refProps.find(
+      (p) => p.propertyID === "app:projectRefs",
+    );
+    expect(refProjectProp?.value).toEqual([projectId]);
+
+    // ReadAction patch should have projectRefs
+    const [, actionPatch] = mocked.update.mock.calls[0]!;
+    const actionProps = (actionPatch as Record<string, unknown>)
+      .additionalProperty as Array<{ propertyID: string; value: unknown }>;
+    const actionProjectProp = actionProps.find(
+      (p) => p.propertyID === "app:projectRefs",
+    );
+    expect(actionProjectProp?.value).toEqual([projectId]);
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -231,7 +231,11 @@ export const TriageToNext: Story = {
   },
   play: async ({ canvas, args, userEvent }) => {
     await userEvent.click(canvas.getByLabelText("Move to Next"));
-    await expect(args.onMove).toHaveBeenCalledWith(args.thing.id, "next");
+    await expect(args.onMove).toHaveBeenCalledWith(
+      args.thing.id,
+      "next",
+      undefined,
+    );
   },
 };
 
@@ -432,5 +436,27 @@ export const WithTags: Story = {
       bucket: "next",
       tags: ["1099-int", "schedule-b"],
     }),
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Multi-select stories
+// ---------------------------------------------------------------------------
+
+/** Inbox item with selection highlight (Cmd/Ctrl+Click selection). */
+export const SelectedHighlight: Story = {
+  args: {
+    thing: createActionItem({
+      rawCapture: "Steuerbescheid 2024.pdf",
+      bucket: "inbox",
+    }),
+    isSelected: true,
+  },
+  play: async ({ canvas }) => {
+    // Row should have highlight styling (bg-blueprint-50 ring-1 ring-blueprint-200)
+    const row = canvas
+      .getByText("Steuerbescheid 2024.pdf")
+      .closest(".bg-blueprint-50");
+    await expect(row).not.toBeNull();
   },
 };

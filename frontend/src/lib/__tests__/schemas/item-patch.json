@@ -1,0 +1,328 @@
+{
+  "$defs": {
+    "ItemSourceMetadata": {
+      "properties": {
+        "schemaVersion": {
+          "description": "Metadata schema version.",
+          "title": "Schemaversion",
+          "type": "integer"
+        },
+        "provider": {
+          "description": "Origin provider name, e.g. nirvana.",
+          "title": "Provider",
+          "type": "string"
+        },
+        "rawId": {
+          "description": "Original provider item identifier.",
+          "title": "Rawid",
+          "type": "string"
+        },
+        "rawType": {
+          "description": "Original provider type code.",
+          "title": "Rawtype",
+          "type": "integer"
+        },
+        "rawState": {
+          "description": "Original provider state code.",
+          "title": "Rawstate",
+          "type": "integer"
+        },
+        "raw": {
+          "additionalProperties": true,
+          "description": "Raw provider payload for high-fidelity round-tripping.",
+          "title": "Raw",
+          "type": "object"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "provider",
+        "rawId",
+        "rawType",
+        "rawState",
+        "raw"
+      ],
+      "title": "ItemSourceMetadata",
+      "type": "object"
+    },
+    "PropertyValueModel": {
+      "description": "Schema.org PropertyValue for additionalProperty entries.",
+      "properties": {
+        "@type": {
+          "const": "PropertyValue",
+          "default": "PropertyValue",
+          "description": "JSON-LD type (always PropertyValue).",
+          "title": "@Type",
+          "type": "string"
+        },
+        "propertyID": {
+          "description": "Property identifier, e.g. app:bucket.",
+          "title": "Propertyid",
+          "type": "string"
+        },
+        "value": {
+          "description": "Property value (type varies by propertyID).",
+          "title": "Value"
+        }
+      },
+      "required": [
+        "propertyID",
+        "value"
+      ],
+      "title": "PropertyValueModel",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "Partial JSON-LD for PATCH deep-merge (v2 schema.org format).",
+  "properties": {
+    "@id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Canonical id (immutable).",
+      "title": "@Id"
+    },
+    "@type": {
+      "anyOf": [
+        {
+          "enum": [
+            "Action",
+            "Project",
+            "CreativeWork",
+            "DigitalDocument",
+            "Event",
+            "EmailMessage",
+            "ReadAction"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Schema.org type override.",
+      "title": "@Type"
+    },
+    "object": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "schema.org object (ThingRef, e.g. for ReadAction).",
+      "title": "Object"
+    },
+    "_schemaVersion": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Schemaversion"
+    },
+    "name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Name"
+    },
+    "description": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Description"
+    },
+    "keywords": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Keywords"
+    },
+    "dateCreated": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Datecreated"
+    },
+    "dateModified": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Datemodified"
+    },
+    "startTime": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Starttime"
+    },
+    "endTime": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Endtime"
+    },
+    "url": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Url"
+    },
+    "encodingFormat": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Encodingformat"
+    },
+    "startDate": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Startdate"
+    },
+    "endDate": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Enddate"
+    },
+    "duration": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Duration"
+    },
+    "location": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Location"
+    },
+    "additionalProperty": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/PropertyValueModel"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Additionalproperty"
+    },
+    "sourceMetadata": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ItemSourceMetadata"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "title": "ItemPatchModel",
+  "type": "object"
+}

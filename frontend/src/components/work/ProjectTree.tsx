@@ -218,49 +218,69 @@ function ProjectRow({
   return (
     <div data-project-id={project.id} className="rounded-lg">
       {/* Project header */}
-      <button
-        type="button"
-        onClick={onToggleExpand}
-        aria-label={`${isExpanded ? "Collapse" : "Expand"} ${project.name ?? "Untitled"}`}
-        className="flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 text-left transition-colors duration-[var(--duration-fast)] hover:bg-paper-100"
-      >
-        <span className="shrink-0 text-text-subtle">
+      <div className="flex items-center gap-0.5 rounded-[var(--radius-md)] transition-colors duration-[var(--duration-fast)] hover:bg-paper-100">
+        <button
+          type="button"
+          onClick={onToggleExpand}
+          aria-label={`${isExpanded ? "Collapse" : "Expand"} ${project.name ?? "Untitled"}`}
+          className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left"
+        >
+          <span className="shrink-0 text-text-subtle">
+            <Icon
+              name="chevron_right"
+              size={18}
+              className={cn(
+                "transition-transform duration-150",
+                isExpanded && "rotate-90",
+              )}
+            />
+          </span>
           <Icon
-            name="chevron_right"
+            name="folder"
             size={18}
-            className={cn(
-              "transition-transform duration-150",
-              isExpanded && "rotate-90",
-            )}
+            className="shrink-0 text-blueprint-500"
           />
-        </span>
-        <Icon name="folder" size={18} className="shrink-0 text-blueprint-500" />
-        <span className="flex-1 whitespace-pre-wrap text-sm font-medium text-text">
-          {project.name ?? "Untitled"}
-        </span>
-
-        {/* Item count badge */}
-        <span className="shrink-0 rounded-full bg-paper-100 px-1.5 text-xs text-text-muted">
-          {totalCount}
-        </span>
-
-        {/* Status badge (non-active projects) */}
-        {statusBadge && project.status !== "active" && (
-          <span className="shrink-0 rounded-full bg-paper-200 px-1.5 text-[10px] capitalize text-text-muted">
-            {project.status}
+          <span className="flex-1 whitespace-pre-wrap text-sm font-medium text-text">
+            {project.name ?? "Untitled"}
           </span>
-        )}
 
-        {/* Stalled indicator */}
-        {stalled && (
-          <span
-            aria-label="Needs next action"
-            className="shrink-0 text-status-warning"
-          >
-            <Icon name="warning" size={16} />
+          {/* Item count badge */}
+          <span className="shrink-0 rounded-full bg-paper-100 px-1.5 text-xs text-text-muted">
+            {totalCount}
           </span>
-        )}
-      </button>
+
+          {/* Status badge (non-active projects) */}
+          {statusBadge && project.status !== "active" && (
+            <span className="shrink-0 rounded-full bg-paper-200 px-1.5 text-[10px] capitalize text-text-muted">
+              {project.status}
+            </span>
+          )}
+
+          {/* Stalled indicator */}
+          {stalled && (
+            <span
+              aria-label="Needs next action"
+              className="shrink-0 text-status-warning"
+            >
+              <Icon name="warning" size={16} />
+            </span>
+          )}
+        </button>
+
+        {/* Star toggle — separate from expand/collapse button */}
+        <button
+          type="button"
+          onClick={() => onToggleFocus(project.id)}
+          aria-label={`${project.isFocused ? "Unstar" : "Star"} ${project.name ?? "Untitled"}`}
+          className="shrink-0 rounded-[var(--radius-sm)] p-1 text-text-subtle hover:text-blueprint-500"
+        >
+          <Icon
+            name={project.isFocused ? "star" : "star_outline"}
+            size={16}
+            className={project.isFocused ? "text-blueprint-500" : undefined}
+          />
+        </button>
+      </div>
 
       {/* Expanded content */}
       {isExpanded && (

@@ -61,12 +61,6 @@ class Settings:
     csrf_cookie_samesite: CookieSameSite
     csrf_cookie_domain: str | None
     csrf_cookie_path: str
-    fuseki_enabled: bool
-    fuseki_url: str
-    fuseki_dataset: str
-    fuseki_graph: str
-    fuseki_username: str | None
-    fuseki_password: str | None
     meili_url: str | None
     meili_api_key: str | None
     meili_index_items: str
@@ -77,7 +71,6 @@ class Settings:
     meili_document_max_chars: int
     meili_file_text_max_bytes: int
     meili_file_text_max_chars: int
-    docling_enabled: bool
     storage_backend: str
     file_storage_path: Path
     upload_chunk_size: int
@@ -100,6 +93,15 @@ class Settings:
     cors_headers: list[str]
     # Agents service (Tay copilot)
     agents_url: str | None
+    # OpenClaw (alternative agent backend)
+    openclaw_url: str | None
+    openclaw_token: str | None
+    # OpenClaw container management (Phase 2 — per-user containers)
+    openclaw_image: str
+    openclaw_port_range_start: int
+    openclaw_port_range_end: int
+    openclaw_idle_timeout_seconds: int
+    openclaw_health_check_timeout: int
     # Email integration (Gmail OAuth)
     encryption_key: str | None
     gmail_client_id: str
@@ -142,7 +144,9 @@ def _build_database_url() -> str:
     database = _get_env("POSTGRES_DB", "tay") or "tay"
 
     if not password:
-        raise RuntimeError("POSTGRES_PASSWORD or DATABASE_URL must be set")
+        # Return a placeholder — actual connection only happens lazily in db_conn().
+        # This allows importing app modules without a database configured (e.g. unit tests).
+        return "postgresql://unconfigured@localhost/unconfigured"
 
     encoded_user = quote(user, safe="")
     encoded_password = quote(password, safe="")
@@ -201,12 +205,6 @@ def load_settings() -> Settings:
         csrf_cookie_samesite=_get_samesite_env("CSRF_COOKIE_SAMESITE", "lax"),
         csrf_cookie_domain=_get_env("CSRF_COOKIE_DOMAIN"),
         csrf_cookie_path=_get_env("CSRF_COOKIE_PATH", "/") or "/",
-        fuseki_enabled=_get_bool_env("FUSEKI_ENABLED", False),
-        fuseki_url=_get_env("FUSEKI_URL", "http://localhost:3030") or "http://localhost:3030",
-        fuseki_dataset=_get_env("FUSEKI_DATASET", "todo") or "todo",
-        fuseki_graph=_get_env("FUSEKI_GRAPH", "urn:graph:default") or "urn:graph:default",
-        fuseki_username=_get_env("FUSEKI_USERNAME"),
-        fuseki_password=_get_env("FUSEKI_PASSWORD"),
         meili_url=_get_env("MEILI_URL"),
         meili_api_key=_get_env("MEILI_API_KEY"),
         meili_index_items=_get_env("MEILI_INDEX_ITEMS", "items") or "items",
@@ -219,7 +217,6 @@ def load_settings() -> Settings:
             _get_env("MEILI_FILE_TEXT_MAX_BYTES", "5000000") or "5000000"
         ),
         meili_file_text_max_chars=int(_get_env("MEILI_FILE_TEXT_MAX_CHARS", "100000") or "100000"),
-        docling_enabled=_get_bool_env("DOCLING_ENABLED", True),
         storage_backend=_get_env("STORAGE_BACKEND", "local") or "local",
         file_storage_path=Path(
             _get_env("FILE_STORAGE_PATH", str(ROOT_DIR / "storage")) or str(ROOT_DIR / "storage")
@@ -269,6 +266,16 @@ def load_settings() -> Settings:
             if h.strip()
         ],
         agents_url=_get_env("AGENTS_URL"),
+        openclaw_url=_get_env("OPENCLAW_URL"),
+        openclaw_token=_get_env("OPENCLAW_GATEWAY_TOKEN"),
+        openclaw_image=_get_env("OPENCLAW_IMAGE", "ghcr.io/openclaw/openclaw:latest")
+        or "ghcr.io/openclaw/openclaw:latest",
+        openclaw_port_range_start=int(_get_env("OPENCLAW_PORT_RANGE_START", "18800") or "18800"),
+        openclaw_port_range_end=int(_get_env("OPENCLAW_PORT_RANGE_END", "18899") or "18899"),
+        openclaw_idle_timeout_seconds=int(
+            _get_env("OPENCLAW_IDLE_TIMEOUT_SECONDS", "1800") or "1800"
+        ),
+        openclaw_health_check_timeout=int(_get_env("OPENCLAW_HEALTH_CHECK_TIMEOUT", "15") or "15"),
         delegation_jwt_secret=_get_env("DELEGATION_JWT_SECRET") or _get_env("JWT_SECRET") or "",
         delegation_jwt_ttl_seconds=int(_get_env("DELEGATION_JWT_TTL_SECONDS", "60") or "60"),
         encryption_key=_get_env("ENCRYPTION_KEY"),

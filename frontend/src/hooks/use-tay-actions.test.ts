@@ -219,6 +219,18 @@ describe("useTayActions", () => {
     });
   });
 
+  it("onItemsChanged invalidates items cache", async () => {
+    const { result } = renderHook(() => useTayActions());
+
+    await act(async () => {
+      await result.current.onItemsChanged();
+    });
+
+    expect(mockInvalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["items"],
+    });
+  });
+
   it("propagates API errors", async () => {
     mockExecuteTool.mockRejectedValueOnce(new Error("Server error"));
 

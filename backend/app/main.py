@@ -36,7 +36,19 @@ from .observability import (
     generate_request_id,
     get_logger,
 )
-from .routes import assertions, auth, dev, files, imports, items, orgs, push, schemas, search
+from .routes import (
+    agent_settings,
+    assertions,
+    auth,
+    dev,
+    files,
+    imports,
+    items,
+    orgs,
+    push,
+    schemas,
+    search,
+)
 from .tracing import configure_tracing, shutdown_tracing
 
 configure_logging()
@@ -205,6 +217,7 @@ app.include_router(push.router)
 app.include_router(schemas.router)
 app.include_router(search.router)
 app.include_router(chat_router)
+app.include_router(agent_settings.router)
 app.include_router(email_routes.router)
 app.include_router(dev.router)
 

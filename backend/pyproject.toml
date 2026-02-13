@@ -11,7 +11,6 @@ dependencies = [
   "python-multipart",
   "pypdf",
   "pywebpush",
-  "docling",
   "structlog",
   "prometheus-client",
   "opentelemetry-sdk",
@@ -23,11 +22,6 @@ dependencies = [
   "cryptography>=42.0.0",
   "PyJWT[crypto]>=2.9.0",
   "imapclient>=3.0.0",
-  # Pin to CPU-only wheels (transitive from docling, declared here so
-  # [tool.uv.sources] can redirect them to the pytorch-cpu index).
-  "torch",
-  "torchvision",
-  "triton; sys_platform == 'linux'",
 ]
 
 [project.optional-dependencies]
@@ -41,16 +35,6 @@ dev = [
 
 [tool.uv]
 package = false
-
-[[tool.uv.index]]
-name = "pytorch-cpu"
-url = "https://download.pytorch.org/whl/cpu"
-explicit = true
-
-[tool.uv.sources]
-torch = { index = "pytorch-cpu" }
-torchvision = { index = "pytorch-cpu" }
-triton = { index = "pytorch-cpu" }
 
 [tool.ruff]
 line-length = 100
@@ -83,6 +67,12 @@ check_untyped_defs = true
 ignore_missing_imports = true
 exclude = ["^.venv/", "^.pytest_cache/"]
 
+[tool.pytest.ini_options]
+markers = [
+    "unit: pure logic tests — no DB, no network, no file I/O",
+    "external: tests that call real external APIs (OpenRouter, Gmail, etc.)",
+]
+
 [tool.bandit]
 exclude_dirs = ["backend/tests", "tests"]
 skips = ["B101"]
@@ -91,6 +81,8 @@ skips = ["B101"]
 dev = [
     "pytest-cov>=6.0",
     "pytest-playwright>=0.7.2",
+    "pytest-socket>=0.7.0",
+    "respx>=0.22.0",
     "uvicorn>=0.40.0",
     "websockets>=16.0",
 ]

@@ -19,6 +19,13 @@ import {
   useDisconnectEmail,
   useUpdateEmailConnection,
 } from "./hooks/use-email-connections";
+import {
+  useAgentSettings,
+  useUpdateAgentSettings,
+  useDeleteAgentApiKey,
+  useStopContainer,
+  useRestartContainer,
+} from "./hooks/use-agent-settings";
 import { computeBucketCounts } from "./lib/bucket-counts";
 import { DevApi, EmailApi, downloadExport } from "./lib/api-client";
 import type { AuthUser } from "./lib/api-client";
@@ -119,6 +126,13 @@ function AuthenticatedApp({
   const triggerEmailSync = useTriggerEmailSync();
   const disconnectEmail = useDisconnectEmail();
   const updateEmailConnection = useUpdateEmailConnection();
+
+  // Agent settings
+  const { data: agentSettingsData } = useAgentSettings();
+  const updateAgentSettings = useUpdateAgentSettings();
+  const deleteAgentApiKey = useDeleteAgentApiKey();
+  const stopContainer = useStopContainer();
+  const restartContainer = useRestartContainer();
 
   const mobileBucketNav = useMemo<MobileBucketNav | undefined>(() => {
     if (!isMobile || location.view !== "workspace") return undefined;
@@ -283,6 +297,26 @@ function AuthenticatedApp({
                 triggerEmailSync.isPending
                   ? (triggerEmailSync.variables ?? null)
                   : null
+              }
+              agentSettings={
+                agentSettingsData
+                  ? {
+                      agentBackend: agentSettingsData.agentBackend,
+                      provider: agentSettingsData.provider,
+                      hasApiKey: agentSettingsData.hasApiKey,
+                      model: agentSettingsData.model,
+                      containerStatus: agentSettingsData.containerStatus,
+                      containerError: agentSettingsData.containerError,
+                    }
+                  : undefined
+              }
+              onAgentUpdate={(update) => updateAgentSettings.mutate(update)}
+              onAgentDeleteApiKey={() => deleteAgentApiKey.mutate()}
+              onAgentStopContainer={() => stopContainer.mutate()}
+              onAgentRestartContainer={() => restartContainer.mutate()}
+              agentSaving={updateAgentSettings.isPending}
+              isContainerActionPending={
+                stopContainer.isPending || restartContainer.isPending
               }
             />
           </Suspense>

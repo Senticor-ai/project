@@ -13,17 +13,6 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-  fuseki:
-    image: stain/jena-fuseki:latest
-    restart: unless-stopped
-    profiles: ["optional"]
-    ports:
-      - "3030:3030"
-    environment:
-      ADMIN_PASSWORD: ${FUSEKI_ADMIN_PASSWORD:-changeme}
-    volumes:
-      - fuseki_data:/fuseki
-
   meilisearch:
     image: getmeili/meilisearch:v1.7
     restart: unless-stopped
@@ -38,7 +27,5 @@ services:
 volumes:
   postgres_data:
     name: ${PROJECT_PREFIX:-tay}_postgres_data
-  fuseki_data:
-    name: ${PROJECT_PREFIX:-tay}_fuseki_data
   meili_data:
     name: ${PROJECT_PREFIX:-tay}_meili_data

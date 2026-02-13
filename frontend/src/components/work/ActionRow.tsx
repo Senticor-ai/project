@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
@@ -14,7 +14,7 @@ export interface ActionRowProps {
   thing: ActionItem;
   onComplete: (id: CanonicalId) => void;
   onToggleFocus: (id: CanonicalId) => void;
-  onMove: (id: CanonicalId, bucket: string) => void;
+  onMove: (id: CanonicalId, bucket: string, projectId?: CanonicalId) => void;
   onArchive: (id: CanonicalId) => void;
   isExpanded?: boolean;
   onToggleExpand?: () => void;
@@ -24,6 +24,8 @@ export interface ActionRowProps {
   onNavigateToReference?: (refId: CanonicalId) => void;
   projects?: Pick<Project, "id" | "name">[];
   showBucket?: boolean;
+  /** Multi-select: whether this item is selected in batch selection mode. */
+  isSelected?: boolean;
   className?: string;
 }
 
@@ -114,6 +116,7 @@ export function ActionRow({
   onNavigateToReference,
   projects,
   showBucket = false,
+  isSelected,
   className,
 }: ActionRowProps) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -121,6 +124,8 @@ export function ActionRow({
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [showCalendarPicker, setShowCalendarPicker] = useState(false);
   const [prevExpanded, setPrevExpanded] = useState(isExpanded);
+  // Track the latest projectId from the ItemEditor so triage buttons can use it
+  const editorProjectRef = useRef<CanonicalId | undefined>(thing.projectIds[0]);
 
   // Reset editing / picker state when row collapses (derived state pattern)
   if (prevExpanded !== isExpanded) {
@@ -177,6 +182,9 @@ export function ActionRow({
   };
 
   const handleEditorChange = (fields: Partial<ItemEditableFields>) => {
+    if ("projectId" in fields) {
+      editorProjectRef.current = fields.projectId;
+    }
     onEdit?.(thing.id, fields);
   };
 
@@ -188,6 +196,7 @@ export function ActionRow({
           "transition-colors duration-[var(--duration-fast)]",
           "hover:bg-paper-100",
           isExpanded && "bg-paper-50",
+          isSelected && "bg-blueprint-50 ring-1 ring-blueprint-200",
           isDragging && "opacity-50",
         )}
       >
@@ -412,7 +421,7 @@ export function ActionRow({
                       if (bucket === "calendar") {
                         setShowCalendarPicker(true);
                       } else {
-                        onMove(thing.id, bucket);
+                        onMove(thing.id, bucket, editorProjectRef.current);
                       }
                     }}
                     className={cn(
@@ -452,7 +461,7 @@ export function ActionRow({
                     onChange={(e) => {
                       if (e.target.value) {
                         onEdit?.(thing.id, { scheduledDate: e.target.value });
-                        onMove(thing.id, "calendar");
+                        onMove(thing.id, "calendar", editorProjectRef.current);
                         setShowCalendarPicker(false);
                       }
                     }}

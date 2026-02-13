@@ -109,7 +109,7 @@ export class ApiSeed {
   async createProject(
     title: string,
     desiredOutcome: string,
-    options?: { status?: string },
+    options?: { status?: string; isFocused?: boolean },
   ): Promise<string> {
     const id = `urn:app:project:${crypto.randomUUID()}`;
     const now = new Date().toISOString();
@@ -132,7 +132,7 @@ export class ApiSeed {
             pv("app:projectStatus", options?.status ?? "active"),
             pv("app:captureSource", { kind: "thought" }),
             pv("app:contexts", []),
-            pv("app:isFocused", false),
+            pv("app:isFocused", options?.isFocused ?? false),
             pv("app:ports", []),
             pv("app:typedReferences", []),
             pv("app:provenanceHistory", [

@@ -3,18 +3,19 @@ include:
 
 # Override SAST template: assign to our runner tag + stage
 sast:
-  stage: test-2
+  stage: build
   tags:
     - large
 
 stages:
-  - quality    # 4 jobs: lint + typecheck
-  - test-1     # 4 jobs: unit + storybook
-  - test-2     # 3 + SAST: integration + e2e
-  - build      # 3 jobs: docker images
-  - push       # 3 jobs: push to Harbor (main only)
-  - deploy     # 1 job: update k8s manifests (main only)
-  - smoke      # 1 job: e2e against deployed instance (nightly + manual)
+  - quality      # 4 jobs: lint + typecheck
+  - unit         # 4 jobs: no infrastructure
+  - integration  # 2 jobs: backend (Postgres), frontend-contract (no infra)
+  - build        # 3 jobs: docker images + SAST
+  - e2e          # 1 job: full stack Playwright
+  - push         # 3 jobs: push to Harbor (main only)
+  - deploy       # 1 job: update k8s manifests (main only)
+  - smoke        # 1 job: e2e against deployed instance (nightly + manual)
 
 variables:
   # Pre-built CI image with Node 24 + Python 3.12 + Playwright + uv.
@@ -42,7 +43,6 @@ variables:
     POSTGRES_DB: tay
     DATABASE_URL: "postgresql://terminandoyo:ci_test_password@postgres:5432/tay"
     VITE_API_BASE_URL: "http://localhost:8000"
-    FUSEKI_ENABLED: "false"
     MEILI_URL: ""
 
 .large-runner:
@@ -89,6 +89,20 @@ variables:
     - key:
         files: [backend/uv.lock]
       paths: [backend/.venv/]
+      policy: pull
+
+.agents-cache:
+  cache:
+    - key:
+        files: [agents/uv.lock]
+      paths: [agents/.venv/]
+      policy: pull-push
+
+.agents-cache-readonly:
+  cache:
+    - key:
+        files: [agents/uv.lock]
+      paths: [agents/.venv/]
       policy: pull
 
 .fullstack-cache:
@@ -175,10 +189,10 @@ backend-typecheck:
   script:
     - uv run mypy app/
 
-# ==================== TEST-1 (4 jobs: unit + storybook, gated by quality) ====================
+# ==================== UNIT (4 jobs: no infrastructure, gated by quality) ====================
 
 frontend-unit:
-  stage: test-1
+  stage: unit
   allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
   extends: [.default-rules, .large-runner, .retry-infra, .failure-issue, .frontend-cache-readonly]
@@ -196,34 +210,47 @@ frontend-unit:
         path: frontend/coverage/unit/cobertura-coverage.xml
   coverage: '/All files[^|]*\|[^|]*\s([0-9]+(?:\.[0-9]+)?)\s/'
 
-backend-unit:
-  stage: test-1
+frontend-storybook:
+  stage: unit
   allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
-  extends: [.default-rules, .large-runner, .retry-infra, .backend-postgres, .failure-issue, .backend-cache-readonly]
+  extends: [.default-rules, .large-runner, .retry-infra, .failure-issue, .frontend-cache-readonly]
+  before_script:
+    - cd frontend && npm ci --silent
+  script:
+    - STORYBOOK_TESTS=1 CI=1 npx vitest run --project=storybook
+
+backend-unit:
+  stage: unit
+  allow_failure: true
+  image: $CI_NODE_PYTHON_IMAGE
+  extends: [.default-rules, .retry-infra, .failure-issue, .backend-cache-readonly]
   before_script:
     - cd backend && uv sync --quiet --all-groups --all-extras
   script:
-    - uv run pytest -q --maxfail=1 --cov=app --cov-report=term-missing --cov-report=xml:coverage/unit.xml --cov-report=html:coverage/unit -k "not integration and not playwright"
-  artifacts:
-    when: always
-    paths:
-      - backend/coverage/unit/
-    reports:
-      coverage_report:
-        coverage_format: cobertura
-        path: backend/coverage/unit.xml
-  coverage: '/TOTAL.*\s+([0-9]+%)$/'
+    - uv run pytest -m unit -q --maxfail=1
+
+agents-unit:
+  stage: unit
+  allow_failure: true
+  image: $CI_NODE_PYTHON_IMAGE
+  extends: [.default-rules, .retry-infra, .failure-issue, .agents-cache]
+  before_script:
+    - cd agents && uv sync --quiet
+  script:
+    - uv run pytest tests/ -q
+
+# ==================== INTEGRATION (2 jobs: Postgres only for backend) ====================
 
 backend-integration:
-  stage: test-1
+  stage: integration
   allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
   extends: [.default-rules, .large-runner, .retry-infra, .backend-postgres, .failure-issue, .backend-cache-readonly]
   before_script:
     - cd backend && uv sync --quiet --all-groups --all-extras
   script:
-    - uv run pytest -q --maxfail=1 --cov=app --cov-report=term-missing --cov-report=xml:coverage/integration.xml --cov-report=html:coverage/integration -k "integration and not playwright"
+    - uv run pytest -m "not unit" -q --maxfail=3 --cov=app --cov-report=term-missing --cov-report=xml:coverage/integration.xml --cov-report=html:coverage/integration
   artifacts:
     when: always
     paths:
@@ -234,117 +261,19 @@ backend-integration:
         path: backend/coverage/integration.xml
   coverage: '/TOTAL.*\s+([0-9]+%)$/'
 
-frontend-storybook:
-  stage: test-1
+frontend-contract:
+  stage: integration
   allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
-  extends: [.default-rules, .large-runner, .retry-infra, .failure-issue, .frontend-cache-readonly]
-  before_script:
-    - cd frontend && npm ci --silent
-  script:
-    - STORYBOOK_TESTS=1 CI=1 npx vitest run --project=storybook
-
-# ==================== TEST-2 (3 + SAST: integration + e2e, gated by test-1) ====================
-
-frontend-integration:
-  stage: test-2
-  allow_failure: true
-  image: $CI_NODE_PYTHON_IMAGE
-  extends: [.default-rules, .large-runner, .retry-infra, .backend-postgres, .failure-issue, .fullstack-cache-readonly]
+  extends: [.default-rules, .retry-infra, .failure-issue, .fullstack-cache-readonly]
   before_script:
     - cd $CI_PROJECT_DIR/backend && uv sync --quiet --all-groups --all-extras
     - cd $CI_PROJECT_DIR/frontend && npm ci --ignore-scripts --silent
   script:
-    - cd $CI_PROJECT_DIR/backend && uv run python -m app.db_init
-    - cd $CI_PROJECT_DIR/backend && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 &
-    - |
-      BACKEND_READY=0
-      for i in $(seq 1 30); do
-        if curl -sf http://localhost:8000/schemas > /dev/null 2>&1; then
-          echo "Backend is ready"
-          BACKEND_READY=1
-          break
-        fi
-        sleep 1
-      done
-      if [ "$BACKEND_READY" -ne 1 ]; then
-        echo "Backend failed to become ready"
-        exit 1
-      fi
+    - cd $CI_PROJECT_DIR/backend && uv run python scripts/export_schemas.py
     - cd $CI_PROJECT_DIR/frontend && CI=1 npx vitest run --project=unit -t "JSON Schema contract"
 
-backend-e2e:
-  stage: test-2
-  allow_failure: true
-  image: $CI_NODE_PYTHON_IMAGE
-  extends: [.default-rules, .large-runner, .retry-infra, .backend-postgres, .failure-issue, .backend-cache-readonly]
-  before_script:
-    - cd backend && uv sync --quiet --all-groups --all-extras
-  script:
-    - |
-      echo "Waiting for postgres..."
-      for i in $(seq 1 60); do
-        if uv run python -c "import psycopg; psycopg.connect('$DATABASE_URL').close()" 2>/dev/null; then
-          echo "Postgres is ready"
-          break
-        fi
-        if [ "$i" -eq 60 ]; then
-          echo "Postgres failed to become ready"
-          exit 1
-        fi
-        sleep 2
-      done
-    - uv run python -m app.db_init
-    - uv run pytest -q tests/test_flow_playwright.py
-
-frontend-e2e:
-  stage: test-2
-  allow_failure: true
-  image: $CI_NODE_PYTHON_IMAGE
-  extends: [.default-rules, .large-runner, .retry-infra, .backend-postgres, .failure-issue, .fullstack-cache-readonly]
-  before_script:
-    - cd $CI_PROJECT_DIR/backend && uv sync --quiet --all-groups --all-extras
-    - cd $CI_PROJECT_DIR/frontend && npm ci --ignore-scripts --silent
-  script:
-    - cd $CI_PROJECT_DIR/backend && uv run python -m app.db_init
-    - cd $CI_PROJECT_DIR/backend && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 &
-    - |
-      BACKEND_READY=0
-      for i in $(seq 1 30); do
-        if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
-          echo "Backend is ready"
-          BACKEND_READY=1
-          break
-        fi
-        sleep 1
-      done
-      if [ "$BACKEND_READY" -ne 1 ]; then
-        echo "Backend failed to become ready"
-        exit 1
-      fi
-    - cd $CI_PROJECT_DIR/frontend && npm run dev -- --host 0.0.0.0 --port 5173 &
-    - |
-      FRONTEND_READY=0
-      for i in $(seq 1 60); do
-        if curl -sf http://localhost:5173 > /dev/null 2>&1; then
-          echo "Frontend is ready"
-          FRONTEND_READY=1
-          break
-        fi
-        sleep 1
-      done
-      if [ "$FRONTEND_READY" -ne 1 ]; then
-        echo "Frontend failed to become ready"
-        exit 1
-      fi
-    - cd $CI_PROJECT_DIR/frontend && CI=1 npm run test:e2e
-  artifacts:
-    when: always
-    paths:
-      - frontend/playwright-report/
-      - frontend/test-results/
-
-# ==================== BUILD (3 jobs: docker images, gated by test-2) ====================
+# ==================== BUILD (3 jobs: docker images, gated by integration) ====================
 
 .build-base:
   stage: build
@@ -376,6 +305,90 @@ build-storybook:
   artifacts:
     paths: [/tmp/storybook.tar]
     expire_in: 1 hour
+
+# ==================== E2E (1 job: full stack Playwright, gated by build) ====================
+
+e2e:
+  stage: e2e
+  allow_failure: true
+  image: $CI_NODE_PYTHON_IMAGE
+  extends: [.default-rules, .large-runner, .retry-infra, .backend-postgres, .failure-issue, .fullstack-cache-readonly]
+  cache:
+    - key:
+        files: [frontend/package-lock.json]
+      paths: [.npm-cache/]
+      policy: pull
+    - key:
+        files: [backend/uv.lock]
+      paths: [backend/.venv/]
+      policy: pull
+    - key:
+        files: [agents/uv.lock]
+      paths: [agents/.venv/]
+      policy: pull
+  before_script:
+    - cd $CI_PROJECT_DIR/backend && uv sync --quiet --all-groups --all-extras
+    - cd $CI_PROJECT_DIR/agents && uv sync --quiet
+    - cd $CI_PROJECT_DIR/frontend && npm ci --ignore-scripts --silent
+  script:
+    # 1. Initialize database
+    - cd $CI_PROJECT_DIR/backend && uv run python -m app.db_init
+    # 2. Start backend
+    - cd $CI_PROJECT_DIR/backend && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+    - |
+      BACKEND_READY=0
+      for i in $(seq 1 30); do
+        if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
+          echo "Backend is ready"
+          BACKEND_READY=1
+          break
+        fi
+        sleep 1
+      done
+      if [ "$BACKEND_READY" -ne 1 ]; then
+        echo "Backend failed to become ready"
+        exit 1
+      fi
+    # 3. Start outbox worker (needed for import e2e tests)
+    - cd $CI_PROJECT_DIR/backend && uv run python -m app.worker --loop &
+    # 4. Start agents
+    - cd $CI_PROJECT_DIR/agents && uv run uvicorn app:app --host 0.0.0.0 --port 8002 &
+    - |
+      AGENTS_READY=0
+      for i in $(seq 1 15); do
+        if curl -sf http://localhost:8002/health > /dev/null 2>&1; then
+          echo "Agents service is ready"
+          AGENTS_READY=1
+          break
+        fi
+        sleep 1
+      done
+      if [ "$AGENTS_READY" -ne 1 ]; then
+        echo "Agents service failed to become ready (non-fatal, continuing)"
+      fi
+    # 5. Start frontend
+    - cd $CI_PROJECT_DIR/frontend && npm run dev -- --host 0.0.0.0 --port 5173 &
+    - |
+      FRONTEND_READY=0
+      for i in $(seq 1 60); do
+        if curl -sf http://localhost:5173 > /dev/null 2>&1; then
+          echo "Frontend is ready"
+          FRONTEND_READY=1
+          break
+        fi
+        sleep 1
+      done
+      if [ "$FRONTEND_READY" -ne 1 ]; then
+        echo "Frontend failed to become ready"
+        exit 1
+      fi
+    # 6. Run Playwright e2e tests
+    - cd $CI_PROJECT_DIR/frontend && CI=1 npm run test:e2e
+  artifacts:
+    when: always
+    paths:
+      - frontend/playwright-report/
+      - frontend/test-results/
 
 # ==================== PUSH (3 jobs: push to Harbor, main only) ====================
 

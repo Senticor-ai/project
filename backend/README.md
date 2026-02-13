@@ -1,13 +1,12 @@
 # Backend (FastAPI)
 
-This backend provides a Postgres-backed catalog and a Fuseki projection pipeline for schema.org-aligned JSON-LD.
+This backend provides a Postgres-backed catalog for schema.org-aligned JSON-LD with optional Meilisearch full-text search.
 
 ## Requirements
 
 - Python 3.12
 - uv (Python package manager)
 - Postgres (via Rancher Desktop)
-- Apache Jena Fuseki (via Rancher Desktop)
 - Meilisearch (optional, for full-text search)
 
 ## Environment
@@ -22,12 +21,6 @@ POSTGRES_DB=<your-postgres-db>
 POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
 
-FUSEKI_URL=http://localhost:3030
-FUSEKI_DATASET=todo
-FUSEKI_GRAPH=urn:graph:default
-FUSEKI_USERNAME=
-FUSEKI_PASSWORD=
-
 # Search (Meilisearch)
 MEILI_URL=http://localhost:7700
 MEILI_API_KEY=
@@ -39,7 +32,6 @@ MEILI_BATCH_SIZE=500
 MEILI_DOCUMENT_MAX_CHARS=100000
 MEILI_FILE_TEXT_MAX_BYTES=5000000
 MEILI_FILE_TEXT_MAX_CHARS=100000
-DOCLING_ENABLED=true
 
 SESSION_COOKIE_NAME=terminandoyo_session
 SESSION_TTL_DAYS=30
@@ -161,10 +153,7 @@ cd backend
 uv run python -m app.search.reindex --files
 ```
 
-Docling is used for OCR and non-PDF formats when file indexing is enabled. Ensure any required OCR
-backends are installed for your platform. OCR settings are per-org and configurable via
-`GET/PUT /search/ocr-config`; reindex files after changing OCR settings.
-Indexing status is tracked per file and thing and exposed via `/files/{file_id}/index-status` and
+PDF text extraction uses pypdf for text-based PDFs. Indexing status is tracked per file and thing and exposed via `/files/{file_id}/index-status` and
 `/things/{thing_id}/index-status`. When VAPID keys are configured, the worker emits push events on
 success or failure.
 
@@ -273,8 +262,6 @@ uploads for a blob store without changing the client contract.
 - `GET /imports/jobs` (list current user's jobs; filter with `?status=queued&status=running`)
 - `GET /imports/jobs/{job_id}` (single job status for current user)
 - `GET /search` (Meilisearch-backed)
-- `GET /search/ocr-config`
-- `PUT /search/ocr-config`
 - `GET /push/vapid-public-key`
 - `POST /push/subscribe`
 - `POST /push/unsubscribe`

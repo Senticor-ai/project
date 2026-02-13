@@ -1,0 +1,235 @@
+{
+  "$defs": {
+    "ItemSourceMetadata": {
+      "properties": {
+        "schemaVersion": {
+          "description": "Metadata schema version.",
+          "title": "Schemaversion",
+          "type": "integer"
+        },
+        "provider": {
+          "description": "Origin provider name, e.g. nirvana.",
+          "title": "Provider",
+          "type": "string"
+        },
+        "rawId": {
+          "description": "Original provider item identifier.",
+          "title": "Rawid",
+          "type": "string"
+        },
+        "rawType": {
+          "description": "Original provider type code.",
+          "title": "Rawtype",
+          "type": "integer"
+        },
+        "rawState": {
+          "description": "Original provider state code.",
+          "title": "Rawstate",
+          "type": "integer"
+        },
+        "raw": {
+          "additionalProperties": true,
+          "description": "Raw provider payload for high-fidelity round-tripping.",
+          "title": "Raw",
+          "type": "object"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "provider",
+        "rawId",
+        "rawType",
+        "rawState",
+        "raw"
+      ],
+      "title": "ItemSourceMetadata",
+      "type": "object"
+    },
+    "PropertyValueModel": {
+      "description": "Schema.org PropertyValue for additionalProperty entries.",
+      "properties": {
+        "@type": {
+          "const": "PropertyValue",
+          "default": "PropertyValue",
+          "description": "JSON-LD type (always PropertyValue).",
+          "title": "@Type",
+          "type": "string"
+        },
+        "propertyID": {
+          "description": "Property identifier, e.g. app:bucket.",
+          "title": "Propertyid",
+          "type": "string"
+        },
+        "value": {
+          "description": "Property value (type varies by propertyID).",
+          "title": "Value"
+        }
+      },
+      "required": [
+        "propertyID",
+        "value"
+      ],
+      "title": "PropertyValueModel",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "schema:Event \u2014 calendar event with date/time/duration.",
+  "properties": {
+    "@id": {
+      "description": "Canonical JSON-LD id (urn:app:\u2026).",
+      "title": "@Id",
+      "type": "string"
+    },
+    "@type": {
+      "const": "Event",
+      "description": "schema.org Event.",
+      "title": "@Type",
+      "type": "string"
+    },
+    "_schemaVersion": {
+      "default": 2,
+      "description": "Domain schema version for this record.",
+      "title": "Schemaversion",
+      "type": "integer"
+    },
+    "name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Optional deliberate name (schema.org name).",
+      "title": "Name"
+    },
+    "description": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Long-form description.",
+      "title": "Description"
+    },
+    "keywords": {
+      "description": "Free-form tags (schema.org keywords).",
+      "items": {
+        "type": "string"
+      },
+      "title": "Keywords",
+      "type": "array"
+    },
+    "dateCreated": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Creation timestamp (ISO-8601).",
+      "title": "Datecreated"
+    },
+    "dateModified": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Last-modified timestamp (ISO-8601).",
+      "title": "Datemodified"
+    },
+    "additionalProperty": {
+      "description": "App-specific properties as schema.org PropertyValue entries.",
+      "items": {
+        "$ref": "#/$defs/PropertyValueModel"
+      },
+      "title": "Additionalproperty",
+      "type": "array"
+    },
+    "sourceMetadata": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ItemSourceMetadata"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Provider-specific source metadata preserved during imports."
+    },
+    "startDate": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Event start date (ISO-8601).",
+      "title": "Startdate"
+    },
+    "endDate": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Event end date (ISO-8601).",
+      "title": "Enddate"
+    },
+    "duration": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Event duration (ISO 8601 duration, e.g. PT1H).",
+      "title": "Duration"
+    },
+    "location": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Event location.",
+      "title": "Location"
+    }
+  },
+  "required": [
+    "@id",
+    "@type"
+  ],
+  "title": "EventItemJsonLd",
+  "type": "object"
+}

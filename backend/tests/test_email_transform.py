@@ -4,8 +4,12 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+import pytest
+
 from app.email.imap_client import EmailMessage
 from app.email.transform import _email_canonical_id, _snippet, build_email_item
+
+pytestmark = pytest.mark.unit
 
 
 def _make_msg(**overrides) -> EmailMessage:

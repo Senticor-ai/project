@@ -12,7 +12,7 @@ setProjectAnnotations([a11yAddonAnnotations, projectAnnotations]);
 // Follows the official MSW recipe for vitest browser mode:
 // https://mswjs.io/docs/recipes/vitest-browser-mode/
 beforeAll(async () => {
-  await worker.start({ onUnhandledRequest: "bypass" });
+  await worker.start({ onUnhandledRequest: "error" });
 });
 
 afterEach(() => {

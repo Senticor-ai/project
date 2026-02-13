@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Tabs, type TabItem } from "@/components/ui/Tabs";
+import { AgentSetupPanel } from "./AgentSetupPanel";
 import { DeveloperPanel } from "./DeveloperPanel";
 import { EmailPanel } from "./EmailPanel";
 import { ImportExportPanel } from "./ImportExportPanel";
@@ -12,12 +13,14 @@ import {
 } from "@/model/settings-types";
 import type { EmailConnectionResponse } from "@/lib/api-client";
 import type { ImportJobData } from "./ImportJobRow";
+import type { AgentSettings } from "./AgentSetupPanel";
 
 export type SettingsTab =
   | "import-export"
   | "email"
   | "labels"
   | "preferences"
+  | "agent-setup"
   | "developer";
 
 const settingsTabs: TabItem[] = [
@@ -25,6 +28,7 @@ const settingsTabs: TabItem[] = [
   { id: "email", label: "Email", icon: "mail" },
   { id: "labels", label: "Labels & Contexts", icon: "label" },
   { id: "preferences", label: "Preferences", icon: "tune" },
+  { id: "agent-setup", label: "Agent Setup", icon: "smart_toy" },
   { id: "developer", label: "Developer", icon: "code" },
 ];
 
@@ -51,6 +55,17 @@ export interface SettingsScreenProps {
   onEmailUpdateSyncInterval?: (connectionId: string, minutes: number) => void;
   onEmailUpdateMarkRead?: (connectionId: string, markRead: boolean) => void;
   emailSyncingConnectionId?: string | null;
+  agentSettings?: AgentSettings;
+  onAgentUpdate?: (
+    update: Parameters<
+      import("./AgentSetupPanel").AgentSetupPanelProps["onUpdate"]
+    >[0],
+  ) => void;
+  onAgentDeleteApiKey?: () => void;
+  onAgentStopContainer?: () => void;
+  onAgentRestartContainer?: () => void;
+  agentSaving?: boolean;
+  isContainerActionPending?: boolean;
   className?: string;
 }
 
@@ -74,6 +89,13 @@ export function SettingsScreen({
   onEmailUpdateSyncInterval,
   onEmailUpdateMarkRead,
   emailSyncingConnectionId,
+  agentSettings,
+  onAgentUpdate,
+  onAgentDeleteApiKey,
+  onAgentStopContainer,
+  onAgentRestartContainer,
+  agentSaving,
+  isContainerActionPending,
   className,
 }: SettingsScreenProps) {
   const [internalTab, setInternalTab] = useState<SettingsTab>(initialTab);
@@ -154,6 +176,17 @@ export function SettingsScreen({
               onChange={(update) =>
                 setPreferences((prev) => ({ ...prev, ...update }))
               }
+            />
+          )}
+          {activeTab === "agent-setup" && agentSettings && (
+            <AgentSetupPanel
+              settings={agentSettings}
+              onUpdate={onAgentUpdate ?? (() => {})}
+              onDeleteApiKey={onAgentDeleteApiKey}
+              onStopContainer={onAgentStopContainer}
+              onRestartContainer={onAgentRestartContainer}
+              isSaving={agentSaving}
+              isContainerActionPending={isContainerActionPending}
             />
           )}
           {activeTab === "developer" && <DeveloperPanel onFlush={onFlush} />}

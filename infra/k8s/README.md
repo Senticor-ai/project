@@ -227,4 +227,4 @@ kubectl kustomize infra/k8s/overlays/production
 - ConfigMap is entirely overlay-specific (not patched from base) because local and production values differ completely.
 - The `app-secrets` Secret name is standardized across both environments.
 - PVCs use the default StorageClass (no explicit `storageClassName`). k3s bundles `local-path` provisioner which works for local/single-node setups.
-- Fuseki and Meilisearch are optional services — enable via `FUSEKI_ENABLED=true` and `MEILI_*` env vars in the ConfigMap.
+- Meilisearch is an optional service — enable via `MEILI_*` env vars in the ConfigMap.

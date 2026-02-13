@@ -3,9 +3,10 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { BucketNav } from "./BucketNav";
 
-// Mock @dnd-kit/core so useDroppable doesn't need a DndContext provider
+// Mock @dnd-kit/core so useDroppable/useDndMonitor don't need a DndContext provider
 vi.mock("@dnd-kit/core", () => ({
   useDroppable: () => ({ setNodeRef: vi.fn(), isOver: false }),
+  useDndMonitor: () => {},
 }));
 
 describe("BucketNav", () => {
