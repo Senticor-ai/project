@@ -41,7 +41,7 @@ export interface GoldenScenario {
   expectedToolCall: string;
   /**
    * Canned response for integration tests — the exact JSON that
-   * `page.route()` returns for `/api/chat/completions`.
+   * `page.route()` returns for `*/chat/completions`.
    * Shape matches the backend's `ChatCompletionResponse`.
    */
   cannedResponse: {

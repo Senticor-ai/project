@@ -5,8 +5,8 @@ import { GOLDEN_SCENARIOS } from "../fixtures/golden-prompts";
 /**
  * Integration tests for Tay Chat — uses canned LLM responses from the golden dataset.
  *
- * Only `/api/chat/completions` is mocked (the LLM inference call).
- * The `/api/chat/execute-tool` call flows through the real stack:
+ * Only `*/chat/completions` is mocked (the LLM inference call).
+ * The `*/chat/execute-tool` call flows through the real stack:
  *   frontend → backend → agents → backend POST /items
  *
  * Each golden scenario generates a separate Playwright test.
@@ -19,8 +19,9 @@ test.describe("Tay Chat (mocked)", () => {
     }) => {
       const ws = new WorkspacePage(page);
 
-      // Intercept /api/chat/completions with the canned golden response as NDJSON
-      await page.route("**/api/chat/completions", (route) => {
+      // Intercept chat completions with the canned golden response as NDJSON.
+      // Matches both "/chat/completions" and "/api/chat/completions" API bases.
+      await page.route("**/chat/completions", (route) => {
         const { text, toolCalls } = scenario.cannedResponse;
         const events: string[] = [];
         if (text) {
