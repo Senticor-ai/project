@@ -238,6 +238,31 @@ describe("ReferenceRow", () => {
     expect(screen.queryByLabelText("Notes")).not.toBeInTheDocument();
   });
 
+  it("shows Open/Download bar for file-backed reference when expanded", () => {
+    const ref = createReferenceMaterial({
+      name: "Rendered PDF",
+      description: "PDF aus: Tailored CV",
+      encodingFormat: "application/pdf",
+      downloadUrl: "/files/file-pdf-1",
+    });
+    render(
+      <ReferenceRow
+        reference={ref}
+        onArchive={vi.fn()}
+        onSelect={vi.fn()}
+        isExpanded={true}
+        onToggleExpand={vi.fn()}
+        onEdit={vi.fn()}
+      />,
+    );
+    // File action bar — Open + Download buttons
+    expect(screen.getByText("Open")).toBeInTheDocument();
+    expect(screen.getByText("Download")).toBeInTheDocument();
+    // No markdown view/edit toggle for file-backed references
+    expect(screen.queryByLabelText("View markdown")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Edit content")).not.toBeInTheDocument();
+  });
+
   it("does not render checkbox or focus star", () => {
     const ref = baseRef();
     render(

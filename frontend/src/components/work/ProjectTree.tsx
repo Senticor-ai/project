@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
 import { AutoGrowTextarea } from "@/components/ui/AutoGrowTextarea";
+import { getFileUrl } from "@/lib/api-client";
 import { EditableTitle } from "./EditableTitle";
 import { ActionRow } from "./ActionRow";
 import {
@@ -392,23 +393,49 @@ function ProjectRow({
           {/* Reference file chips */}
           {references.length > 0 && (
             <div className="mt-2 space-y-0.5">
-              {references.map((ref) => (
-                <div
-                  key={ref.id}
-                  className="flex items-center gap-1.5 rounded-[var(--radius-sm)] px-1.5 py-0.5 text-xs text-text-muted"
-                >
-                  <Icon
-                    name={
-                      ref.encodingFormat === "application/pdf"
-                        ? "picture_as_pdf"
-                        : "description"
-                    }
-                    size={14}
-                    className="shrink-0 text-text-subtle"
-                  />
-                  <span className="truncate">{getDisplayName(ref)}</span>
-                </div>
-              ))}
+              {references.map((ref) => {
+                const fileUrl = ref.downloadUrl
+                  ? getFileUrl(ref.downloadUrl)
+                  : undefined;
+                return (
+                  <div
+                    key={ref.id}
+                    className="flex items-center gap-1.5 rounded-[var(--radius-sm)] px-1.5 py-0.5 text-xs text-text-muted"
+                  >
+                    <Icon
+                      name={
+                        ref.encodingFormat === "application/pdf"
+                          ? "picture_as_pdf"
+                          : "description"
+                      }
+                      size={14}
+                      className="shrink-0 text-text-subtle"
+                    />
+                    {fileUrl ? (
+                      <a
+                        href={`${fileUrl}?inline=true`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="truncate hover:text-blueprint-500 hover:underline"
+                      >
+                        {getDisplayName(ref)}
+                      </a>
+                    ) : (
+                      <span className="truncate">{getDisplayName(ref)}</span>
+                    )}
+                    {fileUrl && (
+                      <a
+                        href={fileUrl}
+                        download
+                        aria-label={`Download ${getDisplayName(ref)}`}
+                        className="shrink-0 text-text-subtle opacity-0 transition-opacity group-hover:opacity-100 hover:text-blueprint-500"
+                      >
+                        <Icon name="download" size={14} />
+                      </a>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

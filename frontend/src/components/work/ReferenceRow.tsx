@@ -296,10 +296,36 @@ export function ReferenceRow({
         </div>
       </div>
 
-      {/* Expanded content — markdown view or editor */}
+      {/* Expanded content — file preview, markdown view, or editor */}
       {isExpanded && onEdit && (
         <div className="mt-1 ml-8">
-          {hasMarkdownContent && (
+          {/* File-backed references: show open/download bar */}
+          {reference.downloadUrl && (
+            <div className="mb-2 flex items-center gap-2">
+              {isBrowserViewable(reference.encodingFormat) && (
+                <a
+                  href={`${getFileUrl(reference.downloadUrl)}?inline=true`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 rounded-[var(--radius-md)] bg-paper-100 px-2 py-1 text-xs text-text-muted hover:bg-paper-200 hover:text-text"
+                >
+                  <Icon name="visibility" size={14} />
+                  Open
+                </a>
+              )}
+              <a
+                href={getFileUrl(reference.downloadUrl)}
+                download
+                className="inline-flex items-center gap-1 rounded-[var(--radius-md)] bg-paper-100 px-2 py-1 text-xs text-text-muted hover:bg-paper-200 hover:text-text"
+              >
+                <Icon name="download" size={14} />
+                Download
+              </a>
+            </div>
+          )}
+
+          {/* Markdown view/edit toggle — only for text references without a file */}
+          {hasMarkdownContent && !reference.downloadUrl && (
             <div className="mb-2 flex items-center gap-1">
               <button
                 onClick={() => setViewMode("view")}
@@ -328,7 +354,9 @@ export function ReferenceRow({
             </div>
           )}
 
-          {hasMarkdownContent && viewMode === "view" ? (
+          {hasMarkdownContent &&
+          !reference.downloadUrl &&
+          viewMode === "view" ? (
             <div className="max-h-96 overflow-y-auto rounded-[var(--radius-md)] border border-border bg-white p-3 text-sm">
               <MarkdownViewer content={reference.description!} />
             </div>
