@@ -20,7 +20,6 @@ SCHEMA_FILE="${ROOT_DIR}/backend/db/schema.sql"
 BACKEND_PORT=8001
 AGENTS_PORT=8002
 FRONTEND_PORT=5174
-E2E_DB="terminandoyo_e2e"
 
 CLEAN_DB=false
 RUN_TESTS=true
@@ -64,14 +63,18 @@ PG_PASSWORD="${POSTGRES_PASSWORD:-changeme}"
 PG_HOST="${POSTGRES_HOST:-localhost}"
 PG_PORT="${POSTGRES_PORT:-5432}"
 
+# Derive E2E database name from PROJECT_PREFIX (set in .env)
+E2E_DB="${PROJECT_PREFIX:-tay}_e2e"
+
 # ── Helper: run psql (local binary or docker exec) ──────────────────
 DOCKER_COMPOSE_FILE="${ROOT_DIR}/infra/docker-compose.yml"
+DOCKER_ENV_FILE="${ROOT_DIR}/.env"
 PSQL_CMD=""
 
 detect_psql() {
   if command -v psql >/dev/null 2>&1; then
     PSQL_CMD="local"
-  elif docker compose -f "$DOCKER_COMPOSE_FILE" ps --status running postgres 2>/dev/null | grep -q postgres; then
+  elif docker compose --env-file "$DOCKER_ENV_FILE" -f "$DOCKER_COMPOSE_FILE" ps --status running postgres 2>/dev/null | grep -q postgres; then
     PSQL_CMD="docker"
   else
     echo "[e2e] ERROR: No psql binary found and postgres container is not running."
@@ -86,7 +89,7 @@ run_psql() {
   if [ "$PSQL_CMD" = "local" ]; then
     PGPASSWORD="$PG_PASSWORD" psql -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$db" "$@"
   else
-    docker compose -f "$DOCKER_COMPOSE_FILE" exec -T \
+    docker compose --env-file "$DOCKER_ENV_FILE" -f "$DOCKER_COMPOSE_FILE" exec -T \
       -e PGPASSWORD="$PG_PASSWORD" \
       postgres psql -U "$PG_USER" -d "$db" "$@"
   fi
@@ -96,7 +99,7 @@ run_psql() {
 # privileges (CREATEDB, etc.), bypassing host-level pg_hba restrictions.
 run_psql_admin() {
   local db="$1"; shift
-  docker compose -f "$DOCKER_COMPOSE_FILE" exec -T \
+  docker compose --env-file "$DOCKER_ENV_FILE" -f "$DOCKER_COMPOSE_FILE" exec -T \
     postgres psql -U "$PG_USER" -d "$db" "$@"
 }
 

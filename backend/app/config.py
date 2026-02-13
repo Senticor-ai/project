@@ -139,7 +139,7 @@ def _build_database_url() -> str:
     password = _get_env("POSTGRES_PASSWORD", "")
     host = _get_env("POSTGRES_HOST", "localhost") or "localhost"
     port = _get_env("POSTGRES_PORT", "5432") or "5432"
-    database = _get_env("POSTGRES_DB", "terminandoyo") or "terminandoyo"
+    database = _get_env("POSTGRES_DB", "tay") or "tay"
 
     if not password:
         raise RuntimeError("POSTGRES_PASSWORD or DATABASE_URL must be set")
@@ -172,16 +172,15 @@ def load_settings() -> Settings:
     return Settings(
         database_url=_build_database_url(),
         cors_origins=cors_origins,
-        session_cookie_name=_get_env("SESSION_COOKIE_NAME", "terminandoyo_session")
-        or "terminandoyo_session",
+        session_cookie_name=_get_env("SESSION_COOKIE_NAME", "tay_session") or "tay_session",
         session_ttl_days=session_ttl_days,
         session_ttl_seconds=session_ttl_seconds,
         session_refresh_ttl_days=int(_get_env("SESSION_REFRESH_TTL_DAYS", "30") or "30"),
         session_refresh_cookie_name=_get_env(
             "SESSION_REFRESH_COOKIE_NAME",
-            "terminandoyo_refresh",
+            "tay_refresh",
         )
-        or "terminandoyo_refresh",
+        or "tay_refresh",
         session_cookie_secure=_get_bool_env("SESSION_COOKIE_SECURE", False),
         session_cookie_samesite=_get_samesite_env("SESSION_COOKIE_SAMESITE", "lax"),
         session_cookie_domain=_get_env("SESSION_COOKIE_DOMAIN"),
@@ -196,7 +195,7 @@ def load_settings() -> Settings:
         ),
         trust_proxy_headers=_get_bool_env("TRUST_PROXY_HEADERS", False),
         csrf_enabled=_get_bool_env("CSRF_ENABLED", False),
-        csrf_cookie_name=_get_env("CSRF_COOKIE_NAME", "terminandoyo_csrf") or "terminandoyo_csrf",
+        csrf_cookie_name=_get_env("CSRF_COOKIE_NAME", "tay_csrf") or "tay_csrf",
         csrf_header_name=_get_env("CSRF_HEADER_NAME", "X-CSRF-Token") or "X-CSRF-Token",
         csrf_cookie_secure=_get_bool_env("CSRF_COOKIE_SECURE", False),
         csrf_cookie_samesite=_get_samesite_env("CSRF_COOKIE_SAMESITE", "lax"),

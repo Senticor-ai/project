@@ -23,6 +23,7 @@
     "test:e2e:headed": "npx playwright test --config e2e/playwright.config.ts --project=chromium --headed",
     "test:e2e:llm": "npx playwright test --config e2e/playwright.config.ts --project=llm",
     "test:e2e:journey": "npx playwright test --config e2e/playwright.config.ts --project=journey",
+    "test:e2e:remote": "E2E_BASE_URL=https://terminandoyo.100-114-108-51.nip.io:30443 npx playwright test --config e2e/playwright.config.ts --project=chromium",
     "e2e": "bash ../scripts/e2e-stack.sh",
     "e2e:open": "bash ../scripts/e2e-stack.sh --no-test"
   },

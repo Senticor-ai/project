@@ -11,6 +11,7 @@ export default defineConfig({
     : [["html", { open: "on-failure" }]],
   use: {
     baseURL: process.env.E2E_BASE_URL ?? "http://localhost:5173",
+    ignoreHTTPSErrors: true,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     actionTimeout: 10_000,
@@ -20,10 +21,7 @@ export default defineConfig({
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
-      testIgnore: [
-        "**/tay-chat-llm.spec.ts",
-        "**/tax-prep-journey.spec.ts",
-      ],
+      testIgnore: ["**/tay-chat-llm.spec.ts", "**/tax-prep-journey.spec.ts"],
     },
     {
       name: "llm",

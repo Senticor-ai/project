@@ -32,7 +32,7 @@ def _build_base_db_url() -> str | None:
     user = os.environ.get("POSTGRES_USER", "terminandoyo")
     host = os.environ.get("POSTGRES_HOST", "localhost")
     port = os.environ.get("POSTGRES_PORT", "5432")
-    database = os.environ.get("POSTGRES_DB", "terminandoyo")
+    database = os.environ.get("POSTGRES_DB", "tay")
     return f"postgresql://{user}:{password}@{host}:{port}/{database}"
 
 

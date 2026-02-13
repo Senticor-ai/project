@@ -5,13 +5,21 @@ function pv(propertyID: string, value: unknown) {
 }
 
 export class ApiSeed {
-  constructor(private request: APIRequestContext) {}
+  constructor(
+    private request: APIRequestContext,
+    private csrfToken: string = "",
+  ) {}
+
+  private headers(): Record<string, string> {
+    return this.csrfToken ? { "X-CSRF-Token": this.csrfToken } : {};
+  }
 
   /** Create an inbox item via API (v2 schema). Returns the item_id. */
   async createInboxItem(title: string): Promise<string> {
     const id = `urn:app:inbox:${crypto.randomUUID()}`;
     const now = new Date().toISOString();
     const response = await this.request.post("/api/items", {
+      headers: this.headers(),
       data: {
         source: "manual",
         item: {
@@ -90,6 +98,7 @@ export class ApiSeed {
     };
 
     const response = await this.request.post("/api/items", {
+      headers: this.headers(),
       data: { source: "manual", item: itemData },
     });
     const json = await response.json();
@@ -105,6 +114,7 @@ export class ApiSeed {
     const id = `urn:app:project:${crypto.randomUUID()}`;
     const now = new Date().toISOString();
     await this.request.post("/api/items", {
+      headers: this.headers(),
       data: {
         source: "manual",
         item: {
@@ -152,6 +162,7 @@ export class ApiSeed {
     const htmlBody = options?.htmlBody ?? `<p>${subject}</p>`;
 
     const response = await this.request.post("/api/items", {
+      headers: this.headers(),
       data: {
         source: "gmail",
         item: {
@@ -209,6 +220,7 @@ export class ApiSeed {
     const encodingFormat = options?.encodingFormat ?? "application/pdf";
 
     const response = await this.request.post("/api/items", {
+      headers: this.headers(),
       data: {
         source: "manual",
         item: {
@@ -264,6 +276,7 @@ export class ApiSeed {
     const type = options?.type ?? "CreativeWork";
 
     const response = await this.request.post("/api/items", {
+      headers: this.headers(),
       data: {
         source: "manual",
         item: {

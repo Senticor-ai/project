@@ -1,3 +1,5 @@
+name: ${PROJECT_PREFIX:-tay}
+
 services:
   postgres:
     image: postgres:16
@@ -5,7 +7,7 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-terminandoyo}
+      POSTGRES_DB: ${POSTGRES_DB:-tay}
       POSTGRES_USER: ${POSTGRES_USER:-terminandoyo}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
     volumes:
@@ -35,5 +37,8 @@ services:
 
 volumes:
   postgres_data:
+    name: ${PROJECT_PREFIX:-tay}_postgres_data
   fuseki_data:
+    name: ${PROJECT_PREFIX:-tay}_fuseki_data
   meili_data:
+    name: ${PROJECT_PREFIX:-tay}_meili_data

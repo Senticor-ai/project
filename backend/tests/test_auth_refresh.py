@@ -59,11 +59,11 @@ def test_session_binding_and_refresh(client, request):
     response = client.get("/auth/me", headers=mismatched_headers)
     assert response.status_code == 401
 
-    old_session = client.cookies.get("terminandoyo_session")
+    old_session = client.cookies.get(settings.session_cookie_name)
     response = client.post("/auth/refresh", headers=mismatched_headers)
     assert response.status_code == 200
     assert response.json()["user"]["email"]
-    new_session = client.cookies.get("terminandoyo_session")
+    new_session = client.cookies.get(settings.session_cookie_name)
     assert new_session and new_session != old_session
 
     response = client.get("/auth/me", headers=mismatched_headers)

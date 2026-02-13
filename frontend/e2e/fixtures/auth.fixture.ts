@@ -1,6 +1,8 @@
 import { test as base, type Page } from "@playwright/test";
 import { ApiSeed } from "../helpers/api-seed";
 
+const CSRF_COOKIE_NAME = process.env.CSRF_COOKIE_NAME ?? "terminandoyo_csrf";
+
 type TestFixtures = {
   authenticatedPage: Page;
   apiSeed: ApiSeed;
@@ -31,7 +33,11 @@ export const test = base.extend<TestFixtures>({
   },
 
   apiSeed: async ({ authenticatedPage: page }, use) => {
-    const seed = new ApiSeed(page.request);
+    // Extract CSRF token from cookies (set by login response).
+    // When CSRF is disabled locally, the cookie won't exist — csrfToken stays empty.
+    const cookies = await page.context().cookies();
+    const csrfCookie = cookies.find((c) => c.name === CSRF_COOKIE_NAME);
+    const seed = new ApiSeed(page.request, csrfCookie?.value ?? "");
     await use(seed);
   },
 });
