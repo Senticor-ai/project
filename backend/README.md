@@ -110,6 +110,8 @@ cd backend
 uv run python -m app.db_init
 ```
 
+`app.db_init` runs `alembic upgrade head` with retry-on-startup behavior.
+
 ## Migrations (Alembic)
 
 Alembic is wired for manual migrations (no SQLAlchemy models).

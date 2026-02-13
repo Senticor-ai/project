@@ -117,9 +117,9 @@ See [Email Integration](?path=/docs/engineering-email-integration--docs) for the
 The backend Deployment uses init containers instead of a standalone Job (Jobs are not idempotent in GitOps — Flux would recreate them every cycle):
 
 1. **wait-for-postgres** — polls `pg_isready` until the database accepts connections
-2. **db-init** — runs `uv run python -m app.db_init`, which applies the idempotent schema migration (`CREATE IF NOT EXISTS`)
+2. **db-init** — runs `uv run python -m app.db_init`, which executes `alembic upgrade head`
 
-This runs on every pod start, which is safe because the schema is fully idempotent.
+This runs on every pod start, which is safe because Alembic applies only pending revisions.
 
 ### Resource Budget
 

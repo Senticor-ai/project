@@ -2,21 +2,31 @@ import time
 from pathlib import Path
 
 import psycopg
+from alembic.config import Config
+from sqlalchemy.exc import OperationalError as SAOperationalError
 
-from .db import run_sql_file
+from alembic import command
 
 MAX_RETRIES = 30
 RETRY_INTERVAL = 2  # seconds
 
 
-def main() -> None:
-    schema_path = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
+def _run_migrations() -> None:
+    backend_dir = Path(__file__).resolve().parents[1]
+    alembic_ini = backend_dir / "alembic.ini"
+    alembic_dir = backend_dir / "alembic"
 
+    config = Config(str(alembic_ini))
+    config.set_main_option("script_location", str(alembic_dir))
+    command.upgrade(config, "head")
+
+
+def main() -> None:
     for attempt in range(MAX_RETRIES):
         try:
-            run_sql_file(schema_path)
+            _run_migrations()
             return
-        except psycopg.OperationalError:
+        except (psycopg.OperationalError, SAOperationalError):
             if attempt == MAX_RETRIES - 1:
                 raise
             print(

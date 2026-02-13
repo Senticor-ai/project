@@ -48,10 +48,10 @@ environment-specific configuration. Images default to local builds
 The backend API Deployment includes two init containers:
 
 1. **wait-for-postgres** — polls `pg_isready` until the database is available
-2. **db-init** — runs `uv run python -m app.db_init` (idempotent schema migration)
+2. **db-init** — runs `uv run python -m app.db_init` (`alembic upgrade head`)
 
 This eliminates the need for a separate Job resource. Init containers run on
-every pod start, which is safe because the schema migration is idempotent.
+every pod start, which is safe because Alembic applies only pending revisions.
 
 Both worker Deployments (`worker`, `push-worker`) use the same backend image
 with a different `command:`. Each worker exposes a health/metrics HTTP sidecar:
