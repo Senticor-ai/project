@@ -198,6 +198,8 @@ Storybook stories use MSW to intercept API requests in-browser, enabling "connec
 
 **Per-story overrides**: Use `parameters.msw.handlers` array — the preview loader applies them via `worker.use()`. Cleaned up by `afterEach(worker.resetHandlers)` in tests.
 
+**Streaming endpoints (NDJSON)**: The `/chat/completions` handler must return `application/x-ndjson` with `StreamEvent` objects (`text_delta`, `tool_calls`, `done`), not plain JSON. The `/chat/execute-tool` handler must persist created items to `store.items` via `createItemRecord()` so connected stories can verify tool results.
+
 ## i18n
 
 - Frontend: ICU MessageFormat via `intl-messageformat`. Messages in `frontend/src/i18n/messages.{en,de}.ts`.

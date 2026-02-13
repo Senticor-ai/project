@@ -176,7 +176,7 @@ def start_container(user_id: str) -> ContainerInfo:
             "-p",
             f"{port}:{port}",
             "-v",
-            f"{workspace_dir / 'workspace'}:/workspace:ro",
+            f"{workspace_dir / 'workspace'}:/workspace",
             "-v",
             f"{workspace_dir / 'openclaw.json'}:/openclaw.json:ro",
             "-v",

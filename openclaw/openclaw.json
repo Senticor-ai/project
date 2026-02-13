@@ -16,7 +16,7 @@
   "agents": {
     "defaults": {
       "model": {
-        "primary": "openrouter/google/gemini-3-flash-preview"
+        "primary": "openrouter/google/gemini-2.5-flash"
       }
     },
     "list": [
@@ -28,6 +28,8 @@
   },
   "tools": {
     "profile": "minimal",
-    "exec": {}
+    "exec": {
+      "security": "full"
+    }
   }
 }

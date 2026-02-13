@@ -37,14 +37,16 @@ def provision_workspace(
 
     runtime_dir.mkdir(parents=True, exist_ok=True)
 
-    # Customize openclaw.json
-    config_path = workspace_dir / "openclaw.json"
-    config = json.loads(config_path.read_text())
+    # Always re-read the template config so tool/agent settings stay current,
+    # then apply per-user overrides on top.
+    template_config_path = TEMPLATE_DIR / "openclaw.json"
+    config = json.loads(template_config_path.read_text())
 
     config["gateway"]["port"] = port
     config["gateway"]["auth"]["token"] = token
     config["agents"]["defaults"]["model"]["primary"] = model
 
-    config_path.write_text(json.dumps(config, indent=2))
+    user_config_path = workspace_dir / "openclaw.json"
+    user_config_path.write_text(json.dumps(config, indent=2))
 
     return workspace_dir, runtime_dir

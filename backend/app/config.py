@@ -275,7 +275,7 @@ def load_settings() -> Settings:
         openclaw_idle_timeout_seconds=int(
             _get_env("OPENCLAW_IDLE_TIMEOUT_SECONDS", "1800") or "1800"
         ),
-        openclaw_health_check_timeout=int(_get_env("OPENCLAW_HEALTH_CHECK_TIMEOUT", "15") or "15"),
+        openclaw_health_check_timeout=int(_get_env("OPENCLAW_HEALTH_CHECK_TIMEOUT", "30") or "30"),
         delegation_jwt_secret=_get_env("DELEGATION_JWT_SECRET") or _get_env("JWT_SECRET") or "",
         delegation_jwt_ttl_seconds=int(_get_env("DELEGATION_JWT_TTL_SECONDS", "60") or "60"),
         encryption_key=_get_env("ENCRYPTION_KEY"),

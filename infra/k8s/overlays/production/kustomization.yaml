@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
   - ../../base
   - configmap.yaml
+  - gitlab-ci-exporter-config.yaml
   - ingress.yaml
   - secret.yaml
   - secret-pubsub-sa.yaml
@@ -27,3 +28,4 @@ patches:
   - path: patches/postgres.yaml
   - path: patches/backend-pubsub.yaml
   - path: patches/worker-pubsub.yaml
+  - path: patches/gitlab-ci-exporter.yaml

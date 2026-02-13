@@ -11,8 +11,8 @@ stages:
   - quality      # 4 jobs: lint + typecheck
   - unit         # 4 jobs: no infrastructure
   - integration  # 2 jobs: backend (Postgres), frontend-contract (no infra)
-  - build        # 3 jobs: docker images + SAST
-  - e2e          # 1 job: full stack Playwright
+  - build        # 3 jobs: docker images + SAST (main only)
+  - e2e          # 1 job: full stack Playwright (main only)
   - push         # 3 jobs: push to Harbor (main only)
   - deploy       # 1 job: update k8s manifests (main only)
   - smoke        # 1 job: e2e against deployed instance (nightly + manual)
@@ -280,7 +280,9 @@ frontend-contract:
   image:
     name: gcr.io/kaniko-project/executor:v1.23.2-debug
     entrypoint: [""]
-  extends: [.default-rules, .large-runner]
+  extends: .large-runner
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
 
 build-frontend:
   extends: .build-base
@@ -312,7 +314,9 @@ e2e:
   stage: e2e
   allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
-  extends: [.default-rules, .large-runner, .retry-infra, .backend-postgres, .failure-issue, .fullstack-cache-readonly]
+  extends: [.large-runner, .retry-infra, .backend-postgres, .failure-issue, .fullstack-cache-readonly]
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
   cache:
     - key:
         files: [frontend/package-lock.json]
