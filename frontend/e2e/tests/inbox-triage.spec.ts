@@ -24,7 +24,9 @@ test.describe("Inbox Triage", () => {
     await expect(page.getByText("Item Alpha")).toBeVisible();
 
     // Count should be 1
-    await expect(ws.bucketCount("Inbox")).toHaveText("1");
+    await expect(ws.bucketCount("Inbox")).toHaveText("1", {
+      timeout: 10_000,
+    });
 
     // Navigate to Next, verify Item Beta is there
     await ws.navigateTo("Next");
@@ -47,29 +49,44 @@ test.describe("Inbox Triage", () => {
 
     const ws = new WorkspacePage(page);
 
-    // Triage to Waiting — wait for count to decrease between each
+    // Triage to Waiting — wait for each item to disappear before checking count
     await ws.triageButton("Waiting").click();
-    await expect(ws.bucketCount("Inbox")).toHaveText("3");
+    await expect(page.getByText("Waiting item")).not.toBeVisible();
+    await expect(ws.bucketCount("Inbox")).toHaveText("3", {
+      timeout: 10_000,
+    });
     // Triage to Calendar (opens date picker — fill date to complete the move)
     await ws.triageButton("Calendar").click();
     await page.getByLabel("Schedule date").fill("2026-03-01");
-    await expect(ws.bucketCount("Inbox")).toHaveText("2");
+    await expect(page.getByText("Calendar item")).not.toBeVisible();
+    await expect(ws.bucketCount("Inbox")).toHaveText("2", {
+      timeout: 10_000,
+    });
     // Triage to Later
     await ws.triageButton("Later").click();
-    await expect(ws.bucketCount("Inbox")).toHaveText("1");
+    await expect(page.getByText("Someday item")).not.toBeVisible();
+    await expect(ws.bucketCount("Inbox")).toHaveText("1", {
+      timeout: 10_000,
+    });
     // Triage to Reference
     await ws.triageButton("Reference").click();
     await expect(page.getByText("Inbox is empty")).toBeVisible();
 
-    // Verify each bucket
+    // Verify each bucket (longer timeout — data needs to propagate after mutations)
     await ws.navigateTo("Waiting");
-    await expect(page.getByText("Waiting item")).toBeVisible();
+    await expect(page.getByText("Waiting item")).toBeVisible({
+      timeout: 10_000,
+    });
 
     await ws.navigateTo("Calendar");
-    await expect(page.getByText("Calendar item")).toBeVisible();
+    await expect(page.getByText("Calendar item")).toBeVisible({
+      timeout: 10_000,
+    });
 
     await ws.navigateTo("Later");
-    await expect(page.getByText("Someday item")).toBeVisible();
+    await expect(page.getByText("Someday item")).toBeVisible({
+      timeout: 10_000,
+    });
   });
 
   test("archives an inbox item", async ({

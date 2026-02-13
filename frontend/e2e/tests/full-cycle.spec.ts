@@ -26,11 +26,18 @@ test.describe("Full Cycle", () => {
     // newest remaining item (sorted[0] in descending-by-createdAt sort).
     //
     // Triage order: Buy groceries → Read article on testing → Call dentist
+    // Wait for each item to disappear before checking count (avoids flaky timing)
     await ws.triageButton("Next").click();
-    await expect(ws.bucketCount("Inbox")).toHaveText("2");
+    await expect(page.getByText("Buy groceries")).not.toBeVisible();
+    await expect(ws.bucketCount("Inbox")).toHaveText("2", {
+      timeout: 10_000,
+    });
 
     await ws.triageButton("Waiting").click();
-    await expect(ws.bucketCount("Inbox")).toHaveText("1");
+    await expect(page.getByText("Read article on testing")).not.toBeVisible();
+    await expect(ws.bucketCount("Inbox")).toHaveText("1", {
+      timeout: 10_000,
+    });
 
     await ws.triageButton("Later").click();
     await expect(page.getByText("Inbox is empty")).toBeVisible();

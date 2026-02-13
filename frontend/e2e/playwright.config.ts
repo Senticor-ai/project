@@ -21,7 +21,11 @@ export default defineConfig({
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
-      testIgnore: ["**/tay-chat-llm.spec.ts", "**/tax-prep-journey.spec.ts"],
+      testIgnore: [
+        "**/tay-chat-llm.spec.ts",
+        "**/tax-prep-journey.spec.ts",
+        "**/real-user-journey.spec.ts",
+      ],
     },
     {
       name: "llm",
@@ -32,6 +36,17 @@ export default defineConfig({
       name: "journey",
       testMatch: "**/tax-prep-journey.spec.ts",
       use: { ...devices["Desktop Chrome"], actionTimeout: 15_000 },
+    },
+    {
+      name: "smoke",
+      testMatch: "**/real-user-journey.spec.ts",
+      retries: 0,
+      use: {
+        ...devices["Desktop Chrome"],
+        actionTimeout: 30_000,
+        trace: "on",
+        video: "on",
+      },
     },
   ],
 });

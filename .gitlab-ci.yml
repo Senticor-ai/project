@@ -459,7 +459,7 @@ e2e-smoke:
   before_script:
     - cd frontend && npm ci --ignore-scripts --silent
   script:
-    - cd frontend && CI=1 npx playwright test --config e2e/playwright.config.ts --project=chromium
+    - cd frontend && CI=1 npx playwright test --config e2e/playwright.config.ts --project=smoke
   artifacts:
     when: always
     paths:

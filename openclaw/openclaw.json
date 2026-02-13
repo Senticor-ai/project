@@ -1,0 +1,30 @@
+{
+  "gateway": {
+    "port": 18789,
+    "bind": "lan",
+    "auth": {
+      "token": "${OPENCLAW_GATEWAY_TOKEN}"
+    },
+    "http": {
+      "endpoints": {
+        "chatCompletions": {
+          "enabled": true
+        }
+      }
+    }
+  },
+  "agents": {
+    "list": [
+      {
+        "id": "tay",
+        "workspace": "/workspace"
+      }
+    ]
+  },
+  "agent": {
+    "model": "openrouter/openai/gpt-4o-mini"
+  },
+  "tools": {
+    "profile": "none"
+  }
+}
