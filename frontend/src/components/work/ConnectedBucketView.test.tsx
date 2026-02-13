@@ -53,6 +53,10 @@ vi.mock("@/hooks/use-items", () => ({
   useReferences: () => mockReferences(),
 }));
 
+vi.mock("@/hooks/use-organizations", () => ({
+  useOrganizations: () => ({ data: [], isLoading: false, error: null }),
+}));
+
 const mockCapture = { mutateAsync: vi.fn() };
 const mockCaptureFile = { mutate: vi.fn() };
 const mockAddAction = { mutateAsync: vi.fn() };

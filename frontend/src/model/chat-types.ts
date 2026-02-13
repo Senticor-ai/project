@@ -109,18 +109,55 @@ export interface CreateReferenceSuggestion {
   url?: string;
 }
 
+export interface RenderCvSuggestion {
+  type: "render_cv";
+  cv: {
+    name: string;
+    headline: string;
+    contact?: {
+      location?: string;
+      phone?: string;
+      email?: string;
+      linkedin?: string;
+    };
+    summary?: string;
+    skills?: string[];
+    experience: Array<{
+      company?: string;
+      title: string;
+      period?: string;
+      location?: string;
+      summary?: string;
+      bullets?: string[];
+    }>;
+    education?: Array<Record<string, unknown>>;
+    certifications?: string[];
+  };
+  css: string;
+  filename: string;
+  projectId: CanonicalId;
+}
+
 export type TaySuggestion =
   | CreateProjectWithActionsSuggestion
   | CreateActionSuggestion
-  | CreateReferenceSuggestion;
+  | CreateReferenceSuggestion
+  | RenderCvSuggestion;
 
 // ---------------------------------------------------------------------------
 // Chat API Types (for MSW / backend)
 // ---------------------------------------------------------------------------
 
+export interface ChatClientContext {
+  timezone: string;
+  locale: string;
+  localTime: string;
+}
+
 export interface ChatCompletionRequest {
   message: string;
   conversationId: string;
+  context?: ChatClientContext;
 }
 
 export interface ChatToolCall {

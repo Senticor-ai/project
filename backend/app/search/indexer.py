@@ -5,11 +5,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from pypdf import PdfReader
-
 from ..config import settings
 from ..observability import get_logger
 from ..storage import get_storage
+from ..text_extractor import extract_pdf_text
 from .meili import (
     add_documents,
     delete_document,
@@ -120,37 +119,6 @@ def _guess_content_type(original_name: str, content_type: str | None) -> str | N
     return guessed.lower() if guessed else None
 
 
-def _extract_pdf_text(path: Path, max_chars: int) -> str:
-    if max_chars <= 0:
-        return ""
-    try:
-        reader = PdfReader(str(path))
-        if reader.is_encrypted:
-            try:
-                reader.decrypt("")
-            except Exception:
-                return ""
-        parts: list[str] = []
-        total = 0
-        for page in reader.pages:
-            text = page.extract_text() or ""
-            if not text:
-                continue
-            remaining = max_chars - total
-            if remaining <= 0:
-                break
-            if len(text) > remaining:
-                text = text[:remaining]
-            parts.append(text)
-            total += len(text)
-            if total >= max_chars:
-                break
-        return _truncate("\n".join(parts), max_chars)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("meili.pdf_extract_failed", path=str(path), error=str(exc))
-        return ""
-
-
 def _extract_file_text(
     path: Path,
     content_type: str | None,
@@ -172,7 +140,7 @@ def _extract_file_text(
         normalized_type is None and path.suffix.lower() == ".pdf"
     )
     if is_pdf:
-        return _extract_pdf_text(path, settings.meili_file_text_max_chars)
+        return extract_pdf_text(path, settings.meili_file_text_max_chars)
 
     return ""
 

@@ -18,7 +18,9 @@ class TestSecurityHeaders:
 
     def test_permissions_policy(self, client):
         response = client.get("/health")
-        assert response.headers.get("Permissions-Policy") == "camera=(), microphone=(), geolocation=()"
+        assert (
+            response.headers.get("Permissions-Policy") == "camera=(), microphone=(), geolocation=()"
+        )
 
     def test_csp_header_present(self, client):
         response = client.get("/health")

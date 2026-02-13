@@ -162,6 +162,36 @@ class TestFindAssistantMessage:
         assert found.tool_calls is not None
         assert found.tool_calls[0].tool_name == "create_action"
 
+    def test_text_exit_ignores_inline_read_tools(self):
+        """Agent exits on text after using inline read tools — must NOT return the read tool's message."""
+        from app import _find_assistant_message
+
+        # Simulate: agent called list_workspace_overview (inline), then replied with text
+        inline_tool_msg = ChatMessage.from_assistant(
+            "",
+            tool_calls=[
+                ToolCall(
+                    tool_name="list_workspace_overview",
+                    arguments={},
+                ),
+            ],
+        )
+        inline_tool_result = ChatMessage.from_tool(
+            tool_result='{"projects": []}',
+            origin=inline_tool_msg.tool_calls[0],
+        )
+        text_reply = ChatMessage.from_assistant("Hier ist deine Workspace-Übersicht.")
+
+        result = {
+            "last_message": text_reply,
+            "messages": [inline_tool_msg, inline_tool_result, text_reply],
+        }
+
+        found = _find_assistant_message(result)
+        # Must return the text reply, NOT the inline_tool_msg
+        assert found is text_reply
+        assert not found.tool_calls  # empty list, not the inline read tool
+
     def test_fallback_when_no_messages(self):
         """No messages list — falls back to last_message."""
         from app import _find_assistant_message
@@ -235,7 +265,7 @@ class TestModelFallback:
 
         assert result.text == "Sofort!"
         # create_agent called only once (for model-a)
-        ca_mock.assert_called_once_with("model-a")
+        ca_mock.assert_called_once_with("model-a", auth=None, user_context=None)
 
     @pytest.mark.anyio
     async def test_tool_exit_extracts_assistant_message(self):
@@ -586,3 +616,152 @@ class TestExecuteTool:
         # Missing required fields
         resp = client.post("/execute-tool", json={"toolCall": {"name": "x"}})
         assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# User context integration — verifies context flows through to create_agent
+# ---------------------------------------------------------------------------
+
+
+class TestUserContextIntegration:
+    """Verify that userContext from the request reaches create_agent and the system prompt."""
+
+    USER_CONTEXT = {
+        "username": "Wolfgang",
+        "email": "wolf@example.com",
+        "timezone": "Europe/Berlin",
+        "locale": "de-DE",
+        "localTime": "2026-02-13T15:30:00+01:00",
+    }
+
+    def test_user_context_passed_to_create_agent(self, client: TestClient):
+        """userContext from request payload reaches create_agent."""
+        reply = ChatMessage.from_assistant("Hallo Wolfgang!")
+
+        with patch("app.create_agent") as ca_mock:
+            mock_agent = AsyncMock()
+            mock_agent.run_async = AsyncMock(
+                return_value={"last_message": reply, "messages": [reply]},
+            )
+            ca_mock.return_value = mock_agent
+
+            resp = client.post(
+                "/chat/completions",
+                json={
+                    "messages": _msgs("Hallo"),
+                    "conversationId": "conv-ctx-1",
+                    "userContext": self.USER_CONTEXT,
+                },
+            )
+
+        assert resp.status_code == 200
+        ca_mock.assert_called_once()
+        _, kwargs = ca_mock.call_args
+        assert kwargs["user_context"] == self.USER_CONTEXT
+
+    def test_user_context_rendered_in_system_prompt(self, client: TestClient):
+        """userContext ends up in the rendered system prompt passed to the Agent."""
+        from tay import build_system_prompt
+
+        prompt = build_system_prompt(self.USER_CONTEXT)
+
+        assert "Wolfgang" in prompt
+        assert "Europe/Berlin" in prompt
+        assert "de-DE" in prompt
+        assert "2026-02-13T15:30:00+01:00" in prompt
+        # System time is always present
+        assert "Systemzeit (UTC)" in prompt
+
+    def test_missing_user_context_graceful(self, client: TestClient):
+        """Request without userContext works — create_agent gets None."""
+        reply = ChatMessage.from_assistant("Hallo!")
+
+        with patch("app.create_agent") as ca_mock:
+            mock_agent = AsyncMock()
+            mock_agent.run_async = AsyncMock(
+                return_value={"last_message": reply, "messages": [reply]},
+            )
+            ca_mock.return_value = mock_agent
+
+            resp = client.post(
+                "/chat/completions",
+                json={
+                    "messages": _msgs("Hallo"),
+                    "conversationId": "conv-ctx-2",
+                },
+            )
+
+        assert resp.status_code == 200
+        _, kwargs = ca_mock.call_args
+        assert kwargs["user_context"] is None
+
+    def test_partial_user_context(self, client: TestClient):
+        """Partial userContext (only some fields) still works."""
+        reply = ChatMessage.from_assistant("Hallo!")
+        partial_ctx = {"username": "Wolfgang", "timezone": "Europe/Berlin"}
+
+        with patch("app.create_agent") as ca_mock:
+            mock_agent = AsyncMock()
+            mock_agent.run_async = AsyncMock(
+                return_value={"last_message": reply, "messages": [reply]},
+            )
+            ca_mock.return_value = mock_agent
+
+            resp = client.post(
+                "/chat/completions",
+                json={
+                    "messages": _msgs("Hallo"),
+                    "conversationId": "conv-ctx-3",
+                    "userContext": partial_ctx,
+                },
+            )
+
+        assert resp.status_code == 200
+        _, kwargs = ca_mock.call_args
+        ctx = kwargs["user_context"]
+        assert ctx["username"] == "Wolfgang"
+        assert ctx["timezone"] == "Europe/Berlin"
+        # Missing fields default to None
+        assert ctx["email"] is None
+        assert ctx["locale"] is None
+
+    def test_partial_context_in_prompt(self):
+        """Partial context renders only populated fields in prompt."""
+        from tay import build_system_prompt
+
+        prompt = build_system_prompt({"username": "Wolfgang"})
+        assert "Wolfgang" in prompt
+        # Fields not provided should not appear
+        assert "Europe/Berlin" not in prompt
+        assert "Sprache/Region" not in prompt
+
+    def test_streaming_with_user_context(self, client: TestClient):
+        """userContext flows through to the streaming path too."""
+        reply = ChatMessage.from_assistant("Streaming!")
+
+        async def _mock_run_async(messages, streaming_callback=None, **kwargs):
+            if streaming_callback:
+                from haystack.dataclasses import StreamingChunk
+
+                await streaming_callback(StreamingChunk(content="Streaming!"))
+            return {"last_message": reply, "messages": [reply]}
+
+        with patch("app.create_agent") as ca_mock:
+            mock_agent = AsyncMock()
+            mock_agent.run_async = _mock_run_async
+            ca_mock.return_value = mock_agent
+
+            resp = client.post(
+                "/chat/completions",
+                json={
+                    "messages": _msgs("Hallo"),
+                    "conversationId": "conv-ctx-stream",
+                    "stream": True,
+                    "userContext": self.USER_CONTEXT,
+                },
+            )
+
+        assert resp.status_code == 200
+        ca_mock.assert_called_once()
+        _, kwargs = ca_mock.call_args
+        assert kwargs["user_context"] == self.USER_CONTEXT

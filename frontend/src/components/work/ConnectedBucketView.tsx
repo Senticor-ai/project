@@ -1,6 +1,7 @@
 import { useCallback, useState, useEffect, useMemo } from "react";
 import { BucketView } from "./BucketView";
 import { useAllItems, useProjects, useReferences } from "@/hooks/use-items";
+import { useOrganizations } from "@/hooks/use-organizations";
 import {
   useCaptureInbox,
   useCaptureFile,
@@ -36,6 +37,7 @@ export function ConnectedBucketView({
   const actionItemsQuery = useAllItems();
   const projectsQuery = useProjects();
   const referencesQuery = useReferences();
+  const orgsQuery = useOrganizations();
 
   const captureMutation = useCaptureInbox();
   const captureFileMutation = useCaptureFile();
@@ -225,9 +227,11 @@ export function ConnectedBucketView({
         onAddProjectAction={handleAddProjectAction}
         onCreateProject={handleCreateProject}
         onEditReference={handleEditItem}
+        onEditProject={handleEditItem}
         onFileDrop={handleFileDrop}
         onNavigateToReference={handleNavigateToReference}
         linkedActionBuckets={linkedActionBuckets}
+        organizations={orgsQuery.data}
       />
     </div>
   );

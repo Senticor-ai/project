@@ -35,9 +35,16 @@ router = APIRouter(prefix="/chat", tags=["chat"], dependencies=[Depends(get_curr
 # ---------------------------------------------------------------------------
 
 
+class ChatClientContext(BaseModel):
+    timezone: str | None = None
+    locale: str | None = None
+    localTime: str | None = None
+
+
 class ChatCompletionRequest(BaseModel):
     message: str
     conversationId: str
+    context: ChatClientContext | None = None
 
 
 class ChatToolCallResponse(BaseModel):
@@ -165,7 +172,11 @@ async def _stream_openclaw(
     """
     # Write fresh delegated token for the skill to use
     delegated_token = create_delegated_token(
-        user_id=user_id, org_id=org_id, ttl_seconds=300
+        user_id=user_id,
+        org_id=org_id,
+        actor="openclaw",
+        scope="items:read items:write",
+        ttl_seconds=300,
     )
     write_token_file(user_id, delegated_token)
 
@@ -232,12 +243,14 @@ def chat_completions(
 ):
     user_id = str(current_user["id"])
     org_id = current_org["org_id"]
+    agent_backend = get_user_agent_backend(user_id)
 
-    # 1. Get or create conversation
+    # 1. Get or create conversation (scoped by agent_backend)
     conv = get_or_create_conversation(
         org_id=org_id,
         user_id=user_id,
         external_id=req.conversationId,
+        agent_backend=agent_backend,
     )
     conversation_id = str(conv["conversation_id"])
 
@@ -248,7 +261,6 @@ def chat_completions(
     history = get_conversation_messages(conversation_id)
 
     # 4. Route to the right backend
-    agent_backend = get_user_agent_backend(user_id)
 
     if agent_backend == "openclaw":
         try:
@@ -302,11 +314,28 @@ def chat_completions(
     if not settings.agents_url:
         raise HTTPException(status_code=503, detail="Agents service not available")
 
+    # Create delegated token so the agent can read items/files
+    delegated_token = create_delegated_token(user_id=user_id, org_id=org_id)
+
     messages = _build_agent_messages(history)
+    user_context: dict[str, str | None] = {
+        "username": current_user.get("username"),
+        "email": current_user.get("email"),
+    }
+    if req.context:
+        user_context["timezone"] = req.context.timezone
+        user_context["locale"] = req.context.locale
+        user_context["localTime"] = req.context.localTime
+
     agent_payload = {
         "messages": messages,
         "conversationId": req.conversationId,
         "stream": True,
+        "auth": {
+            "token": delegated_token,
+            "orgId": org_id,
+        },
+        "userContext": user_context,
     }
 
     return StreamingResponse(

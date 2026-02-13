@@ -102,6 +102,74 @@ export const MixedOrigins: Story = {
 };
 
 // ---------------------------------------------------------------------------
+// Organization-grouped stories
+// ---------------------------------------------------------------------------
+
+const orgRefs = [
+  createReferenceMaterial({
+    name: "NT Tax Guide 2025",
+    orgRef: { id: "org-nueva", name: "Nueva Tierra" },
+    origin: "file",
+    encodingFormat: "application/pdf",
+    provenance: {
+      createdAt: "2025-06-01T10:00:00Z",
+      updatedAt: "2025-06-01T10:00:00Z",
+      history: [{ timestamp: "2025-06-01T10:00:00Z", action: "created" }],
+    },
+  }),
+  createReferenceMaterial({
+    name: "NT Satzung",
+    orgRef: { id: "org-nueva", name: "Nueva Tierra" },
+    origin: "captured",
+    provenance: {
+      createdAt: "2025-05-01T10:00:00Z",
+      updatedAt: "2025-05-01T10:00:00Z",
+      history: [{ timestamp: "2025-05-01T10:00:00Z", action: "created" }],
+    },
+  }),
+  createReferenceMaterial({
+    name: "Autonomo Modelo 303",
+    orgRef: { id: "org-autonomo", name: "Autonomo Wolfgang" },
+    origin: "file",
+    encodingFormat: "application/pdf",
+    provenance: {
+      createdAt: "2025-04-01T10:00:00Z",
+      updatedAt: "2025-04-01T10:00:00Z",
+      history: [{ timestamp: "2025-04-01T10:00:00Z", action: "created" }],
+    },
+  }),
+  createReferenceMaterial({
+    name: "Personal Tax Notes",
+    origin: "captured",
+    provenance: {
+      createdAt: "2025-03-01T10:00:00Z",
+      updatedAt: "2025-03-01T10:00:00Z",
+      history: [{ timestamp: "2025-03-01T10:00:00Z", action: "created" }],
+    },
+  }),
+];
+
+const orgs = [
+  { id: "org-nueva", name: "Nueva Tierra" },
+  { id: "org-autonomo", name: "Autonomo Wolfgang" },
+];
+
+/** References grouped by organization. */
+export const GroupedByOrganization: Story = {
+  args: {
+    references: orgRefs,
+    organizations: orgs,
+  },
+};
+
+/** Without organizations prop — flat list even if references have orgRef. */
+export const FlatWithOrgRefs: Story = {
+  args: {
+    references: orgRefs,
+  },
+};
+
+// ---------------------------------------------------------------------------
 // Interactive stories with play functions
 // ---------------------------------------------------------------------------
 

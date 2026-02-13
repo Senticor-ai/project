@@ -4,11 +4,45 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 # Agents Service
 
-The agents service is a stateless FastAPI application (port 8002) that runs the Tay GTD
-copilot. It uses a [Haystack](https://haystack.deepset.ai/) Agent with OpenRouter for LLM
-inference and tool calling. For the high-level system context see
+TerminAndoYo supports two agent backends that share the same chat UI and backend APIs but are
+otherwise fully isolated. For the high-level system context see
 [Architecture](?path=/docs/engineering-architecture--docs). For LLM cache, traces, and
 evaluation see [LLM Evaluation](?path=/docs/engineering-llm-evaluation--docs).
+
+## Dual-Agent Architecture
+
+| Aspect | Tay (Haystack) | OpenClaw |
+| ------ | -------------- | -------- |
+| **Backend** | `agents/` service (port 8002), Haystack + OpenRouter | Per-user Docker container |
+| **Execution model** | Suggest → user approves → backend executes | Autonomous (exec + curl via skills) |
+| **System prompt** | `agents/prompts/de/tay_system.j2` (Jinja2, per-request) | `openclaw/workspace/AGENTS.md` |
+| **Conversation isolation** | `conversations.agent_backend = 'haystack'` | `conversations.agent_backend = 'openclaw'` |
+| **UI identity** | "Tay" in header, avatar, greeting | "OpenClaw" in header, avatar, greeting |
+| **Tool calls** | No-op functions, returned to frontend as suggestions | Native exec + curl, items created directly |
+| **Settings** | No extra config needed (shared OpenRouter key) | Requires user API key, provider, model |
+
+### What is shared
+
+- Chat UI shell (panel layout, message rendering, input)
+- Backend item APIs (`POST /items`, file upload, etc.)
+- User authentication and JWT delegation
+- `user_agent_settings` table (stores active backend choice)
+
+### What is isolated
+
+- **Conversation records**: The `conversations` table has an `agent_backend` column. The same
+  frontend `conversationId` creates separate DB records per backend.
+- **Chat message history**: Messages belong to their backend's conversation.
+- **System prompts**: Tay uses a Jinja2 template with dynamic user/time context;
+  OpenClaw uses a static AGENTS.md in the container workspace.
+- **Tool execution**: Tay's tools are no-ops (suggest → approve). OpenClaw executes directly.
+
+---
+
+## Tay (Haystack Agent)
+
+The Tay agent is a stateless FastAPI application (port 8002) using
+[Haystack](https://haystack.deepset.ai/) with OpenRouter for LLM inference and tool calling.
 
 **Core design principle**: The LLM only *suggests* — it never creates items directly. Tool
 functions are no-ops that return their arguments as JSON. Actual item creation happens via
@@ -117,21 +151,21 @@ the backend creates a short-lived delegated JWT for agent-to-backend calls.
 
 **Token creation** (`backend/app/delegation.py`):
 
-| Claim | Value | Purpose |
-| ----- | ----- | ------- |
-| `iss` | `"terminandoyo-backend"` | Issuer |
-| `aud` | `"terminandoyo-backend"` | Audience (self-issued) |
-| `sub` | User UUID | Item ownership |
-| `org` | Org UUID | Organization context |
-| `act.sub` | `"tay"` | Identifies the acting agent (audit trail) |
-| `scope` | `"items:write"` | Permitted operations |
-| `token_type` | `"delegated"` | Distinguishes from user session tokens |
-| `exp` | Now + 60s | Short TTL to minimize exposure |
+| Claim | Tay | OpenClaw | Purpose |
+| ----- | --- | -------- | ------- |
+| `iss` | `"terminandoyo-backend"` | `"terminandoyo-backend"` | Issuer |
+| `aud` | `"terminandoyo-backend"` | `"terminandoyo-backend"` | Audience (self-issued) |
+| `sub` | User UUID | User UUID | Item ownership |
+| `org` | Org UUID | Org UUID | Organization context |
+| `act.sub` | `"tay"` | `"openclaw"` | Identifies the acting agent (audit trail) |
+| `scope` | `"items:write"` | `"items:read items:write"` | Permitted operations |
+| `token_type` | `"delegated"` | `"delegated"` | Distinguishes from user session tokens |
+| `exp` | Now + 60s | Now + 300s | Short TTL (OpenClaw longer for autonomous work) |
 
 **Signing**: HS256 with `DELEGATION_JWT_SECRET` (falls back to `JWT_SECRET`).
 
-The agents service sends this token as `Authorization: Bearer {token}` plus `X-Agent: tay`
-when calling `POST /items`.
+Tay's `tool_executor.py` sends `Authorization: Bearer {token}` plus `X-Agent: tay`.
+OpenClaw reads the token from `/runtime/token` and sends `X-Agent: openclaw`.
 
 ---
 
@@ -258,6 +292,68 @@ alongside the backend and frontend.
 | `opentelemetry-instrumentation-httpx` | Propagate traceparent to backend |
 
 Python requirement: `>=3.12`
+
+---
+
+## OpenClaw Agent
+
+OpenClaw is a self-hosted agent running in a per-user Docker container. Unlike Tay, it acts
+autonomously — executing API calls directly via `exec` + `curl` skills rather than suggesting
+and waiting for approval.
+
+### Key differences from Tay
+
+- **No function-calling tools**: OpenClaw uses native exec + curl to call the backend API directly
+- **No `POST /execute-tool`**: The execute-tool endpoint is Tay-only (approval flow)
+- **SSE → NDJSON translation**: OpenClaw speaks SSE; the backend translates to NDJSON via `SseToNdjsonTranslator`
+- **Delegated JWT via file**: Token written to `/runtime/token` inside the container, read by skills
+- **`items_changed` event**: After streaming completes, the backend emits an `items_changed` event
+  so the frontend knows to refetch items
+
+### Container Environment Variables
+
+The backend injects environment variables into each OpenClaw container so the agent can
+discover its surrounding services. URLs are automatically rewritten from localhost to
+`host.docker.internal` by `_to_container_url()` in `backend/app/container/manager.py`.
+
+| Variable | Example (inside container) | Description |
+| -------- | ------------------------- | ----------- |
+| `TAY_BACKEND_URL` | `http://host.docker.internal:8000` | Backend REST API (for all curl calls) |
+| `TAY_FRONTEND_URL` | `http://host.docker.internal:5173` | Frontend URL (context) |
+| `TAY_STORYBOOK_URL` | `http://host.docker.internal:6006` | Storybook with product, design, and engineering docs |
+| `OPENCLAW_CONFIG_PATH` | `/openclaw.json` | OpenClaw configuration file path |
+| `OPENCLAW_GATEWAY_TOKEN` | *(generated)* | Gateway auth token for the container API |
+| Provider API key | *(decrypted from DB)* | `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, or `ANTHROPIC_API_KEY` |
+
+The corresponding backend settings:
+
+| Setting | Env Var | Default |
+| ------- | ------- | ------- |
+| `backend_base_url` | `BACKEND_BASE_URL` | `http://localhost:8000` |
+| `frontend_base_url` | `FRONTEND_BASE_URL` | `http://localhost:5173` |
+| `storybook_url` | `STORYBOOK_URL` | `http://localhost:6006` |
+
+### Self-Discovery
+
+OpenClaw can discover its environment and capabilities at runtime:
+
+- **API endpoints**: `curl $TAY_BACKEND_URL/openapi.json` — full OpenAPI spec (~112 KB, unauthenticated)
+- **Product documentation**: `curl $TAY_STORYBOOK_URL/index.json` — Storybook story index
+- **Environment check**: `echo $TAY_BACKEND_URL $TAY_FRONTEND_URL $TAY_STORYBOOK_URL`
+
+This is documented in the agent's SKILL.md (`openclaw/workspace/skills/backend-api/SKILL.md`)
+which the LLM reads at startup. Instead of hardcoding every API endpoint, the agent learns
+to discover them from the OpenAPI spec.
+
+### User Configuration
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| Provider | *(user setting)* | `openrouter`, `openai`, or `anthropic` |
+| API Key | *(user setting)* | User's own key (stored encrypted) |
+| Model | *(user setting)* | Model identifier for the chosen provider |
+
+Container management is handled by `backend/app/container/` (manager, workspace, runtime).
 
 ---
 

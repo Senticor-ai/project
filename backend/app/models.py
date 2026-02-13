@@ -379,8 +379,12 @@ class ItemPatchModel(BaseModel):
     id: str | None = Field(default=None, alias="@id", description="Canonical id (immutable).")
     type: (
         Literal[
-            "Action", "Project", "CreativeWork",
-            "DigitalDocument", "Event", "EmailMessage",
+            "Action",
+            "Project",
+            "CreativeWork",
+            "DigitalDocument",
+            "Event",
+            "EmailMessage",
             "ReadAction",
         ]
         | None
@@ -494,6 +498,38 @@ class FileMetaResponse(BaseModel):
     size_bytes: int
     sha256: str
     created_at: str
+    download_url: str
+
+
+class FileContentResponse(BaseModel):
+    file_id: str
+    original_name: str
+    content_type: str | None = None
+    text: str
+    truncated: bool = False
+
+
+class ItemContentResponse(BaseModel):
+    item_id: str
+    canonical_id: str
+    name: str | None = None
+    description: str | None = None
+    type: str | None = None
+    bucket: str | None = None
+    file_content: str | None = None
+    file_name: str | None = None
+
+
+class RenderPdfRequest(BaseModel):
+    cv: dict
+    css: str
+    filename: str
+
+
+class RenderPdfResponse(BaseModel):
+    file_id: str
+    original_name: str
+    size_bytes: int
     download_url: str
 
 

@@ -74,14 +74,14 @@ AGENT_MODEL=deepseek/deepseek-v3.2,openai/gpt-4o-mini
 ### System Prompt
 
 The system prompt is a Jinja2 template (`agents/prompts/de/tay_system.j2`) rendered with
-GTD bucket definitions. It instructs Tay to:
+bucket definitions. It instructs Tay to:
 
 1. Suggest, never execute directly — the user must confirm every action
 2. Use `create_project_with_actions` for complex goals with multiple steps
 3. Use `create_action` for single tasks
 4. Use `create_reference` for reference material (links, documents, notes)
 5. Respond in German, concisely
-6. Assign new actions to sensible GTD buckets (usually "next")
+6. Assign new actions to sensible buckets (usually "next")
 
 ---
 
@@ -100,7 +100,7 @@ multiple steps.
 | `project.name` | string | Yes | Project name |
 | `project.desiredOutcome` | string | Yes | Desired outcome |
 | `actions[].name` | string | Yes | Action name |
-| `actions[].bucket` | enum | Yes | GTD bucket: `inbox`, `next`, `waiting`, `calendar`, `someday` |
+| `actions[].bucket` | enum | Yes | Bucket: `inbox`, `next`, `waiting`, `calendar`, `someday` |
 | `documents[].name` | string | Yes | Document name |
 | `documents[].description` | string | No | Document description |
 
@@ -111,7 +111,7 @@ Create a single action/task.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `name` | string | Yes | Action name |
-| `bucket` | enum | Yes | GTD bucket |
+| `bucket` | enum | Yes | Bucket |
 | `projectId` | string | No | Canonical ID of an existing project |
 
 ### `create_reference`

@@ -302,4 +302,60 @@ describe("ItemEditor", () => {
     await user.type(input, "w-2{Enter}");
     expect(onChange).not.toHaveBeenCalled();
   });
+
+  // -----------------------------------------------------------------------
+  // Organization selector
+  // -----------------------------------------------------------------------
+
+  const orgs = [
+    { id: "org-1", name: "Nueva Tierra" },
+    { id: "org-2", name: "Autonomo Wolfgang" },
+  ];
+
+  it("shows org selector when organizations provided", () => {
+    render(
+      <ItemEditor values={defaults} onChange={vi.fn()} organizations={orgs} />,
+    );
+    expect(screen.getByLabelText("Assign to organization")).toBeInTheDocument();
+  });
+
+  it("hides org selector when no organizations", () => {
+    render(<ItemEditor values={defaults} onChange={vi.fn()} />);
+    expect(
+      screen.queryByLabelText("Assign to organization"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("calls onChange with orgRef when org selected", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <ItemEditor values={defaults} onChange={onChange} organizations={orgs} />,
+    );
+
+    const select = screen.getByLabelText("Assign to organization");
+    await user.selectOptions(select, "org-1");
+    expect(onChange).toHaveBeenCalledWith({
+      orgRef: { id: "org-1", name: "Nueva Tierra" },
+    });
+  });
+
+  it("calls onChange with undefined orgRef when None selected", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <ItemEditor
+        values={{
+          ...defaults,
+          orgRef: { id: "org-1", name: "Nueva Tierra" },
+        }}
+        onChange={onChange}
+        organizations={orgs}
+      />,
+    );
+
+    const select = screen.getByLabelText("Assign to organization");
+    await user.selectOptions(select, "");
+    expect(onChange).toHaveBeenCalledWith({ orgRef: undefined });
+  });
 });

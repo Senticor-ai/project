@@ -52,6 +52,7 @@ coverage/
 test-results/
 playwright-report/
 blob-report/
+frontend/e2e/artifacts/
 frontend/coverage/
 
 # Exported documentation

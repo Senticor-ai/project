@@ -5,7 +5,9 @@ import type {
   CreateProjectWithActionsSuggestion,
   CreateActionSuggestion,
   CreateReferenceSuggestion,
+  RenderCvSuggestion,
 } from "@/model/chat-types";
+import type { CanonicalId } from "@/model/canonical-id";
 
 const projectSuggestion: CreateProjectWithActionsSuggestion = {
   type: "create_project_with_actions",
@@ -73,5 +75,61 @@ export const Reference: Story = {
       name: "Rezeptsammlung",
       description: "Lieblingsrezepte für die Geburtstagsfeier",
     } satisfies CreateReferenceSuggestion,
+  },
+};
+
+export const RenderCv: Story = {
+  args: {
+    suggestion: {
+      type: "render_cv",
+      cv: {
+        name: "Wolfgang Müller",
+        headline: "Senior AI Engineer",
+        contact: {
+          location: "Berlin, Deutschland",
+          email: "wolfgang.mueller@email.com",
+          linkedin: "linkedin.com/in/wolfgangmueller",
+        },
+        summary:
+          "Erfahrener Senior AI Engineer mit 8+ Jahren Erfahrung in der Entwicklung und Implementierung von KI-Lösungen.",
+        skills: [
+          "Python",
+          "PyTorch",
+          "TensorFlow",
+          "Machine Learning",
+          "Docker",
+          "Kubernetes",
+        ],
+        experience: [
+          {
+            title: "Senior AI Engineer",
+            company: "Tech Innovations AG",
+            period: "2020 - Heute",
+            location: "Berlin",
+            bullets: [
+              "Entwicklung und Deployment von KI-Modellen",
+              "Leitung eines 4-köpfigen KI-Teams",
+            ],
+          },
+          {
+            title: "AI Engineer",
+            company: "DataCorp GmbH",
+            period: "2016 - 2020",
+            location: "München",
+            bullets: [
+              "Aufbau der ML-Infrastruktur",
+              "NLP-Pipeline für Dokumentenklassifizierung",
+            ],
+          },
+        ],
+        certifications: [
+          "AWS Certified Machine Learning - Specialty",
+          "Google Professional ML Engineer",
+        ],
+      },
+      css: "body { font-family: Inter, sans-serif; }",
+      filename: "lebenslauf-angepasst-mueller.pdf",
+      projectId: "urn:app:project:abc123" as CanonicalId,
+    } satisfies RenderCvSuggestion,
   },
 };

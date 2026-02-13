@@ -2,13 +2,19 @@ import { useState, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
 import { AutoGrowTextarea } from "@/components/ui/AutoGrowTextarea";
-import type { ItemEditableFields, Project, EnergyLevel } from "@/model/types";
+import type {
+  ItemEditableFields,
+  Project,
+  EnergyLevel,
+  OrgRef,
+} from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
 
 export interface ItemEditorProps {
   values: ItemEditableFields;
   onChange: (fields: Partial<ItemEditableFields>) => void;
   projects?: Pick<Project, "id" | "name">[];
+  organizations?: { id: string; name: string }[];
   className?: string;
 }
 
@@ -16,6 +22,7 @@ export function ItemEditor({
   values,
   onChange,
   projects = [],
+  organizations = [],
   className,
 }: ItemEditorProps) {
   const [contextInput, setContextInput] = useState("");
@@ -104,6 +111,40 @@ export function ItemEditor({
             {projects.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name ?? "Untitled"}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* Organization assignment */}
+      {organizations.length > 0 && (
+        <div>
+          <label
+            htmlFor="editor-org"
+            className="mb-1 flex items-center gap-1 text-xs text-text-muted"
+          >
+            <Icon name="apartment" size={10} />
+            Organization
+          </label>
+          <select
+            id="editor-org"
+            aria-label="Assign to organization"
+            value={values.orgRef?.id ?? ""}
+            onChange={(e) => {
+              const org = organizations.find((o) => o.id === e.target.value);
+              onChange({
+                orgRef: org
+                  ? ({ id: org.id, name: org.name } satisfies OrgRef)
+                  : undefined,
+              });
+            }}
+            className="w-full rounded-[var(--radius-sm)] border border-border bg-surface px-2 py-1 text-xs"
+          >
+            <option value="">None</option>
+            {organizations.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.name}
               </option>
             ))}
           </select>

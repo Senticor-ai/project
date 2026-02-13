@@ -365,6 +365,31 @@ describe("toJsonLd", () => {
 
       expectPropertyValue(ld, "app:reviewDate", "2026-03-01");
     });
+
+    it("stores orgRef as additionalProperty when present", () => {
+      const project = createProject({
+        name: "Tax Prep",
+        desiredOutcome: "Filed",
+        orgRef: { id: "org-uuid-1", name: "Nueva Tierra" },
+      });
+      const ld = toJsonLd(project);
+
+      expectPropertyValue(
+        ld,
+        "app:orgRef",
+        JSON.stringify({ id: "org-uuid-1", name: "Nueva Tierra" }),
+      );
+    });
+
+    it("omits orgRef additionalProperty when not set", () => {
+      const project = createProject({
+        name: "Personal",
+        desiredOutcome: "Done",
+      });
+      const ld = toJsonLd(project);
+
+      expect(getProp(ld, "app:orgRef")).toBeUndefined();
+    });
   });
 
   describe("ReferenceMaterial → schema:CreativeWork", () => {
@@ -412,6 +437,27 @@ describe("toJsonLd", () => {
 
       expect(ld).not.toHaveProperty("externalUrl");
       expect(ld).not.toHaveProperty("contentType");
+    });
+
+    it("stores orgRef as additionalProperty when present", () => {
+      const ref = createReferenceMaterial({
+        name: "Registration doc",
+        orgRef: { id: "org-uuid-2", name: "Autonomo Wolfgang" },
+      });
+      const ld = toJsonLd(ref);
+
+      expectPropertyValue(
+        ld,
+        "app:orgRef",
+        JSON.stringify({ id: "org-uuid-2", name: "Autonomo Wolfgang" }),
+      );
+    });
+
+    it("omits orgRef additionalProperty when not set", () => {
+      const ref = createReferenceMaterial({ name: "Personal doc" });
+      const ld = toJsonLd(ref);
+
+      expect(getProp(ld, "app:orgRef")).toBeUndefined();
     });
   });
 });
@@ -627,6 +673,140 @@ describe("fromJsonLd", () => {
       expect(project).not.toHaveProperty("actionIds");
       expect(project.isFocused).toBe(false);
     });
+
+    it("deserializes orgRef from additionalProperty", () => {
+      const record = wrapAsItemRecord({
+        "@id": "urn:app:project:org-test",
+        "@type": "Project",
+        _schemaVersion: 2,
+        name: "Tax Prep NT",
+        keywords: [],
+        dateCreated: "2025-01-01T00:00:00Z",
+        dateModified: "2025-01-01T00:00:00Z",
+        additionalProperty: [
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:bucket",
+            value: "project",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:desiredOutcome",
+            value: "Filed",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:projectStatus",
+            value: "active",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:isFocused",
+            value: false,
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:needsEnrichment",
+            value: false,
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:confidence",
+            value: "high",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:captureSource",
+            value: { kind: "thought" },
+          },
+          { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:typedReferences",
+            value: [],
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:provenanceHistory",
+            value: [],
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:orgRef",
+            value: JSON.stringify({ id: "org-uuid-1", name: "Nueva Tierra" }),
+          },
+        ],
+      });
+
+      const project = fromJsonLd(record) as Project;
+      expect(project.orgRef).toEqual({
+        id: "org-uuid-1",
+        name: "Nueva Tierra",
+      });
+    });
+
+    it("leaves orgRef undefined when not present", () => {
+      const record = wrapAsItemRecord({
+        "@id": "urn:app:project:no-org",
+        "@type": "Project",
+        _schemaVersion: 2,
+        name: "Personal",
+        keywords: [],
+        dateCreated: "2025-01-01T00:00:00Z",
+        dateModified: "2025-01-01T00:00:00Z",
+        additionalProperty: [
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:bucket",
+            value: "project",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:desiredOutcome",
+            value: "Done",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:projectStatus",
+            value: "active",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:isFocused",
+            value: false,
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:needsEnrichment",
+            value: false,
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:confidence",
+            value: "high",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:captureSource",
+            value: { kind: "thought" },
+          },
+          { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:typedReferences",
+            value: [],
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:provenanceHistory",
+            value: [],
+          },
+        ],
+      });
+
+      const project = fromJsonLd(record) as Project;
+      expect(project.orgRef).toBeUndefined();
+    });
   });
 
   describe("schema:CreativeWork → ReferenceMaterial", () => {
@@ -687,6 +867,123 @@ describe("fromJsonLd", () => {
       expect(ref.url).toBe("https://example.com");
       expect(ref.encodingFormat).toBe("text/html");
       expect(ref.origin).toBe("captured");
+    });
+
+    it("deserializes orgRef from additionalProperty", () => {
+      const record = wrapAsItemRecord({
+        "@id": "urn:app:reference:org-ref-test",
+        "@type": "CreativeWork",
+        _schemaVersion: 2,
+        name: "Registration doc",
+        keywords: [],
+        dateCreated: "2025-01-01T00:00:00Z",
+        dateModified: "2025-01-01T00:00:00Z",
+        additionalProperty: [
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:bucket",
+            value: "reference",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:origin",
+            value: "captured",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:needsEnrichment",
+            value: false,
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:confidence",
+            value: "medium",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:captureSource",
+            value: { kind: "thought" },
+          },
+          { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:typedReferences",
+            value: [],
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:provenanceHistory",
+            value: [],
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:orgRef",
+            value: JSON.stringify({
+              id: "org-uuid-2",
+              name: "Autonomo Wolfgang",
+            }),
+          },
+        ],
+      });
+
+      const ref = fromJsonLd(record) as ReferenceMaterial;
+      expect(ref.orgRef).toEqual({
+        id: "org-uuid-2",
+        name: "Autonomo Wolfgang",
+      });
+    });
+
+    it("leaves orgRef undefined when not present", () => {
+      const record = wrapAsItemRecord({
+        "@id": "urn:app:reference:no-org",
+        "@type": "CreativeWork",
+        _schemaVersion: 2,
+        name: "Personal note",
+        keywords: [],
+        dateCreated: "2025-01-01T00:00:00Z",
+        dateModified: "2025-01-01T00:00:00Z",
+        additionalProperty: [
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:bucket",
+            value: "reference",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:origin",
+            value: "captured",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:needsEnrichment",
+            value: false,
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:confidence",
+            value: "medium",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:captureSource",
+            value: { kind: "thought" },
+          },
+          { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:typedReferences",
+            value: [],
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:provenanceHistory",
+            value: [],
+          },
+        ],
+      });
+
+      const ref = fromJsonLd(record) as ReferenceMaterial;
+      expect(ref.orgRef).toBeUndefined();
     });
   });
 
@@ -1083,6 +1380,22 @@ describe("buildItemEditPatch", () => {
   it("only includes keywords when tags provided", () => {
     const patch = buildItemEditPatch({ contexts: ["@home"] });
     expect(patch).not.toHaveProperty("keywords");
+  });
+
+  it("maps orgRef to app:orgRef additionalProperty", () => {
+    const patch = buildItemEditPatch({
+      orgRef: { id: "org-1", name: "Nueva Tierra" },
+    });
+    expectPropertyValue(
+      patch,
+      "app:orgRef",
+      JSON.stringify({ id: "org-1", name: "Nueva Tierra" }),
+    );
+  });
+
+  it("nulls orgRef when undefined", () => {
+    const patch = buildItemEditPatch({ orgRef: undefined });
+    expectPropertyValue(patch, "app:orgRef", null);
   });
 });
 

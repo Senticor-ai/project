@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <style>{{ base_css|safe }}</style>
+  <style>{{ custom_css|safe }}</style>
+</head>
+<body>
+  <span class="page-name">{{ cv.name }}</span>
+  <header>
+    <h1>{{ cv.name }}</h1>
+    {% if cv.headline %}
+    <p class="headline">{{ cv.headline }}</p>
+    {% endif %}
+    {% if cv.contact %}
+    <div class="contact">
+      {% set contact_items = [] %}
+      {% if cv.contact.location %}{% set _ = contact_items.append(cv.contact.location) %}{% endif %}
+      {% if cv.contact.phone %}{% set _ = contact_items.append(cv.contact.phone) %}{% endif %}
+      {% if cv.contact.email %}{% set _ = contact_items.append(cv.contact.email) %}{% endif %}
+      {% if cv.contact.linkedin %}{% set _ = contact_items.append(cv.contact.linkedin) %}{% endif %}
+      {% for item in contact_items %}{% if not loop.first %}<span class="sep"> | </span>{% endif %}<span class="contact-item">{{ item }}</span>{% endfor %}
+    </div>
+    {% endif %}
+  </header>
+
+  {% if cv.summary %}
+  <section class="summary">
+    <h2>Profil</h2>
+    <p>{{ cv.summary }}</p>
+  </section>
+  {% endif %}
+
+  {% if cv.skills %}
+  <section class="skills">
+    <h2>Kompetenzen</h2>
+    <ul class="skills-list">
+      {% for skill in cv.skills %}
+      <li>{{ skill }}</li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {% if cv.experience %}
+  <section class="experience">
+    <h2>Berufserfahrung</h2>
+    {% for job in cv.experience %}
+    <article class="job">
+      <div class="job-header">
+        <div class="job-title-company">
+          <strong class="job-title">{{ job.title }}</strong>
+          {% if job.company %}<span class="sep"> — </span><span class="job-company">{{ job.company }}</span>{% endif %}
+        </div>
+        <div class="job-meta">
+          {% if job.period %}<span class="job-period">{{ job.period }}</span>{% endif %}
+          {% if job.location %}{% if job.period %}<span class="sep"> | </span>{% endif %}<span class="job-location">{{ job.location }}</span>{% endif %}
+        </div>
+      </div>
+      {% if job.summary %}
+      <p class="job-summary">{{ job.summary }}</p>
+      {% endif %}
+      {% if job.bullets %}
+      <ul class="job-bullets">
+        {% for bullet in job.bullets %}
+        <li>{{ bullet }}</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    </article>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  {% if cv.education %}
+  <section class="education">
+    <h2>Ausbildung</h2>
+    {% for edu in cv.education %}
+    <article class="edu-entry">
+      {% if edu.institution %}<strong>{{ edu.institution }}</strong>{% endif %}
+      {% if edu.degree %}{% if edu.institution %}<span class="sep"> — </span>{% endif %}<span class="edu-degree">{{ edu.degree }}</span>{% endif %}
+      {% if edu.period %}<span class="edu-period">{{ edu.period }}</span>{% endif %}
+      {% if edu.description %}<p>{{ edu.description }}</p>{% endif %}
+    </article>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  {% if cv.certifications %}
+  <section class="certifications">
+    <h2>Zertifizierungen</h2>
+    <ul>
+      {% for cert in cv.certifications %}
+      <li>{{ cert }}</li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+</body>
+</html>

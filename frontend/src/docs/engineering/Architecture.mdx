@@ -57,6 +57,7 @@ C4Container
     Container(storybook, "Storybook", "Storybook 10, MDX", "Living documentation hub — product specs, design system, component demos, architecture docs")
     Container(api, "Backend API", "Python, FastAPI", "REST API for items, files, imports, email, auth, search, push notifications, chat proxy")
     Container(agents, "Agents Service", "Python, Haystack, FastAPI", "Tay AI copilot — chat completions with tool calling via OpenRouter (port 8002)")
+    Container(openclaw, "OpenClaw Container", "Docker, per-user", "Autonomous AI agent — exec + curl skills, direct API access, self-discovers environment via env vars")
     Container(worker, "Projection Worker", "Python", "Outbox consumer: search indexing, email sync, import jobs")
     Container(pushworker, "Push Worker", "Python", "Web Push notification delivery via VAPID")
 
@@ -77,8 +78,12 @@ C4Container
   Rel(worker, meili, "Indexes items", "REST")
   Rel(worker, gmail, "IMAP sync", "IMAP + OAuth")
   Rel(pushworker, pg, "Polls push_outbox", "SQL")
-  Rel(api, agents, "Proxies chat requests", "HTTP")
+  Rel(api, agents, "Proxies Tay chat requests", "HTTP")
+  Rel(api, openclaw, "Proxies OpenClaw chat, writes JWT to /runtime/token", "HTTP + SSE")
+  Rel(openclaw, api, "Calls REST API via curl skills", "HTTP + delegated JWT")
+  Rel(openclaw, storybook, "Fetches docs for self-discovery", "HTTP")
   Rel(agents, openrouter, "Chat completions", "HTTPS")
+  Rel(openclaw, openrouter, "Chat completions (user API key)", "HTTPS")
 
   UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
 `} />
@@ -468,7 +473,7 @@ Frontend harness route `/__harness` provides UI for:
 
 - [Data Model](?path=/docs/engineering-ontology--docs) — Schema.org-first data model (entities, properties, JSON-LD)
 - [Schema.org Vocabulary](?path=/docs/engineering-ontology-schema-org-vocabulary--docs) — Full schema.org type catalog
-- [Agents Service](?path=/docs/engineering-agents-service--docs) — Tay copilot: setup, configuration, delegated auth, tool execution
+- [Agents Service](?path=/docs/engineering-agents-service--docs) — Dual-agent architecture (Tay + OpenClaw), delegated auth, container environment
 - [LLM Evaluation](?path=/docs/engineering-llm-evaluation--docs) — Golden dataset, LLM cache, trace files, evaluation layers
 - [Product Vision](?path=/docs/product-product-vision--docs) — Product scope and methodology
 - [Deployment](?path=/docs/engineering-deployment--docs) — Container structure and CI/CD

@@ -73,13 +73,7 @@ class TestToolCallStreaming:
         # Argument chunks (streamed token-by-token)
         args_parts = ['{"name":', '"Einkaufen",', '"bucket":"next"}']
         for part in args_parts:
-            t.feed(
-                _sse(
-                    _chunk(
-                        {"tool_calls": [{"index": 0, "function": {"arguments": part}}]}
-                    )
-                )
-            )
+            t.feed(_sse(_chunk({"tool_calls": [{"index": 0, "function": {"arguments": part}}]})))
 
         # Finish
         events = t.feed(_sse(_chunk({}, finish_reason="tool_calls")))
@@ -130,9 +124,7 @@ class TestToolCallStreaming:
                             {
                                 "index": 0,
                                 "function": {
-                                    "arguments": json.dumps(
-                                        {"name": "Task 1", "bucket": "next"}
-                                    )
+                                    "arguments": json.dumps({"name": "Task 1", "bucket": "next"})
                                 },
                             }
                         ]
@@ -148,9 +140,7 @@ class TestToolCallStreaming:
                         "tool_calls": [
                             {
                                 "index": 1,
-                                "function": {
-                                    "arguments": json.dumps({"name": "Ref 1"})
-                                },
+                                "function": {"arguments": json.dumps({"name": "Ref 1"})},
                             }
                         ]
                     }
@@ -290,9 +280,7 @@ class TestFullConversation:
                         "tool_calls": [
                             {
                                 "index": 0,
-                                "function": {
-                                    "arguments": '{"name": "Einkaufen gehen",'
-                                },
+                                "function": {"arguments": '{"name": "Einkaufen gehen",'},
                             }
                         ]
                     }
@@ -304,9 +292,7 @@ class TestFullConversation:
                         "tool_calls": [
                             {
                                 "index": 0,
-                                "function": {
-                                    "arguments": ' "type": "create_action",'
-                                },
+                                "function": {"arguments": ' "type": "create_action",'},
                             }
                         ]
                     }

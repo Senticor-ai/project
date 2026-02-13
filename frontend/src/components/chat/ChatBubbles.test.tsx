@@ -30,6 +30,22 @@ describe("TayMessageBubble", () => {
     render(<TayMessageBubble content="Test" />);
     expect(screen.getByText("chat_bubble")).toBeInTheDocument();
   });
+
+  it("renders bold markdown as strong tags", () => {
+    render(<TayMessageBubble content="Das ist **wichtig** hier" />);
+    const strong = screen.getByText("wichtig");
+    expect(strong.tagName).toBe("STRONG");
+  });
+
+  it("renders numbered list from markdown", () => {
+    render(
+      <TayMessageBubble content={"1. Erster Schritt\n2. Zweiter Schritt"} />,
+    );
+    expect(screen.getByText("Erster Schritt")).toBeInTheDocument();
+    expect(screen.getByText("Zweiter Schritt")).toBeInTheDocument();
+    const list = screen.getByRole("list");
+    expect(list.tagName).toBe("OL");
+  });
 });
 
 describe("TayThinkingIndicator", () => {

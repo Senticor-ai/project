@@ -156,9 +156,13 @@ describe("useTayApi", () => {
     expect(opts.method).toBe("POST");
     expect(opts.headers["Content-Type"]).toBe("application/json");
     expect(opts.credentials).toBe("include");
-    expect(JSON.parse(opts.body as string)).toEqual({
-      message: "Hallo",
-      conversationId: "conv-123",
+    const body = JSON.parse(opts.body as string);
+    expect(body.message).toBe("Hallo");
+    expect(body.conversationId).toBe("conv-123");
+    expect(body.context).toEqual({
+      timezone: expect.any(String),
+      locale: expect.any(String),
+      localTime: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
     });
   });
 

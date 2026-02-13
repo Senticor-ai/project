@@ -20,8 +20,7 @@ def main() -> None:
             if attempt == MAX_RETRIES - 1:
                 raise
             print(
-                f"DB not ready, retrying in {RETRY_INTERVAL}s"
-                f" (attempt {attempt + 1}/{MAX_RETRIES})"
+                f"DB not ready, retrying in {RETRY_INTERVAL}s (attempt {attempt + 1}/{MAX_RETRIES})"
             )
             time.sleep(RETRY_INTERVAL)
 

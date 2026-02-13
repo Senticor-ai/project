@@ -193,6 +193,27 @@ export const AuthApi = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// Organizations API
+// ---------------------------------------------------------------------------
+
+export type OrgResponse = {
+  id: string;
+  name: string;
+  role: string;
+  created_at: string;
+};
+
+export const OrgsApi = {
+  list: () => request<OrgResponse[]>("/orgs"),
+
+  create: (name: string) =>
+    request<OrgResponse>("/orgs", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    }),
+};
+
 export type ItemRecord = {
   item_id: string;
   canonical_id: string;

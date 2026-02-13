@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, type ReactNode } from "react";
+import { Fragment, useState, useRef, useCallback, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
 import { AutoGrowTextarea } from "@/components/ui/AutoGrowTextarea";
@@ -184,12 +184,14 @@ export function ItemList<T extends BaseEntity>({
         <>
           {items.length > 0 && (
             <div className="space-y-0.5">
-              {items.map((item) =>
-                renderItem(item, {
-                  isExpanded: expandedId === item.id,
-                  onToggleExpand: () => toggleExpand(item.id),
-                }),
-              )}
+              {items.map((item) => (
+                <Fragment key={item.id}>
+                  {renderItem(item, {
+                    isExpanded: expandedId === item.id,
+                    onToggleExpand: () => toggleExpand(item.id),
+                  })}
+                </Fragment>
+              ))}
             </div>
           )}
         </>
@@ -224,9 +226,11 @@ export function ItemList<T extends BaseEntity>({
 
           {secondaryExpanded && (
             <div className={secondarySection.wrapperClassName}>
-              {secondarySection.items.map((item) =>
-                secondarySection.renderItem(item),
-              )}
+              {secondarySection.items.map((item) => (
+                <Fragment key={item.id}>
+                  {secondarySection.renderItem(item)}
+                </Fragment>
+              ))}
             </div>
           )}
         </div>

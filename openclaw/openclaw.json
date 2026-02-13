@@ -27,7 +27,7 @@
     ]
   },
   "tools": {
-    "profile": "minimal",
+    "profile": "coding",
     "exec": {
       "security": "full"
     }

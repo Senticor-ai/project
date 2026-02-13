@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, waitFor } from "storybook/test";
+import { expect, fn, waitFor, within } from "storybook/test";
 import { ProjectTree } from "./ProjectTree";
 import type { ActionItem, Project } from "@/model/types";
 import {
@@ -79,6 +79,7 @@ const meta = {
     onToggleFocus: fn(),
     onAddAction: fn(),
     onCreateProject: fn(),
+    onUpdateTitle: fn(),
   },
   decorators: [
     (Story) => (
@@ -294,6 +295,51 @@ export const StarProject: Story = {
       await waitFor(() => {
         expect(args.onToggleFocus).toHaveBeenCalledWith(project1.id);
       });
+    });
+  },
+};
+
+/** Double-click a project name to rename it inline. */
+export const RenameProject: Story = {
+  args: {
+    projects: [project1, project2],
+    actions: sampleActions,
+  },
+  play: async ({ canvas, userEvent, args, step }) => {
+    await step("Expand project", async () => {
+      await userEvent.click(canvas.getByLabelText("Expand Website Redesign"));
+    });
+
+    await waitFor(
+      () => {
+        expect(canvas.getByText("Design homepage wireframes")).toBeTruthy();
+      },
+      { timeout: 5000 },
+    );
+
+    await step("Double-click name to enter edit mode", async () => {
+      await userEvent.dblClick(canvas.getByText("Website Redesign"));
+    });
+
+    // Should now show a textarea with the current name
+    const row = canvas
+      .getByText("Design homepage wireframes")
+      .closest("[data-project-id]")!;
+    const textarea = within(row as HTMLElement).getByDisplayValue(
+      "Website Redesign",
+    );
+    await expect(textarea).toBeInTheDocument();
+
+    await step("Type new name and press Enter", async () => {
+      await userEvent.clear(textarea);
+      await userEvent.type(textarea, "Website Relaunch{Enter}");
+    });
+
+    await waitFor(() => {
+      expect(args.onUpdateTitle).toHaveBeenCalledWith(
+        project1.id,
+        "Website Relaunch",
+      );
     });
   },
 };

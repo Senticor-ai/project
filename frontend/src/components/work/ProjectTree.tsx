@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
 import { AutoGrowTextarea } from "@/components/ui/AutoGrowTextarea";
+import { EditableTitle } from "./EditableTitle";
 import { ActionRow } from "./ActionRow";
 import {
   getProjectActions,
@@ -9,7 +10,13 @@ import {
   getNextActionId,
   isProjectStalled,
 } from "@/lib/project-utils";
-import type { ActionItem, Project, ReferenceMaterial } from "@/model/types";
+import type {
+  ActionItem,
+  Project,
+  ReferenceMaterial,
+  ItemEditableFields,
+  OrgRef,
+} from "@/model/types";
 import { getDisplayName } from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
 
@@ -22,6 +29,11 @@ export interface ProjectTreeProps {
   onAddAction: (projectId: CanonicalId, title: string) => void;
   onCreateProject?: (name: string, desiredOutcome: string) => void;
   onUpdateTitle?: (id: CanonicalId, newTitle: string) => void;
+  onEditProject?: (
+    id: CanonicalId,
+    fields: Partial<ItemEditableFields>,
+  ) => void;
+  organizations?: { id: string; name: string }[];
   className?: string;
 }
 
@@ -34,6 +46,8 @@ export function ProjectTree({
   onAddAction,
   onCreateProject,
   onUpdateTitle,
+  onEditProject,
+  organizations = [],
   className,
 }: ProjectTreeProps) {
   const [expandedId, setExpandedId] = useState<CanonicalId | null>(null);
@@ -128,6 +142,8 @@ export function ProjectTree({
               onToggleFocus={onToggleFocus}
               onAddAction={(title) => onAddAction(project.id, title)}
               onUpdateTitle={onUpdateTitle}
+              onEditProject={onEditProject}
+              organizations={organizations}
             />
           ))}
         </div>
@@ -196,6 +212,11 @@ interface ProjectRowProps {
   onToggleFocus: (id: CanonicalId) => void;
   onAddAction: (title: string) => void;
   onUpdateTitle?: (id: CanonicalId, newTitle: string) => void;
+  onEditProject?: (
+    id: CanonicalId,
+    fields: Partial<ItemEditableFields>,
+  ) => void;
+  organizations?: { id: string; name: string }[];
   statusBadge?: boolean;
 }
 
@@ -210,64 +231,97 @@ function ProjectRow({
   onToggleFocus,
   onAddAction,
   onUpdateTitle,
+  onEditProject,
+  organizations = [],
   statusBadge,
 }: ProjectRowProps) {
   const stalled = isProjectStalled(project, allActions);
   const totalCount = actions.length + references.length;
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [prevExpanded, setPrevExpanded] = useState(isExpanded);
+
+  // Reset editing state when row collapses (derived state pattern)
+  if (prevExpanded !== isExpanded) {
+    setPrevExpanded(isExpanded);
+    if (!isExpanded) {
+      setIsEditingName(false);
+    }
+  }
+
+  const handleTitleClick = () => {
+    if (isEditingName) {
+      setIsEditingName(false);
+    } else {
+      onToggleExpand();
+    }
+  };
+
+  const handleTitleDoubleClick = () => {
+    if (!isEditingName && isExpanded && onUpdateTitle) {
+      setIsEditingName(true);
+    }
+  };
 
   return (
     <div data-project-id={project.id} className="rounded-lg">
       {/* Project header */}
       <div className="flex items-center gap-0.5 rounded-[var(--radius-md)] transition-colors duration-[var(--duration-fast)] hover:bg-paper-100">
+        {/* Expand/collapse chevron */}
         <button
           type="button"
           onClick={onToggleExpand}
           aria-label={`${isExpanded ? "Collapse" : "Expand"} ${project.name ?? "Untitled"}`}
-          className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left"
+          className="shrink-0 py-1.5 pl-2 text-text-subtle"
         >
-          <span className="shrink-0 text-text-subtle">
-            <Icon
-              name="chevron_right"
-              size={18}
-              className={cn(
-                "transition-transform duration-150",
-                isExpanded && "rotate-90",
-              )}
-            />
-          </span>
           <Icon
-            name="folder"
+            name="chevron_right"
             size={18}
-            className="shrink-0 text-blueprint-500"
+            className={cn(
+              "transition-transform duration-150",
+              isExpanded && "rotate-90",
+            )}
           />
-          <span className="flex-1 whitespace-pre-wrap text-sm font-medium text-text">
-            {project.name ?? "Untitled"}
-          </span>
-
-          {/* Item count badge */}
-          <span className="shrink-0 rounded-full bg-paper-100 px-1.5 text-xs text-text-muted">
-            {totalCount}
-          </span>
-
-          {/* Status badge (non-active projects) */}
-          {statusBadge && project.status !== "active" && (
-            <span className="shrink-0 rounded-full bg-paper-200 px-1.5 text-[10px] capitalize text-text-muted">
-              {project.status}
-            </span>
-          )}
-
-          {/* Stalled indicator */}
-          {stalled && (
-            <span
-              aria-label="Needs next action"
-              className="shrink-0 text-status-warning"
-            >
-              <Icon name="warning" size={16} />
-            </span>
-          )}
         </button>
 
-        {/* Star toggle — separate from expand/collapse button */}
+        <Icon name="folder" size={18} className="shrink-0 text-blueprint-500" />
+
+        {/* Editable project name */}
+        <EditableTitle
+          title={project.name ?? "Untitled"}
+          isEditing={isEditingName}
+          onSave={
+            onUpdateTitle
+              ? (newTitle) => onUpdateTitle(project.id, newTitle)
+              : undefined
+          }
+          onToggleEdit={handleTitleClick}
+          onDoubleClick={handleTitleDoubleClick}
+          ariaExpanded={isExpanded}
+        />
+
+        {/* Item count badge */}
+        <span className="shrink-0 rounded-full bg-paper-100 px-1.5 text-xs text-text-muted">
+          {totalCount}
+        </span>
+
+        {/* Status badge (non-active projects) */}
+        {statusBadge && project.status !== "active" && (
+          <span className="shrink-0 rounded-full bg-paper-200 px-1.5 text-[10px] capitalize text-text-muted">
+            {project.status}
+          </span>
+        )}
+
+        {/* Stalled indicator */}
+        {stalled && (
+          <span
+            aria-label="Needs next action"
+            className="shrink-0 text-status-warning"
+          >
+            <Icon name="warning" size={16} />
+          </span>
+        )}
+
+        {/* Star toggle */}
         <button
           type="button"
           onClick={() => onToggleFocus(project.id)}
@@ -290,6 +344,39 @@ function ProjectRow({
             <p className="mb-2 text-xs text-text-muted italic">
               {project.desiredOutcome}
             </p>
+          )}
+
+          {/* Organization assignment */}
+          {organizations.length > 0 && onEditProject && (
+            <div className="mb-2 flex items-center gap-1.5">
+              <Icon
+                name="apartment"
+                size={14}
+                className="shrink-0 text-text-subtle"
+              />
+              <select
+                aria-label="Assign to organization"
+                value={project.orgRef?.id ?? ""}
+                onChange={(e) => {
+                  const org = organizations.find(
+                    (o) => o.id === e.target.value,
+                  );
+                  onEditProject(project.id, {
+                    orgRef: org
+                      ? ({ id: org.id, name: org.name } satisfies OrgRef)
+                      : undefined,
+                  });
+                }}
+                className="rounded-[var(--radius-sm)] border border-border bg-surface px-2 py-0.5 text-xs"
+              >
+                <option value="">No organization</option>
+                {organizations.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           )}
 
           {/* Sequential action list */}

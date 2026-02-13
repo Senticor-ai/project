@@ -66,6 +66,10 @@ export interface BucketViewProps {
   ) => void;
   onAddProjectAction?: (projectId: CanonicalId, title: string) => void;
   onCreateProject?: (name: string, desiredOutcome: string) => void;
+  onEditProject?: (
+    id: CanonicalId,
+    fields: Partial<ItemEditableFields>,
+  ) => void;
   onSelectReference?: (id: CanonicalId) => void;
   /** Called when files are dropped onto the inbox area. */
   onFileDrop?: (files: File[]) => void;
@@ -73,6 +77,8 @@ export interface BucketViewProps {
   onNavigateToReference?: (refId: CanonicalId) => void;
   /** Map from reference canonical ID → bucket of the linked ReadAction. */
   linkedActionBuckets?: Map<CanonicalId, ActionItemBucket>;
+  /** Organizations for reference bucket grouping. */
+  organizations?: { id: string; name: string }[];
   className?: string;
 }
 
@@ -94,10 +100,12 @@ export function BucketView({
   onEditReference,
   onAddProjectAction,
   onCreateProject,
+  onEditProject,
   onSelectReference,
   onFileDrop,
   onNavigateToReference,
   linkedActionBuckets,
+  organizations,
   className,
 }: BucketViewProps) {
   const isMobile = useIsMobile();
@@ -174,6 +182,7 @@ export function BucketView({
           ) : activeBucket === "reference" ? (
             <ReferenceList
               references={referenceItems}
+              organizations={organizations}
               onAdd={onAddReference ?? (() => {})}
               onArchive={onArchiveReference ?? (() => {})}
               onSelect={onSelectReference ?? (() => {})}
@@ -191,6 +200,8 @@ export function BucketView({
               onAddAction={onAddProjectAction ?? (() => {})}
               onCreateProject={onCreateProject}
               onUpdateTitle={onUpdateTitle}
+              onEditProject={onEditProject}
+              organizations={organizations}
             />
           ) : null}
         </main>

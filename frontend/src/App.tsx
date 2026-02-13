@@ -26,6 +26,10 @@ import {
   useStopContainer,
   useRestartContainer,
 } from "./hooks/use-agent-settings";
+import {
+  useOrganizations,
+  useCreateOrganization,
+} from "./hooks/use-organizations";
 import { computeBucketCounts } from "./lib/bucket-counts";
 import { DevApi, EmailApi, downloadExport } from "./lib/api-client";
 import type { AuthUser } from "./lib/api-client";
@@ -126,6 +130,10 @@ function AuthenticatedApp({
   const triggerEmailSync = useTriggerEmailSync();
   const disconnectEmail = useDisconnectEmail();
   const updateEmailConnection = useUpdateEmailConnection();
+
+  // Organizations
+  const orgsQuery = useOrganizations();
+  const createOrg = useCreateOrganization();
 
   // Agent settings
   const { data: agentSettingsData } = useAgentSettings();
@@ -298,6 +306,10 @@ function AuthenticatedApp({
                   ? (triggerEmailSync.variables ?? null)
                   : null
               }
+              organizations={orgsQuery.data}
+              organizationsLoading={orgsQuery.isLoading}
+              onCreateOrg={(name) => createOrg.mutate(name)}
+              isCreatingOrg={createOrg.isPending}
               agentSettings={
                 agentSettingsData
                   ? {
@@ -341,7 +353,7 @@ function AuthenticatedApp({
         </Suspense>
       </div>
 
-      {/* Tay Chat Panel */}
+      {/* Chat Panel */}
       <TayChatPanel
         isOpen={isChatOpen}
         onClose={() => setIsChatOpen(false)}
@@ -350,6 +362,11 @@ function AuthenticatedApp({
         onSend={chat.sendMessage}
         onAcceptSuggestion={chat.acceptSuggestion}
         onDismissSuggestion={chat.dismissSuggestion}
+        agentName={
+          agentSettingsData?.agentBackend === "openclaw"
+            ? "OpenClaw"
+            : "Tay"
+        }
       />
     </div>
   );

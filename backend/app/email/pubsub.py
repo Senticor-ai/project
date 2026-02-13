@@ -43,9 +43,7 @@ class PubSubClient:
         subscription_id: str,
         credentials_file: str,
     ):
-        self.subscription_path = (
-            f"projects/{project_id}/subscriptions/{subscription_id}"
-        )
+        self.subscription_path = f"projects/{project_id}/subscriptions/{subscription_id}"
         self._credentials = Credentials.from_service_account_file(
             str(Path(credentials_file).resolve()),
             scopes=PUBSUB_SCOPES,

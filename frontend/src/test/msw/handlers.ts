@@ -5,6 +5,7 @@ import {
   createFileRecord,
   createEmailConnection,
   createItemRecord,
+  createOrgResponse,
 } from "./fixtures";
 import type {
   ItemRecord,
@@ -12,6 +13,7 @@ import type {
   ImportJobResponse,
   EmailConnectionResponse,
   EmailConnectionUpdateRequest,
+  OrgResponse,
 } from "@/lib/api-client";
 
 // ---------------------------------------------------------------------------
@@ -419,8 +421,7 @@ const chatHandlers = [
     }
 
     // Simple text response for greetings (NDJSON stream)
-    const text =
-      "Hallo! Ich bin Tay, dein Assistent. Wie kann ich dir helfen?";
+    const text = "Hallo! Ich bin Tay, dein Assistent. Wie kann ich dir helfen?";
     const events = [
       { type: "text_delta", content: text },
       { type: "done", text },
@@ -537,6 +538,25 @@ const chatHandlers = [
 ];
 
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Organizations handlers
+// ---------------------------------------------------------------------------
+
+const orgsHandlers = [
+  http.get("*/orgs", () => {
+    const orgs = Array.from(store.orgs.values());
+    return HttpResponse.json(orgs);
+  }),
+
+  http.post("*/orgs", async ({ request }) => {
+    const body = (await request.json()) as { name: string };
+    const org: OrgResponse = createOrgResponse({ name: body.name });
+    store.orgs.set(org.id, org);
+    return HttpResponse.json(org, { status: 201 });
+  }),
+];
+
+// ---------------------------------------------------------------------------
 // Combined handler set
 // ---------------------------------------------------------------------------
 
@@ -547,4 +567,5 @@ export const handlers = [
   ...authHandlers,
   ...emailHandlers,
   ...chatHandlers,
+  ...orgsHandlers,
 ];

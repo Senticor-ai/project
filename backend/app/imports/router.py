@@ -372,9 +372,7 @@ def archive_import_job(
             job = cur.fetchone()
 
             if job is None:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND, detail="Job not found"
-                )
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
 
             if job["status"] in ("queued", "running"):
                 raise HTTPException(

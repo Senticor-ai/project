@@ -16,6 +16,7 @@ from ..idempotency import (
 )
 from ..metrics import APP_ITEMS_ARCHIVED_TOTAL, APP_ITEMS_CREATED_TOTAL, APP_ITEMS_UPDATED_TOTAL
 from ..models import (
+    ItemContentResponse,
     ItemCreateRequest,
     ItemPatchRequest,
     ItemResponse,
@@ -24,6 +25,8 @@ from ..models import (
 )
 from ..outbox import enqueue_event
 from ..search.jobs import enqueue_job, get_job, serialize_job
+from ..storage import get_storage
+from ..text_extractor import extract_file_text
 
 router = APIRouter(
     prefix="/items",
@@ -240,6 +243,76 @@ def _validate_action_bucket(item: dict) -> None:
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="app:bucket is required in additionalProperty for Action types",
         )
+
+
+@router.get(
+    "/by-project/{project_id}",
+    summary="List items belonging to a project",
+    description="Returns all non-archived items linked to the given project via app:projectRefs.",
+)
+def list_project_items(
+    project_id: str,
+    current_org=Depends(get_current_org),
+):
+    org_id = current_org["org_id"]
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            # Find items where projectRefs contains the project_id
+            # Also include the project item itself
+            cur.execute(
+                """
+                SELECT
+                    item_id,
+                    canonical_id,
+                    schema_jsonld
+                FROM items
+                WHERE org_id = %s
+                  AND archived_at IS NULL
+                  AND (
+                    canonical_id = %s
+                    OR schema_jsonld @> %s::jsonb
+                  )
+                ORDER BY created_at ASC
+                """,
+                (
+                    org_id,
+                    project_id,
+                    json.dumps(
+                        {
+                            "additionalProperty": [
+                                {"propertyID": "app:projectRefs", "value": [project_id]}
+                            ]
+                        }
+                    ),
+                ),
+            )
+            rows = cur.fetchall()
+
+    items = []
+    for row in rows:
+        jsonld = row["schema_jsonld"] or {}
+        name = jsonld.get("name") if isinstance(jsonld.get("name"), str) else None
+        type_val = jsonld.get("@type")
+        item_type: str | None = None
+        if isinstance(type_val, str):
+            item_type = type_val
+        elif isinstance(type_val, list) and type_val:
+            first = type_val[0]
+            item_type = first if isinstance(first, str) else None
+        bucket = _get_additional_property(jsonld, "app:bucket")
+        file_id = _get_additional_property(jsonld, "app:fileId")
+        items.append(
+            {
+                "item_id": str(row["item_id"]),
+                "canonical_id": row["canonical_id"],
+                "name": name,
+                "type": item_type,
+                "bucket": bucket if isinstance(bucket, str) else None,
+                "has_file": file_id is not None,
+            }
+        )
+
+    return items
 
 
 @router.get("/export", summary="Export all items")
@@ -579,6 +652,90 @@ def get_item(
     return JSONResponse(
         content=_dump_response_model(payload),
         headers={"ETag": etag, "Last-Modified": last_modified},
+    )
+
+
+@router.get(
+    "/{item_id}/content",
+    response_model=ItemContentResponse,
+    summary="Get item data with file content",
+    description="Returns item metadata and extracted text from any associated file.",
+)
+def get_item_content(
+    item_id: str,
+    max_chars: int = Query(
+        default=50000,
+        le=200000,
+        description="Maximum characters to extract from file.",
+    ),
+    current_org=Depends(get_current_org),
+):
+    org_id = current_org["org_id"]
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            # Try by item_id first, then by canonical_id
+            cur.execute(
+                """
+                SELECT item_id, canonical_id, schema_jsonld
+                FROM items
+                WHERE (item_id::text = %s OR canonical_id = %s)
+                  AND org_id = %s AND archived_at IS NULL
+                """,
+                (item_id, item_id, org_id),
+            )
+            row = cur.fetchone()
+
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
+
+    jsonld = row["schema_jsonld"] or {}
+    name = jsonld.get("name") if isinstance(jsonld.get("name"), str) else None
+    description = jsonld.get("description") if isinstance(jsonld.get("description"), str) else None
+    item_type = None
+    type_val = jsonld.get("@type")
+    if isinstance(type_val, str):
+        item_type = type_val
+    elif isinstance(type_val, list) and type_val:
+        item_type = type_val[0] if isinstance(type_val[0], str) else None
+
+    bucket = _get_additional_property(jsonld, "app:bucket")
+    if not isinstance(bucket, str):
+        bucket = None
+
+    # Extract file content if the item has a linked file
+    file_id = _get_additional_property(jsonld, "app:fileId")
+    file_content = None
+    file_name = None
+
+    if file_id:
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT original_name, content_type, storage_path
+                    FROM files
+                    WHERE file_id = %s AND org_id = %s
+                    """,
+                    (file_id, org_id),
+                )
+                file_row = cur.fetchone()
+
+        if file_row:
+            file_name = file_row["original_name"]
+            storage = get_storage()
+            local_path = storage.resolve_path(file_row["storage_path"])
+            if local_path and local_path.exists():
+                file_content = extract_file_text(local_path, file_row["content_type"], max_chars)
+
+    return ItemContentResponse(
+        item_id=str(row["item_id"]),
+        canonical_id=row["canonical_id"],
+        name=name,
+        description=description,
+        type=item_type,
+        bucket=bucket,
+        file_content=file_content,
+        file_name=file_name,
     )
 
 

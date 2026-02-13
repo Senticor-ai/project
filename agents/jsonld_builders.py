@@ -141,3 +141,41 @@ def build_reference_jsonld(
             _pv("app:provenanceHistory", [{"timestamp": now, "action": "created"}]),
         ],
     }
+
+
+def build_file_reference_jsonld(
+    name: str,
+    file_id: str,
+    conversation_id: str,
+    project_id: str | None = None,
+    description: str | None = None,
+    encoding_format: str = "application/pdf",
+) -> dict:
+    """Build JSON-LD for a file-backed CreativeWork reference (e.g. rendered PDF)."""
+    canonical_id = f"urn:app:reference:{uuid.uuid4()}"
+    now = _now_iso()
+
+    return {
+        "@id": canonical_id,
+        "@type": "CreativeWork",
+        "_schemaVersion": SCHEMA_VERSION,
+        "name": name,
+        "description": description,
+        "keywords": [],
+        "dateCreated": now,
+        "dateModified": now,
+        "url": None,
+        "encodingFormat": encoding_format,
+        "additionalProperty": [
+            _pv("app:bucket", "reference"),
+            _pv("app:fileId", file_id),
+            _pv("app:needsEnrichment", False),
+            _pv("app:confidence", "high"),
+            _pv("app:captureSource", _tay_capture_source(conversation_id)),
+            _pv("app:origin", "generated"),
+            _pv("app:ports", []),
+            _pv("app:typedReferences", []),
+            _pv("app:projectRefs", [project_id] if project_id else []),
+            _pv("app:provenanceHistory", [{"timestamp": now, "action": "created"}]),
+        ],
+    }

@@ -12,6 +12,7 @@ import logging
 import secrets
 import time
 from dataclasses import dataclass
+from urllib.parse import urlparse, urlunparse
 
 import httpx
 
@@ -38,6 +39,28 @@ class ContainerInfo:
     url: str
     port: int
     token: str
+
+
+# ---------------------------------------------------------------------------
+# URL rewriting for container access
+# ---------------------------------------------------------------------------
+
+_LOCALHOST_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0"}  # noqa: S104
+
+
+def _to_container_url(url: str) -> str:
+    """Rewrite a host URL so it's reachable from inside a Docker container.
+
+    Replaces localhost-style hosts (including *.localhost subdomains)
+    with ``host.docker.internal`` so the container can reach host services.
+    """
+    parsed = urlparse(url)
+    hostname = parsed.hostname or ""
+    if hostname in _LOCALHOST_HOSTS or hostname.endswith(".localhost"):
+        host = "host.docker.internal"
+        new_netloc = f"{host}:{parsed.port}" if parsed.port else host
+        return urlunparse(parsed._replace(netloc=new_netloc))
+    return url
 
 
 # ---------------------------------------------------------------------------
@@ -186,7 +209,11 @@ def start_container(user_id: str) -> ContainerInfo:
             "-e",
             f"OPENCLAW_GATEWAY_TOKEN={gateway_token}",
             "-e",
-            "TAY_BACKEND_URL=http://host.docker.internal:8000",
+            f"TAY_BACKEND_URL={_to_container_url(settings.backend_base_url)}",
+            "-e",
+            f"TAY_FRONTEND_URL={_to_container_url(settings.frontend_base_url)}",
+            "-e",
+            f"TAY_STORYBOOK_URL={_to_container_url(settings.storybook_url)}",
             "-e",
             "OPENCLAW_CONFIG_PATH=/openclaw.json",
             "--label",

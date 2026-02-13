@@ -6,7 +6,9 @@ import type {
   CreateProjectWithActionsSuggestion,
   CreateActionSuggestion,
   CreateReferenceSuggestion,
+  RenderCvSuggestion,
 } from "@/model/chat-types";
+import type { CanonicalId } from "@/model/canonical-id";
 
 const projectSuggestion: CreateProjectWithActionsSuggestion = {
   type: "create_project_with_actions",
@@ -176,6 +178,59 @@ describe("TaySuggestionCard", () => {
       expect(
         screen.getByText("Lieblingsrezepte für die Party"),
       ).toBeInTheDocument();
+    });
+  });
+
+  describe("render_cv suggestion", () => {
+    const cvSuggestion: RenderCvSuggestion = {
+      type: "render_cv",
+      cv: {
+        name: "Wolfgang Müller",
+        headline: "Senior AI Engineer",
+        experience: [
+          { title: "AI Engineer", company: "TechCo", period: "2020-2024" },
+        ],
+      },
+      css: "body { font-family: Inter; }",
+      filename: "lebenslauf-angepasst.pdf",
+      projectId: "urn:app:project:123" as CanonicalId,
+    };
+
+    it("renders CV name and headline", () => {
+      render(
+        <TaySuggestionCard
+          suggestion={cvSuggestion}
+          status="pending"
+          onAccept={vi.fn()}
+          onDismiss={vi.fn()}
+        />,
+      );
+      expect(screen.getByText("Wolfgang Müller")).toBeInTheDocument();
+      expect(screen.getByText("Senior AI Engineer")).toBeInTheDocument();
+    });
+
+    it("renders filename", () => {
+      render(
+        <TaySuggestionCard
+          suggestion={cvSuggestion}
+          status="pending"
+          onAccept={vi.fn()}
+          onDismiss={vi.fn()}
+        />,
+      );
+      expect(screen.getByText("lebenslauf-angepasst.pdf")).toBeInTheDocument();
+    });
+
+    it("renders experience count", () => {
+      render(
+        <TaySuggestionCard
+          suggestion={cvSuggestion}
+          status="pending"
+          onAccept={vi.fn()}
+          onDismiss={vi.fn()}
+        />,
+      );
+      expect(screen.getByText(/1 Position/)).toBeInTheDocument();
     });
   });
 

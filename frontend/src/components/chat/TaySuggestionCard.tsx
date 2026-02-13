@@ -62,6 +62,9 @@ export function TaySuggestionCard({
         {suggestion.type === "create_reference" && (
           <ReferenceSuggestionContent suggestion={suggestion} />
         )}
+        {suggestion.type === "render_cv" && (
+          <RenderCvSuggestionContent suggestion={suggestion} />
+        )}
 
         {/* Action bar */}
         {status === "pending" && (
@@ -170,6 +173,37 @@ function ReferenceSuggestionContent({
           {suggestion.description}
         </p>
       )}
+    </>
+  );
+}
+
+function RenderCvSuggestionContent({
+  suggestion,
+}: {
+  suggestion: Extract<TaySuggestion, { type: "render_cv" }>;
+}) {
+  const expCount = suggestion.cv.experience.length;
+  return (
+    <>
+      <div className="flex items-center gap-1.5">
+        <Icon name="picture_as_pdf" size={16} className="text-red-500" />
+        <span className="text-sm font-medium">{suggestion.cv.name}</span>
+      </div>
+      <p className="mt-0.5 ml-5.5 text-xs text-text-muted">
+        {suggestion.cv.headline}
+      </p>
+      <div className="mt-2 ml-5.5 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-text-muted">
+        <span>
+          {expCount} {expCount === 1 ? "Position" : "Positionen"}
+        </span>
+        {suggestion.cv.skills && (
+          <span>{suggestion.cv.skills.length} Skills</span>
+        )}
+      </div>
+      <div className="mt-2 ml-5.5 flex items-center gap-1.5 text-xs text-text-muted">
+        <Icon name="description" size={14} className="text-paper-500" />
+        <span>{suggestion.filename}</span>
+      </div>
     </>
   );
 }

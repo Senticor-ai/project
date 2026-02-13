@@ -10,7 +10,7 @@ export default defineConfig({
     ? [["html", { open: "never" }], ["github"]]
     : [["html", { open: "on-failure" }]],
   use: {
-    baseURL: process.env.E2E_BASE_URL ?? "http://localhost:5173",
+    baseURL: process.env.E2E_BASE_URL ?? "http://tay.localhost:5173",
     ignoreHTTPSErrors: true,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
@@ -23,6 +23,7 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
       testIgnore: [
         "**/tay-chat-llm.spec.ts",
+        "**/cv-enhancement-llm.spec.ts",
         "**/tax-prep-journey.spec.ts",
         "**/real-user-journey.spec.ts",
       ],
@@ -36,6 +37,17 @@ export default defineConfig({
       name: "journey",
       testMatch: "**/tax-prep-journey.spec.ts",
       use: { ...devices["Desktop Chrome"], actionTimeout: 15_000 },
+    },
+    {
+      name: "cv-enhancement",
+      testMatch: "**/cv-enhancement-llm.spec.ts",
+      retries: 0,
+      use: {
+        ...devices["Desktop Chrome"],
+        actionTimeout: 60_000,
+        trace: "on",
+        video: "on",
+      },
     },
     {
       name: "smoke",

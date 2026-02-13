@@ -52,26 +52,29 @@ def _encode_notification(email: str, history_id: int) -> str:
 
 class TestPull:
     def test_pull_parses_notifications(self, client):
-        resp = _mock_response(200, {
-            "receivedMessages": [
-                {
-                    "ackId": "ack-1",
-                    "message": {
-                        "data": _encode_notification("user@gmail.com", 12345),
-                        "messageId": "pubsub-msg-1",
-                        "publishTime": "2026-02-11T10:00:00Z",
+        resp = _mock_response(
+            200,
+            {
+                "receivedMessages": [
+                    {
+                        "ackId": "ack-1",
+                        "message": {
+                            "data": _encode_notification("user@gmail.com", 12345),
+                            "messageId": "pubsub-msg-1",
+                            "publishTime": "2026-02-11T10:00:00Z",
+                        },
                     },
-                },
-                {
-                    "ackId": "ack-2",
-                    "message": {
-                        "data": _encode_notification("other@gmail.com", 67890),
-                        "messageId": "pubsub-msg-2",
-                        "publishTime": "2026-02-11T10:01:00Z",
+                    {
+                        "ackId": "ack-2",
+                        "message": {
+                            "data": _encode_notification("other@gmail.com", 67890),
+                            "messageId": "pubsub-msg-2",
+                            "publishTime": "2026-02-11T10:01:00Z",
+                        },
                     },
-                },
-            ],
-        })
+                ],
+            },
+        )
         with patch("app.email.pubsub.httpx.post", return_value=resp):
             messages = client.pull()
 
@@ -93,17 +96,20 @@ class TestPull:
         assert messages == []
 
     def test_pull_invalid_data_still_returns_for_ack(self, client):
-        resp = _mock_response(200, {
-            "receivedMessages": [
-                {
-                    "ackId": "ack-bad",
-                    "message": {
-                        "data": base64.b64encode(b"not json").decode(),
-                        "publishTime": "2026-02-11T10:00:00Z",
+        resp = _mock_response(
+            200,
+            {
+                "receivedMessages": [
+                    {
+                        "ackId": "ack-bad",
+                        "message": {
+                            "data": base64.b64encode(b"not json").decode(),
+                            "publishTime": "2026-02-11T10:00:00Z",
+                        },
                     },
-                },
-            ],
-        })
+                ],
+            },
+        )
         with patch("app.email.pubsub.httpx.post", return_value=resp):
             messages = client.pull()
 
@@ -115,14 +121,17 @@ class TestPull:
     def test_pull_missing_fields_still_parseable(self, client):
         # Valid JSON but missing emailAddress
         data = base64.b64encode(json.dumps({"historyId": 123}).encode()).decode()
-        resp = _mock_response(200, {
-            "receivedMessages": [
-                {
-                    "ackId": "ack-partial",
-                    "message": {"data": data, "publishTime": "2026-02-11T10:00:00Z"},
-                },
-            ],
-        })
+        resp = _mock_response(
+            200,
+            {
+                "receivedMessages": [
+                    {
+                        "ackId": "ack-partial",
+                        "message": {"data": data, "publishTime": "2026-02-11T10:00:00Z"},
+                    },
+                ],
+            },
+        )
         with patch("app.email.pubsub.httpx.post", return_value=resp):
             messages = client.pull()
 

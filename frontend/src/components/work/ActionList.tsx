@@ -365,7 +365,6 @@ export function ActionList({
           }
         >
           <ActionRow
-            key={thing.id}
             thing={thing}
             onComplete={onComplete}
             onToggleFocus={handleToggleFocus}

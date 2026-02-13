@@ -142,12 +142,14 @@ class _HealthRequestHandler(BaseHTTPRequestHandler):
             return
 
         healthy = state.is_healthy()
-        body = json.dumps({
-            "status": "ok" if healthy else "stuck",
-            "worker": state.worker_name,
-            "seconds_since_last_poll": round(state.seconds_since_last_poll(), 2),
-            "uptime_seconds": round(state.uptime_seconds(), 2),
-        }).encode("utf-8")
+        body = json.dumps(
+            {
+                "status": "ok" if healthy else "stuck",
+                "worker": state.worker_name,
+                "seconds_since_last_poll": round(state.seconds_since_last_poll(), 2),
+                "uptime_seconds": round(state.uptime_seconds(), 2),
+            }
+        ).encode("utf-8")
 
         self.send_response(200 if healthy else 503)
         self.send_header("Content-Type", "application/json")

@@ -293,4 +293,157 @@ describe("ReferenceList", () => {
       newer.compareDocumentPosition(older) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
+
+  // -----------------------------------------------------------------------
+  // Organization grouping
+  // -----------------------------------------------------------------------
+
+  const orgs = [
+    { id: "org-nueva", name: "Nueva Tierra" },
+    { id: "org-autonomo", name: "Autonomo Wolfgang" },
+  ];
+
+  const makeOrgRefs = () => [
+    createReferenceMaterial({
+      name: "NT Tax Guide",
+      orgRef: { id: "org-nueva", name: "Nueva Tierra" },
+      provenance: withCreatedAt("2025-06-01T10:00:00Z"),
+    }),
+    createReferenceMaterial({
+      name: "NT Invoice",
+      orgRef: { id: "org-nueva", name: "Nueva Tierra" },
+      provenance: withCreatedAt("2025-05-01T10:00:00Z"),
+    }),
+    createReferenceMaterial({
+      name: "Autonomo Receipt",
+      orgRef: { id: "org-autonomo", name: "Autonomo Wolfgang" },
+      provenance: withCreatedAt("2025-04-01T10:00:00Z"),
+    }),
+    createReferenceMaterial({
+      name: "Personal Notes",
+      provenance: withCreatedAt("2025-03-01T10:00:00Z"),
+    }),
+  ];
+
+  it("groups references by organization when organizations provided", () => {
+    render(
+      <ReferenceList
+        references={makeOrgRefs()}
+        organizations={orgs}
+        onAdd={noop}
+        onArchive={noop}
+        onSelect={noop}
+      />,
+    );
+    expect(screen.getByText(/Nueva Tierra/)).toBeInTheDocument();
+    expect(screen.getByText(/Autonomo Wolfgang/)).toBeInTheDocument();
+    expect(screen.getByText(/Unassigned/)).toBeInTheDocument();
+  });
+
+  it("shows item count per organization group", () => {
+    render(
+      <ReferenceList
+        references={makeOrgRefs()}
+        organizations={orgs}
+        onAdd={noop}
+        onArchive={noop}
+        onSelect={noop}
+      />,
+    );
+    // Group headers include counts — e.g. "Nueva Tierra (2)"
+    expect(screen.getByText(/Nueva Tierra/)).toHaveTextContent(
+      "Nueva Tierra (2)",
+    );
+    expect(screen.getByText(/Autonomo Wolfgang/)).toHaveTextContent(
+      "Autonomo Wolfgang (1)",
+    );
+    expect(screen.getByText(/Unassigned/)).toHaveTextContent("Unassigned (1)");
+  });
+
+  it("sorts org groups alphabetically with Unassigned last", () => {
+    render(
+      <ReferenceList
+        references={makeOrgRefs()}
+        organizations={orgs}
+        onAdd={noop}
+        onArchive={noop}
+        onSelect={noop}
+      />,
+    );
+    const autonomo = screen.getByText(/Autonomo Wolfgang/);
+    const nueva = screen.getByText(/Nueva Tierra/);
+    const unassigned = screen.getByText(/Unassigned/);
+    // Autonomo before Nueva (alphabetical)
+    expect(
+      autonomo.compareDocumentPosition(nueva) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    // Unassigned is last
+    expect(
+      nueva.compareDocumentPosition(unassigned) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("org groups are expanded by default and collapsible", async () => {
+    const user = userEvent.setup();
+    render(
+      <ReferenceList
+        references={makeOrgRefs()}
+        organizations={orgs}
+        onAdd={noop}
+        onArchive={noop}
+        onSelect={noop}
+      />,
+    );
+
+    // Items visible by default
+    expect(screen.getByText("NT Tax Guide")).toBeInTheDocument();
+    expect(screen.getByText("NT Invoice")).toBeInTheDocument();
+
+    // Collapse Nueva Tierra group
+    await user.click(
+      screen.getByRole("button", { name: "Collapse Nueva Tierra" }),
+    );
+    expect(screen.queryByText("NT Tax Guide")).not.toBeInTheDocument();
+    expect(screen.queryByText("NT Invoice")).not.toBeInTheDocument();
+
+    // Other groups remain visible
+    expect(screen.getByText("Autonomo Receipt")).toBeInTheDocument();
+    expect(screen.getByText("Personal Notes")).toBeInTheDocument();
+  });
+
+  it("items within org groups sorted newest first", () => {
+    render(
+      <ReferenceList
+        references={makeOrgRefs()}
+        organizations={orgs}
+        onAdd={noop}
+        onArchive={noop}
+        onSelect={noop}
+      />,
+    );
+    const guide = screen.getByText("NT Tax Guide");
+    const invoice = screen.getByText("NT Invoice");
+    // guide (June) before invoice (May) — newest first
+    expect(
+      guide.compareDocumentPosition(invoice) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("renders flat list without groups when no organizations provided", () => {
+    render(
+      <ReferenceList
+        references={makeOrgRefs()}
+        onAdd={noop}
+        onArchive={noop}
+        onSelect={noop}
+      />,
+    );
+    // All items visible without group headers
+    expect(screen.getByText("NT Tax Guide")).toBeInTheDocument();
+    expect(screen.getByText("Personal Notes")).toBeInTheDocument();
+    expect(screen.queryByText("Nueva Tierra")).not.toBeInTheDocument();
+    expect(screen.queryByText("Unassigned")).not.toBeInTheDocument();
+  });
 });

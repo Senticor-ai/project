@@ -1,3 +1,4 @@
+import hashlib
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, status
@@ -13,15 +14,19 @@ from ..idempotency import (
 )
 from ..models import (
     FileCompleteRequest,
+    FileContentResponse,
     FileInitiateRequest,
     FileInitiateResponse,
     FileMetaResponse,
     FileRecord,
+    RenderPdfRequest,
+    RenderPdfResponse,
     SearchIndexStatusResponse,
 )
 from ..outbox import enqueue_event
 from ..search.jobs import enqueue_job, get_job, serialize_job
 from ..storage import get_storage
+from ..text_extractor import extract_file_text
 
 router = APIRouter(prefix="/files", tags=["files"], dependencies=[Depends(get_current_user)])
 
@@ -277,10 +282,7 @@ def complete_upload(
             )
 
         chunk_total = int(upload["chunk_total"])
-        missing = [
-            i for i in range(chunk_total)
-            if not storage.exists(f"{upload_prefix}/part-{i}")
-        ]
+        missing = [i for i in range(chunk_total) if not storage.exists(f"{upload_prefix}/part-{i}")]
         if missing:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -440,6 +442,53 @@ def get_file(
 
 
 @router.get(
+    "/{file_id}/content",
+    response_model=FileContentResponse,
+    summary="Get extracted text content of a file",
+    description="Returns text extracted from the file (PDF via pypdf, plain text passthrough).",
+)
+def get_file_content(
+    file_id: str,
+    max_chars: int = Query(default=50000, le=200000, description="Maximum characters to extract."),
+    current_org=Depends(get_current_org),
+):
+    org_id = current_org["org_id"]
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT original_name, content_type, size_bytes, storage_path
+                FROM files
+                WHERE file_id = %s AND org_id = %s
+                """,
+                (file_id, org_id),
+            )
+            row = cur.fetchone()
+
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+
+    storage = get_storage()
+    local_path = storage.resolve_path(row["storage_path"])
+    if local_path is None or not local_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File data not found in storage",
+        )
+
+    text = extract_file_text(local_path, row["content_type"], max_chars)
+    truncated = len(text) >= max_chars
+
+    return FileContentResponse(
+        file_id=file_id,
+        original_name=row["original_name"],
+        content_type=row["content_type"],
+        text=text,
+        truncated=truncated,
+    )
+
+
+@router.get(
     "/{file_id}/meta",
     response_model=FileMetaResponse,
     summary="Get file metadata",
@@ -507,3 +556,69 @@ def get_file_index_status(
     job = get_job(org_id, "file", file_id)
     payload = serialize_job(job, "file", file_id, org_id)
     return JSONResponse(content=payload)
+
+
+@router.post(
+    "/render-pdf",
+    response_model=RenderPdfResponse,
+    summary="Render structured CV data to PDF",
+    description="Accepts structured CV data + custom CSS, renders to PDF via WeasyPrint, "
+    "and stores the file.",
+    status_code=status.HTTP_201_CREATED,
+)
+def render_pdf(
+    payload: RenderPdfRequest,
+    current_user=Depends(get_current_user),
+    current_org=Depends(get_current_org),
+):
+    from ..document_renderer import render_cv_to_pdf
+
+    org_id = current_org["org_id"]
+    pdf_bytes = render_cv_to_pdf(payload.cv, payload.css)
+    digest = hashlib.sha256(pdf_bytes).hexdigest()
+    storage = get_storage()
+
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO files (
+                    org_id,
+                    owner_id,
+                    original_name,
+                    content_type,
+                    size_bytes,
+                    sha256,
+                    storage_path
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                RETURNING file_id, created_at
+                """,
+                (
+                    org_id,
+                    current_user["id"],
+                    payload.filename,
+                    "application/pdf",
+                    len(pdf_bytes),
+                    digest,
+                    "",  # placeholder — updated after we know file_id
+                ),
+            )
+            file_row = cur.fetchone()
+            file_id = str(file_row["file_id"])
+
+            storage_path = f"files/{file_id}"
+            cur.execute(
+                "UPDATE files SET storage_path = %s WHERE file_id = %s",
+                (storage_path, file_id),
+            )
+        conn.commit()
+
+    storage.write(storage_path, pdf_bytes)
+
+    return RenderPdfResponse(
+        file_id=file_id,
+        original_name=payload.filename,
+        size_bytes=len(pdf_bytes),
+        download_url=f"/files/{file_id}",
+    )

@@ -247,11 +247,17 @@ export interface ItemEditableFields {
   energyLevel?: EnergyLevel;
   projectId?: CanonicalId;
   description?: string;
+  orgRef?: OrgRef;
 }
 
 // ---------------------------------------------------------------------------
 // Project
 // ---------------------------------------------------------------------------
+
+export interface OrgRef {
+  id: string;
+  name: string;
+}
 
 export interface Project extends BaseEntity {
   bucket: "project";
@@ -260,6 +266,7 @@ export interface Project extends BaseEntity {
   reviewDate?: string;
   completedAt?: string;
   isFocused: boolean;
+  orgRef?: OrgRef;
 }
 
 // ---------------------------------------------------------------------------
@@ -274,6 +281,7 @@ export interface ReferenceMaterial extends BaseEntity {
   encodingFormat?: string;
   url?: string;
   origin?: ReferenceOrigin;
+  orgRef?: OrgRef;
 }
 
 // ---------------------------------------------------------------------------

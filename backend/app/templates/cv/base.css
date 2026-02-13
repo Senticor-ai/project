@@ -1,0 +1,88 @@
+/* Base CV reset + print foundations.
+   Agent-generated CSS handles all visual styling. */
+
+@page {
+  size: A4;
+  margin: 20mm 18mm 22mm 18mm;
+
+  @bottom-left {
+    content: element(page-name);
+    font-size: 8pt;
+    color: #94a3b8;
+  }
+  @bottom-right {
+    content: "Seite " counter(page) " / " counter(pages);
+    font-size: 8pt;
+    color: #94a3b8;
+  }
+}
+
+/* First page: no header/footer running name (the full header is visible) */
+@page :first {
+  @bottom-left {
+    content: none;
+  }
+}
+
+/* Running element: name floated into page margin on pages 2+ */
+.page-name {
+  position: running(page-name);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-size: 10pt;
+  line-height: 1.4;
+  color: #1a1a1a;
+}
+
+h1, h2, h3 {
+  page-break-after: avoid;
+}
+
+/* Sections get vertical rhythm — agent CSS can override */
+section {
+  margin-top: 1em;
+}
+
+h2 {
+  margin-bottom: 0.4em;
+}
+
+article {
+  page-break-inside: avoid;
+}
+
+/* Space between experience/education entries */
+article + article {
+  margin-top: 0.8em;
+}
+
+ul {
+  list-style-position: outside;
+  padding-left: 1.2em;
+}
+
+/* Bullet lists inside job entries */
+.job-bullets {
+  margin-top: 0.3em;
+}
+
+.job-summary {
+  margin-top: 0.15em;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Structural separators (em dash, pipe) — in HTML, not CSS ::before */
+.sep {
+  color: #94a3b8;
+}

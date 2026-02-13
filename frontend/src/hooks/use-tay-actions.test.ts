@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useTayActions } from "./use-tay-actions";
 import type { TaySuggestion } from "@/model/chat-types";
+import type { CanonicalId } from "@/model/canonical-id";
 import type { ExecuteToolResponse } from "@/lib/api-client";
 
 // ---------------------------------------------------------------------------
@@ -126,6 +127,44 @@ describe("useTayActions", () => {
           arguments: suggestion,
         },
         conversationId: "conv-7",
+      });
+    });
+
+    it("render_cv", async () => {
+      mockExecuteTool.mockResolvedValueOnce({
+        createdItems: [
+          {
+            canonicalId: "urn:app:reference:cv1",
+            name: "lebenslauf.pdf",
+            type: "reference",
+          },
+        ],
+      });
+
+      const suggestion: TaySuggestion = {
+        type: "render_cv",
+        cv: {
+          name: "Max Mustermann",
+          headline: "Developer",
+          experience: [{ title: "Senior Dev", period: "2020-2024" }],
+        },
+        css: "body { font-family: Inter; }",
+        filename: "lebenslauf.pdf",
+        projectId: "urn:app:project:p1" as CanonicalId,
+      };
+
+      const { result } = renderHook(() => useTayActions());
+
+      await act(async () => {
+        await result.current.executeSuggestion(suggestion, "conv-cv");
+      });
+
+      expect(mockExecuteTool).toHaveBeenCalledWith({
+        toolCall: {
+          name: "render_cv",
+          arguments: suggestion,
+        },
+        conversationId: "conv-cv",
       });
     });
   });

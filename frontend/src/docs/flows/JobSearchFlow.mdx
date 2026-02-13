@@ -1,0 +1,379 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+import { Mermaid } from "../../components/docs/Mermaid";
+
+<Meta title="Flows/Job Search/Overview" />
+
+# Flow: Job Search — CV Tailoring with Tay
+
+Upload a job description, let Tay analyse it against your CV, and generate a tailored PDF resume — all within TerminAndoYo.
+
+---
+
+## Quick Start Guide
+
+**What you need:**
+
+- Your CV as a file (Markdown, PDF, or plain text)
+- A job description (saved HTML page, PDF, or pasted text)
+
+**Step-by-step:**
+
+1. **Create a project** — Open Tay and say: _"Erstelle ein Bewerbungsprojekt für die Rolle Product Manager bei Anthropic."_
+   Tay will suggest a project with actions. Accept the suggestion.
+
+2. **Upload your documents** — Drag your CV and the job description into the inbox. Triage them into the project as references.
+
+3. **Ask for analysis** — Say: _"Vergleiche meinen Lebenslauf mit der Stellenanzeige."_
+   Tay reads both documents, then lists strengths, gaps, and concrete suggestions.
+
+4. **Request a tailored CV** — Say: _"Erstelle eine angepasste Version. Stil: modern, clean, Schriftart Inter."_
+   Tay generates a `render_cv` suggestion card with the structured CV data + custom CSS.
+
+5. **Review and accept** — Check the suggestion card, then click Accept. The PDF is rendered and saved as a reference in your project.
+
+6. **Download** — Find the PDF in your project's reference bucket. Click the download icon.
+
+---
+
+## Overview
+
+<Mermaid chart={`
+graph LR
+  U["<b>UPLOAD</b><br/>CV + Job Description"]
+  A["<b>ANALYSE</b><br/>Tay reads & compares"]
+  T["<b>TAILOR</b><br/>Tay adapts CV content"]
+  D["<b>DESIGN</b><br/>User picks style"]
+  R["<b>RENDER</b><br/>PDF generated"]
+  S["<b>SAVE</b><br/>Reference in project"]
+
+  U --> A --> T --> D --> R --> S
+
+  style U fill:#e3f2fd,stroke:#1976d2
+  style A fill:#e3f2fd,stroke:#1976d2
+  style T fill:#fff3e0,stroke:#ef6c00
+  style D fill:#fff3e0,stroke:#ef6c00
+  style R fill:#e8f5e9,stroke:#2e7d32
+  style S fill:#e8f5e9,stroke:#2e7d32
+`} />
+
+---
+
+## Phase 1: Upload Documents
+
+**User story**: _"I have my CV as a markdown file and saved the job posting as HTML. I want both in my project."_
+
+**Flow**:
+
+1. Drag files into InboxCapture (or paste a URL for the job posting)
+2. Files appear as inbox items (DigitalDocument / CreativeWork)
+3. Triage each into the project — split-on-triage creates a ReadAction + reference
+
+**What happens under the hood**:
+
+- File upload via chunked upload API
+- Text extraction (pypdf for PDF, raw read for markdown/HTML) indexes the content
+- Items linked to the project via `projectIds`
+
+| Capability | Status |
+|---|---|
+| File drag-and-drop upload | Works |
+| PDF text extraction | Works |
+| Markdown/HTML text extraction | Works |
+| Triage into project | Works |
+
+---
+
+## Phase 2: Analyse — Tay Reads Both Documents
+
+**User story**: _"How well does my CV fit this job? What should I emphasise?"_
+
+**Flow**:
+
+1. User asks Tay to compare CV and job description
+2. Tay calls `list_project_items(projectId)` → discovers item IDs
+3. Tay calls `read_item_content(jobDescriptionId)` → gets full text
+4. Tay calls `read_item_content(cvId)` → gets full text
+5. Tay streams an analysis: strengths, gaps, concrete suggestions
+
+**Key**: `read_item_content` and `list_project_items` are **not** exit conditions — the agent executes them inline and continues reasoning. No user approval needed (read-only, no side effects).
+
+<Mermaid chart={`
+sequenceDiagram
+  participant U as User
+  participant T as Tay (Agent)
+  participant B as Backend API
+
+  U->>T: "Vergleiche meinen Lebenslauf mit der Stellenanzeige"
+  T->>B: list_project_items(projectId)
+  B-->>T: [{id: cv_id, name: "CV.md"}, {id: jd_id, name: "Job Posting.html"}]
+  T->>B: read_item_content(jd_id)
+  B-->>T: "Product Manager, Safeguards — Anthropic..."
+  T->>B: read_item_content(cv_id)
+  B-->>T: "Wolfgang Ihloff — Product Leader..."
+  T-->>U: "Stärken: Cloud Platform experience, AI Adoption..."
+`} />
+
+| Capability | Status |
+|---|---|
+| `list_project_items` tool | Works |
+| `read_item_content` tool | Works |
+| Text extraction for content endpoint | Works |
+| Agent inline tool execution (non-exit) | Works |
+
+---
+
+## Phase 3: Tailor — Tay Adapts the CV
+
+**User story**: _"Create a tailored version. This role is onsite in San Francisco, so change my Adobe location from 'Remote - USA' to 'San Jose, CA & Hamburg, Germany' and emphasise platform experience."_
+
+**What Tay can change**:
+
+The agent produces **new** structured CV data in the `render_cv` tool call. It can modify anything:
+
+- **Locations** — Change "Remote" to actual office cities for onsite roles
+- **Bullets** — Rewrite to emphasise skills matching the job description
+- **Summary** — Tailor the headline and profile paragraph
+- **Skills** — Reorder or add skills that match the posting
+- **Job titles** — Keep official titles but adjust emphasis in summaries
+- **Education** — Highlight relevant coursework or projects
+
+The original CV file stays untouched as the master. Each tailored version is a fresh PDF.
+
+---
+
+## Phase 4: Design — User Picks Visual Style
+
+**User story**: _"Modern, clean, mit dezenten blauen Akzenten. Schrift: Inter."_
+
+**Flow**:
+
+1. Tay asks for design preferences (prompted by system instructions)
+2. User describes the desired look in natural language
+3. Tay generates custom CSS based on the description
+
+**Available fonts** (self-hosted, no network needed):
+
+| Font | Style | Weights |
+|---|---|---|
+| Inter | Clean, modern sans-serif | Regular (400), Bold (700) |
+| Source Sans 3 | Readable, professional sans-serif | Regular (400), Bold (700) |
+
+**What the agent controls via CSS**:
+
+- Font family and sizes
+- Colors and accent colors
+- Spacing and margins
+- Section heading styles
+- Skills badge appearance
+- Overall density (compact vs. spacious)
+
+**What the base template provides** (not overridable):
+
+- A4 page size with print margins
+- Page numbers ("Seite 1 / 2") in bottom-right
+- Running header (name) on pages 2+ in bottom-left
+- Structural HTML (header, sections, articles)
+- Separators between title/company (—) and period/location (|)
+- Page-break avoidance on headings and job entries
+
+---
+
+## Phase 5: Render — PDF Generation
+
+**User story**: _"The suggestion looks good — create the PDF."_
+
+**Flow**:
+
+1. Tay calls `render_cv` with structured CV data + CSS + filename + projectId
+2. This IS an exit condition — user sees a suggestion card and must approve
+3. On Accept, backend executes the rendering pipeline:
+
+<Mermaid chart={`
+graph TD
+  A["Agent produces<br/><b>CV JSON + CSS</b>"]
+  B["Jinja2 template<br/><b>base.html.j2</b>"]
+  C["Merge CSS<br/><b>@font-face + base.css + agent CSS</b>"]
+  D["WeasyPrint<br/><b>HTML+CSS → PDF</b>"]
+  E["Store file<br/><b>POST /files/render-pdf</b>"]
+  F["Create reference<br/><b>CreativeWork in project</b>"]
+
+  A --> B
+  A --> C
+  B --> D
+  C --> D
+  D --> E --> F
+
+  style A fill:#fff3e0,stroke:#ef6c00
+  style B fill:#e3f2fd,stroke:#1976d2
+  style C fill:#e3f2fd,stroke:#1976d2
+  style D fill:#e8f5e9,stroke:#2e7d32
+  style E fill:#e8f5e9,stroke:#2e7d32
+  style F fill:#e8f5e9,stroke:#2e7d32
+`} />
+
+**CV data structure** (what Tay produces):
+
+```json
+{
+  "cv": {
+    "name": "Wolfgang Ihloff",
+    "headline": "Product Leader, Technologist...",
+    "contact": {
+      "location": "Las Palmas, Spain",
+      "phone": "+34...",
+      "email": "wolfgang@ihloff.de",
+      "linkedin": "linkedin.com/in/wolfgangilhoff"
+    },
+    "summary": "Can do leader with 20+ years...",
+    "skills": ["AI Adoption", "Cloud Services", ...],
+    "experience": [
+      {
+        "company": "Aleph Alpha",
+        "title": "Team Lead Product",
+        "period": "Feb 2024 - Aug 2025",
+        "location": "Heidelberg (51% onsite)",
+        "summary": "Build out product teams...",
+        "bullets": ["Established product metrics...", ...]
+      }
+    ],
+    "education": [...],
+    "certifications": [...]
+  },
+  "css": "body { font-family: 'Inter', sans-serif; ... }",
+  "filename": "lebenslauf-anthropic-pm.pdf",
+  "projectId": "urn:app:project:abc123"
+}
+```
+
+| Capability | Status |
+|---|---|
+| `render_cv` agent tool | Works |
+| WeasyPrint PDF rendering | Works |
+| Self-hosted fonts (Inter, Source Sans 3) | Works |
+| Page numbers + running header | Works |
+| A4 print layout | Works |
+
+---
+
+## Phase 6: Save — Reference in Project
+
+**Flow**:
+
+1. PDF bytes stored via file storage API → gets a `file_id`
+2. CreativeWork reference created with `app:fileId` pointing to the PDF
+3. Reference linked to the project via `projectId`
+4. User sees the new reference in the project's reference bucket
+5. View inline (eye icon) or download (download icon)
+
+---
+
+## Iteration
+
+The flow is designed for multiple rounds:
+
+- **"The summary is too long, shorten it."** → Tay produces a new `render_cv` with a shorter summary
+- **"Use Source Sans 3 instead of Inter."** → Tay generates new CSS with the different font
+- **"Add my volunteer work."** → Tay adds a new section to the structured data
+- **"Make a version for the Berlin office."** → Tay adjusts locations and language emphasis
+
+Each accepted `render_cv` creates a separate PDF reference in the project. Old versions are preserved (no-delete policy).
+
+---
+
+## Component & Data Flow
+
+<Mermaid chart={`
+graph TD
+  IC["InboxCapture<br/><i>drag & drop files</i>"]
+  IT["InboxTriage<br/><i>assign to project</i>"]
+  TCP["TayChatPanel<br/><i>conversation</i>"]
+
+  subgraph "Agent Tools (inline)"
+    LPI["list_project_items"]
+    RIC["read_item_content"]
+  end
+
+  subgraph "Agent Tools (exit condition)"
+    RCV["render_cv"]
+  end
+
+  TSC["TaySuggestionCard<br/><i>review & accept</i>"]
+  TE["Tool Executor<br/><i>agents/tool_executor.py</i>"]
+  DR["Document Renderer<br/><i>WeasyPrint pipeline</i>"]
+  FS["File Storage"]
+  REF["Reference Item<br/><i>CreativeWork in project</i>"]
+
+  IC --> IT --> TCP
+  TCP --> LPI
+  TCP --> RIC
+  TCP --> RCV
+  RCV --> TSC
+  TSC -->|"Accept"| TE
+  TE --> DR
+  DR --> FS
+  TE --> REF
+
+  style IC fill:#e3f2fd,stroke:#1976d2
+  style IT fill:#e3f2fd,stroke:#1976d2
+  style TCP fill:#e3f2fd,stroke:#1976d2
+  style LPI fill:#f5f5f5,stroke:#999
+  style RIC fill:#f5f5f5,stroke:#999
+  style RCV fill:#fff3e0,stroke:#ef6c00
+  style TSC fill:#fff3e0,stroke:#ef6c00
+  style TE fill:#e8f5e9,stroke:#2e7d32
+  style DR fill:#e8f5e9,stroke:#2e7d32
+  style FS fill:#f5f5f5,stroke:#999
+  style REF fill:#f5f5f5,stroke:#999
+`} />
+
+---
+
+## Key Files
+
+| Layer | File | Purpose |
+|---|---|---|
+| **Template** | `backend/app/templates/cv/base.html.j2` | Structural HTML (sections, separators, running header) |
+| **Base CSS** | `backend/app/templates/cv/base.css` | Print foundations, page layout, page numbers |
+| **Fonts** | `backend/app/templates/cv/fonts/` | Inter + Source Sans 3 (woff2, self-hosted) |
+| **Renderer** | `backend/app/document_renderer.py` | Jinja2 + WeasyPrint pipeline |
+| **Endpoint** | `backend/app/routes/files.py` | `POST /files/render-pdf` |
+| **Agent tools** | `agents/tay.py` | `render_cv`, `read_item_content`, `list_project_items` |
+| **Tool executor** | `agents/tool_executor.py` | `_exec_render_cv` — renders PDF + creates reference |
+| **Frontend types** | `frontend/src/model/chat-types.ts` | `RenderCvSuggestion` interface |
+| **Frontend hook** | `frontend/src/hooks/use-tay-actions.ts` | Dispatches `render_cv` to backend |
+| **System prompt** | `agents/prompts/de/tay_system.j2` | CV analysis + rendering instructions for Tay |
+
+---
+
+## Example Conversation
+
+```
+User:  Erstelle ein Bewerbungsprojekt für Product Manager bei Anthropic.
+Tay:   [create_project_with_actions suggestion card]
+       → Project: "Bewerbung PM Anthropic"
+       → Actions: Lebenslauf anpassen, Anschreiben verfassen, ...
+User:  ✓ Accept
+
+User:  [drags CV.md and job-posting.html into inbox, triages to project]
+
+User:  Vergleiche meinen Lebenslauf mit der Stellenanzeige.
+Tay:   [reads both documents via inline tools]
+       Stärken:
+       - 20+ Jahre Product Management — passt zur Senior-Anforderung
+       - Cloud & AI Erfahrung bei Aleph Alpha — direkt relevant
+       - Plattform-Strategie bei Adobe — Enterprise-Erfahrung
+
+       Lücken:
+       - Keine explizite Erwähnung von AI Safety / Responsible AI
+       - Stellenanzeige betont Policy-Arbeit — nicht im CV abgebildet
+       - "Remote" Erfahrung weniger relevant für Hybrid-Rolle in SF
+
+       Empfehlung: Summary auf AI Safety fokussieren, Adobe-Erfahrung
+       mit konkreten Standorten statt "Remote" angeben.
+
+User:  Erstelle eine angepasste Version. Modern, clean, Inter.
+       Adobe war San Jose und Hamburg. Sycle war San Francisco.
+Tay:   [render_cv suggestion card with tailored data + CSS]
+User:  ✓ Accept
+       → PDF rendered, saved as reference in project
+```

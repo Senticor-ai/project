@@ -12,6 +12,7 @@ import type {
   Port,
   TriageResult,
   ItemEditableFields,
+  OrgRef,
 } from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
 import { createCanonicalId } from "@/model/canonical-id";
@@ -50,6 +51,16 @@ function getAdditionalProperty(
   propertyID: string,
 ): unknown {
   return props?.find((p) => p.propertyID === propertyID)?.value;
+}
+
+function parseOrgRef(props: PropertyValue[] | undefined): OrgRef | undefined {
+  const raw = getAdditionalProperty(props, "app:orgRef") as string | undefined;
+  if (!raw) return undefined;
+  try {
+    return JSON.parse(raw) as OrgRef;
+  } catch {
+    return undefined;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -162,6 +173,9 @@ export function toJsonLd(
     if (project.downloadUrl) {
       props.push(pv("app:downloadUrl", project.downloadUrl));
     }
+    if (project.orgRef) {
+      props.push(pv("app:orgRef", JSON.stringify(project.orgRef)));
+    }
     base.additionalProperty = props;
   } else if (item.bucket === "reference") {
     const ref = item as ReferenceMaterial;
@@ -187,6 +201,9 @@ export function toJsonLd(
     }
     if (ref.downloadUrl) {
       refProps.push(pv("app:downloadUrl", ref.downloadUrl));
+    }
+    if (ref.orgRef) {
+      refProps.push(pv("app:orgRef", JSON.stringify(ref.orgRef)));
     }
     base.additionalProperty = refProps;
   }
@@ -307,6 +324,7 @@ export function fromJsonLd(record: ItemRecord): AppItem {
       completedAt: (t.endTime as string) || undefined,
       isFocused:
         (getAdditionalProperty(props, "app:isFocused") as boolean) ?? false,
+      orgRef: parseOrgRef(props),
     };
   }
 
@@ -335,6 +353,7 @@ export function fromJsonLd(record: ItemRecord): AppItem {
           | "triaged"
           | "captured"
           | "file") || undefined,
+      orgRef: parseOrgRef(props),
     };
   }
 
@@ -369,6 +388,7 @@ export function fromJsonLd(record: ItemRecord): AppItem {
             | "triaged"
             | "captured"
             | "file") || undefined,
+        orgRef: parseOrgRef(props),
       };
     }
   }
@@ -496,6 +516,11 @@ export function buildItemEditPatch(
   }
   if ("tags" in fields) {
     patch.keywords = fields.tags;
+  }
+  if ("orgRef" in fields) {
+    additionalProps.push(
+      pv("app:orgRef", fields.orgRef ? JSON.stringify(fields.orgRef) : null),
+    );
   }
 
   if (additionalProps.length > 0) {

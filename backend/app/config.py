@@ -109,7 +109,9 @@ class Settings:
     gmail_redirect_uri: str
     gmail_scopes: str
     gmail_state_secret: str
+    backend_base_url: str
     frontend_base_url: str
+    storybook_url: str
     # Delegated JWT (agent On-Behalf-Of flows)
     delegation_jwt_secret: str
     delegation_jwt_ttl_seconds: int
@@ -289,8 +291,11 @@ def load_settings() -> Settings:
         gmail_scopes=_get_env("GMAIL_SCOPES", "https://mail.google.com/")
         or "https://mail.google.com/",
         gmail_state_secret=_get_env("GMAIL_STATE_SECRET", "") or "",
+        backend_base_url=_get_env("BACKEND_BASE_URL", "http://localhost:8000")
+        or "http://localhost:8000",
         frontend_base_url=_get_env("FRONTEND_BASE_URL", "http://localhost:5173")
         or "http://localhost:5173",
+        storybook_url=_get_env("STORYBOOK_URL", "http://localhost:6006") or "http://localhost:6006",
         # Gmail Watch + Pub/Sub (auto-detected from config presence)
         gmail_pubsub_project_id=_get_env("GMAIL_PUBSUB_PROJECT_ID", "") or "",
         gmail_pubsub_topic=_get_env("GMAIL_PUBSUB_TOPIC", "") or "",

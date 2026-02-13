@@ -15,6 +15,7 @@ export interface ChatMessageListProps {
   onAcceptSuggestion?: (messageId: string) => void;
   onDismissSuggestion?: (messageId: string) => void;
   onItemClick?: (canonicalId: string) => void;
+  agentName?: string;
   className?: string;
 }
 
@@ -23,6 +24,7 @@ export function ChatMessageList({
   onAcceptSuggestion,
   onDismissSuggestion,
   onItemClick,
+  agentName = "Tay",
   className,
 }: ChatMessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -43,7 +45,7 @@ export function ChatMessageList({
           <Icon name="chat_bubble" size={24} className="text-blueprint-500" />
         </div>
         <p className="text-sm text-text-muted">
-          Hallo! Ich bin Tay. Wie kann ich helfen?
+          Hallo! Ich bin {agentName}. Wie kann ich helfen?
         </p>
       </div>
     );
@@ -60,6 +62,7 @@ export function ChatMessageList({
           onAcceptSuggestion={onAcceptSuggestion}
           onDismissSuggestion={onDismissSuggestion}
           onItemClick={onItemClick}
+          agentName={agentName}
         />
       ))}
       <div ref={bottomRef} />
@@ -76,11 +79,13 @@ function ChatMessageRenderer({
   onAcceptSuggestion,
   onDismissSuggestion,
   onItemClick,
+  agentName,
 }: {
   message: ChatMessage;
   onAcceptSuggestion?: (messageId: string) => void;
   onDismissSuggestion?: (messageId: string) => void;
   onItemClick?: (canonicalId: string) => void;
+  agentName: string;
 }) {
   switch (message.kind) {
     case "text":
@@ -91,7 +96,7 @@ function ChatMessageRenderer({
       );
 
     case "thinking":
-      return <TayThinkingIndicator />;
+      return <TayThinkingIndicator agentName={agentName} />;
 
     case "suggestion":
       return (

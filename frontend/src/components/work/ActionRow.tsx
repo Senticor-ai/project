@@ -321,6 +321,19 @@ export function ActionRow({
           </div>
         )}
 
+        {/* Project badge */}
+        {projects &&
+          thing.projectIds[0] &&
+          (() => {
+            const proj = projects.find((p) => p.id === thing.projectIds[0]);
+            return proj ? (
+              <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-app-project/10 px-1.5 py-0.5 text-[10px] font-medium text-app-project">
+                <Icon name="folder" size={10} />
+                {proj.name ?? "Untitled"}
+              </span>
+            ) : null;
+          })()}
+
         {/* Due date */}
         {dueDateInfo && (
           <span className={cn("shrink-0 text-xs", dueDateInfo.className)}>
@@ -378,6 +391,32 @@ export function ActionRow({
                     Move to {label}
                   </button>
                 ))}
+              {/* Move to project */}
+              {onEdit && projects && projects.length > 0 && (
+                <>
+                  <div className="my-1 h-px bg-border" />
+                  {projects
+                    .filter((p) => p.id !== thing.projectIds[0])
+                    .map((p) => (
+                      <button
+                        key={p.id}
+                        role="menuitem"
+                        onClick={() => {
+                          onEdit(thing.id, { projectId: p.id });
+                          setMenuOpen(false);
+                        }}
+                        className="flex w-full items-center gap-2 rounded-[var(--radius-sm)] px-2 py-1.5 text-left text-xs hover:bg-paper-100"
+                      >
+                        <Icon
+                          name="drive_file_move"
+                          size={12}
+                          className="text-text-subtle"
+                        />
+                        {p.name ?? "Untitled"}
+                      </button>
+                    ))}
+                </>
+              )}
               <div className="my-1 h-px bg-border" />
               <button
                 role="menuitem"

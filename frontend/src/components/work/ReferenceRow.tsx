@@ -24,6 +24,7 @@ export interface ReferenceRowProps {
   /** Bucket where the linked ReadAction lives (shown as a badge). */
   linkedActionBucket?: ActionItemBucket;
   projects?: Pick<Project, "id" | "name">[];
+  organizations?: { id: string; name: string }[];
   className?: string;
 }
 
@@ -92,6 +93,7 @@ function referenceToEditorValues(ref: ReferenceMaterial): ItemEditableFields {
     tags: ref.tags ?? [],
     description: ref.description,
     projectId: ref.projectIds[0],
+    orgRef: ref.orgRef,
   };
 }
 
@@ -104,6 +106,7 @@ export function ReferenceRow({
   onEdit,
   linkedActionBucket,
   projects,
+  organizations,
   className,
 }: ReferenceRowProps) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -297,6 +300,7 @@ export function ReferenceRow({
             values={referenceToEditorValues(reference)}
             onChange={handleEditorChange}
             projects={projects}
+            organizations={organizations}
           />
         </div>
       )}

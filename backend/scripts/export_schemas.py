@@ -16,12 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.routes.schemas import _REGISTRY, _build_schema
 
 DEFAULT_OUT = (
-    Path(__file__).resolve().parents[2]
-    / "frontend"
-    / "src"
-    / "lib"
-    / "__tests__"
-    / "schemas"
+    Path(__file__).resolve().parents[2] / "frontend" / "src" / "lib" / "__tests__" / "schemas"
 )
 
 

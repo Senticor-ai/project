@@ -336,14 +336,20 @@ CREATE TABLE IF NOT EXISTS conversations (
   org_id          UUID NOT NULL REFERENCES organizations(id),
   user_id         UUID NOT NULL REFERENCES users(id),
   external_id     TEXT NOT NULL,
+  agent_backend   TEXT NOT NULL DEFAULT 'haystack',
   title           TEXT,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   archived_at     TIMESTAMPTZ
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_conversations_org_external
-  ON conversations (org_id, external_id) WHERE archived_at IS NULL;
+-- Add agent_backend to existing tables (idempotent migration)
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS agent_backend TEXT NOT NULL DEFAULT 'haystack';
+
+-- Unique per org + external_id + agent_backend (each backend gets its own conversation)
+DROP INDEX IF EXISTS idx_conversations_org_external;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_conversations_org_external_backend
+  ON conversations (org_id, external_id, agent_backend) WHERE archived_at IS NULL;
 
 -- Chat messages
 CREATE TABLE IF NOT EXISTS chat_messages (

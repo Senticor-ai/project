@@ -142,3 +142,86 @@ class TestBackendClient:
 
         body = mock_client.post.call_args.kwargs["json"]
         assert body["source"] == "ai-tay"
+
+
+class TestListWorkspaceOverview:
+    @pytest.mark.anyio
+    async def test_parses_items_into_overview(self, auth_ctx):
+        """list_workspace_overview groups items by bucket and extracts projects."""
+        items_response = [
+            {
+                "item": {
+                    "@id": "urn:app:project:p1",
+                    "@type": "Project",
+                    "name": "Tax 2024",
+                    "app:desiredOutcome": "File taxes",
+                },
+            },
+            {
+                "item": {
+                    "@id": "urn:app:action:a1",
+                    "@type": "Action",
+                    "name": "Buy milk",
+                    "app:bucket": "next",
+                },
+            },
+            {
+                "item": {
+                    "@id": "urn:app:reference:r1",
+                    "@type": "DigitalDocument",
+                    "name": "CV.pdf",
+                    "app:bucket": "reference",
+                },
+            },
+        ]
+        resp = MagicMock(spec=httpx.Response)
+        resp.json.return_value = items_response
+        resp.raise_for_status = MagicMock()
+
+        mock_client = AsyncMock()
+        mock_client.get.return_value = resp
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("backend_client.httpx.AsyncClient", return_value=mock_client):
+            client = BackendClient(base_url="http://test:8000")
+            result = await client.list_workspace_overview(auth_ctx)
+
+        assert len(result["projects"]) == 1
+        assert result["projects"][0]["name"] == "Tax 2024"
+        assert result["total_items"] == 3
+        assert "next" in result["items_by_bucket"]
+        assert "reference" in result["items_by_bucket"]
+        assert result["bucket_counts"]["next"] == 1
+        assert result["bucket_counts"]["reference"] == 1
+
+    @pytest.mark.anyio
+    async def test_caps_items_per_bucket(self, auth_ctx):
+        """list_workspace_overview caps at 20 items per bucket."""
+        items_response = [
+            {
+                "item": {
+                    "@id": f"urn:app:action:a{i}",
+                    "@type": "Action",
+                    "name": f"Action {i}",
+                    "app:bucket": "next",
+                },
+            }
+            for i in range(30)
+        ]
+        resp = MagicMock(spec=httpx.Response)
+        resp.json.return_value = items_response
+        resp.raise_for_status = MagicMock()
+
+        mock_client = AsyncMock()
+        mock_client.get.return_value = resp
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("backend_client.httpx.AsyncClient", return_value=mock_client):
+            client = BackendClient(base_url="http://test:8000")
+            result = await client.list_workspace_overview(auth_ctx)
+
+        assert len(result["items_by_bucket"]["next"]) == 20
+        assert result["bucket_counts"]["next"] == 30
+        assert result["total_items"] == 30

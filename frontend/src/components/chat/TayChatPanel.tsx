@@ -13,6 +13,7 @@ export interface TayChatPanelProps {
   onAcceptSuggestion: (messageId: string) => void;
   onDismissSuggestion: (messageId: string) => void;
   onItemClick?: (canonicalId: string) => void;
+  agentName?: string;
   className?: string;
 }
 
@@ -25,6 +26,7 @@ export function TayChatPanel({
   onAcceptSuggestion,
   onDismissSuggestion,
   onItemClick,
+  agentName = "Tay",
   className,
 }: TayChatPanelProps) {
   if (!isOpen) return null;
@@ -32,7 +34,7 @@ export function TayChatPanel({
   return (
     <aside
       role="complementary"
-      aria-label="Tay Chat"
+      aria-label={`${agentName} Chat`}
       className={cn(
         "fixed inset-y-0 right-0 z-40 flex w-full flex-col border-l border-paper-200 bg-paper-50 shadow-lg md:w-[400px]",
         className,
@@ -44,7 +46,7 @@ export function TayChatPanel({
           <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blueprint-100">
             <Icon name="chat_bubble" size={16} className="text-blueprint-600" />
           </div>
-          <span className="text-sm font-semibold">Tay</span>
+          <span className="text-sm font-semibold">{agentName}</span>
         </div>
         <button
           onClick={onClose}
@@ -61,12 +63,13 @@ export function TayChatPanel({
         onAcceptSuggestion={onAcceptSuggestion}
         onDismissSuggestion={onDismissSuggestion}
         onItemClick={onItemClick}
+        agentName={agentName}
         className="flex-1 p-4"
       />
 
       {/* Input */}
       <div className="border-t border-paper-200 p-4">
-        <ChatInput onSend={onSend} disabled={isLoading} />
+        <ChatInput onSend={onSend} disabled={isLoading} agentName={agentName} />
       </div>
     </aside>
   );

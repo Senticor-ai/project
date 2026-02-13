@@ -6,10 +6,16 @@ import { Icon } from "@/components/ui/Icon";
 export interface ChatInputProps {
   onSend: (text: string) => void;
   disabled?: boolean;
+  agentName?: string;
   className?: string;
 }
 
-export function ChatInput({ onSend, disabled, className }: ChatInputProps) {
+export function ChatInput({
+  onSend,
+  disabled,
+  agentName = "Tay",
+  className,
+}: ChatInputProps) {
   const [value, setValue] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -32,7 +38,7 @@ export function ChatInput({ onSend, disabled, className }: ChatInputProps) {
         onSubmit={handleSubmit}
         submitOnEnter
         disabled={disabled}
-        aria-label="Nachricht an Tay"
+        aria-label={`Nachricht an ${agentName}`}
         placeholder="Nachricht eingeben..."
         className="min-h-10 flex-1 rounded-lg border border-paper-300 bg-white px-3 py-2 text-sm focus:border-blueprint-400 focus:outline-none"
       />

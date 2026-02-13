@@ -1,0 +1,287 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Product/Epics/Org Knowledge & Person Items" />
+
+# Epic: Org Knowledge Documents, Person Items, and Agent Org Awareness
+
+**Status:** Planned
+**Priority:** Next (after current work)
+**Depends on:** [Org Categorization (Phase 1)](?path=/docs/engineering-architecture--docs) — `app:orgRef` on Projects and References, org grouping in Reference bucket
+**See also:** [Tay Copilot V2+](?path=/docs/product-epics-tay-copilot-v2---docs)
+
+## Context
+
+Phase 1 (org categorization via `app:orgRef`) is complete — orgs exist in the DB, items can be
+assigned to orgs, the Reference bucket groups by org. Now we need orgs to be **rich knowledge
+containers** that both human and AI (Tay) can work with.
+
+**Problem**: Tay has no context about the user's organizations. Wolfgang manages 3 entities
+(personal income, Nueva Tierra DE company, Autonomo Wolfgang Ihloff ES self-employment) and needs
+structured per-org knowledge that persists across conversations — org details, user preferences,
+running log, and agent scratch space. He also needs to track people associated with each org
+(accountants, contacts, founders).
+
+**Outcome**: Each org gets 4 auto-created markdown documents (GENERAL, USER, LOG, AGENT). Tay gets
+tools to read/write org context. People are modeled as schema.org `Person` items linked to orgs.
+
+---
+
+## Feature 1: Org Knowledge Documents
+
+When an organization is created via `POST /orgs`, the backend atomically creates 4 `DigitalDocument`
+items in the reference bucket, each backed by a markdown file:
+
+| Document | Purpose | Access |
+|---|---|---|
+| **GENERAL.md** | Org info: address, email, legal form, tax IDs | Human + Agent read/write |
+| **USER.md** | User's relationship and preferences for this org | Human read/write |
+| **LOG.md** | Chronological protocol of actions and key events | Human + Agent append-only |
+| **AGENT.md** | Tay's working notes and scratch space per org | Agent read/write, Human read-only |
+
+### Storage
+
+- Content stored as real markdown files in backend file storage (`StorageBackend.write()`)
+- Each document is a `DigitalDocument` item with `encodingFormat: "text/markdown"` and `app:fileId`
+  pointing to the file
+- New `app:orgDocType` additionalProperty (`"general" | "user" | "log" | "agent"`) identifies the
+  document purpose
+- Documents appear in the Reference bucket grouped under their org (reuses existing org grouping)
+
+### Schema Changes
+
+4 new columns on `organizations` table for fast document lookup:
+
+```sql
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS doc_general_id TEXT;
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS doc_user_id TEXT;
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS doc_log_id TEXT;
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS doc_agent_id TEXT;
+```
+
+`OrgResponse` extended with `doc_ids: { general, user, log, agent }`.
+
+### Backend Endpoints
+
+Two new endpoints for content management:
+
+- **`PATCH /items/{id}/file-content`** — Replace markdown file content (for GENERAL, USER, AGENT)
+- **`POST /items/{id}/append-content`** — Append timestamped entry (for LOG)
+
+Both use existing `StorageBackend` and item/file lookup patterns. Accessible via delegated JWT
+(agent) and session cookie (frontend).
+
+### Initial Templates (German)
+
+```markdown
+# {org_name}                              ← GENERAL.md
+## Kontakt
+- Adresse:
+- E-Mail:
+- Telefon:
+## Rechtsform
+## Steuer-IDs
+- Steuernummer:
+- USt-IdNr:
+```
+
+```markdown
+# Meine Rolle bei {org_name}             ← USER.md
+## Beziehung
+## Präferenzen
+## Wichtige Anmerkungen
+```
+
+```markdown
+# Log — {org_name}                        ← LOG.md
+---
+{timestamp} — Organisation erstellt
+```
+
+```markdown
+# Agent-Notizen — {org_name}             ← AGENT.md
+(Tay's Arbeitsnotizen)
+```
+
+---
+
+## Feature 2: Person Items (schema.org)
+
+New `@type: "Person"` reference items with schema.org-compatible fields:
+
+```typescript
+interface PersonItem extends BaseEntity {
+  bucket: "reference";
+  projectIds: CanonicalId[];
+  email?: string;
+  telephone?: string;
+  jobTitle?: string;
+  orgRef?: OrgRef;
+  orgRole?: OrgRole;  // "member" | "founder" | "accountant" | "advisor" | "interest" | string
+}
+```
+
+### JSON-LD Representation
+
+```json
+{
+  "@type": "Person",
+  "name": "Steuerberater Schmidt",
+  "email": "schmidt@steuer.de",
+  "telephone": "+49 123 456789",
+  "jobTitle": "Steuerberater",
+  "additionalProperty": [
+    { "@type": "PropertyValue", "propertyID": "app:bucket", "value": "reference" },
+    { "@type": "PropertyValue", "propertyID": "app:orgRef", "value": "{\"id\":\"org-nueva\",\"name\":\"Nueva Tierra\"}" },
+    { "@type": "PropertyValue", "propertyID": "app:orgRole", "value": "accountant" }
+  ]
+}
+```
+
+### Backend
+
+No backend changes needed — `Person` is just another `@type`. The existing `POST /items` accepts
+arbitrary types; only Action types trigger `_validate_action_bucket()`.
+
+### Frontend
+
+- New `PersonRow` component: name, role badge, org badge, email/phone
+- Renders in Reference list, grouped under org (via `orgRef`)
+- `isPersonItem()` type guard dispatches rendering
+
+---
+
+## Feature 3: Agent (Tay) Org Awareness
+
+### New Read Tools (inline, no approval needed)
+
+| Tool | Description |
+|---|---|
+| `list_organizations` | Lists user's orgs with doc canonical IDs |
+| `read_org_document` | Reads specific org doc content by org_id + doc_type |
+
+### New Write Tools (exit-condition, require approval)
+
+| Tool | Description |
+|---|---|
+| `update_agent_notes` | Replaces AGENT.md content for an org |
+| `append_org_log` | Appends timestamped entry to LOG.md |
+| `create_person` | Creates Person reference item linked to an org |
+
+### System Prompt Addition
+
+```
+## Organisationen
+Der Nutzer kann mehrere Organisationen verwalten. Jede Organisation hat vier
+Wissensdokumente:
+- GENERAL.md — Kontaktdaten, Rechtsform, Steuer-IDs
+- USER.md — Nutzerbeziehung und Präferenzen
+- LOG.md — Chronologisches Protokoll (nur anhängen)
+- AGENT.md — Dein Arbeitsspeicher für diese Organisation
+
+Verwende list_organizations um Organisationen zu finden.
+Verwende read_org_document um Org-Dokumente zu lesen.
+Verwende update_agent_notes um dir Notizen pro Organisation zu merken.
+Verwende append_org_log um wichtige Ereignisse zu protokollieren.
+Verwende create_person um Kontaktpersonen einer Organisation zu erfassen.
+```
+
+### Agent Memory Pattern
+
+Tay uses AGENT.md as persistent per-org memory:
+1. On first interaction about an org, Tay reads GENERAL.md + USER.md + AGENT.md
+2. After learning something new, Tay updates AGENT.md with structured notes
+3. Key events are appended to LOG.md for human + AI audit trail
+4. People mentioned are captured as Person items via `create_person`
+
+---
+
+## Frontend UI
+
+### Org Doc Display (Reference List)
+
+Org docs appear in the Reference bucket grouped under their org with special indicators:
+
+| Doc Type | Icon | Subtitle |
+|---|---|---|
+| GENERAL | `description` | Org &middot; Allgemein |
+| USER | `person` | Org &middot; Nutzer |
+| LOG | `history` | Org &middot; Protokoll |
+| AGENT | `smart_toy` | Org &middot; Agent |
+
+Org docs sort before other items within their group (fixed order: GENERAL, USER, LOG, AGENT).
+
+### Org Doc Editor
+
+When an org doc ReferenceRow is expanded:
+- **GENERAL.md / USER.md**: Textarea editor, save on blur
+- **LOG.md**: Read-only display + append input ("Add entry" button)
+- **AGENT.md**: Read-only display with last-updated timestamp
+
+---
+
+## Implementation Steps
+
+1. **Backend schema + file creation** — 4 new columns, `_create_org_document()` helper, extend
+   `POST /orgs` to atomically create org + 4 documents
+2. **Backend content endpoints** — `PATCH /items/{id}/file-content` + `POST /items/{id}/append-content`
+3. **Backend Person type** — verify existing endpoints accept `@type: "Person"` (no changes expected)
+4. **Frontend serialization** — `PersonItem` type, `OrgDocType`, `fromJsonLd`/`toJsonLd` Person branch,
+   `buildNewPersonJsonLd`, update `OrgResponse` type
+5. **Agent tools** — 5 new tools + `build_person_jsonld()` + `BackendClient` methods + system prompt
+6. **Frontend org doc display** — special icons/subtitles in `ReferenceRow`, `PersonRow` component
+7. **Frontend org doc editing** — `OrgDocEditor`, mutation hooks, MSW handlers
+8. **Connected stories + tests** — full coverage across all layers
+
+---
+
+## Files to Modify/Create
+
+| Layer | File | Change |
+|---|---|---|
+| Backend | `backend/db/schema.sql` | 4 new columns on organizations |
+| Backend | `backend/app/models.py` | `OrgDocIds`, extend `OrgResponse` |
+| Backend | `backend/app/routes/orgs.py` | `_create_org_document()`, extend create + list |
+| Backend | `backend/app/routes/items.py` | File content + append endpoints |
+| Agents | `agents/tay.py` | 5 new tools, org context in prompt |
+| Agents | `agents/tool_executor.py` | New tool dispatches |
+| Agents | `agents/jsonld_builders.py` | `build_person_jsonld()` |
+| Agents | `agents/backend_client.py` | `list_orgs()`, file content methods |
+| Agents | `agents/prompts/de/tay_system.j2` | Org awareness section |
+| Frontend | `frontend/src/model/types.ts` | `PersonItem`, `OrgDocType`, `OrgRole` |
+| Frontend | `frontend/src/lib/item-serializer.ts` | Person + orgDocType serialization |
+| Frontend | `frontend/src/lib/api-client.ts` | `OrgResponse` with `doc_ids` |
+| Frontend | `frontend/src/hooks/use-mutations.ts` | File content mutation hooks |
+| Frontend | NEW: `PersonRow.tsx` + stories + tests | Person item display |
+| Frontend | NEW: `OrgDocEditor.tsx` + stories + tests | Markdown editor for org docs |
+
+---
+
+## Future: Platform SDK & Agent CLI
+
+The org awareness tools described in Feature 3 will be implemented as **CLI commands** rather than
+individual Python tools. See the [Platform SDK & Agent CLI](?path=/docs/product-epics-platform-sdk-agent-cli--docs)
+epic for the full architecture.
+
+**Key decisions:**
+- **Stay with PostgreSQL.** JSON-LD JSONB is sufficient. No triple store (Fuseki/SPARQL) needed —
+  [NeurIPS'24 research](https://medium.com/data-science/can-llms-talk-sql-sparql-cypher-and-mongodb-query-language-mql-equally-well-a478f64cc769)
+  shows LLM tool-calling accuracy (~95%) far exceeds query language generation (SPARQL &lt;4%, Cypher ~34%).
+- **CLI over many tools.** One `tay_cli` tool replaces 7+ Python tools. Same CLI serves Tay, backend
+  automation, and 3rd party integrations.
+- **Isomorphic TypeScript.** Serializers + client + validation run in browser, Node.js, and as Tay's
+  tool — no more Python/TypeScript duplication.
+- **SHACL + CEL validation.** Shapes and rules validate client-side (fail fast) and server-side
+  (enforce). JSON-LD remains RDF-compatible if graph queries are ever needed.
+
+---
+
+## Verification
+
+1. Backend: `cd backend && uv run ruff check . && uv run mypy app/ && uv run python -m pytest`
+2. Agents: `cd agents && uv run ruff check . && uv run mypy . && uv run python -m pytest tests/`
+3. Frontend types: `cd frontend && npx tsc -b --noEmit`
+4. Frontend unit: `cd frontend && CI=1 npx vitest run --project=unit`
+5. Frontend storybook: `cd frontend && STORYBOOK_TESTS=1 CI=1 npx vitest run --project=storybook`
+6. Frontend lint: `cd frontend && npx eslint src/ && npx prettier --check src/`
+7. Manual E2E: Create org in Settings &rarr; 4 docs appear in Reference bucket &rarr; edit GENERAL.md
+   &rarr; ask Tay about the org &rarr; Tay reads org context &rarr; Tay appends to LOG.md

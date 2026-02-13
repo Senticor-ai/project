@@ -5,30 +5,38 @@ from __future__ import annotations
 from ..db import db_conn, jsonb
 
 
-def get_or_create_conversation(org_id: str, user_id: str, external_id: str) -> dict:
-    """Find existing conversation by external_id, or create one.
+def get_or_create_conversation(
+    org_id: str,
+    user_id: str,
+    external_id: str,
+    agent_backend: str = "haystack",
+) -> dict:
+    """Find existing conversation by external_id + agent_backend, or create one.
 
     Uses INSERT ... ON CONFLICT DO NOTHING + SELECT for idempotency.
+    Each agent backend gets its own conversation even with the same external_id.
     """
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO conversations (org_id, user_id, external_id)
-                VALUES (%s, %s, %s)
-                ON CONFLICT (org_id, external_id) WHERE archived_at IS NULL
+                INSERT INTO conversations (org_id, user_id, external_id, agent_backend)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (org_id, external_id, agent_backend)
+                    WHERE archived_at IS NULL
                 DO NOTHING
                 """,
-                (org_id, user_id, external_id),
+                (org_id, user_id, external_id, agent_backend),
             )
             cur.execute(
                 """
                 SELECT conversation_id, org_id, user_id, external_id,
-                       title, created_at, updated_at
+                       agent_backend, title, created_at, updated_at
                 FROM conversations
-                WHERE org_id = %s AND external_id = %s AND archived_at IS NULL
+                WHERE org_id = %s AND external_id = %s
+                      AND agent_backend = %s AND archived_at IS NULL
                 """,
-                (org_id, external_id),
+                (org_id, external_id, agent_backend),
             )
             row = cur.fetchone()
         conn.commit()

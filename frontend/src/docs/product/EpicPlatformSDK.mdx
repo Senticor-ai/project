@@ -1,0 +1,352 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Product/Epics/Platform SDK & Agent CLI" />
+
+# Epic: Platform SDK & Agent CLI
+
+**Status:** Planned
+**See also:** [Tay Copilot V2+](?path=/docs/product-epics-tay-copilot-v2---docs), [Architecture](?path=/docs/engineering-architecture--docs)
+
+**Immediate goal (Phase 1):** Replace the current 3 Tay tool calls with a single `tay_cli` tool using an in-place, test-driven refactor. First lock in current behavior, then switch execution path.
+
+## Context
+
+Tay's tool logic is duplicated across two languages — Python `jsonld_builders.py` mirrors the
+TypeScript `item-serializer.ts`, Python `backend_client.py` mirrors `api-client.ts`. Adding a new
+Tay capability requires changes in 4–5 Python files plus the system prompt. There is no client-side
+validation layer (JSON-LD is built and POSTed with only backend enforcement), and no integration
+path for 3rd parties.
+
+**Problem:** Every new Tay tool means more Python code that duplicates existing TypeScript logic.
+Validation rules live only on the server. External clients have no SDK.
+
+**Outcome:** A TypeScript `@terminandoyo/core` package with CLI commands, serializers, API client,
+and validation — used by the frontend, Tay (as a single tool), and 3rd party integrations.
+
+---
+
+## Architecture
+
+### Package Structure
+
+```txt
+packages/core/
+├── cli/                  # CLI entry point + subcommands
+│   ├── index.ts          # main CLI runner
+│   ├── items.ts          # items list|get|create|update|triage
+│   ├── orgs.ts           # orgs list|get|append-log|update-doc
+│   └── projects.ts       # projects list|get|create
+├── serializers/          # JSON-LD ↔ domain model (extracted from item-serializer.ts)
+├── client/               # API client (extracted from api-client.ts)
+└── validation/
+    ├── shacl/            # SHACL shapes for JSON-LD constraints
+    └── cel/              # CEL rules for business logic
+```
+
+### Isomorphic Design
+
+The package runs in three environments:
+
+| Environment | Runtime | Entry point |
+| --- | --- | --- |
+| **Frontend** (React app) | Browser | `import { fromJsonLd, toJsonLd } from "@terminandoyo/core"` |
+| **Tay** (agent tool) | Node.js subprocess | `npx tay items list --bucket=reference` |
+| **3rd party** | Browser or Node.js | `npm install @terminandoyo/core` |
+
+The frontend's `src/lib/item-serializer.ts` and `src/lib/api-client.ts` become thin re-exports from
+the core package. No more maintaining two implementations.
+
+---
+
+## Feature 1: CLI for Tay (Single Tool)
+
+### Current State: 3 Tool Calls + Python Dispatch
+
+```txt
+tay.py             → 3 tool definitions (create_project_with_actions, create_action, create_reference)
+tool_executor.py   → dispatch switch + execution logic
+jsonld_builders.py → Python JSON-LD builders (duplicates item-serializer.ts)
+backend_client.py  → Python API client (duplicates api-client.ts)
+tay_system.j2      → documents each tool individually
+```
+
+Adding a new tool still requires cross-file Python changes and prompt updates.
+
+### Refactor Strategy: In-place + Test-driven
+
+Before replacing tools, prove baseline behavior is correct and stable. Then refactor in place.
+
+1. Baseline tests pass for current 3-tool setup (`create_project_with_actions`, `create_action`, `create_reference`)
+2. Add/expand contract tests around tool schema + execution payloads
+3. Introduce CLI commands that produce the same output contracts
+4. Swap Haystack tool surface to one `tay_cli` tool
+5. Keep approval-card flow unchanged for writes
+6. Remove legacy per-tool dispatch only after parity is proven
+
+### Target State: 1 Tool + CLI
+
+Tay gets a single tool in its Haystack tool schema:
+
+```json
+{
+  "name": "tay_cli",
+  "description": "Execute a TAY CLI command. Run `help` for available commands.",
+  "parameters": {
+    "command": { "type": "string" }
+  }
+}
+```
+
+The Python Haystack orchestrator (`agents/tay.py`) stays — it handles LLM interaction, conversation
+history, and streaming. Only the tool executor changes: instead of dispatching to Python functions,
+it calls the TypeScript CLI via subprocess.
+
+### Read vs Write Commands
+
+| Type | Behavior | Examples |
+| --- | --- | --- |
+| **Read** (inline) | Executes immediately, returns data to Tay | `items list --bucket=reference`, `orgs get nueva-tierra --docs` |
+| **Write** (approval) | Returns structured preview, user confirms | `items create --type=Action --name="File taxes" --bucket=next` |
+
+Write commands output structured JSON that the frontend renders as the same approval card the user
+already sees. The "propose, user confirms" pattern is unchanged.
+
+### Example CLI Session (as Tay would use it)
+
+```bash
+# Discover workspace
+tay items list --summary
+
+# Read an org's details
+tay orgs get nueva-tierra --docs
+
+# Read a specific document
+tay items get urn:app:reference:abc123 --content
+
+# Propose creating a person (returns structured JSON for approval)
+tay items create --type=Person --name="Steuerberater Schmidt" \
+  --org=nueva-tierra --role=accountant --email="schmidt@steuer.de"
+
+# Append to org log (returns structured JSON for approval)
+tay orgs append-log nueva-tierra --entry="Steuererklärung 2024 eingereicht"
+```
+
+### System Prompt Change
+
+```jinja2
+## Werkzeug
+Du hast ein einziges Werkzeug: `tay_cli`. Damit führst du Befehle aus.
+
+### Lesen (sofort)
+- `items list [--bucket=X] [--org=X] [--summary]` — Elemente auflisten
+- `items get <id> [--content]` — Element lesen
+- `orgs list` — Organisationen auflisten
+- `orgs get <id> [--docs]` — Organisation mit Dokumenten lesen
+- `projects list` — Projekte auflisten
+- `projects get <id> [--items]` — Projekt mit Elementen lesen
+
+### Schreiben (Nutzer muss bestätigen)
+- `items create --type=<Type> --name="..." [--bucket=X] [--project=X]`
+- `items triage <id> --bucket=<target>`
+- `orgs append-log <org> --entry="..."`
+- `orgs update-doc <org> --doc=agent --content="..."`
+
+Verwende `tay_cli help` für die vollständige Befehlsreferenz.
+```
+
+---
+
+## Feature 2: SHACL Validation Shapes
+
+[SHACL](https://www.w3.org/TR/shacl/) (Shapes Constraint Language) validates RDF graph shapes.
+Since JSON-LD is valid RDF, SHACL is the natural validation standard for our data model.
+
+### Example Shapes
+
+```turtle
+# Every Action must have a name and a valid bucket
+app:ActionShape a sh:NodeShape ;
+  sh:targetClass schema:Action ;
+  sh:property [
+    sh:path schema:name ;
+    sh:minCount 1 ;
+    sh:datatype xsd:string
+  ] ;
+  sh:property [
+    sh:path app:bucket ;
+    sh:minCount 1 ;
+    sh:in ("inbox" "next" "waiting" "someday" "scheduled" "completed")
+  ] .
+
+# A Person must have a name and an orgRef
+app:PersonShape a sh:NodeShape ;
+  sh:targetClass schema:Person ;
+  sh:property [ sh:path schema:name ; sh:minCount 1 ] ;
+  sh:property [ sh:path app:orgRef ; sh:minCount 1 ] ;
+  sh:property [
+    sh:path app:orgRole ;
+    sh:in ("member" "founder" "accountant" "advisor" "interest")
+  ] .
+```
+
+### Validation Libraries
+
+JavaScript SHACL validators that run in Node.js and browser:
+
+- [`rdf-validate-shacl`](https://github.com/zazuko/rdf-validate-shacl)
+- [`shacl-engine`](https://github.com/rdf-ext/shacl-engine)
+
+Shapes are defined once in `.ttl` files within `packages/core/validation/shacl/` and used by both
+the CLI (client-side) and the backend (server-side).
+
+---
+
+## Feature 3: CEL Business Rules
+
+[CEL](https://cel.dev/) (Common Expression Language) handles business rules that go beyond graph
+shape constraints — transition rules, field immutability, access control.
+
+### Example Rules
+
+```cel
+// Inbox items can only triage to these target buckets
+item.bucket == "inbox" && target_bucket in ["next", "waiting", "someday", "scheduled", "reference"]
+
+// LOG.md is append-only — content can only grow
+new_content.startsWith(old_content)
+
+// Archived items cannot be modified
+!(item.bucket == "completed" && operation == "update")
+
+// Only agents can write to AGENT.md
+item.orgDocType == "agent" && caller.role in ["agent", "admin"]
+```
+
+### CEL Libraries
+
+- [`cel-js`](https://github.com/nicholasgasior/cel-js) — JavaScript CEL implementation
+- Rules defined as JSON in `packages/core/validation/cel/rules.json`
+- Same rules evaluated client-side (fail fast) and server-side (enforce)
+
+---
+
+## Fail-Fast Validation Pattern
+
+```txt
+Client (browser / CLI / Tay)              Server (backend)
+────────────────────────────              ──────────────────
+1. Build JSON-LD (serializers)
+2. SHACL validate (fail fast)  ────────→  4. SHACL validate (enforce)
+3. CEL rules check (fail fast) ────────→  5. CEL rules check (enforce)
+                                          6. Persist to PostgreSQL
+```
+
+Client catches errors instantly (no roundtrip). Server enforces at the trust boundary (never trusts
+client validation alone). Same shapes and rules in both places — single source of truth in the core
+package.
+
+---
+
+## Why TypeScript
+
+| Consideration | TypeScript | Python |
+| --- | --- | --- |
+| Frontend canonical code | Already exists (`item-serializer.ts`, `api-client.ts`) | Would be a copy |
+| Browser-compatible | Yes — 3rd party web clients validate in-browser | No |
+| SHACL libraries | `rdf-validate-shacl`, `shacl-engine` | `pyshacl` (server-only) |
+| CEL libraries | `cel-js` | `cel-python` (server-only) |
+| Tay integration | subprocess or HTTP from Python Haystack | Native but duplicates frontend code |
+| Single codebase | One implementation, three consumers | Two implementations that drift |
+
+---
+
+## Why CLI over Query Languages
+
+[NeurIPS'24 benchmark](https://medium.com/data-science/can-llms-talk-sql-sparql-cypher-and-mongodb-query-language-mql-equally-well-a478f64cc769)
+comparing LLM accuracy across query languages:
+
+| Approach | Zero-shot accuracy |
+| --- | --- |
+| **Tool/function calling** | ~95%+ (models are fine-tuned for this) |
+| SQL | ~47% |
+| Cypher (Neo4j) | ~34% |
+| SPARQL | &lt;4% |
+
+Named CLI commands are structured tool calls with discoverability (`--help`) and composability.
+LLMs are explicitly trained for tool use — fighting that with query languages is working against the
+grain.
+
+If relationship traversal ever outgrows named commands (50+ entities, complex cross-org joins), a
+`tay graph query "..."` subcommand can be added. But JSON-LD already is valid RDF — the data is
+ready, the need just isn't there yet.
+
+---
+
+## Implementation Phases
+
+### Phase 1: Baseline + Extract & CLI (enables Tay)
+
+1. Verify current agent flow is green (`agents/tests/test_tay.py`, `agents/tests/test_tool_executor.py`, `agents/tests/test_jsonld_builders.py`, `agents/tests/test_backend_client.py`)
+2. Add parity tests that lock current tool-call schemas and write/read behavior
+3. Create `packages/core/` with TypeScript project
+4. Move `item-serializer.ts` and `api-client.ts` to core, re-export from frontend
+5. Add CLI entry point with subcommands (`items`, `orgs`, `projects`) plus compatibility commands for current create flows
+6. Wire as single `tay_cli` tool in Haystack, replace Python tool executor dispatch with CLI subprocess call
+7. Update system prompt to document CLI commands
+8. Remove old tool-call definitions only after parity tests pass
+
+### Phase 2: SHACL Shapes
+
+1. Define SHACL shapes for each `@type` (`Action`, `Person`, `Project`, `CreativeWork`, `DigitalDocument`)
+2. Add `validate()` call to CLI write commands (fail fast)
+3. Add server-side SHACL validation in backend item creation/update endpoints
+
+### Phase 3: CEL Rules
+
+1. Define business rules as CEL expressions
+2. Integrate CEL evaluation into CLI and backend
+3. Bucket transition rules, field immutability, access control
+
+### Phase 4: Future
+
+- Graph query subcommand if/when relationship traversal outgrows named commands
+- FRBR/LexCEL ontology work drives this naturally
+- JSON-LD remains RDF-compatible — Fuseki or Apache AGE can be added as a projection
+
+---
+
+## Files to Modify/Create
+
+| Layer | File | Change |
+| --- | --- | --- |
+| Core | NEW: `packages/core/package.json` | Package setup, TypeScript config |
+| Core | NEW: `packages/core/cli/index.ts` | CLI entry point |
+| Core | NEW: `packages/core/cli/items.ts` | Items subcommands |
+| Core | NEW: `packages/core/cli/orgs.ts` | Orgs subcommands |
+| Core | NEW: `packages/core/cli/projects.ts` | Projects subcommands |
+| Core | `packages/core/serializers/` | Extracted from `item-serializer.ts` |
+| Core | `packages/core/client/` | Extracted from `api-client.ts` |
+| Core | NEW: `packages/core/validation/shacl/` | SHACL shape definitions (`.ttl`) |
+| Core | NEW: `packages/core/validation/cel/` | CEL rule definitions |
+| Frontend | `frontend/src/lib/item-serializer.ts` | Re-export from `@terminandoyo/core` |
+| Frontend | `frontend/src/lib/api-client.ts` | Re-export from `@terminandoyo/core` |
+| Agents | `agents/tay.py` | Replace 3 tools with single `tay_cli` tool |
+| Agents | `agents/tool_executor.py` | Replace per-tool dispatch with TS CLI subprocess execution |
+| Agents | `agents/jsonld_builders.py` | Deprecated (replaced by core serializers) |
+| Agents | `agents/backend_client.py` | Deprecated (replaced by core client) |
+| Agents | `agents/prompts/de/tay_system.j2` | CLI command documentation |
+| Monorepo | `package.json` | Workspace config for `packages/core` |
+| Monorepo | `tsconfig.json` | Project reference to `packages/core` |
+
+---
+
+## Verification
+
+1. Baseline agents tests (pre-refactor): `cd agents && uv run python -m pytest tests/`
+2. Core: `cd packages/core && npm test` (serializer round-trips, CLI command tests, SHACL validation)
+3. Frontend types: `cd frontend && npx tsc -b --noEmit`
+4. Frontend unit: `cd frontend && CI=1 npx vitest run --project=unit`
+5. Frontend storybook: `cd frontend && STORYBOOK_TESTS=1 CI=1 npx vitest run --project=storybook`
+6. Agents (post-refactor parity): `cd agents && uv run python -m pytest tests/` (CLI subprocess integration + compatibility expectations)
+7. CLI smoke test: `npx tay items list --help` returns usage info
+8. Manual E2E: Start dev stack → open Tay chat → ask "Was gibt es im Workspace?" → Tay calls `tay_cli("items list --summary")` → returns workspace overview

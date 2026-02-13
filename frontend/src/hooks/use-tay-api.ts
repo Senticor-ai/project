@@ -1,7 +1,15 @@
 import { useCallback } from "react";
-import type { StreamEvent } from "@/model/chat-types";
+import type { ChatClientContext, StreamEvent } from "@/model/chat-types";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
+
+function getClientContext(): ChatClientContext {
+  return {
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    locale: navigator.language,
+    localTime: new Date().toISOString(),
+  };
+}
 
 /**
  * Parse NDJSON lines from a ReadableStream, calling onEvent for each.
@@ -59,7 +67,7 @@ export function useTayApi() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ message, conversationId }),
+        body: JSON.stringify({ message, conversationId, context: getClientContext() }),
       });
 
       if (!res.ok) {

@@ -44,7 +44,7 @@ OPENCLAW_TOOLS: list[dict] = [
                                 "bucket": {
                                     "type": "string",
                                     "enum": ["inbox", "next", "waiting", "calendar", "someday"],
-                                    "description": "GTD-Bucket für die Aktion",
+                                    "description": "Bucket für die Aktion",
                                 },
                             },
                             "required": ["name", "bucket"],
@@ -84,7 +84,7 @@ OPENCLAW_TOOLS: list[dict] = [
                     "bucket": {
                         "type": "string",
                         "enum": ["inbox", "next", "waiting", "calendar", "someday"],
-                        "description": "GTD-Bucket",
+                        "description": "Bucket",
                     },
                     "projectId": {
                         "type": "string",

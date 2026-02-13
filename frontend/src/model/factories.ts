@@ -143,6 +143,7 @@ export function createProject(
     isFocused: overrides.isFocused ?? false,
     reviewDate: overrides.reviewDate,
     completedAt: overrides.completedAt,
+    orgRef: overrides.orgRef,
   };
 }
 
@@ -182,6 +183,7 @@ export function createReferenceMaterial(
     origin: overrides.origin ?? "captured",
     fileId: overrides.fileId,
     downloadUrl: overrides.downloadUrl,
+    orgRef: overrides.orgRef,
   };
 }
 

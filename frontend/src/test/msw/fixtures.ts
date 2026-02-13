@@ -3,6 +3,7 @@ import type {
   SyncResponse,
   FileRecord,
   EmailConnectionResponse,
+  OrgResponse,
 } from "@/lib/api-client";
 import type { CanonicalId } from "@/model/canonical-id";
 
@@ -13,13 +14,19 @@ import type { CanonicalId } from "@/model/canonical-id";
 export const store = {
   items: new Map<string, ItemRecord>(),
   emailConnections: new Map<string, EmailConnectionResponse>(),
+  orgs: new Map<string, OrgResponse>(),
   clear() {
     this.items.clear();
     this.emailConnections.clear();
+    this.orgs.clear();
   },
   seed(records: ItemRecord[]) {
     this.items.clear();
     for (const r of records) this.items.set(r.item_id, r);
+  },
+  seedOrgs(orgs: OrgResponse[]) {
+    this.orgs.clear();
+    for (const o of orgs) this.orgs.set(o.id, o);
   },
 };
 
@@ -548,4 +555,35 @@ export function seedMixedBucketsWithEmail(): ItemRecord[] {
   // Re-seed the store with all records including email items
   store.seed(records);
   return records;
+}
+
+// ---------------------------------------------------------------------------
+// Organization fixtures
+// ---------------------------------------------------------------------------
+
+let orgCounter = 0;
+
+export function createOrgResponse(
+  overrides: Partial<OrgResponse> & { name: string },
+): OrgResponse {
+  orgCounter++;
+  return {
+    id: overrides.id ?? `org-${orgCounter}`,
+    name: overrides.name,
+    role: overrides.role ?? "owner",
+    created_at: overrides.created_at ?? new Date().toISOString(),
+  };
+}
+
+export function seedDefaultOrgs(): OrgResponse[] {
+  const orgs = [
+    createOrgResponse({ id: "org-personal", name: "Wolfgang's Workspace" }),
+    createOrgResponse({ id: "org-nueva-tierra", name: "Nueva Tierra" }),
+    createOrgResponse({
+      id: "org-autonomo",
+      name: "Autonomo Wolfgang Ihloff",
+    }),
+  ];
+  store.seedOrgs(orgs);
+  return orgs;
 }

@@ -929,6 +929,132 @@ describe("ReadAction indicator", () => {
 // Tag chips
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Move to project (overflow menu)
+// ---------------------------------------------------------------------------
+
+describe("ActionRow move to project", () => {
+  it("shows project options in menu when onEdit and projects provided", async () => {
+    const user = userEvent.setup();
+    renderRow({
+      thing: createActionItem({ name: "Task", bucket: "next" }),
+      onEdit: vi.fn(),
+      projects: [
+        { id: "urn:app:project:p1" as CanonicalId, name: "Project Alpha" },
+        { id: "urn:app:project:p2" as CanonicalId, name: "Project Beta" },
+      ],
+    });
+    await user.click(screen.getByLabelText("Move Task"));
+    const menu = screen.getByRole("menu");
+    expect(within(menu).getByText("Project Alpha")).toBeInTheDocument();
+    expect(within(menu).getByText("Project Beta")).toBeInTheDocument();
+  });
+
+  it("hides project options when onEdit is not provided", async () => {
+    const user = userEvent.setup();
+    renderRow({
+      thing: createActionItem({ name: "Task", bucket: "next" }),
+      projects: [
+        { id: "urn:app:project:p1" as CanonicalId, name: "Project Alpha" },
+      ],
+    });
+    await user.click(screen.getByLabelText("Move Task"));
+    const menu = screen.getByRole("menu");
+    expect(within(menu).queryByText("Project Alpha")).not.toBeInTheDocument();
+  });
+
+  it("excludes current project from menu", async () => {
+    const user = userEvent.setup();
+    const currentProjectId = "urn:app:project:p1" as CanonicalId;
+    renderRow({
+      thing: createActionItem({
+        name: "Task",
+        bucket: "next",
+        projectId: currentProjectId,
+      }),
+      onEdit: vi.fn(),
+      projects: [
+        { id: currentProjectId, name: "Current Project" },
+        { id: "urn:app:project:p2" as CanonicalId, name: "Other Project" },
+      ],
+    });
+    await user.click(screen.getByLabelText("Move Task"));
+    const menu = screen.getByRole("menu");
+    expect(within(menu).queryByText("Current Project")).not.toBeInTheDocument();
+    expect(within(menu).getByText("Other Project")).toBeInTheDocument();
+  });
+
+  it("calls onEdit with new projectId when project clicked", async () => {
+    const user = userEvent.setup();
+    const onEdit = vi.fn();
+    const targetProjectId = "urn:app:project:p2" as CanonicalId;
+    const { props } = renderRow({
+      thing: createActionItem({ name: "Task", bucket: "next" }),
+      onEdit,
+      projects: [{ id: targetProjectId, name: "Target Project" }],
+    });
+    await user.click(screen.getByLabelText("Move Task"));
+    await user.click(screen.getByText("Target Project"));
+    expect(onEdit).toHaveBeenCalledWith(props.thing.id, {
+      projectId: targetProjectId,
+    });
+  });
+
+  it("closes menu after project selection", async () => {
+    const user = userEvent.setup();
+    renderRow({
+      thing: createActionItem({ name: "Task", bucket: "next" }),
+      onEdit: vi.fn(),
+      projects: [
+        { id: "urn:app:project:p1" as CanonicalId, name: "Project Alpha" },
+      ],
+    });
+    await user.click(screen.getByLabelText("Move Task"));
+    await user.click(screen.getByText("Project Alpha"));
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+});
+
+describe("ActionRow project badge", () => {
+  it("shows project badge when projects prop and projectId are set", () => {
+    renderRow({
+      thing: createActionItem({
+        name: "Task",
+        bucket: "next",
+        projectId: "urn:app:project:p1" as CanonicalId,
+      }),
+      projects: [{ id: "urn:app:project:p1" as CanonicalId, name: "Tax 2024" }],
+    });
+    expect(screen.getByText("Tax 2024")).toBeInTheDocument();
+    expect(screen.getByText("folder")).toBeInTheDocument();
+  });
+
+  it("hides project badge when projects prop is not provided", () => {
+    renderRow({
+      thing: createActionItem({
+        name: "Task",
+        bucket: "next",
+        projectId: "urn:app:project:p1" as CanonicalId,
+      }),
+    });
+    expect(screen.queryByText("folder")).not.toBeInTheDocument();
+  });
+
+  it("hides project badge when item has no projectId", () => {
+    renderRow({
+      thing: createActionItem({ name: "Task", bucket: "next" }),
+      projects: [{ id: "urn:app:project:p1" as CanonicalId, name: "Tax 2024" }],
+    });
+    // "Tax 2024" should not appear as a badge in the row
+    // (it may be in the overflow menu, so check for the folder icon instead)
+    const badges = screen.queryAllByText("Tax 2024");
+    const inBadge = badges.filter((el) =>
+      el.closest("[class*=bg-app-project]"),
+    );
+    expect(inBadge).toHaveLength(0);
+  });
+});
+
 describe("ActionRow tag chips", () => {
   it("shows tag chips on collapsed row when tags exist", () => {
     renderRow({

@@ -1,4 +1,4 @@
-"""Agents service — FastAPI app for the Tay GTD copilot.
+"""Agents service — FastAPI app for the Tay productivity copilot.
 
 Runs as a separate service (default port 8002). The backend proxies
 requests to this service at /chat/completions.
@@ -79,10 +79,29 @@ class MessagePayload(BaseModel):
     toolCalls: list[ChatToolCallResponse] | None = None
 
 
+class ChatAuthPayload(BaseModel):
+    """Auth context from the backend chat proxy for read tools."""
+
+    token: str
+    orgId: str | None = None
+
+
+class UserContextPayload(BaseModel):
+    """User context forwarded from the backend for prompt personalization."""
+
+    username: str | None = None
+    email: str | None = None
+    timezone: str | None = None
+    locale: str | None = None
+    localTime: str | None = None
+
+
 class ChatCompletionRequest(BaseModel):
     messages: list[MessagePayload]
     conversationId: str
     stream: bool = False
+    auth: ChatAuthPayload | None = None
+    userContext: UserContextPayload | None = None
 
 
 class ChatCompletionResponse(BaseModel):
@@ -136,17 +155,24 @@ def _find_assistant_message(result: dict) -> ChatMessage:
     the tool's no-op function and ``result["last_message"]`` is the *tool
     result* (role=tool).  The actual LLM message with text and tool_calls is
     one step earlier in ``result["messages"]``.
+
+    When the agent exits on "text", ``last_message`` is the assistant text
+    message — return it directly.  Do NOT search backwards for earlier
+    tool_calls, as those belong to inline read tools (e.g.
+    ``list_workspace_overview``) that were already executed by the agent.
     """
     last = result["last_message"]
     if last.tool_calls:
-        return last  # Already the assistant message (text exit condition)
+        return last  # Already the assistant message with exit tool_calls
 
-    # Search backwards for the assistant message with tool_calls
-    for msg in reversed(result.get("messages", [])):
-        if msg.tool_calls:
-            return msg
+    # Only search backwards if last_message is a tool result (role=tool),
+    # meaning the agent exited on a tool-name exit condition.
+    if last.role == "tool":
+        for msg in reversed(result.get("messages", [])):
+            if msg.tool_calls:
+                return msg
 
-    return last  # Fallback: pure-text reply
+    return last  # Pure-text reply (agent exited on "text")
 
 
 def _to_haystack_messages(messages: list[MessagePayload]) -> list[ChatMessage]:
@@ -173,7 +199,20 @@ def _to_haystack_messages(messages: list[MessagePayload]) -> list[ChatMessage]:
     return haystack_messages
 
 
-async def run_agent(messages: list[MessagePayload]) -> ChatMessage:
+def _build_auth_context(
+    auth_payload: ChatAuthPayload | None,
+) -> AuthContext | None:
+    """Convert wire auth payload to AuthContext for agent tools."""
+    if auth_payload is None:
+        return None
+    return AuthContext(token=auth_payload.token, org_id=auth_payload.orgId)
+
+
+async def run_agent(
+    messages: list[MessagePayload],
+    auth: AuthContext | None = None,
+    user_context: dict | None = None,
+) -> ChatMessage:
     """Run the Haystack agent with model fallback.
 
     Tries each model in MODELS (from AGENT_MODEL env var) in order.
@@ -184,7 +223,7 @@ async def run_agent(messages: list[MessagePayload]) -> ChatMessage:
 
     for model in MODELS:
         try:
-            agent = create_agent(model)
+            agent = create_agent(model, auth=auth, user_context=user_context)
             result = await agent.run_async(messages=haystack_messages)
             return _find_assistant_message(result)
         except Exception as exc:
@@ -203,6 +242,8 @@ def _format_tool_calls(msg: ChatMessage) -> list[dict] | None:
 
 async def run_agent_streaming(
     messages: list[MessagePayload],
+    auth: AuthContext | None = None,
+    user_context: dict | None = None,
 ) -> AsyncGenerator[str, None]:
     """Run the agent and yield NDJSON events as text streams in.
 
@@ -222,7 +263,7 @@ async def run_agent_streaming(
         last_error: Exception | None = None
         for model in MODELS:
             try:
-                agent = create_agent(model)
+                agent = create_agent(model, auth=auth, user_context=user_context)
                 result = await agent.run_async(
                     messages=haystack_messages,
                     streaming_callback=streaming_callback,
@@ -288,14 +329,17 @@ async def run_agent_streaming(
 
 @app.post("/chat/completions")
 async def chat_completions(req: ChatCompletionRequest):
+    auth = _build_auth_context(req.auth)
+    uctx = req.userContext.model_dump() if req.userContext else None
+
     if req.stream:
         return StreamingResponse(
-            run_agent_streaming(req.messages),
+            run_agent_streaming(req.messages, auth=auth, user_context=uctx),
             media_type="application/x-ndjson",
         )
 
     try:
-        last_message = await run_agent(req.messages)
+        last_message = await run_agent(req.messages, auth=auth, user_context=uctx)
     except Exception as exc:
         logger.exception("Agent error")
         raise HTTPException(status_code=500, detail=str(exc)) from exc

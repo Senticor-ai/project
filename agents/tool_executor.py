@@ -9,7 +9,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from backend_client import AuthContext, BackendClient, CreatedItemRef
-from jsonld_builders import build_action_jsonld, build_project_jsonld, build_reference_jsonld
+from jsonld_builders import (
+    build_action_jsonld,
+    build_file_reference_jsonld,
+    build_project_jsonld,
+    build_reference_jsonld,
+)
 
 
 @dataclass
@@ -37,6 +42,8 @@ async def execute_tool(
             return await _exec_create_action(args, conversation_id, auth, client)
         case "create_reference":
             return await _exec_create_reference(args, conversation_id, auth, client)
+        case "render_cv":
+            return await _exec_render_cv(args, conversation_id, auth, client)
         case _:
             raise ValueError(f"Unknown tool: {tool_call.name}")
 
@@ -141,6 +148,41 @@ async def _exec_create_reference(
         CreatedItemRef(
             canonical_id=resp["canonical_id"],
             name=args["name"],
+            item_type="reference",
+        )
+    ]
+
+
+async def _exec_render_cv(
+    args: dict,
+    conversation_id: str,
+    auth: AuthContext,
+    client: BackendClient,
+) -> list[CreatedItemRef]:
+    """Render a CV to PDF and create a reference item linked to the project."""
+    # 1. Render PDF via backend
+    pdf_resp = await client.render_pdf(
+        cv=args["cv"],
+        css=args["css"],
+        filename=args["filename"],
+        auth=auth,
+    )
+    file_id = pdf_resp["file_id"]
+
+    # 2. Create reference item linked to the project, pointing to the PDF file
+    ref_jsonld = build_file_reference_jsonld(
+        name=args["filename"],
+        file_id=file_id,
+        conversation_id=conversation_id,
+        project_id=args.get("projectId"),
+        description=f"Rendered CV: {args['cv'].get('name', '')}",
+    )
+    ref_resp = await client.create_item(ref_jsonld, auth)
+
+    return [
+        CreatedItemRef(
+            canonical_id=ref_resp["canonical_id"],
+            name=args["filename"],
             item_type="reference",
         )
     ]

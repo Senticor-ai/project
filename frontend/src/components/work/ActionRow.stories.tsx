@@ -428,6 +428,26 @@ export const ArchiveFromMenu: Story = {
   },
 };
 
+/** Shows project badge chip when item is assigned to a project. */
+export const WithProjectBadge: Story = {
+  args: {
+    thing: createActionItem({
+      name: "Review tax documents",
+      bucket: "next",
+      projectId: "urn:app:project:tax-2024" as CanonicalId,
+    }),
+    projects: [
+      {
+        id: "urn:app:project:tax-2024" as CanonicalId,
+        name: "Steuererklärung 2024",
+      },
+    ],
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText("Steuererklärung 2024")).toBeInTheDocument();
+  },
+};
+
 /** Action with tags shown as amber chips. */
 export const WithTags: Story = {
   args: {
@@ -442,6 +462,43 @@ export const WithTags: Story = {
 // ---------------------------------------------------------------------------
 // Multi-select stories
 // ---------------------------------------------------------------------------
+
+/** Move item to a different project via the overflow menu. */
+export const MoveToProject: Story = {
+  args: {
+    thing: createActionItem({
+      rawCapture: "Wrong project task",
+      bucket: "next",
+    }),
+    onEdit: fn(),
+    projects: [
+      { id: "urn:app:project:p1" as CanonicalId, name: "Website Redesign" },
+      { id: "urn:app:project:p2" as CanonicalId, name: "Mobile App" },
+    ],
+  },
+  play: async ({ canvas, args, userEvent, step }) => {
+    await step("Open overflow menu", async () => {
+      await userEvent.click(canvas.getByLabelText("Move Wrong project task"));
+    });
+
+    const menu = canvas.getByRole("menu");
+
+    await step("Verify project options are shown", async () => {
+      await expect(
+        within(menu).getByText("Website Redesign"),
+      ).toBeInTheDocument();
+      await expect(within(menu).getByText("Mobile App")).toBeInTheDocument();
+    });
+
+    await step("Click project to reassign", async () => {
+      await userEvent.click(within(menu).getByText("Mobile App"));
+    });
+
+    await expect(args.onEdit).toHaveBeenCalledWith(args.thing.id, {
+      projectId: "urn:app:project:p2",
+    });
+  },
+};
 
 /** Inbox item with selection highlight (Cmd/Ctrl+Click selection). */
 export const SelectedHighlight: Story = {

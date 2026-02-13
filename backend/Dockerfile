@@ -5,6 +5,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app/backend
 
+# WeasyPrint system dependencies (pango, cairo, gobject for PDF rendering)
+RUN apt-get update -qq \
+    && apt-get install -y -qq --no-install-recommends \
+       libpango-1.0-0 libpangocairo-1.0-0 libcairo2 libgdk-pixbuf-2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=ghcr.io/astral-sh/uv:0.5.29 /uv /uvx /bin/
 
 COPY backend/pyproject.toml backend/uv.lock ./

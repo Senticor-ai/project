@@ -6,12 +6,13 @@ import { DeveloperPanel } from "./DeveloperPanel";
 import { EmailPanel } from "./EmailPanel";
 import { ImportExportPanel } from "./ImportExportPanel";
 import { LabelsPanel } from "./LabelsPanel";
+import { OrganizationsPanel } from "./OrganizationsPanel";
 import { PreferencesPanel } from "./PreferencesPanel";
 import {
   DEFAULT_PREFERENCES,
   type ExportOptions,
 } from "@/model/settings-types";
-import type { EmailConnectionResponse } from "@/lib/api-client";
+import type { EmailConnectionResponse, OrgResponse } from "@/lib/api-client";
 import type { ImportJobData } from "./ImportJobRow";
 import type { AgentSettings } from "./AgentSetupPanel";
 
@@ -19,6 +20,7 @@ export type SettingsTab =
   | "import-export"
   | "email"
   | "labels"
+  | "organizations"
   | "preferences"
   | "agent-setup"
   | "developer";
@@ -27,6 +29,7 @@ const settingsTabs: TabItem[] = [
   { id: "import-export", label: "Import / Export", icon: "swap_horiz" },
   { id: "email", label: "Email", icon: "mail" },
   { id: "labels", label: "Labels & Contexts", icon: "label" },
+  { id: "organizations", label: "Organizations", icon: "apartment" },
   { id: "preferences", label: "Preferences", icon: "tune" },
   { id: "agent-setup", label: "Agent Setup", icon: "smart_toy" },
   { id: "developer", label: "Developer", icon: "code" },
@@ -55,6 +58,10 @@ export interface SettingsScreenProps {
   onEmailUpdateSyncInterval?: (connectionId: string, minutes: number) => void;
   onEmailUpdateMarkRead?: (connectionId: string, markRead: boolean) => void;
   emailSyncingConnectionId?: string | null;
+  organizations?: OrgResponse[];
+  organizationsLoading?: boolean;
+  onCreateOrg?: (name: string) => void;
+  isCreatingOrg?: boolean;
   agentSettings?: AgentSettings;
   onAgentUpdate?: (
     update: Parameters<
@@ -89,6 +96,10 @@ export function SettingsScreen({
   onEmailUpdateSyncInterval,
   onEmailUpdateMarkRead,
   emailSyncingConnectionId,
+  organizations,
+  organizationsLoading,
+  onCreateOrg,
+  isCreatingOrg,
   agentSettings,
   onAgentUpdate,
   onAgentDeleteApiKey,
@@ -168,6 +179,14 @@ export function SettingsScreen({
               onRemoveTag={(name) =>
                 setTags((prev) => prev.filter((t) => t !== name))
               }
+            />
+          )}
+          {activeTab === "organizations" && (
+            <OrganizationsPanel
+              organizations={organizations}
+              isLoading={organizationsLoading}
+              onCreateOrg={onCreateOrg}
+              isCreating={isCreatingOrg}
             />
           )}
           {activeTab === "preferences" && (

@@ -71,7 +71,7 @@ Fallback markers (only when placeholder patterns aren't possible):
 Storybook is the **living documentation hub** — product specs, design system, engineering architecture, and interactive component demos all live here as MDX pages alongside component stories.
 
 ```bash
-cd frontend && npm run storybook       # Dev server at http://localhost:6006
+cd frontend && npm run storybook       # Dev server at http://<PROJECT_PREFIX>.localhost:6006
 cd frontend && npm run build-storybook  # Static build
 ```
 
@@ -194,7 +194,7 @@ Storybook stories use MSW to intercept API requests in-browser, enabling "connec
 - **Vitest lifecycle**: `frontend/.storybook/vitest.setup.ts` — `beforeAll(worker.start)`, `afterEach(worker.resetHandlers)`, `afterAll(worker.stop)`
 - **Preview**: `frontend/.storybook/preview.tsx` — conditional start (skips in vitest mode), per-story handler overrides via `parameters.msw.handlers`
 
-**Handler URL patterns**: Use wildcard prefix `*/path` (e.g. `*/items/sync`) because `VITE_API_BASE_URL=http://localhost:8000` makes fetch URLs absolute. MSW needs wildcards to match any origin.
+**Handler URL patterns**: Use wildcard prefix `*/path` (e.g. `*/items/sync`) because `VITE_API_BASE_URL` makes fetch URLs absolute. MSW needs wildcards to match any origin.
 
 **Per-story overrides**: Use `parameters.msw.handlers` array — the preview loader applies them via `worker.use()`. Cleaned up by `afterEach(worker.resetHandlers)` in tests.
 
@@ -207,9 +207,13 @@ Storybook stories use MSW to intercept API requests in-browser, enabling "connec
 - Backend errors: `AppError(code, message, status)` -> structured JSON `{"code", "message"}`.
 - Full reference: `docs/i18n.md`
 
+## Dev Hostname
+
+Dev stack uses `${PROJECT_PREFIX}.localhost` (e.g. `tay.localhost`) as the hostname for browser-facing services (frontend, storybook, API). This gives each project a unique URL for 1Password and avoids cross-site cookie issues. All URLs derive from `PROJECT_PREFIX` in `.env`. Backend/agents server-to-server calls still use plain `localhost`.
+
 ## API Documentation
 
-- **OpenAPI UI**: `http://localhost:8000/docs`
+- **OpenAPI UI**: `http://<PROJECT_PREFIX>.localhost:8000/docs` (e.g. `http://tay.localhost:8000/docs`)
 
 ## GitLab
 

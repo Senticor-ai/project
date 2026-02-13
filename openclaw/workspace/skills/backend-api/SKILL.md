@@ -1,13 +1,13 @@
 ---
 name: backend-api
-description: Create items, projects, and references in TerminAndoYo
+description: Manage items, projects, and references in TerminAndoYo via REST API
 user-invokable: false
 ---
 
 # Backend API for TerminAndoYo
 
-Du hast Zugriff auf die TerminAndoYo Backend-API.
-Verwende `exec` mit `curl`, um Items zu erstellen.
+Du hast vollen Zugriff auf die TerminAndoYo Backend-API.
+Verwende `exec` mit `curl`, um Items zu lesen, erstellen und aktualisieren.
 
 ## Authentifizierung
 
@@ -17,15 +17,103 @@ Der aktuelle Token liegt in `/runtime/token`. Verwende ihn so in jedem Request:
 Authorization: Bearer $(cat /runtime/token)
 ```
 
-Die Backend-URL ist: `http://host.docker.internal:8000`
+Die Backend-URL liegt in der Umgebungsvariable `TAY_BACKEND_URL`.
+Weitere Umgebungsvariablen:
+- `TAY_FRONTEND_URL` — Frontend-URL (z.B. fuer Kontext)
+- `TAY_STORYBOOK_URL` — Storybook mit Produkt-, Design- und Engineering-Dokumentation
 
-## Wichtig: Payload-Format
+## Umgebung erkennen
+
+Pruefe deine Umgebungsvariablen:
+
+```bash
+exec echo "Backend: $TAY_BACKEND_URL | Frontend: $TAY_FRONTEND_URL | Storybook: $TAY_STORYBOOK_URL"
+```
+
+## API-Dokumentation entdecken
+
+Die vollstaendige OpenAPI-Spezifikation ist verfuegbar unter:
+
+```bash
+exec curl -s "$TAY_BACKEND_URL/openapi.json" | head -c 5000
+```
+
+Verwende sie, um alle verfuegbaren Endpoints, Parameter und Modelle zu entdecken.
+Wichtige Pfade: `/items`, `/items/sync`, `/items/{item_id}`, `/files`, `/search`.
+
+## Storybook (Produktdokumentation)
+
+Das Storybook enthaelt die gesamte Produkt-, Design- und Engineering-Dokumentation:
+
+```bash
+exec curl -s "$TAY_STORYBOOK_URL/index.json" | head -c 3000
+```
+
+Dort findest du Informationen zu:
+- Produktvision und Methodik
+- Design-System und Paperclip-Prinzipien
+- Datenmodell und Architektur
+- Verfuegbare UI-Komponenten
+
+## Items lesen
+
+```bash
+exec curl -s "$TAY_BACKEND_URL/items?limit=200" \
+  -H "Authorization: Bearer $(cat /runtime/token)"
+```
+
+Antwort: Array von Items mit `item_id`, `canonical_id`, `item` (JSON-LD mit `name`, `@type`, `additionalProperty`).
+
+Den Bucket findest du in `item.additionalProperty` unter `propertyID: "app:bucket"`.
+
+Einzelnes Item:
+
+```bash
+exec curl -s "$TAY_BACKEND_URL/items/<item_id>" \
+  -H "Authorization: Bearer $(cat /runtime/token)"
+```
+
+## Item aktualisieren (Bucket aendern, umbenennen)
+
+```bash
+exec curl -s -X PATCH "$TAY_BACKEND_URL/items/<item_id>" \
+  -H "Authorization: Bearer $(cat /runtime/token)" \
+  -H "Content-Type: application/json" \
+  -H "X-Agent: openclaw" \
+  -d '{
+    "source": "openclaw",
+    "item": {
+      "additionalProperty": [
+        {"@type": "PropertyValue", "propertyID": "app:bucket", "value": "next"}
+      ]
+    }
+  }'
+```
+
+Gueltige Buckets: `inbox`, `next`, `waiting`, `calendar`, `someday`, `reference`
+
+Name aendern:
+
+```bash
+exec curl -s -X PATCH "$TAY_BACKEND_URL/items/<item_id>" \
+  -H "Authorization: Bearer $(cat /runtime/token)" \
+  -H "Content-Type: application/json" \
+  -H "X-Agent: openclaw" \
+  -d '{
+    "source": "openclaw",
+    "item": {
+      "name": "Neuer Name"
+    }
+  }'
+```
+
+## Wichtig: Payload-Format fuer neue Items
 
 Alle POST-Requests an `/items` erwarten dieses Format:
 
 ```json
 {
-  "source": "tay",
+  "source": "openclaw",
   "item": { ... JSON-LD ... }
 }
 ```
@@ -40,12 +128,12 @@ Verwende `$(cat /proc/sys/kernel/random/uuid)` fuer UUIDs.
 ## Aktion erstellen
 
 ```bash
-exec curl -s -X POST "http://host.docker.internal:8000/items" \
+exec curl -s -X POST "$TAY_BACKEND_URL/items" \
   -H "Authorization: Bearer $(cat /runtime/token)" \
   -H "Content-Type: application/json" \
-  -H "X-Agent: tay" \
+  -H "X-Agent: openclaw" \
   -d '{
-    "source": "tay",
+    "source": "openclaw",
     "item": {
       "@id": "urn:app:action:'"$(cat /proc/sys/kernel/random/uuid)"'",
       "@type": "Action",
@@ -64,12 +152,12 @@ Gueltige Buckets: `inbox`, `next`, `waiting`, `calendar`, `someday`
 ## Referenz erstellen
 
 ```bash
-exec curl -s -X POST "http://host.docker.internal:8000/items" \
+exec curl -s -X POST "$TAY_BACKEND_URL/items" \
   -H "Authorization: Bearer $(cat /runtime/token)" \
   -H "Content-Type: application/json" \
-  -H "X-Agent: tay" \
+  -H "X-Agent: openclaw" \
   -d '{
-    "source": "tay",
+    "source": "openclaw",
     "item": {
       "@id": "urn:app:reference:'"$(cat /proc/sys/kernel/random/uuid)"'",
       "@type": "CreativeWork",
@@ -89,12 +177,12 @@ Erstelle zuerst das Projekt, dann die Aktionen mit `app:projectRefs`:
 
 ```bash
 # 1. Projekt erstellen
-exec curl -s -X POST "http://host.docker.internal:8000/items" \
+exec curl -s -X POST "$TAY_BACKEND_URL/items" \
   -H "Authorization: Bearer $(cat /runtime/token)" \
   -H "Content-Type: application/json" \
-  -H "X-Agent: tay" \
+  -H "X-Agent: openclaw" \
   -d '{
-    "source": "tay",
+    "source": "openclaw",
     "item": {
       "@id": "urn:app:project:'"$(cat /proc/sys/kernel/random/uuid)"'",
       "@type": "Project",
@@ -109,12 +197,12 @@ exec curl -s -X POST "http://host.docker.internal:8000/items" \
   }'
 
 # 2. canonical_id aus der Antwort notieren, dann Aktionen erstellen:
-exec curl -s -X POST "http://host.docker.internal:8000/items" \
+exec curl -s -X POST "$TAY_BACKEND_URL/items" \
   -H "Authorization: Bearer $(cat /runtime/token)" \
   -H "Content-Type: application/json" \
-  -H "X-Agent: tay" \
+  -H "X-Agent: openclaw" \
   -d '{
-    "source": "tay",
+    "source": "openclaw",
     "item": {
       "@id": "urn:app:action:'"$(cat /proc/sys/kernel/random/uuid)"'",
       "@type": "Action",
@@ -137,7 +225,7 @@ Erfolgreiche Erstellung liefert:
 {
   "item_id": "uuid",
   "canonical_id": "urn:app:...",
-  "source": "tay",
+  "source": "openclaw",
   "item": { ... },
   "created_at": "...",
   "updated_at": "..."

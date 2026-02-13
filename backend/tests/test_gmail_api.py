@@ -65,13 +65,16 @@ class TestStopWatch:
 
 class TestHistoryList:
     def test_history_list_single_page(self):
-        resp = _mock_response(200, {
-            "history": [
-                {"id": "100", "messagesAdded": [{"message": {"id": "msg1"}}]},
-                {"id": "101", "messagesAdded": [{"message": {"id": "msg2"}}]},
-            ],
-            "historyId": "102",
-        })
+        resp = _mock_response(
+            200,
+            {
+                "history": [
+                    {"id": "100", "messagesAdded": [{"message": {"id": "msg1"}}]},
+                    {"id": "101", "messagesAdded": [{"message": {"id": "msg2"}}]},
+                ],
+                "historyId": "102",
+            },
+        )
         with patch("app.email.gmail_api.httpx.get", return_value=resp):
             result = history_list("token123", 99)
 
@@ -79,15 +82,21 @@ class TestHistoryList:
         assert result["historyId"] == "102"
 
     def test_history_list_pagination(self):
-        page1 = _mock_response(200, {
-            "history": [{"id": "100"}],
-            "historyId": "101",
-            "nextPageToken": "page2token",
-        })
-        page2 = _mock_response(200, {
-            "history": [{"id": "101"}],
-            "historyId": "102",
-        })
+        page1 = _mock_response(
+            200,
+            {
+                "history": [{"id": "100"}],
+                "historyId": "101",
+                "nextPageToken": "page2token",
+            },
+        )
+        page2 = _mock_response(
+            200,
+            {
+                "history": [{"id": "101"}],
+                "historyId": "102",
+            },
+        )
         with patch("app.email.gmail_api.httpx.get", side_effect=[page1, page2]):
             result = history_list("token123", 99)
 
@@ -163,12 +172,15 @@ class TestMessageModify:
 
 class TestMessagesList:
     def test_list_with_query(self):
-        resp = _mock_response(200, {
-            "messages": [
-                {"id": "msg1", "threadId": "t1"},
-                {"id": "msg2", "threadId": "t2"},
-            ],
-        })
+        resp = _mock_response(
+            200,
+            {
+                "messages": [
+                    {"id": "msg1", "threadId": "t1"},
+                    {"id": "msg2", "threadId": "t2"},
+                ],
+            },
+        )
         with patch("app.email.gmail_api.httpx.get", return_value=resp) as mock_get:
             result = messages_list("token123", query="in:inbox newer_than:7d")
 
@@ -177,25 +189,32 @@ class TestMessagesList:
         assert call_kwargs.kwargs["params"]["q"] == "in:inbox newer_than:7d"
 
     def test_list_pagination(self):
-        page1 = _mock_response(200, {
-            "messages": [{"id": "msg1", "threadId": "t1"}],
-            "nextPageToken": "page2",
-        })
-        page2 = _mock_response(200, {
-            "messages": [{"id": "msg2", "threadId": "t2"}],
-        })
+        page1 = _mock_response(
+            200,
+            {
+                "messages": [{"id": "msg1", "threadId": "t1"}],
+                "nextPageToken": "page2",
+            },
+        )
+        page2 = _mock_response(
+            200,
+            {
+                "messages": [{"id": "msg2", "threadId": "t2"}],
+            },
+        )
         with patch("app.email.gmail_api.httpx.get", side_effect=[page1, page2]):
             result = messages_list("token123", max_results=10)
 
         assert len(result) == 2
 
     def test_list_respects_max_results(self):
-        resp = _mock_response(200, {
-            "messages": [
-                {"id": f"msg{i}", "threadId": f"t{i}"} for i in range(5)
-            ],
-            "nextPageToken": "more",
-        })
+        resp = _mock_response(
+            200,
+            {
+                "messages": [{"id": f"msg{i}", "threadId": f"t{i}"} for i in range(5)],
+                "nextPageToken": "more",
+            },
+        )
         with patch("app.email.gmail_api.httpx.get", return_value=resp):
             result = messages_list("token123", max_results=3)
 

@@ -414,4 +414,81 @@ describe("ProjectTree", () => {
       screen.getByText("Website fully live and indexed"),
     ).toBeInTheDocument();
   });
+
+  // -----------------------------------------------------------------------
+  // Project rename
+  // -----------------------------------------------------------------------
+
+  it("enters edit mode on double-click when expanded", async () => {
+    const user = userEvent.setup();
+    const project = makeProject({ name: "Rename Me" });
+    const onUpdateTitle = vi.fn();
+
+    renderTree([project], [], { onUpdateTitle });
+
+    // First click to expand
+    await user.click(screen.getByText("Rename Me"));
+    // Double-click the name to enter edit mode
+    await user.dblClick(screen.getByText("Rename Me"));
+    expect(screen.getByDisplayValue("Rename Me")).toBeInTheDocument();
+  });
+
+  it("does not enter edit mode on double-click when collapsed", async () => {
+    const user = userEvent.setup();
+    const project = makeProject({ name: "Stay Collapsed" });
+    const onUpdateTitle = vi.fn();
+
+    renderTree([project], [], { onUpdateTitle });
+
+    // Double-click on collapsed project — should just toggle expand (via click events)
+    await user.dblClick(screen.getByText("Stay Collapsed"));
+    // Should not be in edit mode (no textarea)
+    expect(
+      screen.queryByDisplayValue("Stay Collapsed"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("saves renamed project on Enter", async () => {
+    const user = userEvent.setup();
+    const project = makeProject({ name: "Old Name" });
+    const onUpdateTitle = vi.fn();
+
+    renderTree([project], [], { onUpdateTitle });
+
+    // Expand, then double-click to edit
+    await user.click(screen.getByText("Old Name"));
+    await user.dblClick(screen.getByText("Old Name"));
+
+    const textarea = screen.getByDisplayValue("Old Name");
+    await user.clear(textarea);
+    await user.type(textarea, "New Name{Enter}");
+    expect(onUpdateTitle).toHaveBeenCalledWith(project.id, "New Name");
+  });
+
+  it("cancels rename on Escape", async () => {
+    const user = userEvent.setup();
+    const project = makeProject({ name: "Keep This" });
+    const onUpdateTitle = vi.fn();
+
+    renderTree([project], [], { onUpdateTitle });
+
+    await user.click(screen.getByText("Keep This"));
+    await user.dblClick(screen.getByText("Keep This"));
+
+    const textarea = screen.getByDisplayValue("Keep This");
+    await user.clear(textarea);
+    await user.type(textarea, "Nope{Escape}");
+    expect(onUpdateTitle).not.toHaveBeenCalled();
+  });
+
+  it("does not enter edit mode when onUpdateTitle is not provided", async () => {
+    const user = userEvent.setup();
+    const project = makeProject({ name: "No Edit" });
+
+    renderTree([project], []); // no onUpdateTitle
+
+    await user.click(screen.getByText("No Edit"));
+    await user.dblClick(screen.getByText("No Edit"));
+    expect(screen.queryByDisplayValue("No Edit")).not.toBeInTheDocument();
+  });
 });

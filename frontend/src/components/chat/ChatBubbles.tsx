@@ -1,3 +1,5 @@
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
 import type { CreatedItemRef } from "@/model/chat-types";
@@ -40,8 +42,8 @@ export function TayMessageBubble({
   return (
     <div className={cn("flex items-start gap-2", className)}>
       <TayAvatar />
-      <div className="max-w-[80%] rounded-2xl rounded-bl-md bg-white px-4 py-2.5 text-sm shadow-sm whitespace-pre-wrap">
-        {content}
+      <div className="tay-prose max-w-[80%] rounded-2xl rounded-bl-md bg-white px-4 py-2.5 text-sm shadow-sm">
+        <Markdown remarkPlugins={[remarkGfm]}>{content}</Markdown>
       </div>
     </div>
   );
@@ -52,15 +54,19 @@ export function TayMessageBubble({
 // ---------------------------------------------------------------------------
 
 export interface TayThinkingIndicatorProps {
+  agentName?: string;
   className?: string;
 }
 
-export function TayThinkingIndicator({ className }: TayThinkingIndicatorProps) {
+export function TayThinkingIndicator({
+  agentName = "Tay",
+  className,
+}: TayThinkingIndicatorProps) {
   return (
     <div
       role="status"
       className={cn("flex items-start gap-2", className)}
-      aria-label="Tay denkt nach..."
+      aria-label={`${agentName} denkt nach...`}
     >
       <TayAvatar />
       <div className="flex items-center gap-1 rounded-2xl rounded-bl-md bg-white px-4 py-3 shadow-sm">
