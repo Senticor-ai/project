@@ -86,6 +86,9 @@ separate process alongside the projection worker. It is included in `npm run dev
 (`dev:stack`) and starts automatically. It groups notifications by email address,
 deduplicates, and enqueues one `email_sync_job` per account.
 
+In Kubernetes production, `watch-worker` is deployed by default and mounts the
+`pubsub-sa` service account secret at `/etc/gcp/pubsub-sa.json`.
+
 **Startup behavior**: On startup, the watch worker automatically registers watches
 for any active connections that don't have one yet (`register_missing_watches()`).
 This means connections created before Pub/Sub was configured get watches

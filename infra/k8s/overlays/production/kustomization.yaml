@@ -23,9 +23,11 @@ patches:
   - path: patches/backend.yaml
   - path: patches/worker.yaml
   - path: patches/push-worker.yaml
+  - path: patches/watch-worker.yaml
   - path: patches/frontend.yaml
   - path: patches/storybook.yaml
   - path: patches/postgres.yaml
   - path: patches/backend-pubsub.yaml
   - path: patches/worker-pubsub.yaml
+  - path: patches/watch-worker-pubsub.yaml
   - path: patches/gitlab-ci-exporter.yaml

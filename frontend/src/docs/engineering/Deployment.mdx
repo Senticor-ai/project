@@ -83,6 +83,9 @@ All application resources are declared in `infra/k8s/` using a Kustomize base/ov
 | ------------- | --------------------- | ---------------------------------------------------------- |
 | frontend      | Deployment + Service  | Nginx serving SPA, proxying `/api/*` to backend            |
 | backend       | Deployment + Service  | FastAPI with init containers for DB readiness + migration  |
+| worker        | Deployment            | Projection outbox worker (indexing/import/email sync)      |
+| push-worker   | Deployment            | Web Push outbox delivery worker                            |
+| watch-worker  | Deployment            | Gmail Pub/Sub watch worker (real-time sync trigger)        |
 | postgres      | StatefulSet + Service | PostgreSQL 16 with 10Gi persistent volume                  |
 | backend-files | PVC (5Gi)             | File storage mounted at `/data/storage`                    |
 | app-config    | ConfigMap             | Non-sensitive configuration (CORS, logging, feature flags) |
@@ -125,12 +128,15 @@ This runs on every pod start, which is safe because the schema is fully idempote
 
 The cluster namespace has a resource quota. Current allocation:
 
-| Component  | CPU request | Memory request | CPU limit | Memory limit |
-| ---------- | ----------- | -------------- | --------- | ------------ |
-| Frontend   | 50m         | 128Mi          | 200m      | 256Mi        |
-| Backend    | 200m        | 512Mi          | 1000m     | 2Gi          |
-| PostgreSQL | 200m        | 256Mi          | 500m      | 1Gi          |
-| **Total**  | **450m**    | **896Mi**      | **1700m** | **3.25Gi**   |
+| Component    | CPU request | Memory request | CPU limit | Memory limit |
+| ------------ | ----------- | -------------- | --------- | ------------ |
+| Frontend     | 50m         | 128Mi          | 200m      | 256Mi        |
+| Backend      | 200m        | 512Mi          | 1000m     | 2Gi          |
+| Worker       | 100m        | 256Mi          | 500m      | 1Gi          |
+| Push Worker  | 50m         | 128Mi          | 250m      | 512Mi        |
+| Watch Worker | 50m         | 128Mi          | 250m      | 512Mi        |
+| PostgreSQL   | 200m        | 256Mi          | 500m      | 1Gi          |
+| **Total**    | **650m**    | **1408Mi**     | **2700m** | **5.25Gi**   |
 
 Contact ops if the quota needs to be increased.
 
@@ -155,13 +161,14 @@ Set `LOG_FORMAT=console` in the ConfigMap for human-readable output during local
 
 ### Prometheus Metrics
 
-All three deployments expose `/metrics` in Prometheus format with scrape annotations already configured:
+All four worker/API deployments expose `/metrics` in Prometheus format with scrape annotations already configured:
 
 | Deployment | Port | Endpoint |
 | --- | --- | --- |
 | Backend | 8000 | `/metrics` |
 | Projection Worker | 9090 | `/metrics` |
 | Push Worker | 9091 | `/metrics` |
+| Watch Worker | 9092 | `/metrics` |
 
 **HTTP server metrics** (backend):
 
