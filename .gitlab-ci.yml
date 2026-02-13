@@ -143,7 +143,7 @@ build-ci-image:
   rules:
     - if: $BUILD_CI_IMAGE == "true"
 
-# ==================== QUALITY (5 jobs: lint + typecheck + docs drift) ====================
+# ==================== QUALITY (8 jobs: lint + typecheck + docs drift + migration policy + agents) ====================
 
 docs-drift:
   stage: quality
@@ -212,6 +212,14 @@ agents-typecheck:
     - cd agents && uv sync --quiet --all-groups
   script:
     - uv run mypy .
+
+backend-migration-policy:
+  stage: quality
+  needs: []
+  image: $CI_NODE_PYTHON_IMAGE
+  extends: [.default-rules, .retry-infra, .failure-issue]
+  script:
+    - bash scripts/check-alembic-policy.sh
 
 # ==================== UNIT (4 jobs: no infrastructure, gated by quality) ====================
 
