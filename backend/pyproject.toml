@@ -13,6 +13,8 @@ dependencies = [
   "pywebpush",
   "structlog",
   "prometheus-client",
+  "alembic>=1.13.2",
+  "sqlalchemy>=2.0.0",
   "opentelemetry-sdk",
   "opentelemetry-exporter-otlp-proto-http",
   "opentelemetry-instrumentation-fastapi",
@@ -29,11 +31,9 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-  "alembic>=1.13.2",
   "ruff>=0.6.0",
   "mypy>=1.10.0",
   "bandit>=1.7.9",
-  "sqlalchemy>=2.0.0",
 ]
 
 [tool.uv]

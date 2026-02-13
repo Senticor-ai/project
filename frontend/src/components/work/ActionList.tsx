@@ -265,10 +265,12 @@ export function ActionList({
   const handleItemClick = useCallback(
     (index: number, id: CanonicalId, event: React.MouseEvent) => {
       const target = event.target as HTMLElement;
-      // Let interactive controls (buttons/links with aria-label, inputs, menus) handle their own clicks
+      // Let explicit interactive controls handle their own clicks.
+      // Do not match generic ancestor [aria-label] nodes (e.g., page/main wrappers),
+      // otherwise inbox selection is accidentally disabled.
       if (
         target.closest(
-          '[aria-label], input, textarea, select, [role="menu"], [role="menuitem"]',
+          'button[aria-label], a[aria-label], input, textarea, select, [role="menu"], [role="menuitem"]',
         )
       )
         return;

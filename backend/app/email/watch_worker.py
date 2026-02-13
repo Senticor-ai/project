@@ -22,6 +22,14 @@ from datetime import UTC, datetime, timedelta
 from ..config import settings
 from ..db import db_conn
 from ..outbox import enqueue_event
+from ..worker_health import (
+    WORKER_BATCH_DURATION_SECONDS,
+    WORKER_BATCHES_TOTAL,
+    WORKER_ERRORS_TOTAL,
+    WORKER_EVENTS_TOTAL,
+    WorkerHealthState,
+    start_health_server,
+)
 from .pubsub import PubSubClient, PubSubMessage
 from .sync import register_watch
 
@@ -170,6 +178,15 @@ def run_loop(
     renew_buffer_hours: int = 12,
 ) -> None:
     """Main worker loop — pull notifications and renew watches."""
+    _name = "watch-worker"
+    interval = max(0.1, float(poll_seconds))
+    health_state = WorkerHealthState(
+        _name,
+        poll_interval=interval,
+        staleness_multiplier=settings.worker_health_staleness_multiplier,
+    )
+    start_health_server(health_state, settings.gmail_watch_worker_health_port)
+
     if not settings.gmail_watch_configured:
         logger.info(
             "watch_worker.not_configured — set GMAIL_PUBSUB_PROJECT_ID, "
@@ -210,17 +227,20 @@ def run_loop(
 
     logger.info(
         "watch_worker.started poll_seconds=%.1f subscription=%s",
-        poll_seconds,
+        interval,
         subscription_id,
     )
 
     try:
         while True:
+            batch_start = time.monotonic()
+            enqueued = 0
             try:
                 enqueued = process_notifications(client)
                 if enqueued:
                     logger.info("watch_worker.batch enqueued=%d", enqueued)
             except Exception:
+                WORKER_ERRORS_TOTAL.labels(worker=_name).inc()
                 logger.exception("watch_worker.pull_failed")
 
             # Periodic watch renewal check
@@ -231,10 +251,17 @@ def run_loop(
                     if renewed:
                         logger.info("watch_worker.renewals count=%d", renewed)
                 except Exception:
+                    WORKER_ERRORS_TOTAL.labels(worker=_name).inc()
                     logger.exception("watch_worker.renew_check_failed")
                 last_renew_check = now
 
-            time.sleep(poll_seconds)
+            batch_duration = time.monotonic() - batch_start
+            WORKER_BATCHES_TOTAL.labels(worker=_name).inc()
+            WORKER_EVENTS_TOTAL.labels(worker=_name).inc(enqueued)
+            WORKER_BATCH_DURATION_SECONDS.labels(worker=_name).observe(batch_duration)
+            health_state.touch()
+
+            time.sleep(interval)
     except KeyboardInterrupt:
         logger.info("watch_worker.stopped")
 

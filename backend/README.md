@@ -110,6 +110,8 @@ cd backend
 uv run python -m app.db_init
 ```
 
+`app.db_init` runs `alembic upgrade head` with retry-on-startup behavior.
+
 ## Migrations (Alembic)
 
 Alembic is wired for manual migrations (no SQLAlchemy models).
@@ -120,6 +122,12 @@ uv sync --extra dev
 uv run alembic revision -m "describe change"
 uv run alembic upgrade head
 ```
+
+Migration policy (enforced in CI):
+
+- All schema changes must ship as Alembic revisions under `backend/alembic/versions/`.
+- Do not change `backend/db/schema.sql` by itself for feature work.
+- If `backend/db/schema.sql` changes, the same change must include a matching Alembic revision.
 
 ## Run API
 
@@ -153,8 +161,12 @@ cd backend
 uv run python -m app.search.reindex --files
 ```
 
-PDF text extraction uses pypdf for text-based PDFs. Indexing status is tracked per file and thing and exposed via `/files/{file_id}/index-status` and
-`/things/{thing_id}/index-status`. When VAPID keys are configured, the worker emits push events on
+PDF text extraction uses pypdf for text-based PDFs. Docling is used for OCR and non-PDF formats
+when file indexing is enabled. Ensure any required OCR backends are installed for your platform.
+OCR settings are per-org and configurable via `GET/PUT /search/ocr-config`; reindex files after
+changing OCR settings. Indexing status is tracked per file and item and exposed via
+`/files/{file_id}/index-status` and `/items/{item_id}/index-status`. When VAPID keys are
+configured, the worker emits push events on
 success or failure.
 
 ## Run Push Worker
@@ -209,9 +221,9 @@ uploads for a blob store without changing the client contract.
 
 ## Idempotency + Sync
 
-- Use `Idempotency-Key` on `POST /things` and `POST /assertions` to safely retry offline writes.
+- Use `Idempotency-Key` on `POST /items` and `POST /assertions` to safely retry offline writes.
 - Use `Idempotency-Key` on `POST /files/initiate` and `POST /files/complete` to safely retry uploads.
-- Use `GET /things/sync` with `since` **or** `cursor` for incremental sync.
+- Use `GET /items/sync` with `since` **or** `cursor` for incremental sync.
 - Use `ETag` / `If-None-Match` for cache-efficient polling.
 - Use `X-Org-Id` to target a specific org when a user belongs to multiple orgs. If omitted,
   the user's default org is used when available.
@@ -244,11 +256,11 @@ uploads for a blob store without changing the client contract.
 - `GET /orgs`
 - `POST /orgs`
 - `POST /orgs/{org_id}/members`
-- `GET /things` (supports `since`, ETags)
-- `GET /things/sync` (cursor-based sync, ETags)
-- `GET /things/{thing_id}` (ETags)
-- `GET /things/{thing_id}/index-status`
-- `POST /things` (idempotency + conflict detection)
+- `GET /items` (supports `since`, ETags)
+- `GET /items/sync` (cursor-based sync, ETags)
+- `GET /items/{item_id}` (ETags)
+- `GET /items/{item_id}/index-status`
+- `POST /items` (idempotency + conflict detection)
 - `POST /assertions`
 - `POST /files/initiate`
 - `PUT /files/upload/{upload_id}`

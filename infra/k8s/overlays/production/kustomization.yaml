@@ -11,21 +11,23 @@ resources:
 images:
   - name: terminandoyo-backend
     newName: harbor.100-114-108-51.nip.io:30443/terminandoyo/backend
-    newTag: "3788e485"
+    newTag: "db7314ef"
   - name: terminandoyo-frontend
     newName: harbor.100-114-108-51.nip.io:30443/terminandoyo/frontend
-    newTag: "3788e485"
+    newTag: "db7314ef"
   - name: terminandoyo-storybook
     newName: harbor.100-114-108-51.nip.io:30443/terminandoyo/storybook
-    newTag: "3788e485"
+    newTag: "db7314ef"
 
 patches:
   - path: patches/backend.yaml
   - path: patches/worker.yaml
   - path: patches/push-worker.yaml
+  - path: patches/watch-worker.yaml
   - path: patches/frontend.yaml
   - path: patches/storybook.yaml
   - path: patches/postgres.yaml
   - path: patches/backend-pubsub.yaml
   - path: patches/worker-pubsub.yaml
+  - path: patches/watch-worker-pubsub.yaml
   - path: patches/gitlab-ci-exporter.yaml

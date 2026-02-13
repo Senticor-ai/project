@@ -8,7 +8,7 @@ sast:
     - large
 
 stages:
-  - quality      # 4 jobs: lint + typecheck
+  - quality      # 6 jobs: lint + typecheck (+ agents)
   - unit         # 4 jobs: no infrastructure
   - integration  # 2 jobs: backend (Postgres), frontend-contract (no infra)
   - build        # 3 jobs: docker images + SAST (main only)
@@ -143,12 +143,19 @@ build-ci-image:
   rules:
     - if: $BUILD_CI_IMAGE == "true"
 
-# ==================== QUALITY (4 jobs: lint + typecheck) ====================
+# ==================== QUALITY (8 jobs: lint + typecheck + docs drift + migration policy + agents) ====================
+
+docs-drift:
+  stage: quality
+  needs: []
+  image: $CI_NODE_PYTHON_IMAGE
+  extends: [.default-rules, .retry-infra, .failure-issue]
+  script:
+    - bash scripts/check-doc-drift.sh
 
 frontend-lint:
   stage: quality
   needs: []
-  allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
   extends: [.default-rules, .retry-infra, .failure-issue, .frontend-cache]
   before_script:
@@ -159,7 +166,6 @@ frontend-lint:
 frontend-typecheck:
   stage: quality
   needs: []
-  allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
   extends: [.default-rules, .retry-infra, .failure-issue, .frontend-cache]
   before_script:
@@ -170,7 +176,6 @@ frontend-typecheck:
 backend-lint:
   stage: quality
   needs: []
-  allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
   extends: [.default-rules, .retry-infra, .failure-issue, .backend-cache]
   before_script:
@@ -181,7 +186,6 @@ backend-lint:
 backend-typecheck:
   stage: quality
   needs: []
-  allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
   extends: [.default-rules, .retry-infra, .failure-issue, .backend-cache]
   before_script:
@@ -189,11 +193,38 @@ backend-typecheck:
   script:
     - uv run mypy app/
 
+agents-lint:
+  stage: quality
+  needs: []
+  image: $CI_NODE_PYTHON_IMAGE
+  extends: [.default-rules, .retry-infra, .failure-issue, .agents-cache]
+  before_script:
+    - cd agents && uv sync --quiet --all-groups
+  script:
+    - uv run ruff check .
+
+agents-typecheck:
+  stage: quality
+  needs: []
+  image: $CI_NODE_PYTHON_IMAGE
+  extends: [.default-rules, .retry-infra, .failure-issue, .agents-cache]
+  before_script:
+    - cd agents && uv sync --quiet --all-groups
+  script:
+    - uv run mypy .
+
+backend-migration-policy:
+  stage: quality
+  needs: []
+  image: $CI_NODE_PYTHON_IMAGE
+  extends: [.default-rules, .retry-infra, .failure-issue]
+  script:
+    - bash scripts/check-alembic-policy.sh
+
 # ==================== UNIT (4 jobs: no infrastructure, gated by quality) ====================
 
 frontend-unit:
   stage: unit
-  allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
   extends: [.default-rules, .large-runner, .retry-infra, .failure-issue, .frontend-cache-readonly]
   before_script:
@@ -212,7 +243,6 @@ frontend-unit:
 
 frontend-storybook:
   stage: unit
-  allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
   extends: [.default-rules, .large-runner, .retry-infra, .failure-issue, .frontend-cache-readonly]
   before_script:
@@ -222,7 +252,6 @@ frontend-storybook:
 
 backend-unit:
   stage: unit
-  allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
   extends: [.default-rules, .retry-infra, .failure-issue, .backend-cache-readonly]
   before_script:
@@ -232,7 +261,6 @@ backend-unit:
 
 agents-unit:
   stage: unit
-  allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
   extends: [.default-rules, .retry-infra, .failure-issue, .agents-cache]
   before_script:
@@ -244,7 +272,6 @@ agents-unit:
 
 backend-integration:
   stage: integration
-  allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
   extends: [.default-rules, .large-runner, .retry-infra, .backend-postgres, .failure-issue, .backend-cache-readonly]
   before_script:
@@ -263,7 +290,6 @@ backend-integration:
 
 frontend-contract:
   stage: integration
-  allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
   extends: [.default-rules, .retry-infra, .failure-issue, .fullstack-cache-readonly]
   before_script:
@@ -312,7 +338,6 @@ build-storybook:
 
 e2e:
   stage: e2e
-  allow_failure: true
   image: $CI_NODE_PYTHON_IMAGE
   extends: [.large-runner, .retry-infra, .backend-postgres, .failure-issue, .fullstack-cache-readonly]
   rules:

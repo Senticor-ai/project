@@ -15,8 +15,8 @@ The pipeline validates every change before it reaches the cluster:
 ```
 Push to main
   │
-  ├─ Build ──────── docker compose builds frontend + backend images
-  │                  from their respective Dockerfiles
+  ├─ Build ──────── Kaniko validates Docker builds for frontend, backend,
+  │                  and storybook images (no push in build stage)
   │
   ├─ Push ───────── images pushed to private Harbor registry
   │                  using a CI robot account (credentials in CI/CD variables)
@@ -37,14 +37,16 @@ Push to main
 
 ### CI/CD Configuration
 
-The pipeline is defined in `.gitlab-ci.yml` and uses `docker-compose.build.yml` to build both images in a single step. Two masked CI/CD variables must be configured in GitLab project settings:
+The pipeline is defined in `.gitlab-ci.yml` and uses Kaniko jobs per image Dockerfile.
+Two masked CI/CD variables must be configured in GitLab project settings:
 
 - `HARBOR_USER` — robot account for the private registry
 - `HARBOR_PASSWORD` — robot account secret
 
 For this project, CI uses Kaniko (no Docker daemon). Harbor uses an internal CA certificate that is not publicly trusted, so Kaniko runs with `--insecure --skip-tls-verify` when pushing images.
 The CI job writes `/kaniko/.docker/config.json` from those two variables instead of calling `docker login`.
-On `main`, images are tagged `latest`; on other branches, images are tagged as `<branch-slug>-<short-sha>` to avoid clobbering release tags.
+On `main`, images are pushed with the `CI_COMMIT_SHORT_SHA` tag and the production
+Kustomization is updated to that same short SHA.
 
 These are the only secrets stored in GitLab. All application secrets live in the cluster, managed by ops.
 
@@ -52,7 +54,7 @@ These are the only secrets stored in GitLab. All application secrets live in the
 
 ## Container Structure
 
-The project has two Dockerfiles, both built from the monorepo root context:
+The project has three Dockerfiles, all built from the monorepo root context:
 
 ### Frontend (`frontend/Dockerfile`)
 
@@ -71,6 +73,13 @@ Single-stage build:
 2. Uses `uv` for dependency management (`uv sync --frozen --no-dev`)
 3. Runs `uvicorn app.main:app` on port **8000**
 
+### Storybook (`frontend/Dockerfile.storybook`)
+
+Multi-stage build:
+
+1. **Build stage** — `node:24-alpine`, runs `storybook build` with `STORYBOOK_BASE`
+2. **Runtime stage** — `nginx:1.27-alpine`, serves static Storybook assets
+
 ---
 
 ## Kubernetes Architecture
@@ -83,6 +92,9 @@ All application resources are declared in `infra/k8s/` using a Kustomize base/ov
 | ------------- | --------------------- | ---------------------------------------------------------- |
 | frontend      | Deployment + Service  | Nginx serving SPA, proxying `/api/*` to backend            |
 | backend       | Deployment + Service  | FastAPI with init containers for DB readiness + migration  |
+| worker        | Deployment            | Projection outbox worker (indexing/import/email sync)      |
+| push-worker   | Deployment            | Web Push outbox delivery worker                            |
+| watch-worker  | Deployment            | Gmail Pub/Sub watch worker (real-time sync trigger)        |
 | postgres      | StatefulSet + Service | PostgreSQL 16 with 10Gi persistent volume                  |
 | backend-files | PVC (5Gi)             | File storage mounted at `/data/storage`                    |
 | app-config    | ConfigMap             | Non-sensitive configuration (CORS, logging, feature flags) |
@@ -117,20 +129,23 @@ See [Email Integration](?path=/docs/engineering-email-integration--docs) for the
 The backend Deployment uses init containers instead of a standalone Job (Jobs are not idempotent in GitOps — Flux would recreate them every cycle):
 
 1. **wait-for-postgres** — polls `pg_isready` until the database accepts connections
-2. **db-init** — runs `uv run python -m app.db_init`, which applies the idempotent schema migration (`CREATE IF NOT EXISTS`)
+2. **db-init** — runs `uv run python -m app.db_init`, which executes `alembic upgrade head`
 
-This runs on every pod start, which is safe because the schema is fully idempotent.
+This runs on every pod start, which is safe because Alembic applies only pending revisions.
 
 ### Resource Budget
 
 The cluster namespace has a resource quota. Current allocation:
 
-| Component  | CPU request | Memory request | CPU limit | Memory limit |
-| ---------- | ----------- | -------------- | --------- | ------------ |
-| Frontend   | 50m         | 128Mi          | 200m      | 256Mi        |
-| Backend    | 200m        | 512Mi          | 1000m     | 2Gi          |
-| PostgreSQL | 200m        | 256Mi          | 500m      | 1Gi          |
-| **Total**  | **450m**    | **896Mi**      | **1700m** | **3.25Gi**   |
+| Component    | CPU request | Memory request | CPU limit | Memory limit |
+| ------------ | ----------- | -------------- | --------- | ------------ |
+| Frontend     | 50m         | 128Mi          | 200m      | 256Mi        |
+| Backend      | 200m        | 512Mi          | 1000m     | 2Gi          |
+| Worker       | 100m        | 256Mi          | 500m      | 1Gi          |
+| Push Worker  | 50m         | 128Mi          | 250m      | 512Mi        |
+| Watch Worker | 50m         | 128Mi          | 250m      | 512Mi        |
+| PostgreSQL   | 200m        | 256Mi          | 500m      | 1Gi          |
+| **Total**    | **650m**    | **1408Mi**     | **2700m** | **5.25Gi**   |
 
 Contact ops if the quota needs to be increased.
 
@@ -155,13 +170,14 @@ Set `LOG_FORMAT=console` in the ConfigMap for human-readable output during local
 
 ### Prometheus Metrics
 
-All three deployments expose `/metrics` in Prometheus format with scrape annotations already configured:
+All four worker/API deployments expose `/metrics` in Prometheus format with scrape annotations already configured:
 
 | Deployment | Port | Endpoint |
 | --- | --- | --- |
 | Backend | 8000 | `/metrics` |
 | Projection Worker | 9090 | `/metrics` |
 | Push Worker | 9091 | `/metrics` |
+| Watch Worker | 9092 | `/metrics` |
 
 **HTTP server metrics** (backend):
 

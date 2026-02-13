@@ -8,6 +8,9 @@
 # Required CI variable:
 #   GITLAB_ISSUE_TOKEN  — Project Access Token with api scope (Developer role)
 #
+# Optional CI variable:
+#   CI_ISSUE_BOT_DEFAULT_BRANCH_ONLY=false  — Re-enable branch-scoped issue tracking.
+#
 # Silently exits if the token is not set, so pipelines in forks or
 # environments without the token are unaffected.
 
@@ -31,10 +34,17 @@ fi
 # ── Environment ─────────────────────────────────────────────────────
 
 BRANCH="${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:-${CI_COMMIT_BRANCH:-unknown}}"
+DEFAULT_BRANCH="${CI_DEFAULT_BRANCH:-main}"
 API_BASE="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}"
 AUTH_HEADER="PRIVATE-TOKEN: ${TOKEN}"
+TRACK_DEFAULT_BRANCH_ONLY="${CI_ISSUE_BOT_DEFAULT_BRANCH_ONLY:-true}"
 ISSUE_LABEL="ci-failure::${CI_JOB_NAME}"
-ISSUE_TITLE="CI failure: ${CI_JOB_NAME} on ${BRANCH}"
+ISSUE_SCOPE_BRANCH="$BRANCH"
+if [ "$TRACK_DEFAULT_BRANCH_ONLY" = "true" ]; then
+  ISSUE_SCOPE_BRANCH="$DEFAULT_BRANCH"
+fi
+ISSUE_TITLE="CI failure: ${CI_JOB_NAME} on ${ISSUE_SCOPE_BRANCH}"
+ISSUE_LABELS="${ISSUE_LABEL},ci-failure"
 
 # ── Ensure dependencies (curl + jq) ────────────────────────────────
 
@@ -59,27 +69,33 @@ ensure_deps
 
 urlencode() { printf '%s' "$1" | jq -sRr @uri; }
 
+# ── Scope guard ──────────────────────────────────────────────────────
+
+if [ "$TRACK_DEFAULT_BRANCH_ONLY" = "true" ] && [ "${CI_COMMIT_BRANCH:-}" != "$DEFAULT_BRANCH" ]; then
+  echo "[issue-bot] Skipping non-default branch pipeline (${BRANCH}); tracking ${DEFAULT_BRANCH} only."
+  exit 0
+fi
+
 # ── Failure path: create or comment ─────────────────────────────────
 
 handle_failure() {
-  local encoded_label encoded_title
+  local encoded_label
   encoded_label=$(urlencode "$ISSUE_LABEL")
-  encoded_title=$(urlencode "$ISSUE_TITLE")
 
-  # Check for an existing open issue (label + title search)
+  # Check for an existing open issue (exact title + label).
   local existing
   existing=$(curl -fsSLk \
     -H "$AUTH_HEADER" \
-    "${API_BASE}/issues?labels=${encoded_label}&search=${encoded_title}&in=title&state=opened&per_page=1")
+    "${API_BASE}/issues?labels=${encoded_label}&state=opened&per_page=100")
 
-  local count
-  count=$(echo "$existing" | jq 'length')
+  local iid web_url
+  iid=$(echo "$existing" | jq -r --arg title "$ISSUE_TITLE" \
+    '.[] | select(.title == $title) | .iid' | head -n1)
 
-  if [ "$count" -gt 0 ]; then
+  if [ -n "$iid" ] && [ "$iid" != "null" ]; then
     # ── Duplicate: add a comment instead ──
-    local iid web_url
-    iid=$(echo "$existing" | jq -r '.[0].iid')
-    web_url=$(echo "$existing" | jq -r '.[0].web_url')
+    web_url=$(echo "$existing" | jq -r --arg iid "$iid" \
+      '.[] | select((.iid | tostring) == $iid) | .web_url' | head -n1)
     echo "[issue-bot] Open issue already exists: ${web_url}"
 
     local comment_body
@@ -141,7 +157,7 @@ handle_failure() {
   payload=$(jq -n \
     --arg title "$ISSUE_TITLE" \
     --arg description "$description" \
-    --arg labels "$ISSUE_LABEL" \
+    --arg labels "$ISSUE_LABELS" \
     '{title: $title, description: $description, labels: $labels}')
 
   response=$(curl -fsSLk \
@@ -167,10 +183,15 @@ handle_success() {
     -H "$AUTH_HEADER" \
     "${API_BASE}/issues?labels=${encoded_label}&state=opened&per_page=100")
 
-  # Filter by branch in title and close each match
+  # On default-branch success, close all open issues for this job label.
+  # Otherwise, only close the exact issue for this branch scope.
   local iids
-  iids=$(echo "$issues" | jq -r --arg branch "$BRANCH" \
-    '.[] | select(.title | contains("on " + $branch)) | .iid')
+  if [ "$TRACK_DEFAULT_BRANCH_ONLY" = "true" ] && [ "${CI_COMMIT_BRANCH:-}" = "$DEFAULT_BRANCH" ]; then
+    iids=$(echo "$issues" | jq -r '.[].iid')
+  else
+    iids=$(echo "$issues" | jq -r --arg title "$ISSUE_TITLE" \
+      '.[] | select(.title == $title) | .iid')
+  fi
 
   if [ -z "$iids" ]; then
     return
