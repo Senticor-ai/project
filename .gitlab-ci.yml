@@ -8,7 +8,7 @@ sast:
     - large
 
 stages:
-  - quality      # 4 jobs: lint + typecheck
+  - quality      # 6 jobs: lint + typecheck (+ agents)
   - unit         # 4 jobs: no infrastructure
   - integration  # 2 jobs: backend (Postgres), frontend-contract (no infra)
   - build        # 3 jobs: docker images + SAST (main only)
@@ -143,7 +143,7 @@ build-ci-image:
   rules:
     - if: $BUILD_CI_IMAGE == "true"
 
-# ==================== QUALITY (4 jobs: lint + typecheck) ====================
+# ==================== QUALITY (6 jobs: lint + typecheck, including agents) ====================
 
 frontend-lint:
   stage: quality
@@ -188,6 +188,26 @@ backend-typecheck:
     - cd backend && uv sync --quiet --all-groups --all-extras
   script:
     - uv run mypy app/
+
+agents-lint:
+  stage: quality
+  needs: []
+  image: $CI_NODE_PYTHON_IMAGE
+  extends: [.default-rules, .retry-infra, .failure-issue, .agents-cache]
+  before_script:
+    - cd agents && uv sync --quiet --all-groups
+  script:
+    - uv run ruff check .
+
+agents-typecheck:
+  stage: quality
+  needs: []
+  image: $CI_NODE_PYTHON_IMAGE
+  extends: [.default-rules, .retry-infra, .failure-issue, .agents-cache]
+  before_script:
+    - cd agents && uv sync --quiet --all-groups
+  script:
+    - uv run mypy .
 
 # ==================== UNIT (4 jobs: no infrastructure, gated by quality) ====================
 
