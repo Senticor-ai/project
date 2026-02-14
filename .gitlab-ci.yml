@@ -19,7 +19,7 @@ stages:
 
 variables:
   # Pre-built CI image with Node 24 + Python 3.12 + Playwright + uv.
-  # Rebuild on demand: glab ci run --variables BUILD_CI_IMAGE=true
+  # Rebuild on demand: glab ci run --variables BUILD_CI_IMAGE:true
   # Pushed to Harbor; runner authenticates via DOCKER_AUTH_CONFIG below.
   HARBOR_REGISTRY: harbor.100-114-108-51.nip.io:30443
   CI_NODE_PYTHON_IMAGE: ${HARBOR_REGISTRY}/terminandoyo/ci:latest
@@ -134,6 +134,7 @@ build-ci-image:
   image:
     name: gcr.io/kaniko-project/executor:v1.23.2-debug
     entrypoint: [""]
+  extends: .large-runner
   before_script:
     - mkdir -p /kaniko/.docker
     - AUTH_B64="$(printf '%s:%s' "$HARBOR_USER" "$HARBOR_PASSWORD" | base64 | tr -d '\n')"
