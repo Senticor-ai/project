@@ -314,6 +314,7 @@ function ProjectRow({
         {/* Stalled indicator */}
         {stalled && (
           <span
+            role="img"
             aria-label="Needs next action"
             className="shrink-0 text-status-warning"
           >

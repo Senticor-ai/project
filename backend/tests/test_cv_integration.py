@@ -1,236 +1,254 @@
-"""Integration test — real CV + job description through the pipeline.
+"""Integration test — CV pipeline through text extraction and PDF rendering.
 
-Uses Wolfgang's actual CV markdown and an Anthropic job description HTML
-to verify text extraction and PDF rendering work end-to-end.
+Uses inline test fixtures (not external files) so tests run in CI without
+any personal documents in the repository.
 """
 
 from __future__ import annotations
 
-from pathlib import Path
+import pytest
 
-from app.document_renderer import render_cv_to_pdf
 from app.text_extractor import extract_file_text
 
-_TMP_DIR = Path(__file__).resolve().parents[2] / "tmp"
+# WeasyPrint requires native Pango/GTK libraries that may not be installed
+# in all CI environments.  Skip PDF-rendering tests gracefully when absent.
+# Note: document_renderer imports weasyprint lazily inside functions, so
+# importing render_cv_to_pdf alone won't trigger the OSError.  We probe
+# weasyprint directly to detect missing native libs.
+try:
+    import weasyprint  # noqa: F401
 
-CV_MD = _TMP_DIR / "Freelance Wolfgang Ihloff CV.md"
-JOB_HTML = _TMP_DIR / "Job Application for Product Manager, Safeguards (Beneficial Deployments) at Anthropic.html"
+    _HAS_WEASYPRINT = True
+except (ImportError, OSError):
+    _HAS_WEASYPRINT = False
+
+from app.document_renderer import render_cv_to_pdf
+
+requires_weasyprint = pytest.mark.skipif(
+    not _HAS_WEASYPRINT,
+    reason="WeasyPrint native libraries (pango) not available",
+)
+
+# ---------------------------------------------------------------------------
+# Inline fixtures — generic persona, no personal data
+# ---------------------------------------------------------------------------
+
+SAMPLE_CV_MARKDOWN = """\
+# John Johnson
+
+**Senior Product Manager & Cloud Architect**
+
+Springfield, USA | +1-555-0100 | john@snakeoil.example.com
+
+## Profile
+
+Results-driven product leader with 15+ years of experience in cloud platforms,
+developer tools, and enterprise SaaS. Track record of shipping products that
+delight developers and generate measurable business impact.
+
+## Skills
+
+- Cloud Architecture (AWS, Azure, GCP)
+- Product Strategy & Roadmapping
+- Cross-functional Team Leadership
+- Developer Experience (DX)
+- Agile & Scrum
+
+## Experience
+
+### Head of Product — Snake Oil Inc.
+
+*2022 – Present | Remote*
+
+- Launched 3 new API products generating $4M increase in ARR
+- Established product-led growth motion with 30% MoM developer sign-ups
+- Led cross-functional team of 12 engineers, 2 designers, 1 data analyst
+
+### Senior Product Manager — Acme Corp
+
+*2017 – 2022 | New York, NY*
+
+- Drove cloud migration strategy reducing infrastructure costs by 40%
+- Spearheaded developer portal serving 50k monthly active users
+- Increased platform uptime from 99.9% to 99.99%
+
+### Product Manager — Widgets Ltd.
+
+*2012 – 2017 | Chicago, IL*
+
+- Managed product lifecycle for 5 B2B SaaS products
+- Grew annual recurring revenue from $2M to $8M
+
+## Education
+
+- **BSc Computer Science** — Springfield University (2011)
+- **MBA** — State Business School (2015)
+
+## Certifications
+
+- AWS Solutions Architect Professional
+- Certified Scrum Product Owner (CSPO)
+"""
+
+SAMPLE_JOB_HTML = """\
+<!DOCTYPE html>
+<html>
+<head><title>Product Manager - Snake Oil Inc.</title></head>
+<body>
+<h1>Product Manager, Developer Platform</h1>
+<p><strong>Snake Oil Inc.</strong> — Springfield, USA</p>
+<h2>About the Role</h2>
+<p>We are looking for a Product Manager to lead our Developer Platform team.
+You will own the roadmap for our API products, developer portal, and SDK ecosystem.</p>
+<h2>Requirements</h2>
+<ul>
+<li>5+ years of product management experience</li>
+<li>Experience with developer tools or platform products</li>
+<li>Strong technical background (CS degree or equivalent)</li>
+<li>Excellent communication and stakeholder management skills</li>
+</ul>
+<h2>Nice to Have</h2>
+<ul>
+<li>Experience with cloud infrastructure (AWS, Azure, GCP)</li>
+<li>Background in API design and developer experience</li>
+</ul>
+</body>
+</html>
+"""
 
 
 class TestTextExtraction:
-    """Verify text extraction works on real files."""
+    """Verify text extraction works on markdown and HTML content."""
 
-    def test_extract_cv_markdown(self):
-        assert CV_MD.exists(), f"CV file not found: {CV_MD}"
-        text = extract_file_text(CV_MD, "text/markdown", max_chars=50000)
+    def test_extract_cv_markdown(self, tmp_path):
+        cv_file = tmp_path / "cv.md"
+        cv_file.write_text(SAMPLE_CV_MARKDOWN)
+        text = extract_file_text(cv_file, "text/markdown", max_chars=50000)
         assert len(text) > 500
-        assert "Wolfgang Ihloff" in text
-        assert "Aleph Alpha" in text
-        assert "Adobe" in text
-        assert "Product Leader" in text
+        assert "John Johnson" in text
+        assert "Snake Oil" in text
+        assert "Acme Corp" in text
+        assert "Product Manager" in text
 
-    def test_extract_job_description_html(self):
-        assert JOB_HTML.exists(), f"Job description not found: {JOB_HTML}"
-        # HTML is a text type — extractor reads it as text
-        text = extract_file_text(JOB_HTML, "text/html", max_chars=50000)
-        assert len(text) > 500
-        assert "Anthropic" in text
+    def test_extract_job_description_html(self, tmp_path):
+        job_file = tmp_path / "job.html"
+        job_file.write_text(SAMPLE_JOB_HTML)
+        text = extract_file_text(job_file, "text/html", max_chars=50000)
+        assert len(text) > 200
+        assert "Snake Oil" in text
+        assert "Developer Platform" in text
 
-    def test_extract_cv_by_extension(self):
+    def test_extract_cv_by_extension(self, tmp_path):
         """Extension-based detection (no content_type)."""
-        text = extract_file_text(CV_MD, None, max_chars=50000)
-        assert "Wolfgang Ihloff" in text
+        cv_file = tmp_path / "cv.md"
+        cv_file.write_text(SAMPLE_CV_MARKDOWN)
+        text = extract_file_text(cv_file, None, max_chars=50000)
+        assert "John Johnson" in text
 
-    def test_truncation_works(self):
-        text = extract_file_text(CV_MD, "text/markdown", max_chars=200)
+    def test_truncation_works(self, tmp_path):
+        cv_file = tmp_path / "cv.md"
+        cv_file.write_text(SAMPLE_CV_MARKDOWN)
+        text = extract_file_text(cv_file, "text/markdown", max_chars=200)
         assert len(text) <= 200
 
 
-class TestRenderRealCv:
-    """Render Wolfgang's actual CV data to PDF."""
+@requires_weasyprint
+class TestRenderStructuredCv:
+    """Render structured CV data to PDF via Jinja2 template."""
 
-    REAL_CV = {
-        "name": "Wolfgang Ihloff",
+    SAMPLE_CV = {
+        "name": "John Johnson",
         "contact": {
-            "location": "Las Palmas de Gran Canaria, Spain",
-            "phone": "+34672274837",
-            "email": "wolfgang@ihloff.de",
-            "linkedin": "linkedin.com/in/wolfgangilhoff",
+            "location": "Springfield, USA",
+            "phone": "+1-555-0100",
+            "email": "john@snakeoil.example.com",
+            "linkedin": "linkedin.com/in/johnjohnson",
         },
-        "headline": "Product Leader, Technologist, Visionary and Executor",
+        "headline": "Senior Product Manager & Cloud Architect",
         "summary": (
-            '"Can do" leader with 20+ years\u2019 customer engagement, product management '
-            "and engineering experience, specializing in multi-cloud and sovereign platforms. "
-            "Track record of leading platform strategy from ideation to delivery in a fast-paced "
-            "environment."
+            "Results-driven product leader with 15+ years of experience in "
+            "cloud platforms, developer tools, and enterprise SaaS."
         ),
         "skills": [
-            "Artificial Intelligence Adoption",
-            "AI Process Improvement",
-            "Cloud Service Expert",
-            "Cross-team Collaboration",
-            "Talent Acquisition & Retention",
-            "Developer Platform Visionary",
-            "Cloud Cost Reduction",
-            "Cloud Vendor Management",
-            "Global Team Management",
+            "Cloud Architecture",
+            "Product Strategy",
+            "Developer Experience",
+            "Cross-functional Leadership",
+            "Agile & Scrum",
         ],
         "experience": [
             {
-                "company": "Senticor",
-                "title": "Fractional CTO & CPO",
-                "period": "September 2025",
-                "summary": (
-                    "Consulting services for Enterprise and Public Sector "
-                    "Companies in AI topics for sovereign use cases."
-                ),
-                "bullets": [
-                    "Consulting public sector specialized near shore engineering companies",
-                    "Technical Guidance on open source product deployment LibreChat",
-                    "Legal AI proof of concept using RAGGraph approach",
-                ],
-            },
-            {
-                "company": "Aleph Alpha",
-                "title": "Team Lead Product (Vertical)",
-                "period": "Feb. 2024 - August 2025",
-                "location": "51% onsite",
-                "summary": (
-                    "Build out product teams as first product hire for lighthouse "
-                    "German LLM company."
-                ),
-                "bullets": [
-                    "Established product metrics and northstar with personas across org",
-                    "Established strategy and roadmap for the German market",
-                    "Acted as Product Owner for 3 Scrum teams",
-                    "Established UX process as holistic product focus",
-                ],
-            },
-            {
-                "company": "Build.One",
+                "company": "Snake Oil Inc.",
                 "title": "Head of Product",
-                "period": "2022-2023",
+                "period": "2022 – Present",
                 "location": "Remote",
+                "summary": "Leading product strategy for developer platform.",
                 "bullets": [
-                    "Transitioned 3 clients from project based to 1M EUR ARR",
-                    "Established Customer Problem Centric Design process",
+                    "Launched 3 new API products generating $4M ARR",
+                    "Established product-led growth motion",
+                    "Led cross-functional team of 12",
                 ],
             },
             {
-                "company": "Adobe",
-                "title": "Group Product Manager",
-                "period": "2013-2022",
-                "location": "Remote - USA",
-                "summary": (
-                    "Promoted to unify fragmented developer ecosystems across "
-                    "hundreds of Adobe product teams."
-                ),
+                "company": "Acme Corp",
+                "title": "Senior Product Manager",
+                "period": "2017 – 2022",
+                "location": "New York, NY",
                 "bullets": [
-                    "Spearheaded company-wide developer experience strategy",
-                    "Drove $5M in YoY development cost savings",
-                    "Increased cloud availability from 99.9% to 99.99%",
-                    "Took Azure adoption from 0% to 100% for Creative Cloud",
-                    "Effected $10M annual shift in cloud expenditures to Azure",
+                    "Drove cloud migration reducing costs by 40%",
+                    "Spearheaded developer portal with 50k MAU",
+                    "Increased uptime from 99.9% to 99.99%",
                 ],
             },
             {
-                "company": "Sycle",
-                "title": "Technical Product Manager",
-                "period": "2010-2013",
-                "location": "Remote",
+                "company": "Widgets Ltd.",
+                "title": "Product Manager",
+                "period": "2012 – 2017",
+                "location": "Chicago, IL",
                 "bullets": [
-                    "Launched 4 new products generating $2M increase in ARR",
-                    "Migrated 200 Costco hearing aid practices to new platform",
+                    "Managed 5 B2B SaaS products",
+                    "Grew ARR from $2M to $8M",
                 ],
             },
         ],
         "education": [
             {
-                "institution": "Fernuniversitaet Hagen",
-                "degree": "Computer Science (not completed)",
-                "description": (
-                    "Scholarship for semester abroad at San Diego State University"
-                ),
+                "institution": "Springfield University",
+                "degree": "BSc Computer Science",
             },
             {
-                "institution": "Universitaet Karlsruhe",
-                "degree": "Economics (not completed)",
+                "institution": "State Business School",
+                "degree": "MBA",
             },
         ],
         "certifications": [
-            "Pragmatic Marketing Foundations",
+            "AWS Solutions Architect Professional",
             "Certified Scrum Product Owner (CSPO)",
         ],
     }
 
-    ANTHROPIC_TAILORED_CSS = """
+    SAMPLE_CSS = """
     body {
         font-family: 'Inter', sans-serif;
         color: #1a1a1a;
         line-height: 1.5;
     }
-    h1 {
-        font-size: 22pt;
-        font-weight: 700;
-        margin-bottom: 2pt;
-        color: #0f172a;
-    }
-    .headline {
-        font-size: 11pt;
-        color: #475569;
-        margin-bottom: 6pt;
-    }
-    .contact {
-        font-size: 9pt;
-        color: #64748b;
-        margin-bottom: 12pt;
-    }
-    .sep {
-        color: #cbd5e1;
-    }
+    h1 { font-size: 22pt; font-weight: 700; color: #0f172a; }
     h2 {
-        font-size: 12pt;
-        font-weight: 700;
-        color: #0f172a;
+        font-size: 12pt; font-weight: 700;
         border-bottom: 1.5pt solid #c2815b;
         padding-bottom: 3pt;
-        margin-top: 14pt;
-        margin-bottom: 6pt;
     }
-    .summary { font-size: 10pt; margin-bottom: 8pt; }
-    .skills-list {
-        list-style: none;
-        padding: 0;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 4pt 12pt;
-    }
-    .skills-list li {
-        font-size: 9pt;
-        background: #f1f5f9;
-        padding: 2pt 6pt;
-        border-radius: 3pt;
-    }
-    .job { margin-bottom: 10pt; }
-    .job-header { margin-bottom: 3pt; }
+    .headline { font-size: 11pt; color: #475569; }
+    .contact { font-size: 9pt; color: #64748b; }
     .job-title { font-size: 10.5pt; }
     .job-company { font-size: 10pt; color: #475569; }
-    .job-period, .job-location {
-        font-size: 9pt;
-        color: #64748b;
-    }
-    .job-summary { font-size: 9.5pt; font-style: italic; margin: 2pt 0; }
-    .job-bullets { font-size: 9.5pt; }
-    .job-bullets li { margin-bottom: 1pt; }
-    .edu-entry { margin-bottom: 6pt; }
-    .edu-period { font-size: 9pt; color: #64748b; display: block; }
     """
 
-    def test_renders_real_cv_to_pdf(self):
-        """Full CV with real data produces valid PDF."""
-        result = render_cv_to_pdf(self.REAL_CV, self.ANTHROPIC_TAILORED_CSS)
+    def test_renders_structured_cv_to_pdf(self):
+        """Full structured CV data produces valid PDF."""
+        result = render_cv_to_pdf(self.SAMPLE_CV, self.SAMPLE_CSS)
         assert result[:5] == b"%PDF-"
-        # A real multi-page CV should be substantial
         assert len(result) > 5000, f"PDF too small: {len(result)} bytes"
 
     def test_pdf_contains_text(self):
@@ -239,10 +257,12 @@ class TestRenderRealCv:
 
         from pypdf import PdfReader
 
-        result = render_cv_to_pdf(self.REAL_CV, self.ANTHROPIC_TAILORED_CSS)
+        result = render_cv_to_pdf(self.SAMPLE_CV, self.SAMPLE_CSS)
         reader = PdfReader(io.BytesIO(result))
         full_text = " ".join(page.extract_text() or "" for page in reader.pages)
-        assert "Wolfgang" in full_text
-        assert "Ihloff" in full_text
-        assert "Adobe" in full_text
-        assert "Aleph Alpha" in full_text
+        assert "John" in full_text
+        assert "Johnson" in full_text
+        assert "Acme Corp" in full_text
+        assert "Snake Oil" in full_text
+
+
