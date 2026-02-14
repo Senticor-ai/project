@@ -2,7 +2,20 @@
 
 from __future__ import annotations
 
+import pytest
+
 from app.document_renderer import render_cv_to_pdf
+
+# WeasyPrint requires native Pango/GTK libraries that may not be installed
+# in all CI environments.  Probe weasyprint directly (document_renderer
+# imports it lazily) so we can skip the entire module when libs are missing.
+try:
+    import weasyprint  # noqa: F401
+except (ImportError, OSError):
+    pytest.skip(
+        "WeasyPrint native libraries (pango) not available",
+        allow_module_level=True,
+    )
 
 # ---------------------------------------------------------------------------
 # Fixtures
