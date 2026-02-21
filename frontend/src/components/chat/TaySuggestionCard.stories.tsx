@@ -26,7 +26,7 @@ const projectSuggestion: CreateProjectWithActionsSuggestion = {
 };
 
 const meta = {
-  title: "Chat/TaySuggestionCard",
+  title: "Chat/CopilotSuggestionCard",
   component: TaySuggestionCard,
   args: {
     suggestion: projectSuggestion,

@@ -60,6 +60,7 @@ Three paths to project-reference linking:
     style I fill:#e8f5e9,stroke:#2e7d32
     style J fill:#e3f2fd,stroke:#1976d2
     style K fill:#e3f2fd,stroke:#1976d2
+
 `} />
 
 **Path A — Triage with project (during triage):**
@@ -114,17 +115,17 @@ reference files as compact chips below the action list.
 
 ## Capability Assessment
 
-| Capability                       | Status      | Notes                                                             |
-| -------------------------------- | ----------- | ----------------------------------------------------------------- |
-| `ReferenceMaterial.projectIds`   | **Gap**     | Type has no `projectIds` field                                    |
-| Serialization round-trip         | **Gap**     | `fromJsonLd`/`toJsonLd` don't handle `app:projectRefs` for refs  |
-| `buildTriagePatch` (reference)   | **Gap**     | Line 409: drops `result.projectId`                                |
-| `buildNewFileReferenceJsonLd`    | **Gap**     | Split reference copy: no `app:projectRefs` emitted               |
-| Project picker in triage         | Partial     | Works for action buckets, not shown for reference                 |
-| Project picker in ReferenceRow   | **Gap**     | `referenceToEditorValues` returns no `projectId`; no projects prop|
-| ProjectTree shows references     | **Gap**     | Only renders `ActionItem[]`                                       |
-| Project badge on ReferenceRow    | **Gap**     | No visual indicator of which project a reference belongs to       |
-| Backend PATCH support            | **Works**   | `additionalProperty` accepts any `propertyID` including `app:projectRefs` |
+| Capability                     | Status    | Notes                                                                     |
+| ------------------------------ | --------- | ------------------------------------------------------------------------- |
+| `ReferenceMaterial.projectIds` | **Gap**   | Type has no `projectIds` field                                            |
+| Serialization round-trip       | **Gap**   | `fromJsonLd`/`toJsonLd` don't handle `app:projectRefs` for refs           |
+| `buildTriagePatch` (reference) | **Gap**   | Line 409: drops `result.projectId`                                        |
+| `buildNewFileReferenceJsonLd`  | **Gap**   | Split reference copy: no `app:projectRefs` emitted                        |
+| Project picker in triage       | Partial   | Works for action buckets, not shown for reference                         |
+| Project picker in ReferenceRow | **Gap**   | `referenceToEditorValues` returns no `projectId`; no projects prop        |
+| ProjectTree shows references   | **Gap**   | Only renders `ActionItem[]`                                               |
+| Project badge on ReferenceRow  | **Gap**   | No visual indicator of which project a reference belongs to               |
+| Backend PATCH support          | **Works** | `additionalProperty` accepts any `propertyID` including `app:projectRefs` |
 
 ---
 
@@ -138,8 +139,16 @@ canonical IDs. No new schema concepts needed.
 {
   "@type": "CreativeWork",
   "additionalProperty": [
-    { "@type": "PropertyValue", "propertyID": "app:bucket", "value": "reference" },
-    { "@type": "PropertyValue", "propertyID": "app:projectRefs", "value": ["urn:tay:project:abc"] }
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:bucket",
+      "value": "reference"
+    },
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:projectRefs",
+      "value": ["urn:tay:project:abc"]
+    }
   ]
 }
 ```
@@ -149,29 +158,32 @@ canonical IDs. No new schema concepts needed.
 ## Implementation Scope
 
 ### Data model
+
 - Add `projectIds: CanonicalId[]` to `ReferenceMaterial` interface
 - Update `createReferenceMaterial` factory
 
 ### Serialization (3 fixes)
+
 - `fromJsonLd`: extract `app:projectRefs` in CreativeWork + DigitalDocument reference branches
 - `toJsonLd`: serialize `projectIds` as `app:projectRefs` in reference branch
 - `buildTriagePatch`: include `app:projectRefs` when target is "reference"
 - `buildNewFileReferenceJsonLd`: propagate project from source item to split reference
 
 ### UI (3 components)
+
 - `ProjectTree`: accept `references` prop, render compact file chips per project
 - `ReferenceRow`: accept `projects` prop, show project badge, update editor values
 - `ReferenceList` / `BucketView` / `ConnectedBucketView`: thread `projects` prop
 
 ---
 
-## Tay Automation Potential
+## Copilot Automation Potential
 
-Tay could auto-assign references to the correct project based on content:
+Copilot could auto-assign references to the correct project based on content:
 
 > "I see you uploaded a 1099-INT from Schwab. Your '2025 Tax Return' project
 > has an action 'Download 1099-INT from Schwab'. Want me to link this
 > document to that project?"
 
-This requires the project-reference linking to be in place first — Tay needs
+This requires the project-reference linking to be in place first — Copilot needs
 the `app:projectRefs` field on CreativeWork to write to.

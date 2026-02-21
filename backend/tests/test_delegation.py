@@ -45,9 +45,7 @@ class TestCreateDelegatedToken:
         assert isinstance(token, str)
 
         # Decode without verification to inspect claims
-        claims = jwt.decode(
-            token, _TEST_SECRET, algorithms=["HS256"], audience="project-backend"
-        )
+        claims = jwt.decode(token, _TEST_SECRET, algorithms=["HS256"], audience="project-backend")
         assert claims["sub"] == "user-1"
         assert claims["org"] == "org-1"
         assert claims["act"] == {"sub": "tay"}
@@ -69,9 +67,7 @@ class TestCreateDelegatedToken:
             actor="assistant",
             scope="items:read",
         )
-        claims = jwt.decode(
-            token, _TEST_SECRET, algorithms=["HS256"], audience="project-backend"
-        )
+        claims = jwt.decode(token, _TEST_SECRET, algorithms=["HS256"], audience="project-backend")
         assert claims["act"] == {"sub": "assistant"}
         assert claims["scope"] == "items:read"
 
@@ -80,9 +76,7 @@ class TestCreateDelegatedToken:
         from app.delegation import create_delegated_token
 
         token = create_delegated_token(user_id="u", org_id="o", ttl_seconds=10)
-        claims = jwt.decode(
-            token, _TEST_SECRET, algorithms=["HS256"], audience="project-backend"
-        )
+        claims = jwt.decode(token, _TEST_SECRET, algorithms=["HS256"], audience="project-backend")
         # exp should be within ~10s of iat
         assert claims["exp"] - claims["iat"] == 10
 
@@ -96,9 +90,7 @@ class TestCreateDelegatedToken:
         from app.delegation import create_delegated_token
 
         token = create_delegated_token(user_id="u", org_id="o")
-        claims = jwt.decode(
-            token, _TEST_SECRET, algorithms=["HS256"], audience="project-backend"
-        )
+        claims = jwt.decode(token, _TEST_SECRET, algorithms=["HS256"], audience="project-backend")
         assert claims["exp"] - claims["iat"] == 120
 
 

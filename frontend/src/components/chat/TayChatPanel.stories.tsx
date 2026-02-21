@@ -5,7 +5,7 @@ import type { ChatMessage } from "@/model/chat-types";
 import type { CanonicalId } from "@/model/canonical-id";
 
 const meta = {
-  title: "Chat/TayChatPanel",
+  title: "Chat/CopilotChatPanel",
   component: TayChatPanel,
   args: {
     isOpen: true,
@@ -42,14 +42,15 @@ export const WithConversation: Story = {
         id: "u1",
         role: "user",
         kind: "text",
-        content: "Hallo Tay!",
+        content: "Hallo Copilot!",
         timestamp: "2024-01-01T10:00:00Z",
       },
       {
         id: "t1",
         role: "tay",
         kind: "text",
-        content: "Hallo! Ich bin Tay, dein Assistent. Wie kann ich dir helfen?",
+        content:
+          "Hallo! Ich bin Copilot, dein Assistent. Wie kann ich dir helfen?",
         timestamp: "2024-01-01T10:00:01Z",
       },
     ] satisfies ChatMessage[],

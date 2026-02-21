@@ -80,9 +80,13 @@ export function LoginPage({
         <div className="space-y-6">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <img src="/tay-logo.svg" alt="TAY" className="h-6 w-6" />
+              <img
+                src="/tay-logo.svg"
+                alt="Senticor Project"
+                className="h-6 w-6"
+              />
               <span className="font-mono text-sm text-text-muted">
-                project
+                Senticor Project
               </span>
             </div>
             <p className="text-sm leading-relaxed text-text-muted">

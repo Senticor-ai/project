@@ -32,7 +32,7 @@ function ConnectedTayChatPanelDemo() {
 // ---------------------------------------------------------------------------
 
 const meta = {
-  title: "Chat/ConnectedTayChatPanel",
+  title: "Chat/ConnectedCopilotChatPanel",
   component: TayChatPanel,
   tags: ["autodocs"],
   parameters: {
@@ -49,7 +49,7 @@ type Story = StoryObj<typeof meta>;
 const WAIT = { timeout: 10000 };
 
 // ---------------------------------------------------------------------------
-// GreetingFlow — send greeting, see Tay response
+// GreetingFlow — send greeting, see Copilot response
 // ---------------------------------------------------------------------------
 
 export const GreetingFlow: Story = {
@@ -73,21 +73,21 @@ export const GreetingFlow: Story = {
     await step("Type and send a greeting", async () => {
       const input = canvas.getByRole("textbox");
       await userEvent.click(input);
-      await userEvent.type(input, "Hallo Tay!");
+      await userEvent.type(input, "Hallo Copilot!");
       await userEvent.keyboard("{Enter}");
     });
 
     await step("Verify user message appears", async () => {
       await waitFor(() => {
-        expect(canvas.getByText("Hallo Tay!")).toBeInTheDocument();
+        expect(canvas.getByText("Hallo Copilot!")).toBeInTheDocument();
       }, WAIT);
     });
 
-    await step("Verify Tay responds with greeting", async () => {
+    await step("Verify Copilot responds with greeting", async () => {
       await waitFor(() => {
         expect(
           canvas.getByText(
-            "Hallo! Ich bin Tay, dein Assistent. Wie kann ich dir helfen?",
+            "Hallo! Ich bin Copilot, dein Assistent. Wie kann ich dir helfen?",
           ),
         ).toBeInTheDocument();
       }, WAIT);
@@ -281,7 +281,7 @@ export const MultiTurnConversation: Story = {
     await step("Wait for greeting response", async () => {
       await waitFor(() => {
         expect(
-          canvas.getByText(/Ich bin Tay, dein Assistent/),
+          canvas.getByText(/Ich bin Copilot, dein Assistent/),
         ).toBeInTheDocument();
       }, WAIT);
     });

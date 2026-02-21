@@ -4,7 +4,7 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 # Testing Strategy
 
-This document is the testing reference for project. It covers test layers, isolation
+This document is the testing reference for Senticor Project. It covers test layers, isolation
 architecture, patterns, and conventions. For the technology overview see
 [Architecture](?path=/docs/engineering-architecture--docs).
 
@@ -43,7 +43,7 @@ cd frontend && CI=1 npx vitest run --project=unit
 # Storybook tests (browser mode)
 cd frontend && STORYBOOK_TESTS=1 CI=1 npx vitest run --project=storybook
 
-# Type checking (MUST use -b for project references)
+# Type checking (MUST use -b for Senticor Project references)
 cd frontend && npx tsc -b --noEmit
 
 # Integration + E2E tests (spins up backend + frontend + test database)
@@ -321,7 +321,7 @@ Tests using Playwright share the `e2e/tests/` directory but are split into two l
 - **`*-mocked.spec.ts`** = **Integration** — uses `page.route()` to mock external services (e.g. LLM inference). Fast, deterministic, runs in CI without API keys.
 - **`*.spec.ts`** = **E2E** — no mocking at all. Exercises the complete stack including real LLM calls. Gated on `OPENROUTER_API_KEY`, excluded from default test runs.
 
-The `chromium` Playwright project runs all tests **except** `*-llm.spec.ts`. The `llm` project runs only LLM E2E tests.
+The `chromium` Playwright Senticor Project runs all tests **except** `*-llm.spec.ts`. The `llm` Senticor Project runs only LLM E2E tests.
 
 ### Page Objects
 
@@ -357,7 +357,7 @@ workspace has loaded. Each test gets a fresh user with no data.
 
 ## LLM & AI Testing
 
-Tay chat scenarios are tested at two layers: **integration** (mocked LLM, deterministic)
+Copilot chat scenarios are tested at two layers: **integration** (mocked LLM, deterministic)
 and **E2E** (real LLM via OpenRouter, structural assertions). Both layers share a
 **golden dataset** (`e2e/fixtures/golden-prompts.ts`) as their single source of truth.
 
@@ -595,7 +595,7 @@ cd frontend && npx playwright show-trace test-results/*/trace.zip
 | ------------------ | ---------------------------------------------------------------------------------------------------------- |
 | **File naming**    | `.test.tsx` for unit, `.stories.tsx` for storybook, `*-mocked.spec.ts` for Integration, `.spec.ts` for E2E |
 | **Test runner**    | Always `CI=1 npx vitest run` — never watch mode in CI                                                      |
-| **Type checking**  | `npx tsc -b --noEmit` — must use `-b` for project references                                               |
+| **Type checking**  | `npx tsc -b --noEmit` — must use `-b` for Senticor Project references                                      |
 | **Cleanup**        | Explicit `cleanup()` in setup (no `globals: true`)                                                         |
 | **Mocking**        | MSW for network, `vi.mock()` for modules — prefer MSW when possible                                        |
 | **Assertions**     | `@testing-library/jest-dom` + `vitest-axe` matchers                                                        |

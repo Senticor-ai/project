@@ -13,7 +13,7 @@ export interface ChatInputProps {
 export function ChatInput({
   onSend,
   disabled,
-  agentName = "Tay",
+  agentName = "Copilot",
   className,
 }: ChatInputProps) {
   const [value, setValue] = useState("");

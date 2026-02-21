@@ -21,8 +21,10 @@ export const Disabled: Story = {
 
 export const TypeAndSend: Story = {
   play: async ({ canvas, userEvent: ue }) => {
-    const textarea = canvas.getByRole("textbox", { name: "Nachricht an Tay" });
-    await ue.type(textarea, "Hallo Tay!");
+    const textarea = canvas.getByRole("textbox", {
+      name: "Nachricht an Copilot",
+    });
+    await ue.type(textarea, "Hallo Copilot!");
 
     const sendButton = canvas.getByRole("button", { name: "Senden" });
     expect(sendButton).not.toBeDisabled();
@@ -31,7 +33,9 @@ export const TypeAndSend: Story = {
 
 export const MultiLine: Story = {
   play: async ({ canvas, userEvent: ue }) => {
-    const textarea = canvas.getByRole("textbox", { name: "Nachricht an Tay" });
+    const textarea = canvas.getByRole("textbox", {
+      name: "Nachricht an Copilot",
+    });
     await ue.type(textarea, "Zeile 1{Shift>}{Enter}{/Shift}Zeile 2");
     expect(within(canvas.getByRole("textbox")).getByRole).toBeDefined();
   },

@@ -49,26 +49,40 @@ test.describe("Inbox Triage", () => {
 
     const ws = new WorkspacePage(page);
 
-    // Triage to Waiting — wait for each item to disappear before checking count
+    // Expand and triage the explicit item for determinism (avoid relying on implicit auto-expand order)
+    await page.getByText("Waiting item").click();
     await ws.triageButton("Waiting").click();
     await expect(page.getByText("Waiting item")).not.toBeVisible();
     await expect(ws.bucketCount("Inbox")).toHaveText("3", {
       timeout: 10_000,
     });
-    // Triage to Calendar (opens date picker — fill date to complete the move)
-    await ws.triageButton("Calendar").click();
-    await page.getByLabel("Schedule date").fill("2026-03-01");
+
+    // Move Calendar item via batch action to avoid flaky inline-date-picker timing.
+    await page.getByText("Calendar item").click();
+    await ws.batchTriageButton("Calendar").click();
     await expect(page.getByText("Calendar item")).not.toBeVisible();
     await expect(ws.bucketCount("Inbox")).toHaveText("2", {
       timeout: 10_000,
     });
-    // Triage to Later
+    await expect(ws.bucketCount("Calendar")).toHaveText("1", {
+      timeout: 10_000,
+    });
+    await ws.navigateTo("Calendar");
+    await expect(page.getByText("Calendar item")).toBeVisible({
+      timeout: 10_000,
+    });
+    await ws.navigateTo("Inbox");
+
+    // Expand and triage to Later
+    await page.getByText("Someday item").click();
     await ws.triageButton("Later").click();
     await expect(page.getByText("Someday item")).not.toBeVisible();
     await expect(ws.bucketCount("Inbox")).toHaveText("1", {
       timeout: 10_000,
     });
-    // Triage to Reference
+
+    // Expand and triage to Reference
+    await page.getByText("Reference item").click();
     await ws.triageButton("Reference").click();
     await expect(page.getByText("Inbox is empty")).toBeVisible();
 

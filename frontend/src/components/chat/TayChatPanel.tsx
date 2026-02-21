@@ -26,7 +26,7 @@ export function TayChatPanel({
   onAcceptSuggestion,
   onDismissSuggestion,
   onItemClick,
-  agentName = "Tay",
+  agentName = "Copilot",
   className,
 }: TayChatPanelProps) {
   if (!isOpen) return null;

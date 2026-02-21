@@ -195,7 +195,7 @@ export function AgentSetupPanel({
           options={[
             {
               value: "haystack" as AgentBackend,
-              label: "Tay",
+              label: "Copilot",
               description:
                 "Built-in agent with shared OpenRouter key. Suggests actions for your approval.",
             },

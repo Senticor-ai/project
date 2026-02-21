@@ -1,16 +1,13 @@
-import { beforeAll, afterAll, afterEach } from "vitest";
+import { afterAll, afterEach, beforeAll } from "vitest";
 import * as a11yAddonAnnotations from "@storybook/addon-a11y/preview";
 import { setProjectAnnotations } from "@storybook/react-vite";
 import * as projectAnnotations from "./preview";
 import { worker } from "./msw-setup";
 
-// This is an important step to apply the right configuration when testing your stories.
-// More info at: https://storybook.js.org/docs/api/portable-stories/portable-stories-vitest#setprojectannotations
+// Apply Storybook project annotations for portable stories in Vitest.
 setProjectAnnotations([a11yAddonAnnotations, projectAnnotations]);
 
-// MSW lifecycle — start the service worker before storybook tests run.
-// Follows the official MSW recipe for vitest browser mode:
-// https://mswjs.io/docs/recipes/vitest-browser-mode/
+// MSW lifecycle for Storybook tests in browser mode.
 beforeAll(async () => {
   await worker.start({ onUnhandledRequest: "error" });
 });

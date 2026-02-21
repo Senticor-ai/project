@@ -81,7 +81,14 @@ Remove `allow_failure: true` from all 11 quality/test jobs in `.gitlab-ci.yml`. 
 
 ```yaml
 build-frontend:
-  needs: [frontend-lint, frontend-typecheck, frontend-unit, frontend-storybook, frontend-integration]
+  needs:
+    [
+      frontend-lint,
+      frontend-typecheck,
+      frontend-unit,
+      frontend-storybook,
+      frontend-integration,
+    ]
 
 build-backend:
   needs: [backend-lint, backend-typecheck, backend-unit, backend-integration]
@@ -206,20 +213,20 @@ Once Alembic migration versions are in use, list new migrations in release notes
 
 ## Priority matrix
 
-| Item | Phase | Effort | Impact |
-| ---- | ----- | ------ | ------ |
-| `VERSION` + `ci/release.sh` | 1 | Small | High — enables named releases |
-| First release `v0.1.0` | 1 | Tiny | High — proves the process |
-| Fix pre-existing test failures | 2 | Medium | Critical — prerequisite for quality gates |
-| Remove `allow_failure: true` | 2 | Small | High — tests protect deploys |
-| Fix push-rebuilds-from-scratch | 2 | Small | High — image integrity |
-| JUnit report artifacts | 2 | Small | Medium — CI visibility |
-| Testing evidence archival | 2 | Small | Medium — audit trail |
-| Post-deploy smoke tests | 3 | Small | Medium — catch deploy failures |
-| SBOM generation | 3 | Small | Low — compliance prep |
-| Container signing | 3 | Medium | Low — supply chain security |
-| Changelog + conventional commits | 3 | Medium | Medium — developer experience |
-| Rollback runbook | 3 | Small | Medium — operational safety |
+| Item                             | Phase | Effort | Impact                                    |
+| -------------------------------- | ----- | ------ | ----------------------------------------- |
+| `VERSION` + `ci/release.sh`      | 1     | Small  | High — enables named releases             |
+| First release `v0.1.0`           | 1     | Tiny   | High — proves the process                 |
+| Fix pre-existing test failures   | 2     | Medium | Critical — prerequisite for quality gates |
+| Remove `allow_failure: true`     | 2     | Small  | High — tests protect deploys              |
+| Fix push-rebuilds-from-scratch   | 2     | Small  | High — image integrity                    |
+| JUnit report artifacts           | 2     | Small  | Medium — CI visibility                    |
+| Testing evidence archival        | 2     | Small  | Medium — audit trail                      |
+| Post-deploy smoke tests          | 3     | Small  | Medium — catch deploy failures            |
+| SBOM generation                  | 3     | Small  | Low — compliance prep                     |
+| Container signing                | 3     | Medium | Low — supply chain security               |
+| Changelog + conventional commits | 3     | Medium | Medium — developer experience             |
+| Rollback runbook                 | 3     | Small  | Medium — operational safety               |
 
 ---
 

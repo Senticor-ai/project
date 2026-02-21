@@ -271,8 +271,8 @@ def chat_completions(
                 extra={"user_id": user_id, "detail": str(exc)},
             )
             detail = (
-                "Tay ist noch nicht eingerichtet. "
-                "Bitte öffne die Einstellungen → Tay-Einrichtung "
+                "Copilot ist noch nicht eingerichtet. "
+                "Bitte öffne die Einstellungen → Copilot-Einrichtung "
                 "und hinterlege einen API-Schlüssel."
             )
             err = json.dumps({"type": "error", "detail": detail})

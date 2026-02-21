@@ -27,7 +27,7 @@ export function UserMessageBubble({
 }
 
 // ---------------------------------------------------------------------------
-// Tay Message
+// Copilot Message
 // ---------------------------------------------------------------------------
 
 export interface TayMessageBubbleProps {
@@ -50,7 +50,7 @@ export function TayMessageBubble({
 }
 
 // ---------------------------------------------------------------------------
-// Tay Thinking Indicator
+// Copilot Thinking Indicator
 // ---------------------------------------------------------------------------
 
 export interface TayThinkingIndicatorProps {
@@ -59,7 +59,7 @@ export interface TayThinkingIndicatorProps {
 }
 
 export function TayThinkingIndicator({
-  agentName = "Tay",
+  agentName = "Copilot",
   className,
 }: TayThinkingIndicatorProps) {
   return (
@@ -79,7 +79,7 @@ export function TayThinkingIndicator({
 }
 
 // ---------------------------------------------------------------------------
-// Tay Confirmation
+// Copilot Confirmation
 // ---------------------------------------------------------------------------
 
 const itemTypeIcon: Record<CreatedItemRef["type"], string> = {

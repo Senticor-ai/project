@@ -1,4 +1,4 @@
-"""Agents service — FastAPI app for the Tay productivity copilot.
+"""Agents service — FastAPI app for the Copilot productivity assistant.
 
 Runs as a separate service (default port 8002). The backend proxies
 requests to this service at /chat/completions.
@@ -58,7 +58,7 @@ async def lifespan(application: FastAPI):
     shutdown_tracing(tracer_provider)
 
 
-app = FastAPI(title="project Agents", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Senticor Project Agents", version="0.1.0", lifespan=lifespan)
 
 # ---------------------------------------------------------------------------
 # Pydantic models

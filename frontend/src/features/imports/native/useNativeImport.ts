@@ -4,10 +4,10 @@ import type { ImportSourceConfig } from "../shared/types";
 
 const nativeConfig: ImportSourceConfig = {
   sourceId: "native",
-  title: "Import from project",
+  title: "Import from Senticor Project",
   description:
-    "Drop your project JSON export file below, or click to browse.",
-  dropLabel: "Drop project export here",
+    "Drop your Senticor Project JSON export file below, or click to browse.",
+  dropLabel: "Drop Senticor Project export here",
   fileTestId: "native-file-input",
   inspectFn: (req) => ImportsApi.inspectNative(req),
   importFn: (req) => ImportsApi.importNativeFromFile(req),

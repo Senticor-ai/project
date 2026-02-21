@@ -27,7 +27,7 @@ export const Default: UserStory = {
 export const MultiLine: UserStory = {
   args: {
     content:
-      "Hallo Tay!\n\nIch brauche Hilfe bei der Planung meiner Geburtstagsfeier.\nKannst du mir dabei helfen?",
+      "Hallo Copilot!\n\nIch brauche Hilfe bei der Planung meiner Geburtstagsfeier.\nKannst du mir dabei helfen?",
   },
 };
 
@@ -50,7 +50,7 @@ export const TayMessage: StoryObj<typeof TayMessageBubble> = {
 
 export const TayGreeting: StoryObj<typeof TayMessageBubble> = {
   render: () => (
-    <TayMessageBubble content="Hallo! Ich bin Tay, dein Assistent. Wie kann ich dir helfen?" />
+    <TayMessageBubble content="Hallo! Ich bin Copilot, dein Assistent. Wie kann ich dir helfen?" />
   ),
 };
 

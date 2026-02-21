@@ -1,11 +1,15 @@
-# project
+# Senticor Project
 
 A **ontology-native task management system** bringing schema.org into a modern, evidence-first workspace raising productivity at work in any context and scale.
 
 ## Quick Start
 
 ```bash
-npm run dev   # starts backend + worker + agents + frontend + storybook
+# 1) start local Postgres (required)
+docker compose -f infra/docker-compose.yml up -d postgres
+
+# 2) start backend + workers + agents + frontend + storybook
+npm run dev
 ```
 
 One command from the repo root starts all five processes via `concurrently`:
@@ -24,6 +28,7 @@ Ctrl+C stops everything.
 <summary>Manual startup (individual terminals)</summary>
 
 ```bash
+docker compose -f infra/docker-compose.yml up -d postgres
 cd frontend && npm install && npm run storybook   # Storybook at http://localhost:6006
 cd frontend && npm run dev                         # Vite dev server
 cd backend && uv sync && uv run uvicorn app.main:app --reload  # API server
@@ -54,7 +59,7 @@ cd frontend && npm run storybook   # http://localhost:6006
 | ------------- | ------------------------------------------------------------------------------- |
 | Frontend      | React 19, Vite, TypeScript, Tailwind v4, shadcn/ui, Framer Motion, Storybook 10 |
 | Backend       | Python, FastAPI, PostgreSQL, Meilisearch, Qdrant                                 |
-| Agents        | Python, Haystack, OpenRouter (separate service for Tay AI copilot)               |
+| Agents        | Python, Haystack, OpenRouter (separate service for Copilot AI assistant)             |
 | Observability | OpenTelemetry, Grafana LGTM (Loki, Grafana, Tempo, Mimir)                       |
 | Auth          | Local JWT with HTTP-only cookies                                                |
 

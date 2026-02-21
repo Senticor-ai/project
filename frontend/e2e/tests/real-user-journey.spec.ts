@@ -79,12 +79,12 @@ test.describe("Real User Journey", () => {
     });
 
     // ── 5. Chat with Tay — ask to create a project ─────────────────────
-    await page.getByRole("button", { name: /Chat mit Tay/ }).click();
+    await page.getByRole("button", { name: /Chat mit Copilot/ }).click();
     await expect(
-      page.getByRole("complementary", { name: "Tay Chat" }),
+      page.getByRole("complementary", { name: "Copilot Chat" }),
     ).toBeVisible();
 
-    const chatInput = page.getByRole("textbox", { name: "Nachricht an Tay" });
+    const chatInput = page.getByRole("textbox", { name: "Nachricht an Copilot" });
     await chatInput.fill(
       "Erstelle mir bitte ein Projekt 'Steuererklärung 2025' " +
         "mit dem gewünschten Ergebnis 'Steuererklärung fristgerecht abgeben' " +
@@ -119,7 +119,7 @@ test.describe("Real User Journey", () => {
 
     // Close chat panel
     await page
-      .getByRole("complementary", { name: "Tay Chat" })
+      .getByRole("complementary", { name: "Copilot Chat" })
       .getByRole("button", { name: "Chat schließen" })
       .click();
 

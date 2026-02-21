@@ -254,8 +254,8 @@ test.describe("Phase 2: Triage & Label", () => {
     // Navigate to Reference and verify tags persisted
     await ws.navigateTo("Reference");
     await expect(page.getByText("1099-INT Schwab.pdf")).toBeVisible();
-    await expect(page.getByText("1099-int")).toBeVisible();
-    await expect(page.getByText("schedule-b")).toBeVisible();
+    await expect(page.getByText(/^1099-int$/)).toBeVisible();
+    await expect(page.getByText(/^schedule-b$/)).toBeVisible();
   });
 });
 
@@ -366,7 +366,13 @@ test.describe("Phase 2b: Project-Reference Linking", () => {
     // Verify file chip appears in ProjectTree
     await ws.navigateTo("Projects");
     await ws.projectRow("Steuererklärung 2025").click();
-    await expect(page.getByText("W-2 Form.pdf")).toBeVisible();
+    const projectNode = page.locator(`[data-project-id="${projectId}"]`);
+    const projectFileChip = projectNode
+      .locator("div")
+      .filter({ has: page.getByText("picture_as_pdf") })
+      .getByText("W-2 Form.pdf", { exact: true })
+      .first();
+    await expect(projectFileChip).toBeVisible();
   });
 
   test("direct triage to Reference preserves project", async ({

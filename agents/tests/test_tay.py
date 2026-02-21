@@ -10,7 +10,7 @@ def test_system_prompt_rendered_from_template():
     from tay import build_system_prompt
 
     prompt = build_system_prompt()
-    assert "Tay" in prompt
+    assert "Copilot" in prompt
     assert "project" in prompt
     # Buckets are rendered from the template
     assert "**inbox**" in prompt
@@ -52,7 +52,7 @@ def test_system_prompt_without_user_context():
     # Should not contain user-specific sections
     assert "Name:" not in prompt
     # Should still have core content
-    assert "Tay" in prompt
+    assert "Copilot" in prompt
     assert "**inbox**" in prompt
 
 

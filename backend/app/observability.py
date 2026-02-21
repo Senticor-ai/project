@@ -10,6 +10,7 @@ from collections.abc import Mapping
 import structlog
 from structlog.contextvars import bind_contextvars, clear_contextvars, get_contextvars
 from structlog.stdlib import add_logger_name
+from structlog.typing import EventDict, Processor
 
 REQUEST_ID_HEADER = "X-Request-ID"
 USER_ID_HEADER = "X-User-ID"
@@ -20,8 +21,8 @@ USER_ID_ENV = "USER_ID"
 def _add_otel_context(
     logger: object,  # noqa: ARG001
     method_name: str,  # noqa: ARG001
-    event_dict: dict,
-) -> dict:
+    event_dict: EventDict,
+) -> EventDict:
     """Inject ``trace_id`` and ``span_id`` from the current OTEL span.
 
     Enables log ↔ trace correlation in Grafana (Loki ↔ Tempo).
@@ -44,7 +45,7 @@ def _add_otel_context(
 def configure_logging() -> None:
     log_format = os.environ.get("LOG_FORMAT", "json").lower()
 
-    shared_processors = [
+    shared_processors: list[Processor] = [
         structlog.contextvars.merge_contextvars,
         structlog.processors.add_log_level,
         add_logger_name,
@@ -54,16 +55,16 @@ def configure_logging() -> None:
         structlog.processors.format_exc_info,
     ]
 
-    renderer = (
+    renderer: Processor = (
         structlog.dev.ConsoleRenderer()
         if log_format == "console"
         else structlog.processors.JSONRenderer()
     )
 
-    processors = shared_processors + [renderer]
+    processors: list[Processor] = shared_processors + [renderer]
 
     structlog.configure(
-        processors=processors,  # type: ignore[arg-type]  # structlog stubs are overly narrow
+        processors=processors,
         logger_factory=structlog.stdlib.LoggerFactory(),
         wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
         cache_logger_on_first_use=True,

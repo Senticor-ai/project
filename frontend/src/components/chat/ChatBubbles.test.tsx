@@ -9,8 +9,8 @@ import {
 
 describe("UserMessageBubble", () => {
   it("renders user message text", () => {
-    render(<UserMessageBubble content="Hello Tay" />);
-    expect(screen.getByText("Hello Tay")).toBeInTheDocument();
+    render(<UserMessageBubble content="Hello Copilot" />);
+    expect(screen.getByText("Hello Copilot")).toBeInTheDocument();
   });
 
   it("preserves newlines in message", () => {
@@ -56,7 +56,7 @@ describe("TayThinkingIndicator", () => {
 
   it("has a thinking aria label", () => {
     render(<TayThinkingIndicator />);
-    expect(screen.getByLabelText("Tay denkt nach...")).toBeInTheDocument();
+    expect(screen.getByLabelText("Copilot denkt nach...")).toBeInTheDocument();
   });
 });
 

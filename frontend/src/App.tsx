@@ -365,7 +365,7 @@ function AuthenticatedApp({
         agentName={
           agentSettingsData?.agentBackend === "openclaw"
             ? "OpenClaw"
-            : "Tay"
+            : "Copilot"
         }
       />
     </div>

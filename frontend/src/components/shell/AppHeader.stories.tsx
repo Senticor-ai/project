@@ -84,7 +84,7 @@ export const WithChatToggle: Story = {
   },
   play: async ({ canvas, step }) => {
     await step("Verify chat toggle button is present", async () => {
-      const btn = canvas.getByRole("button", { name: "Chat mit Tay" });
+      const btn = canvas.getByRole("button", { name: "Chat mit Copilot" });
       await expect(btn).toBeInTheDocument();
       await expect(btn).toHaveAttribute("aria-pressed", "false");
     });

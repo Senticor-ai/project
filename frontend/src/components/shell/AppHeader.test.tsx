@@ -14,8 +14,8 @@ const defaults = {
 describe("AppHeader", () => {
   it("renders logo with tooltip and no visible app name text", () => {
     render(<AppHeader {...defaults} />);
-    expect(screen.getByAltText("TAY")).toBeInTheDocument();
-    expect(screen.getByTitle("project")).toBeInTheDocument();
+    expect(screen.getByAltText("Senticor Project")).toBeInTheDocument();
+    expect(screen.getByTitle("Senticor Project")).toBeInTheDocument();
     // Username is now inside the menu, not visible in the header bar
     expect(screen.queryByText("testuser")).not.toBeInTheDocument();
   });
@@ -33,7 +33,7 @@ describe("AppHeader", () => {
 
     await user.click(screen.getByRole("button", { name: "Main menu" }));
     expect(screen.getByText("testuser")).toBeInTheDocument();
-    expect(screen.getByText("project v0.1.0")).toBeInTheDocument();
+    expect(screen.getByText("Senticor Project v0.1.0")).toBeInTheDocument();
   });
 
   it("does not render a standalone Sign out button in the header bar", () => {

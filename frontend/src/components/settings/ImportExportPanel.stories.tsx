@@ -126,12 +126,12 @@ export const ImportNative: Story = {
     onExport: fn(),
   },
   play: async ({ canvas, userEvent, args }) => {
-    // project source card visible
-    expect(canvas.getByText("project")).toBeInTheDocument();
+    // Senticor Project source card visible
+    expect(canvas.getByText("Senticor Project")).toBeInTheDocument();
 
-    // Click project import button
+    // Click Senticor Project import button
     await userEvent.click(
-      canvas.getByRole("button", { name: /Import from project/ }),
+      canvas.getByRole("button", { name: /Import from Senticor Project/ }),
     );
     expect(args.onImportNative).toHaveBeenCalled();
   },

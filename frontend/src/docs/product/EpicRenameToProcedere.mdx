@@ -10,7 +10,7 @@ import { Meta } from "@storybook/addon-docs/blocks";
 ## Context
 
 Another idea: Fluxkron
-Full rebrand from "project" (TAY) to "Procedere". The "Tay" persona is removed (never shipped). Cookie names, DB names, and k8s namespace all change.
+Full rebrand from "project" (COPILOT) to "Procedere". The "Copilot" persona is removed (never shipped). Cookie names, DB names, and k8s namespace all change.
 
 **Design goal:** Centralize the display name so future renames are trivial — one constant per stack, env-overridable per customer.
 
@@ -47,7 +47,7 @@ These tests should **fail** at this point (old name still in code).
 
 2. `frontend/src/App.tsx`:
    - Import `APP_NAME` from `@/lib/app-config`
-   - `src="/tay-logo.svg"` → `src="/logo.svg"`, `alt="TAY"` → `alt=\{APP_NAME\}`
+   - `src="/tay-logo.svg"` → `src="/logo.svg"`, `alt="COPILOT"` → `alt=\{APP_NAME\}`
    - Hardcoded `project` → `\{APP_NAME\}`
 
 3. `frontend/src/components/auth/LoginPage.tsx` — same pattern as App.tsx
@@ -79,8 +79,8 @@ cd frontend && npx eslint src/
 
 ### 2b. GREEN — Update MDX docs and stories
 
-1. `frontend/src/docs/design/DesignPhilosophy.mdx` — `project (TAY)` → `Procedere`, table refs
-2. `frontend/src/docs/product/ProductVision.mdx` — title, body, remove Tay agent section entirely
+1. `frontend/src/docs/design/DesignPhilosophy.mdx` — `project (COPILOT)` → `Procedere`, table refs
+2. `frontend/src/docs/product/ProductVision.mdx` — title, body, remove Copilot agent section entirely
 3. Any stories that reference the old name in titles or args
 
 ### 2c. VERIFY
@@ -148,7 +148,7 @@ base/ (postgres.yaml, backend.yaml, frontend.yaml, pvc-backend-files.yaml), over
 
 ### 4e. Project meta
 
-- `.claude/projects/` MEMORY.md — update all "project"/"TAY"/"Tay" → "Procedere"
+- `.claude/projects/` MEMORY.md — update all "project"/"COPILOT"/"Copilot" → "Procedere"
 
 ### 4f. VERIFY
 

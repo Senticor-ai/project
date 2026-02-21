@@ -4,22 +4,22 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 # Agents Service
 
-project supports two agent backends that share the same chat UI and backend APIs but are
+Senticor Project supports two agent backends that share the same chat UI and backend APIs but are
 otherwise fully isolated. For the high-level system context see
 [Architecture](?path=/docs/engineering-architecture--docs). For LLM cache, traces, and
 evaluation see [LLM Evaluation](?path=/docs/engineering-llm-evaluation--docs).
 
 ## Dual-Agent Architecture
 
-| Aspect | Tay (Haystack) | OpenClaw |
-| ------ | -------------- | -------- |
-| **Backend** | `agents/` service (port 8002), Haystack + OpenRouter | Per-user Docker container |
-| **Execution model** | Suggest → user approves → backend executes | Autonomous (exec + curl via skills) |
-| **System prompt** | `agents/prompts/de/tay_system.j2` (Jinja2, per-request) | `openclaw/workspace/AGENTS.md` |
-| **Conversation isolation** | `conversations.agent_backend = 'haystack'` | `conversations.agent_backend = 'openclaw'` |
-| **UI identity** | "Tay" in header, avatar, greeting | "OpenClaw" in header, avatar, greeting |
-| **Tool calls** | No-op functions, returned to frontend as suggestions | Native exec + curl, items created directly |
-| **Settings** | No extra config needed (shared OpenRouter key) | Requires user API key, provider, model |
+| Aspect                     | Copilot (Haystack)                                      | OpenClaw                                   |
+| -------------------------- | ------------------------------------------------------- | ------------------------------------------ |
+| **Backend**                | `agents/` service (port 8002), Haystack + OpenRouter    | Per-user Docker container                  |
+| **Execution model**        | Suggest → user approves → backend executes              | Autonomous (exec + curl via skills)        |
+| **System prompt**          | `agents/prompts/de/tay_system.j2` (Jinja2, per-request) | `openclaw/workspace/AGENTS.md`             |
+| **Conversation isolation** | `conversations.agent_backend = 'haystack'`              | `conversations.agent_backend = 'openclaw'` |
+| **UI identity**            | "Copilot" in header, avatar, greeting                   | "OpenClaw" in header, avatar, greeting     |
+| **Tool calls**             | No-op functions, returned to frontend as suggestions    | Native exec + curl, items created directly |
+| **Settings**               | No extra config needed (shared OpenRouter key)          | Requires user API key, provider, model     |
 
 ### What is shared
 
@@ -33,18 +33,18 @@ evaluation see [LLM Evaluation](?path=/docs/engineering-llm-evaluation--docs).
 - **Conversation records**: The `conversations` table has an `agent_backend` column. The same
   frontend `conversationId` creates separate DB records per backend.
 - **Chat message history**: Messages belong to their backend's conversation.
-- **System prompts**: Tay uses a Jinja2 template with dynamic user/time context;
+- **System prompts**: Copilot uses a Jinja2 template with dynamic user/time context;
   OpenClaw uses a static AGENTS.md in the container workspace.
-- **Tool execution**: Tay's tools are no-ops (suggest → approve). OpenClaw executes directly.
+- **Tool execution**: Copilot's tools are no-ops (suggest → approve). OpenClaw executes directly.
 
 ---
 
-## Tay (Haystack Agent)
+## Copilot (Haystack Agent)
 
-The Tay agent is a stateless FastAPI application (port 8002) using
+The Copilot agent is a stateless FastAPI application (port 8002) using
 [Haystack](https://haystack.deepset.ai/) with OpenRouter for LLM inference and tool calling.
 
-**Core design principle**: The LLM only *suggests* — it never creates items directly. Tool
+**Core design principle**: The LLM only _suggests_ — it never creates items directly. Tool
 functions are no-ops that return their arguments as JSON. Actual item creation happens via
 the backend API after the user explicitly accepts the suggestion in the chat UI.
 
@@ -75,11 +75,11 @@ agents/
 
 ## Endpoints
 
-| Method | Path | Auth | Description |
-| ------ | ---- | ---- | ----------- |
-| `GET` | `/health` | None | Health check (`{"status": "ok"}`) |
-| `POST` | `/chat/completions` | None | Run Haystack Agent, return text + optional toolCalls |
-| `POST` | `/execute-tool` | Delegated JWT | Dispatch approved tool call, create items via backend |
+| Method | Path                | Auth          | Description                                           |
+| ------ | ------------------- | ------------- | ----------------------------------------------------- |
+| `GET`  | `/health`           | None          | Health check (`{"status": "ok"}`)                     |
+| `POST` | `/chat/completions` | None          | Run Haystack Agent, return text + optional toolCalls  |
+| `POST` | `/execute-tool`     | Delegated JWT | Dispatch approved tool call, create items via backend |
 
 The backend proxies all requests to these endpoints — the frontend never calls the agents
 service directly.
@@ -151,20 +151,20 @@ the backend creates a short-lived delegated JWT for agent-to-backend calls.
 
 **Token creation** (`backend/app/delegation.py`):
 
-| Claim | Tay | OpenClaw | Purpose |
-| ----- | --- | -------- | ------- |
-| `iss` | `"project-backend"` | `"project-backend"` | Issuer |
-| `aud` | `"project-backend"` | `"project-backend"` | Audience (self-issued) |
-| `sub` | User UUID | User UUID | Item ownership |
-| `org` | Org UUID | Org UUID | Organization context |
-| `act.sub` | `"tay"` | `"openclaw"` | Identifies the acting agent (audit trail) |
-| `scope` | `"items:write"` | `"items:read items:write"` | Permitted operations |
-| `token_type` | `"delegated"` | `"delegated"` | Distinguishes from user session tokens |
-| `exp` | Now + 60s | Now + 300s | Short TTL (OpenClaw longer for autonomous work) |
+| Claim        | Copilot             | OpenClaw                   | Purpose                                         |
+| ------------ | ------------------- | -------------------------- | ----------------------------------------------- |
+| `iss`        | `"project-backend"` | `"project-backend"`        | Issuer                                          |
+| `aud`        | `"project-backend"` | `"project-backend"`        | Audience (self-issued)                          |
+| `sub`        | User UUID           | User UUID                  | Item ownership                                  |
+| `org`        | Org UUID            | Org UUID                   | Organization context                            |
+| `act.sub`    | `"tay"`             | `"openclaw"`               | Identifies the acting agent (audit trail)       |
+| `scope`      | `"items:write"`     | `"items:read items:write"` | Permitted operations                            |
+| `token_type` | `"delegated"`       | `"delegated"`              | Distinguishes from user session tokens          |
+| `exp`        | Now + 60s           | Now + 300s                 | Short TTL (OpenClaw longer for autonomous work) |
 
 **Signing**: HS256 with `DELEGATION_JWT_SECRET` (falls back to `JWT_SECRET`).
 
-Tay's `tool_executor.py` sends `Authorization: Bearer {token}` plus `X-Agent: tay`.
+Copilot's `tool_executor.py` sends `Authorization: Bearer {token}` plus `X-Agent: tay`.
 OpenClaw reads the token from `/runtime/token` and sends `X-Agent: openclaw`.
 
 ---
@@ -176,7 +176,7 @@ When the user accepts a suggestion, `tool_executor.py` dispatches by tool name u
 
 ### `create_project_with_actions`
 
-1. Build project JSON-LD → `POST /items` → get `project_id`
+1. Build Senticor Project JSON-LD → `POST /items` → get `project_id`
 2. For each action: build action JSON-LD (linked to `project_id`) → `POST /items`
 3. For each document: build reference JSON-LD → `POST /items`
 4. Return all created item refs
@@ -206,19 +206,19 @@ Each builder produces JSON-LD matching the frontend's `item-serializer.ts` forma
 The backend proxies all chat requests to the agents service. Both endpoints require
 authentication (session cookie).
 
-| Endpoint | Proxy Target | Auth Context | Timeout |
-| -------- | ------------ | ------------ | ------- |
-| `POST /chat/completions` | `{AGENTS_URL}/chat/completions` | None (forwarded as-is) | 60s |
-| `POST /chat/execute-tool` | `{AGENTS_URL}/execute-tool` | Delegated JWT + orgId | 60s |
+| Endpoint                  | Proxy Target                    | Auth Context           | Timeout |
+| ------------------------- | ------------------------------- | ---------------------- | ------- |
+| `POST /chat/completions`  | `{AGENTS_URL}/chat/completions` | None (forwarded as-is) | 60s     |
+| `POST /chat/execute-tool` | `{AGENTS_URL}/execute-tool`     | Delegated JWT + orgId  | 60s     |
 
 **Error handling**:
 
-| Status | Condition |
-| ------ | --------- |
-| 401 | Not authenticated (session missing/expired) |
-| 503 | `AGENTS_URL` not configured |
-| 502 | Agents service unreachable or returned error |
-| 504 | Agents service timeout (>60s) |
+| Status | Condition                                    |
+| ------ | -------------------------------------------- |
+| 401    | Not authenticated (session missing/expired)  |
+| 503    | `AGENTS_URL` not configured                  |
+| 502    | Agents service unreachable or returned error |
+| 504    | Agents service timeout (>60s)                |
 
 ---
 
@@ -226,22 +226,22 @@ authentication (session cookie).
 
 ### Agents Service
 
-| Variable | Default | Description |
-| -------- | ------- | ----------- |
-| `AGENT_MODEL` | `openai/gpt-4o-mini` | Comma-separated OpenRouter model IDs (fallback chain) |
-| `OPENROUTER_API_KEY` | *required* | OpenRouter API authentication |
-| `OPENROUTER_APP_URL` | `""` | Sent as `HTTP-Referer` header to OpenRouter |
-| `OPENROUTER_APP_TITLE` | `project` | Sent as `X-Title` header to OpenRouter |
-| `BACKEND_URL` | `http://localhost:8000` | Backend API base URL (for POST /items calls) |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | *(unset)* | OTLP collector endpoint; tracing disabled if absent |
+| Variable                      | Default                 | Description                                           |
+| ----------------------------- | ----------------------- | ----------------------------------------------------- |
+| `AGENT_MODEL`                 | `openai/gpt-4o-mini`    | Comma-separated OpenRouter model IDs (fallback chain) |
+| `OPENROUTER_API_KEY`          | _required_              | OpenRouter API authentication                         |
+| `OPENROUTER_APP_URL`          | `""`                    | Sent as `HTTP-Referer` header to OpenRouter           |
+| `OPENROUTER_APP_TITLE`        | `Senticor Project`      | Sent as `X-Title` header to OpenRouter                |
+| `BACKEND_URL`                 | `http://localhost:8000` | Backend API base URL (for POST /items calls)          |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | _(unset)_               | OTLP collector endpoint; tracing disabled if absent   |
 
 ### Backend (for proxy)
 
-| Variable | Default | Description |
-| -------- | ------- | ----------- |
-| `AGENTS_URL` | *(unset)* | Agents service URL; endpoints return 503 if absent |
-| `DELEGATION_JWT_SECRET` | `JWT_SECRET` | Secret for signing delegated tokens |
-| `DELEGATION_JWT_TTL_SECONDS` | `60` | Delegated token lifetime in seconds |
+| Variable                     | Default      | Description                                        |
+| ---------------------------- | ------------ | -------------------------------------------------- |
+| `AGENTS_URL`                 | _(unset)_    | Agents service URL; endpoints return 503 if absent |
+| `DELEGATION_JWT_SECRET`      | `JWT_SECRET` | Secret for signing delegated tokens                |
+| `DELEGATION_JWT_TTL_SECONDS` | `60`         | Delegated token lifetime in seconds                |
 
 ---
 
@@ -279,17 +279,17 @@ alongside the backend and frontend.
 
 ## Dependencies
 
-| Package | Purpose |
-| ------- | ------- |
-| `haystack-ai` | LLM orchestration, Agent framework, tool definitions |
-| `fastapi` + `uvicorn[standard]` | Web framework + ASGI server |
-| `httpx` | Async HTTP client (backend API calls) |
-| `jinja2` | System prompt templating |
-| `python-dotenv` | Environment variable loading from `.env` |
-| `opentelemetry-sdk` | Distributed tracing (optional) |
-| `opentelemetry-exporter-otlp-proto-http` | OTLP exporter |
-| `opentelemetry-instrumentation-fastapi` | Auto-instrument FastAPI |
-| `opentelemetry-instrumentation-httpx` | Propagate traceparent to backend |
+| Package                                  | Purpose                                              |
+| ---------------------------------------- | ---------------------------------------------------- |
+| `haystack-ai`                            | LLM orchestration, Agent framework, tool definitions |
+| `fastapi` + `uvicorn[standard]`          | Web framework + ASGI server                          |
+| `httpx`                                  | Async HTTP client (backend API calls)                |
+| `jinja2`                                 | System prompt templating                             |
+| `python-dotenv`                          | Environment variable loading from `.env`             |
+| `opentelemetry-sdk`                      | Distributed tracing (optional)                       |
+| `opentelemetry-exporter-otlp-proto-http` | OTLP exporter                                        |
+| `opentelemetry-instrumentation-fastapi`  | Auto-instrument FastAPI                              |
+| `opentelemetry-instrumentation-httpx`    | Propagate traceparent to backend                     |
 
 Python requirement: `>=3.12`
 
@@ -297,14 +297,14 @@ Python requirement: `>=3.12`
 
 ## OpenClaw Agent
 
-OpenClaw is a self-hosted agent running in a per-user Docker container. Unlike Tay, it acts
+OpenClaw is a self-hosted agent running in a per-user Docker container. Unlike Copilot, it acts
 autonomously — executing API calls directly via `exec` + `curl` skills rather than suggesting
 and waiting for approval.
 
-### Key differences from Tay
+### Key differences from Copilot
 
 - **No function-calling tools**: OpenClaw uses native exec + curl to call the backend API directly
-- **No `POST /execute-tool`**: The execute-tool endpoint is Tay-only (approval flow)
+- **No `POST /execute-tool`**: The execute-tool endpoint is Copilot-only (approval flow)
 - **SSE → NDJSON translation**: OpenClaw speaks SSE; the backend translates to NDJSON via `SseToNdjsonTranslator`
 - **Delegated JWT via file**: Token written to `/runtime/token` inside the container, read by skills
 - **`items_changed` event**: After streaming completes, the backend emits an `items_changed` event
@@ -316,22 +316,22 @@ The backend injects environment variables into each OpenClaw container so the ag
 discover its surrounding services. URLs are automatically rewritten from localhost to
 `host.docker.internal` by `_to_container_url()` in `backend/app/container/manager.py`.
 
-| Variable | Example (inside container) | Description |
-| -------- | ------------------------- | ----------- |
-| `TAY_BACKEND_URL` | `http://host.docker.internal:8000` | Backend REST API (for all curl calls) |
-| `TAY_FRONTEND_URL` | `http://host.docker.internal:5173` | Frontend URL (context) |
-| `TAY_STORYBOOK_URL` | `http://host.docker.internal:6006` | Storybook with product, design, and engineering docs |
-| `OPENCLAW_CONFIG_PATH` | `/openclaw.json` | OpenClaw configuration file path |
-| `OPENCLAW_GATEWAY_TOKEN` | *(generated)* | Gateway auth token for the container API |
-| Provider API key | *(decrypted from DB)* | `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, or `ANTHROPIC_API_KEY` |
+| Variable                 | Example (inside container)         | Description                                                    |
+| ------------------------ | ---------------------------------- | -------------------------------------------------------------- |
+| `TAY_BACKEND_URL`        | `http://host.docker.internal:8000` | Backend REST API (for all curl calls)                          |
+| `TAY_FRONTEND_URL`       | `http://host.docker.internal:5173` | Frontend URL (context)                                         |
+| `TAY_STORYBOOK_URL`      | `http://host.docker.internal:6006` | Storybook with product, design, and engineering docs           |
+| `OPENCLAW_CONFIG_PATH`   | `/openclaw.json`                   | OpenClaw configuration file path                               |
+| `OPENCLAW_GATEWAY_TOKEN` | _(generated)_                      | Gateway auth token for the container API                       |
+| Provider API key         | _(decrypted from DB)_              | `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, or `ANTHROPIC_API_KEY` |
 
 The corresponding backend settings:
 
-| Setting | Env Var | Default |
-| ------- | ------- | ------- |
-| `backend_base_url` | `BACKEND_BASE_URL` | `http://localhost:8000` |
+| Setting             | Env Var             | Default                 |
+| ------------------- | ------------------- | ----------------------- |
+| `backend_base_url`  | `BACKEND_BASE_URL`  | `http://localhost:8000` |
 | `frontend_base_url` | `FRONTEND_BASE_URL` | `http://localhost:5173` |
-| `storybook_url` | `STORYBOOK_URL` | `http://localhost:6006` |
+| `storybook_url`     | `STORYBOOK_URL`     | `http://localhost:6006` |
 
 ### Self-Discovery
 
@@ -347,11 +347,11 @@ to discover them from the OpenAPI spec.
 
 ### User Configuration
 
-| Variable | Default | Description |
-| -------- | ------- | ----------- |
-| Provider | *(user setting)* | `openrouter`, `openai`, or `anthropic` |
-| API Key | *(user setting)* | User's own key (stored encrypted) |
-| Model | *(user setting)* | Model identifier for the chosen provider |
+| Variable | Default          | Description                              |
+| -------- | ---------------- | ---------------------------------------- |
+| Provider | _(user setting)_ | `openrouter`, `openai`, or `anthropic`   |
+| API Key  | _(user setting)_ | User's own key (stored encrypted)        |
+| Model    | _(user setting)_ | Model identifier for the chosen provider |
 
 Container management is handled by `backend/app/container/` (manager, workspace, runtime).
 

@@ -3,7 +3,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, expect } from "../fixtures/auth.fixture";
 import { SettingsPage } from "../pages/settings.page";
-import { WorkspacePage } from "../pages/workspace.page";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const NIRVANA_EXPORT_PATH = path.resolve(
@@ -39,13 +38,14 @@ test.describe("Nirvana Import", () => {
     await fileInput.setInputFiles(NIRVANA_EXPORT_PATH);
 
     // 3. Wait for uploading → preview transition
+    const itemsFoundSummary = page.getByText(/^\d+ items found$/).first();
     await expect(page.getByText("Uploading file...")).toBeVisible();
-    await expect(page.getByText(/\d+ items found/)).toBeVisible({
+    await expect(itemsFoundSummary).toBeVisible({
       timeout: 60_000,
     });
 
     // 4. Verify preview shows bucket breakdown and item count
-    const previewText = await page.getByText(/\d+ items found/).textContent();
+    const previewText = await itemsFoundSummary.textContent();
     expect(previewText).toBeTruthy();
     const itemCount = parseInt(previewText!.match(/(\d+)/)?.[1] ?? "0", 10);
     expect(itemCount).toBeGreaterThan(0);
@@ -68,15 +68,14 @@ test.describe("Nirvana Import", () => {
     await expect(page.getByText("Import complete")).toBeVisible({
       timeout: 120_000,
     });
-    await expect(page.getByText("By bucket")).toBeVisible();
+    await expect(page.getByText(/Active items \(/)).toBeVisible();
 
     // Verify the Created count is non-zero (confirms real job results,
     // not just the inspect preview which shows created=0).
     // "Created" and the number are sibling spans inside a div.
     const createdValue = page
-      .locator("div")
-      .filter({ hasText: "Created" })
-      .locator("span.font-mono")
+      .locator("span.text-text-subtle", { hasText: "Created" })
+      .locator('xpath=following-sibling::span[contains(@class,"font-mono")]')
       .first();
     await expect(async () => {
       const text = await createdValue.textContent();
@@ -89,15 +88,18 @@ test.describe("Nirvana Import", () => {
     // 9. Reload to pick up imported items (dialog unmount stops polling
     //    before invalidateQueries can propagate the refetch)
     await page.reload();
-    await page.waitForSelector('nav[aria-label="Buckets"]', {
-      timeout: 10_000,
-    });
-
-    // 10. Navigate to Next — should have items from the import
-    const ws = new WorkspacePage(page);
-    await ws.navigateTo("Next");
-    await expect(ws.bucketCount("Next")).toBeVisible({
-      timeout: 30_000,
-    });
+    // 10. Verify imported data is present via API (UI bucket distribution is
+    // file-dependent, so don't assume a specific bucket has a visible badge).
+    await expect
+      .poll(
+        async () => {
+          const resp = await page.request.get("/api/items?limit=500");
+          if (!resp.ok()) return 0;
+          const items = (await resp.json()) as Array<{ source?: string }>;
+          return items.filter((item) => item.source === "nirvana").length;
+        },
+        { timeout: 30_000 },
+      )
+      .toBeGreaterThan(0);
   });
 });

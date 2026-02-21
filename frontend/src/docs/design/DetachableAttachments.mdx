@@ -4,13 +4,13 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 # Design Pattern: Detachable Attachments
 
-This document defines the **Detachable Attachment** pattern — the concrete implementation of Paperclip principle #5: *AI is a contributor, not an authority*.
+This document defines the **Detachable Attachment** pattern — the concrete implementation of Paperclip principle #5: _AI is a contributor, not an authority_.
 
 ---
 
 ## Core Principle
 
-When Tay (or any AI agent) suggests creating, modifying, or organizing items, the suggestion is presented as a **preview card** in the conversation. The preview:
+When Copilot (or any AI agent) suggests creating, modifying, or organizing items, the suggestion is presented as a **preview card** in the conversation. The preview:
 
 1. **Shows exactly what will happen** — item names, buckets, relationships
 2. **Is not committed data** — no API calls until the user clicks Accept
@@ -42,12 +42,12 @@ This ensures the user always has full authority over what enters their system.
     └────────┘ └─────────┘
 ```
 
-| State | Visual | Actions Available |
-| --- | --- | --- |
-| `pending` | Full card with preview + action buttons | Accept, Edit, Dismiss |
-| `editing` | Card with editable fields, highlighted border | Save (Accept), Cancel |
-| `accepted` | Collapsed confirmation with item chips | Navigate to items |
-| `dismissed` | Single line: "Vorschlag verworfen" | None |
+| State       | Visual                                        | Actions Available     |
+| ----------- | --------------------------------------------- | --------------------- |
+| `pending`   | Full card with preview + action buttons       | Accept, Edit, Dismiss |
+| `editing`   | Card with editable fields, highlighted border | Save (Accept), Cancel |
+| `accepted`  | Collapsed confirmation with item chips        | Navigate to items     |
+| `dismissed` | Single line: "Vorschlag verworfen"            | None                  |
 
 ---
 
@@ -59,7 +59,7 @@ The suggestion card uses the same visual language as `ObjectCard` from the [Pape
 
 - **Surface**: `paper-50` background (lightest — indicates "proposed, not final")
 - **Border**: Dashed border to signal "preview" status
-- **Avatar**: `chat_bubble` icon (same as Tay's chat avatar)
+- **Avatar**: `chat_bubble` icon (same as Copilot's chat avatar)
 - **Project section**: Name + desired outcome
 - **Actions list**: Checkbox-style list (unchecked — they don't exist yet)
 - **Documents section**: Document icon + name (if present)
@@ -67,11 +67,11 @@ The suggestion card uses the same visual language as `ObjectCard` from the [Pape
 
 ### Button Treatments
 
-| Button | Label (DE) | Style | Icon |
-| --- | --- | --- | --- |
-| Accept | Übernehmen | Primary (filled) | `check` |
-| Edit | Ändern | Ghost | `edit` |
-| Dismiss | Verwerfen | Ghost, muted | `close` |
+| Button  | Label (DE) | Style            | Icon    |
+| ------- | ---------- | ---------------- | ------- |
+| Accept  | Übernehmen | Primary (filled) | `check` |
+| Edit    | Ändern     | Ghost            | `edit`  |
+| Dismiss | Verwerfen  | Ghost, muted     | `close` |
 
 ### Editing State
 
@@ -111,7 +111,7 @@ The provenance history entry uses action `"created"` with a source string:
 
 This enables:
 
-- Filtering items by creation method (manual vs. Tay)
+- Filtering items by creation method (manual vs. Copilot)
 - Audit trail: which conversation led to which items
 - Future: linking back to the conversation from the item detail view
 
@@ -121,7 +121,7 @@ This enables:
 
 ### One suggestion per tool call
 
-Each tool call from Tay renders as one `TaySuggestionCard`. If Tay returns multiple tool calls in a single response, each gets its own card with an independent lifecycle.
+Each tool call from Copilot renders as one `TaySuggestionCard`. If Copilot returns multiple tool calls in a single response, each gets its own card with an independent lifecycle.
 
 ### Suggestions don't block conversation
 
@@ -134,9 +134,10 @@ Once accepted, items follow the normal lifecycle — they appear in bucket views
 ### Edit scope is limited to the preview
 
 In editing mode, the user can only modify what's visible in the card:
+
 - Project name and desired outcome
 - Action names
 - Remove individual actions
 - Document names
 
-They cannot add new items, change buckets, or modify other properties. For deeper changes, they should dismiss and ask Tay differently, or edit the items after creation.
+They cannot add new items, change buckets, or modify other properties. For deeper changes, they should dismiss and ask Copilot differently, or edit the items after creation.

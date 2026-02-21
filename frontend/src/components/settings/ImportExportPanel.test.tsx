@@ -13,14 +13,14 @@ const defaultProps = {
 describe("ImportExportPanel", () => {
   it("renders import source cards", () => {
     render(<ImportExportPanel {...defaultProps} />);
-    expect(screen.getByText("project")).toBeInTheDocument();
+    expect(screen.getByText("Senticor Project")).toBeInTheDocument();
     expect(screen.getByText("Nirvana")).toBeInTheDocument();
   });
 
-  it("shows project as available with import button", () => {
+  it("shows Senticor Project as available with import button", () => {
     render(<ImportExportPanel {...defaultProps} />);
     expect(
-      screen.getByRole("button", { name: "Import from project" }),
+      screen.getByRole("button", { name: "Import from Senticor Project" }),
     ).toBeEnabled();
   });
 
@@ -36,14 +36,14 @@ describe("ImportExportPanel", () => {
     expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
   });
 
-  it("calls onImportNative when project import button is clicked", async () => {
+  it("calls onImportNative when Senticor Project import button is clicked", async () => {
     const user = userEvent.setup();
     const onImportNative = vi.fn();
     render(
       <ImportExportPanel {...defaultProps} onImportNative={onImportNative} />,
     );
     await user.click(
-      screen.getByRole("button", { name: "Import from project" }),
+      screen.getByRole("button", { name: "Import from Senticor Project" }),
     );
     expect(onImportNative).toHaveBeenCalled();
   });

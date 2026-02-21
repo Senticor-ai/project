@@ -421,7 +421,8 @@ const chatHandlers = [
     }
 
     // Simple text response for greetings (NDJSON stream)
-    const text = "Hallo! Ich bin Tay, dein Assistent. Wie kann ich dir helfen?";
+    const text =
+      "Hallo! Ich bin Copilot, dein Assistent. Wie kann ich dir helfen?";
     const events = [
       { type: "text_delta", content: text },
       { type: "done", text },

@@ -507,9 +507,7 @@ export const MobileLayout: Story = {
     });
 
     await step("Content area is visible", async () => {
-      await expect(
-        canvas.getByLabelText("Bucket content"),
-      ).toBeInTheDocument();
+      await expect(canvas.getByLabelText("Bucket content")).toBeInTheDocument();
     });
   },
 };

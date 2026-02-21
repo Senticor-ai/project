@@ -35,14 +35,15 @@ export const SimpleConversation: Story = {
         id: "u1",
         role: "user",
         kind: "text",
-        content: "Hallo Tay!",
+        content: "Hallo Copilot!",
         timestamp: "2024-01-01T10:00:00Z",
       },
       {
         id: "t1",
         role: "tay",
         kind: "text",
-        content: "Hallo! Ich bin Tay, dein Assistent. Wie kann ich dir helfen?",
+        content:
+          "Hallo! Ich bin Copilot, dein Assistent. Wie kann ich dir helfen?",
         timestamp: "2024-01-01T10:00:01Z",
       },
       {

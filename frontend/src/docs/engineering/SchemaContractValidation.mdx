@@ -41,13 +41,13 @@ under the **schemas** tag.
 
 ### Available schemas
 
-| Schema name      | Pydantic model        | Purpose                                           |
-| ---------------- | --------------------- | ------------------------------------------------- |
+| Schema name      | Pydantic model        | Purpose                                                 |
+| ---------------- | --------------------- | ------------------------------------------------------- |
 | `action-item`    | `ActionItemJsonLd`    | Inbox/next/waiting/calendar/someday (`@type: "Action"`) |
-| `project-item`   | `ProjectItemJsonLd`   | Multi-step outcome (`@type: "Project"`)           |
-| `reference-item` | `ReferenceItemJsonLd` | Reference material (`@type: "CreativeWork"`)      |
-| `item-patch`     | `ItemPatchModel`      | Partial JSON-LD for PATCH deep-merge              |
-| `property-value` | `PropertyValueModel`  | `additionalProperty` entry shape                  |
+| `project-item`   | `ProjectItemJsonLd`   | Multi-step outcome (`@type: "Project"`)                 |
+| `reference-item` | `ReferenceItemJsonLd` | Reference material (`@type: "CreativeWork"`)            |
+| `item-patch`     | `ItemPatchModel`      | Partial JSON-LD for PATCH deep-merge                    |
+| `property-value` | `PropertyValueModel`  | `additionalProperty` entry shape                        |
 
 Schemas are generated from `model.model_json_schema(by_alias=True, mode="serialization")`,
 so they always reflect the exact Pydantic model that validates incoming requests.

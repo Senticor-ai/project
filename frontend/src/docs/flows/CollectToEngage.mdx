@@ -21,16 +21,16 @@ graph LR
   R["<b>REVIEW</b><br/>Weekly + daily"]
   E["<b>ENGAGE</b><br/>Work from lists"]
 
-  C --> T --> O
-  O --> R
-  R --> E
-  E -->|"next cycle"| R
+C --> T --> O
+O --> R
+R --> E
+E -->|"next cycle"| R
 
-  style C fill:#fff3e0,stroke:#ef6c00
-  style T fill:#fce4ec,stroke:#c62828
-  style O fill:#e3f2fd,stroke:#1976d2
-  style R fill:#e8f5e9,stroke:#2e7d32
-  style E fill:#f3e5f5,stroke:#7b1fa2
+style C fill:#fff3e0,stroke:#ef6c00
+style T fill:#fce4ec,stroke:#c62828
+style O fill:#e3f2fd,stroke:#1976d2
+style R fill:#e8f5e9,stroke:#2e7d32
+style E fill:#f3e5f5,stroke:#7b1fa2
 `} />
 
 ---
@@ -187,15 +187,15 @@ An action with `scheduledDate` appears in `CalendarView`:
 1. User navigates to Review → `ReviewDashboard` opens
 2. 7-step guided wizard:
 
-| Step          | Component Used                | What User Does                 |
-| ------------- | ----------------------------- | ------------------------------ |
-| Clear Inbox   | `InboxList` + `InboxTriage`   | Triage remaining items         |
-| Next          | `ActionList` (filtered: next) | Mark done, reschedule, archive |
-| Projects      | `ProjectTree` (each project)  | Ensure each has a next action  |
-| Waiting       | `WaitingForList`              | Follow up on overdue items     |
-| Later         | `SomedayList`                 | Promote or archive             |
-| Calendar      | `CalendarView` (next 2 weeks) | Confirm upcoming commitments   |
-| Set Focus     | `FocusList`                   | Star/unstar items for the week |
+| Step        | Component Used                | What User Does                 |
+| ----------- | ----------------------------- | ------------------------------ |
+| Clear Inbox | `InboxList` + `InboxTriage`   | Triage remaining items         |
+| Next        | `ActionList` (filtered: next) | Mark done, reschedule, archive |
+| Projects    | `ProjectTree` (each project)  | Ensure each has a next action  |
+| Waiting     | `WaitingForList`              | Follow up on overdue items     |
+| Later       | `SomedayList`                 | Promote or archive             |
+| Calendar    | `CalendarView` (next 2 weeks) | Confirm upcoming commitments   |
+| Set Focus   | `FocusList`                   | Star/unstar items for the week |
 
 3. Each step shows relevant items with action buttons
 4. Progress bar fills as steps complete
@@ -287,32 +287,32 @@ graph TD
   IC --> IL["InboxList"]
   IL -->|"contains"| IT["InboxTriage<br/><i>inline on first item</i>"]
 
-  IT -->|"bucket tap"| A["Action"]
-  A --> AL["ActionList"]
-  A -->|"if project"| PT["ProjectTree"]
-  A -->|"if waiting"| WFL["WaitingForList"]
-  A -->|"if calendar"| CV["CalendarView"]
+IT -->|"bucket tap"| A["Action"]
+A --> AL["ActionList"]
+A -->|"if project"| PT["ProjectTree"]
+A -->|"if waiting"| WFL["WaitingForList"]
+A -->|"if calendar"| CV["CalendarView"]
 
-  IT -->|"reference"| RL["ReferenceLibrary"]
-  IT -->|"someday"| SL["SomedayList"]
-  IT -->|"archive"| AR["Archive"]
+IT -->|"reference"| RL["ReferenceLibrary"]
+IT -->|"someday"| SL["SomedayList"]
+IT -->|"archive"| AR["Archive"]
 
-  IL --> BN["BucketNav"]
-  BN -->|"navigates"| ABV["All bucket views"]
+IL --> BN["BucketNav"]
+BN -->|"navigates"| ABV["All bucket views"]
 
-  BN --> FL["FocusList"]
-  FL -->|"filters"| FI["Action / Project<br/><i>isFocused === true</i>"]
+BN --> FL["FocusList"]
+FL -->|"filters"| FI["Action / Project<br/><i>isFocused === true</i>"]
 
-  FL --> RD["ReviewDashboard"]
-  RD -->|"iterates"| ABV
+FL --> RD["ReviewDashboard"]
+RD -->|"iterates"| ABV
 
-  RD --> GT["GoalTracker"]
-  GT -->|"links via refers_to"| PA["Projects + Actions"]
+RD --> GT["GoalTracker"]
+GT -->|"links via refers_to"| PA["Projects + Actions"]
 
-  style IC fill:#fff3e0,stroke:#ef6c00
-  style IT fill:#fce4ec,stroke:#c62828
-  style A fill:#e3f2fd,stroke:#1976d2
-  style BN fill:#e8f5e9,stroke:#2e7d32
-  style FL fill:#f3e5f5,stroke:#7b1fa2
-  style RD fill:#e8f5e9,stroke:#2e7d32
+style IC fill:#fff3e0,stroke:#ef6c00
+style IT fill:#fce4ec,stroke:#c62828
+style A fill:#e3f2fd,stroke:#1976d2
+style BN fill:#e8f5e9,stroke:#2e7d32
+style FL fill:#f3e5f5,stroke:#7b1fa2
+style RD fill:#e8f5e9,stroke:#2e7d32
 `} />

@@ -3,16 +3,16 @@ import { WorkspacePage } from "../pages/workspace.page";
 import { GOLDEN_SCENARIOS } from "../fixtures/golden-prompts";
 
 /**
- * Integration tests for Tay Chat — uses canned LLM responses from the golden dataset.
+ * Integration tests for Copilot Chat — uses canned LLM responses from the golden dataset.
  *
- * Only `*/chat/completions` is mocked (the LLM inference call).
- * The `*/chat/execute-tool` call flows through the real stack:
+ * Only `/chat/completions` is mocked (the LLM inference call).
+ * The `/chat/execute-tool` call flows through the real stack:
  *   frontend → backend → agents → backend POST /items
  *
  * Each golden scenario generates a separate Playwright test.
  */
 
-test.describe("Tay Chat (mocked)", () => {
+test.describe("Copilot Chat (mocked)", () => {
   for (const scenario of GOLDEN_SCENARIOS) {
     test(`${scenario.description}: send → suggest → accept → verify`, async ({
       authenticatedPage: page,
@@ -39,13 +39,13 @@ test.describe("Tay Chat (mocked)", () => {
       });
 
       // 1. Open chat panel
-      await page.getByRole("button", { name: /Chat mit Tay/ }).click();
+      await page.getByRole("button", { name: /Chat mit Copilot/ }).click();
       await expect(
-        page.getByRole("complementary", { name: "Tay Chat" }),
+        page.getByRole("complementary", { name: "Copilot Chat" }),
       ).toBeVisible();
 
       // 2. Send prompt from golden dataset
-      const input = page.getByRole("textbox", { name: "Nachricht an Tay" });
+      const input = page.getByRole("textbox", { name: "Nachricht an Copilot" });
       await input.fill(scenario.prompt);
       await input.press("Enter");
 
@@ -88,7 +88,7 @@ test.describe("Tay Chat (mocked)", () => {
 
       // 6. Close chat panel
       await page
-        .getByRole("complementary", { name: "Tay Chat" })
+        .getByRole("complementary", { name: "Copilot Chat" })
         .getByRole("button", { name: "Chat schließen" })
         .click();
 

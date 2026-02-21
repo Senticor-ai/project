@@ -24,7 +24,7 @@ export function ChatMessageList({
   onAcceptSuggestion,
   onDismissSuggestion,
   onItemClick,
-  agentName = "Tay",
+  agentName = "Copilot",
   className,
 }: ChatMessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);

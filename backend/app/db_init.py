@@ -2,10 +2,9 @@ import time
 from pathlib import Path
 
 import psycopg
+from alembic.command import upgrade
 from alembic.config import Config
 from sqlalchemy.exc import OperationalError as SAOperationalError
-
-from alembic import command
 
 MAX_RETRIES = 30
 RETRY_INTERVAL = 2  # seconds
@@ -18,7 +17,7 @@ def _run_migrations() -> None:
 
     config = Config(str(alembic_ini))
     config.set_main_option("script_location", str(alembic_dir))
-    command.upgrade(config, "head")
+    upgrade(config, "head")
 
 
 def main() -> None:

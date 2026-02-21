@@ -46,11 +46,14 @@ export class WorkspacePage {
   // ----- Triage buttons -----
 
   triageButton(label: string): Locator {
-    return this.page.getByLabel(`Move to ${label}`);
+    return this.page.getByRole("button", {
+      name: `Move to ${label}`,
+      exact: true,
+    });
   }
 
   archiveButton(): Locator {
-    return this.page.getByLabel("Archive");
+    return this.page.getByRole("button", { name: "Archive", exact: true });
   }
 
   moreOptionsToggle(): Locator {

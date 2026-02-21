@@ -7,7 +7,7 @@ describe("ChatInput", () => {
   it("renders a textarea with placeholder", () => {
     render(<ChatInput onSend={vi.fn()} />);
     expect(
-      screen.getByRole("textbox", { name: "Nachricht an Tay" }),
+      screen.getByRole("textbox", { name: "Nachricht an Copilot" }),
     ).toBeInTheDocument();
   });
 
@@ -21,10 +21,12 @@ describe("ChatInput", () => {
     const onSend = vi.fn();
     render(<ChatInput onSend={onSend} />);
 
-    const textarea = screen.getByRole("textbox", { name: "Nachricht an Tay" });
-    await user.type(textarea, "Hello Tay{Enter}");
+    const textarea = screen.getByRole("textbox", {
+      name: "Nachricht an Copilot",
+    });
+    await user.type(textarea, "Hello Copilot{Enter}");
 
-    expect(onSend).toHaveBeenCalledWith("Hello Tay");
+    expect(onSend).toHaveBeenCalledWith("Hello Copilot");
   });
 
   it("clears the input after sending", async () => {
@@ -32,7 +34,7 @@ describe("ChatInput", () => {
     render(<ChatInput onSend={vi.fn()} />);
 
     const textarea = screen.getByRole("textbox", {
-      name: "Nachricht an Tay",
+      name: "Nachricht an Copilot",
     }) as HTMLTextAreaElement;
     await user.type(textarea, "Hello{Enter}");
 
@@ -44,7 +46,9 @@ describe("ChatInput", () => {
     const onSend = vi.fn();
     render(<ChatInput onSend={onSend} />);
 
-    const textarea = screen.getByRole("textbox", { name: "Nachricht an Tay" });
+    const textarea = screen.getByRole("textbox", {
+      name: "Nachricht an Copilot",
+    });
     await user.type(textarea, "   {Enter}");
 
     expect(onSend).not.toHaveBeenCalled();
@@ -55,11 +59,13 @@ describe("ChatInput", () => {
     const onSend = vi.fn();
     render(<ChatInput onSend={onSend} />);
 
-    const textarea = screen.getByRole("textbox", { name: "Nachricht an Tay" });
-    await user.type(textarea, "Hello Tay");
+    const textarea = screen.getByRole("textbox", {
+      name: "Nachricht an Copilot",
+    });
+    await user.type(textarea, "Hello Copilot");
     await user.click(screen.getByRole("button", { name: "Senden" }));
 
-    expect(onSend).toHaveBeenCalledWith("Hello Tay");
+    expect(onSend).toHaveBeenCalledWith("Hello Copilot");
   });
 
   it("allows multiline with Shift+Enter", async () => {
@@ -68,7 +74,7 @@ describe("ChatInput", () => {
     render(<ChatInput onSend={onSend} />);
 
     const textarea = screen.getByRole("textbox", {
-      name: "Nachricht an Tay",
+      name: "Nachricht an Copilot",
     }) as HTMLTextAreaElement;
     await user.type(textarea, "line1{Shift>}{Enter}{/Shift}line2");
 
@@ -81,7 +87,7 @@ describe("ChatInput", () => {
     render(<ChatInput onSend={vi.fn()} disabled />);
 
     expect(
-      screen.getByRole("textbox", { name: "Nachricht an Tay" }),
+      screen.getByRole("textbox", { name: "Nachricht an Copilot" }),
     ).toBeDisabled();
     expect(screen.getByRole("button", { name: "Senden" })).toBeDisabled();
   });

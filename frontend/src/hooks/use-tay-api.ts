@@ -67,7 +67,11 @@ export function useTayApi() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ message, conversationId, context: getClientContext() }),
+        body: JSON.stringify({
+          message,
+          conversationId,
+          context: getClientContext(),
+        }),
       });
 
       if (!res.ok) {

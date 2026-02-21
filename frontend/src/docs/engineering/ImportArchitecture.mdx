@@ -60,7 +60,7 @@ This keeps the cost of adding a new importer low while ensuring consistent UX ac
 | `shared.py`       | Common utilities: `_load_items_from_file`, `_IMPORT_JOB_STALE_ERROR`, job lifecycle helpers |
 | **nirvana/**      |                                                                                             |
 | `routes.py`       | `POST /imports/nirvana/inspect`, `POST /imports/nirvana/from-file`                          |
-| `transform.py`    | Nirvana JSON → project item conversion logic                                           |
+| `transform.py`    | Nirvana JSON → project item conversion logic                                                |
 | `orchestrator.py` | `run_nirvana_import()` — coordinates transform → upsert → summary                           |
 | **native/**       |                                                                                             |
 | `routes.py`       | `POST /imports/native/inspect`, `POST /imports/native/from-file`                            |
@@ -75,12 +75,12 @@ graph TD
   USF["User selects file"]
   USF --> HF
 
-  subgraph ID ["ImportDialog"]
-    HF["1. handleFile(file)"]
-    HF --> UL["upload.mutateAsync(file)<br/><i>useFileUpload: initiate → chunks → complete</i>"]
-    UL --> FR["FileRecord { file_id, sha256 }"]
-    FR --> CD["checkDuplicate(sha256)<br/><i>optional</i>"]
-    CD --> INS["inspect.mutateAsync()<br/><i>config.inspectFn → API → ImportSummary</i>"]
+subgraph ID ["ImportDialog"]
+HF["1. handleFile(file)"]
+HF --> UL["upload.mutateAsync(file)<br/><i>useFileUpload: initiate → chunks → complete</i>"]
+UL --> FR["FileRecord { file_id, sha256 }"]
+FR --> CD["checkDuplicate(sha256)<br/><i>optional</i>"]
+CD --> INS["inspect.mutateAsync()<br/><i>config.inspectFn → API → ImportSummary</i>"]
 
     INS --> REV["2. User reviews preview"]
     REV --> SI["startImport.mutateAsync()<br/><i>config.importFn → API → ImportJobResponse</i>"]
@@ -90,13 +90,14 @@ graph TD
     INV --> DONE["On completed: final invalidation"]
 
     DONE --> RES["4. Show results<br/><i>created / updated / skipped / errors</i>"]
-  end
 
-  style USF fill:#fff3e0,stroke:#ef6c00
-  style HF fill:#e3f2fd,stroke:#1976d2
-  style REV fill:#e3f2fd,stroke:#1976d2
-  style POLL fill:#e3f2fd,stroke:#1976d2
-  style RES fill:#e8f5e9,stroke:#2e7d32
+end
+
+style USF fill:#fff3e0,stroke:#ef6c00
+style HF fill:#e3f2fd,stroke:#1976d2
+style REV fill:#e3f2fd,stroke:#1976d2
+style POLL fill:#e3f2fd,stroke:#1976d2
+style RES fill:#e8f5e9,stroke:#2e7d32
 `} />
 
 ---

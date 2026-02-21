@@ -18,7 +18,7 @@ describe("TayChatPanel", () => {
       />,
     );
     expect(
-      screen.queryByRole("complementary", { name: "Tay Chat" }),
+      screen.queryByRole("complementary", { name: "Copilot Chat" }),
     ).not.toBeInTheDocument();
   });
 
@@ -35,9 +35,9 @@ describe("TayChatPanel", () => {
       />,
     );
     expect(
-      screen.getByRole("complementary", { name: "Tay Chat" }),
+      screen.getByRole("complementary", { name: "Copilot Chat" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Tay")).toBeInTheDocument();
+    expect(screen.getByText("Copilot")).toBeInTheDocument();
   });
 
   it("renders close button", () => {
@@ -88,7 +88,7 @@ describe("TayChatPanel", () => {
       />,
     );
     expect(
-      screen.getByText("Hallo! Ich bin Tay. Wie kann ich helfen?"),
+      screen.getByText("Hallo! Ich bin Copilot. Wie kann ich helfen?"),
     ).toBeInTheDocument();
   });
 
@@ -98,7 +98,7 @@ describe("TayChatPanel", () => {
         id: "u1",
         role: "user",
         kind: "text",
-        content: "Hi Tay",
+        content: "Hi Copilot",
         timestamp: new Date().toISOString(),
       },
     ];
@@ -113,7 +113,7 @@ describe("TayChatPanel", () => {
         onDismissSuggestion={vi.fn()}
       />,
     );
-    expect(screen.getByText("Hi Tay")).toBeInTheDocument();
+    expect(screen.getByText("Hi Copilot")).toBeInTheDocument();
   });
 
   it("renders chat input", () => {
@@ -129,7 +129,7 @@ describe("TayChatPanel", () => {
       />,
     );
     expect(
-      screen.getByRole("textbox", { name: "Nachricht an Tay" }),
+      screen.getByRole("textbox", { name: "Nachricht an Copilot" }),
     ).toBeInTheDocument();
   });
 
@@ -146,7 +146,7 @@ describe("TayChatPanel", () => {
       />,
     );
     expect(
-      screen.getByRole("textbox", { name: "Nachricht an Tay" }),
+      screen.getByRole("textbox", { name: "Nachricht an Copilot" }),
     ).toBeDisabled();
   });
 });

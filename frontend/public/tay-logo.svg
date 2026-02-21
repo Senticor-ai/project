@@ -1,26 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- Bauhaus-style TAY monogram — square -->
-  <!-- Blueprint-500: oklch(0.55 0.155 234) ≈ #1a6fa0 -->
-
-  <!-- Square background with rounded corners -->
-  <rect x="16" y="16" width="480" height="480" rx="64" fill="#1a6fa0"/>
-
-  <!-- T: horizontal bar + vertical stem -->
-  <rect x="100" y="128" width="140" height="32" rx="2" fill="white"/>
-  <rect x="154" y="128" width="32" height="160" rx="2" fill="white"/>
-
-  <!-- A: triangle form -->
-  <polygon points="256,128 316,288 196,288" fill="none" stroke="white" stroke-width="28" stroke-linejoin="round"/>
-  <!-- A crossbar -->
-  <rect x="214" y="232" width="84" height="24" rx="2" fill="#1a6fa0"/>
-
-  <!-- Y: two diagonal arms meeting a vertical stem -->
-  <line x1="330" y1="128" x2="380" y2="208" stroke="white" stroke-width="28" stroke-linecap="round"/>
-  <line x1="430" y1="128" x2="380" y2="208" stroke="white" stroke-width="28" stroke-linecap="round"/>
-  <rect x="364" y="208" width="32" height="80" rx="2" fill="white"/>
-
-  <!-- Bauhaus accent: small geometric shapes -->
-  <circle cx="170" cy="350" r="20" fill="white" opacity="0.3"/>
-  <rect x="240" y="330" width="40" height="40" fill="white" opacity="0.3"/>
-  <polygon points="380,330 400,370 360,370" fill="white" opacity="0.3"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Senticor Project">
+  <rect x="16" y="16" width="480" height="480" rx="64" fill="#ffffff" stroke="#0b2a6b" stroke-width="16" />
+  <rect x="142" y="96" width="76" height="320" rx="18" fill="#0b2a6b" />
+  <rect x="218" y="96" width="192" height="192" rx="96" fill="#0b2a6b" />
+  <rect x="286" y="164" width="94" height="84" rx="42" fill="#ffffff" />
 </svg>

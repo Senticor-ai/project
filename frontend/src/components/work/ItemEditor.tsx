@@ -183,6 +183,7 @@ export function ItemEditor({
             <button
               key={level}
               type="button"
+              aria-label={level}
               onClick={() => toggleEnergy(level)}
               className={cn(
                 "rounded-[var(--radius-sm)] border px-2 py-1 text-xs capitalize",

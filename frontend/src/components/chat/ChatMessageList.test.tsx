@@ -60,7 +60,7 @@ describe("ChatMessageList", () => {
   it("renders empty state when no messages", () => {
     render(<ChatMessageList messages={[]} />);
     expect(
-      screen.getByText("Hallo! Ich bin Tay. Wie kann ich helfen?"),
+      screen.getByText("Hallo! Ich bin Copilot. Wie kann ich helfen?"),
     ).toBeInTheDocument();
   });
 
@@ -80,7 +80,7 @@ describe("ChatMessageList", () => {
   it("renders thinking indicator", () => {
     const messages: ChatMessage[] = [thinkingMsg()];
     render(<ChatMessageList messages={messages} />);
-    expect(screen.getByLabelText("Tay denkt nach...")).toBeInTheDocument();
+    expect(screen.getByLabelText("Copilot denkt nach...")).toBeInTheDocument();
   });
 
   it("renders confirmation messages", () => {

@@ -4,7 +4,7 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 # Deployment
 
-project uses a **GitOps** deployment model. Code changes on `main` trigger an automated pipeline that builds container images, pushes them to a private registry, and lets a cluster-side reconciler apply the updated Kubernetes manifests. No manual `kubectl apply` is needed.
+Senticor Project uses a **GitOps** deployment model. Code changes on `main` trigger an automated pipeline that builds container images, pushes them to a private registry, and lets a cluster-side reconciler apply the updated Kubernetes manifests. No manual `kubectl apply` is needed.
 
 ---
 
@@ -38,12 +38,12 @@ Push to main
 ### CI/CD Configuration
 
 The pipeline is defined in `.gitlab-ci.yml` and uses Kaniko jobs per image Dockerfile.
-Two masked CI/CD variables must be configured in GitLab project settings:
+Two masked CI/CD variables must be configured in GitLab Senticor Project settings:
 
 - `HARBOR_USER` — robot account for the private registry
 - `HARBOR_PASSWORD` — robot account secret
 
-For this project, CI uses Kaniko (no Docker daemon). Harbor uses an internal CA certificate that is not publicly trusted, so Kaniko runs with `--insecure --skip-tls-verify` when pushing images.
+For this Senticor Project, CI uses Kaniko (no Docker daemon). Harbor uses an internal CA certificate that is not publicly trusted, so Kaniko runs with `--insecure --skip-tls-verify` when pushing images.
 The CI job writes `/kaniko/.docker/config.json` from those two variables instead of calling `docker login`.
 On `main`, images are pushed with the `CI_COMMIT_SHORT_SHA` tag and the production
 Kustomization is updated to that same short SHA.
@@ -54,7 +54,7 @@ These are the only secrets stored in GitLab. All application secrets live in the
 
 ## Container Structure
 
-The project has three Dockerfiles, all built from the monorepo root context:
+The Senticor Project has three Dockerfiles, all built from the monorepo root context:
 
 ### Frontend (`frontend/Dockerfile`)
 
@@ -101,11 +101,11 @@ All application resources are declared in `infra/k8s/` using a Kustomize base/ov
 
 ### Resources managed by ops (not in version control)
 
-| Resource  | Purpose                                                   |
-| --------- | --------------------------------------------------------- |
-| Namespace | Pre-created by ops                                        |
+| Resource  | Purpose                                                                   |
+| --------- | ------------------------------------------------------------------------- |
+| Namespace | Pre-created by ops                                                        |
 | Secret    | Application secrets (see [secrets reference](#application-secrets) below) |
-| Ingress   | Routes external traffic to the frontend service           |
+| Ingress   | Routes external traffic to the frontend service                           |
 
 This separation ensures secrets never appear in version control.
 
@@ -113,14 +113,14 @@ This separation ensures secrets never appear in version control.
 
 The `app-secrets` Secret must include these keys:
 
-| Key | Description | How to generate |
-|-----|-------------|-----------------|
-| `POSTGRES_PASSWORD` | PostgreSQL password | &mdash; |
-| `JWT_SECRET` | Internal token signing | `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
-| `GMAIL_CLIENT_ID` | Google OAuth client ID | [Cloud Console](https://console.cloud.google.com/apis/credentials) |
-| `GMAIL_CLIENT_SECRET` | Google OAuth client secret | Same as above |
-| `GMAIL_STATE_SECRET` | OAuth CSRF state signing | `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
-| `ENCRYPTION_KEY` | Fernet key for token encryption | `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
+| Key                   | Description                     | How to generate                                                                             |
+| --------------------- | ------------------------------- | ------------------------------------------------------------------------------------------- |
+| `POSTGRES_PASSWORD`   | PostgreSQL password             | &mdash;                                                                                     |
+| `JWT_SECRET`          | Internal token signing          | `python -c "import secrets; print(secrets.token_urlsafe(32))"`                              |
+| `GMAIL_CLIENT_ID`     | Google OAuth client ID          | [Cloud Console](https://console.cloud.google.com/apis/credentials)                          |
+| `GMAIL_CLIENT_SECRET` | Google OAuth client secret      | Same as above                                                                               |
+| `GMAIL_STATE_SECRET`  | OAuth CSRF state signing        | `python -c "import secrets; print(secrets.token_urlsafe(32))"`                              |
+| `ENCRYPTION_KEY`      | Fernet key for token encryption | `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
 
 See [Email Integration](?path=/docs/engineering-email-integration--docs) for the full Gmail OAuth setup guide.
 
@@ -159,12 +159,12 @@ The backend exposes three observability signals: **structured logs**, **Promethe
 
 Structured JSON logs via `structlog`. Every log entry includes `trace_id` and `span_id` when OTEL tracing is active, enabling Loki ↔ Tempo correlation in Grafana. Logs are collected automatically into Loki.
 
-| Field | Source |
-| --- | --- |
+| Field        | Source                                           |
+| ------------ | ------------------------------------------------ |
 | `request_id` | `X-Request-ID` header (or server-generated UUID) |
-| `trace_id` | OTEL span context (32-hex) |
-| `span_id` | OTEL span context (16-hex) |
-| `user_id` | Session auth |
+| `trace_id`   | OTEL span context (32-hex)                       |
+| `span_id`    | OTEL span context (16-hex)                       |
+| `user_id`    | Session auth                                     |
 
 Set `LOG_FORMAT=console` in the ConfigMap for human-readable output during local development.
 
@@ -172,62 +172,62 @@ Set `LOG_FORMAT=console` in the ConfigMap for human-readable output during local
 
 All four worker/API deployments expose `/metrics` in Prometheus format with scrape annotations already configured:
 
-| Deployment | Port | Endpoint |
-| --- | --- | --- |
-| Backend | 8000 | `/metrics` |
+| Deployment        | Port | Endpoint   |
+| ----------------- | ---- | ---------- |
+| Backend           | 8000 | `/metrics` |
 | Projection Worker | 9090 | `/metrics` |
-| Push Worker | 9091 | `/metrics` |
-| Watch Worker | 9092 | `/metrics` |
+| Push Worker       | 9091 | `/metrics` |
+| Watch Worker      | 9092 | `/metrics` |
 
 **HTTP server metrics** (backend):
 
-| Metric | Type | Labels |
-| --- | --- | --- |
-| `http_server_requests_total` | Counter | method, route, status_class |
+| Metric                                 | Type      | Labels                      |
+| -------------------------------------- | --------- | --------------------------- |
+| `http_server_requests_total`           | Counter   | method, route, status_class |
 | `http_server_request_duration_seconds` | Histogram | method, route, status_class |
-| `http_server_in_flight_requests` | Gauge | — |
+| `http_server_in_flight_requests`       | Gauge     | —                           |
 
 **Queue health metrics** (backend, refreshed on scrape):
 
-| Metric | Type | Labels |
-| --- | --- | --- |
-| `app_queue_depth` | Gauge | queue |
-| `app_queue_oldest_age_seconds` | Gauge | queue |
-| `app_queue_jobs_by_status` | Gauge | queue, status |
-| `app_queue_dead_lettered` | Gauge | queue |
+| Metric                         | Type  | Labels        |
+| ------------------------------ | ----- | ------------- |
+| `app_queue_depth`              | Gauge | queue         |
+| `app_queue_oldest_age_seconds` | Gauge | queue         |
+| `app_queue_jobs_by_status`     | Gauge | queue, status |
+| `app_queue_dead_lettered`      | Gauge | queue         |
 
 Queues tracked: `outbox_events`, `push_outbox`, `import_jobs`, `search_index_jobs`.
 
 **Business metrics** (backend + workers):
 
-| Metric | Type | Labels |
-| --- | --- | --- |
-| `app_items_created_total` | Counter | bucket |
-| `app_items_updated_total` | Counter | — |
-| `app_items_archived_total` | Counter | — |
+| Metric                        | Type    | Labels                   |
+| ----------------------------- | ------- | ------------------------ |
+| `app_items_created_total`     | Counter | bucket                   |
+| `app_items_updated_total`     | Counter | —                        |
+| `app_items_archived_total`    | Counter | —                        |
 | `app_imports_completed_total` | Counter | source (nirvana, native) |
-| `app_imports_failed_total` | Counter | source |
+| `app_imports_failed_total`    | Counter | source                   |
 
 **Worker health metrics** (workers):
 
-| Metric | Type | Labels |
-| --- | --- | --- |
-| `worker_batches_total` | Counter | worker |
-| `worker_events_total` | Counter | worker |
-| `worker_errors_total` | Counter | worker |
+| Metric                          | Type      | Labels |
+| ------------------------------- | --------- | ------ |
+| `worker_batches_total`          | Counter   | worker |
+| `worker_events_total`           | Counter   | worker |
+| `worker_errors_total`           | Counter   | worker |
 | `worker_batch_duration_seconds` | Histogram | worker |
-| `worker_up` | Gauge | worker |
+| `worker_up`                     | Gauge     | worker |
 
 ### OpenTelemetry Tracing
 
 OTEL tracing is initialised at app startup via `app/tracing.py`. The SDK auto-reads the standard environment variables from the ConfigMap:
 
-| Variable | Value (production) |
-| --- | --- |
-| `OTEL_SERVICE_NAME` | `project-backend` |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://alloy.observability.svc.cluster.local:4318` |
-| `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/protobuf` |
-| `OTEL_RESOURCE_ATTRIBUTES` | `service.namespace=project,deployment.environment=production` |
+| Variable                      | Value (production)                                            |
+| ----------------------------- | ------------------------------------------------------------- |
+| `OTEL_SERVICE_NAME`           | `project-backend`                                             |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://alloy.observability.svc.cluster.local:4318`           |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/protobuf`                                               |
+| `OTEL_RESOURCE_ATTRIBUTES`    | `service.namespace=project,deployment.environment=production` |
 
 FastAPI routes are auto-instrumented — every inbound request creates a span with method, route, and status. Traces are exported via `BatchSpanProcessor` to the Alloy collector, which forwards to Tempo.
 

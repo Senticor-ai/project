@@ -9,16 +9,16 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 ## Context
 
-A gap analysis against the Procedere team's PWA-readiness checklist confirmed that project's core SPA architecture is solid: React Query hooks provide a swappable repository abstraction, optimistic mutations with rollback are universal, the OfflineBanner + `offlineFirst` network mode handle connectivity state, and the backend offers cursor-based sync with ETags and idempotent writes.
+A gap analysis against the Procedere team's PWA-readiness checklist confirmed that Senticor Project's core SPA architecture is solid: React Query hooks provide a swappable repository abstraction, optimistic mutations with rollback are universal, the OfflineBanner + `offlineFirst` network mode handle connectivity state, and the backend offers cursor-based sync with ETags and idempotent writes.
 
-The remaining gaps before project can become an installable, offline-capable PWA fall into four phases:
+The remaining gaps before Senticor Project can become an installable, offline-capable PWA fall into four phases:
 
 1. Touch & mobile audit (prerequisite for any mobile deployment)
 2. Write conflict prevention (optimistic concurrency on the backend)
 3. Reverse proxy rate limiting (security hardening for production)
 4. PWA infrastructure (manifest, service worker, IndexedDB, background sync)
 
-**Design goal:** Users can install project on mobile, work offline, and have changes sync automatically when reconnected — without any UI component rewrites.
+**Design goal:** Users can install Senticor Project on mobile, work offline, and have changes sync automatically when reconnected — without any UI component rewrites.
 
 ---
 
@@ -37,13 +37,13 @@ Workbox / vite-plugin-pwa are not alternatives to TanStack Query — they solve 
 
 TanStack Query's offline-first mode (configured in `main.tsx`) already covers the majority of offline scenarios without any service worker:
 
-| Capability | How | File |
-| --- | --- | --- |
-| Cache-first reads | `networkMode: "offlineFirst"` + `staleTime: 30_000` | `main.tsx` |
-| Mutation queuing | Mutations queue in memory, auto-retry on reconnect | `use-mutations.ts` |
-| Optimistic UI | `onMutate` snapshots cache partitions + rollback on error | `use-mutations.ts` |
+| Capability        | How                                                              | File                |
+| ----------------- | ---------------------------------------------------------------- | ------------------- |
+| Cache-first reads | `networkMode: "offlineFirst"` + `staleTime: 30_000`              | `main.tsx`          |
+| Mutation queuing  | Mutations queue in memory, auto-retry on reconnect               | `use-mutations.ts`  |
+| Optimistic UI     | `onMutate` snapshots cache partitions + rollback on error        | `use-mutations.ts`  |
 | Offline indicator | `OfflineBanner` via `useSyncExternalStore` on `navigator.onLine` | `OfflineBanner.tsx` |
-| Smart retry | 401 errors skip retry; network errors retry once | `main.tsx` |
+| Smart retry       | 401 errors skip retry; network errors retry once                 | `main.tsx`          |
 
 **What's missing (Phase 4 fills these gaps):**
 
@@ -62,17 +62,18 @@ Verify all interactive elements meet the 44x44 CSS pixel minimum (Apple HIG / WC
 
 **Components to audit:**
 
-| Component | Concern |
-| --- | --- |
-| `BucketNav` buttons | Compact sidebar — may be too small on phone |
-| `ActionRow` checkbox + focus toggle | Inline controls could be undersized |
-| `ObjectCard` action buttons | Archive/move buttons in card footer |
-| `EditableTitle` | Double-click to edit has no touch equivalent |
-| `InboxTriage` bucket buttons | Quick-triage actions need adequate spacing |
-| `AppMenu` dropdown items | Menu items need touch-safe hit targets |
-| `Tabs` component | Tab headers need adequate tap area |
+| Component                           | Concern                                      |
+| ----------------------------------- | -------------------------------------------- |
+| `BucketNav` buttons                 | Compact sidebar — may be too small on phone  |
+| `ActionRow` checkbox + focus toggle | Inline controls could be undersized          |
+| `ObjectCard` action buttons         | Archive/move buttons in card footer          |
+| `EditableTitle`                     | Double-click to edit has no touch equivalent |
+| `InboxTriage` bucket buttons        | Quick-triage actions need adequate spacing   |
+| `AppMenu` dropdown items            | Menu items need touch-safe hit targets       |
+| `Tabs` component                    | Tab headers need adequate tap area           |
 
 **Test approach:**
+
 - Chrome DevTools device mode with touch simulation
 - Storybook mobile viewport stories for each component
 - Automated check: Playwright `boundingBox()` assertions for min 44x44
@@ -82,17 +83,20 @@ Verify all interactive elements meet the 44x44 CSS pixel minimum (Apple HIG / WC
 **`EditableTitle` (double-click → long-press or edit button):**
 
 `frontend/src/components/work/EditableTitle.tsx`:
+
 - Add an explicit edit icon button (visible on touch devices, hidden on hover for desktop)
 - Use `@media (pointer: coarse)` to always show the edit affordance on touch devices
 - Keep double-click as a desktop shortcut
 
 **General fixes:**
+
 - Add `min-h-11 min-w-11` (44px) to all small interactive elements
 - Ensure adequate spacing between adjacent tap targets (8px minimum)
 
 ### 1c. RED — Mobile keyboard tolerance
 
 `frontend/src/components/work/InboxCapture.tsx`, `frontend/src/components/work/ItemEditor.tsx`:
+
 - Verify input fields remain visible when the virtual keyboard opens
 - Test with `visualViewport` API in Storybook or Playwright mobile emulation
 - Ensure no content is permanently obscured by the keyboard
@@ -112,6 +116,7 @@ cd frontend && npx tsc -b --noEmit
 ### 2a. RED — Tests for If-Match precondition
 
 `backend/tests/test_conflict_detection.py`:
+
 - `PATCH /items/{id}` with correct `If-Match` ETag succeeds (200)
 - `PATCH /items/{id}` with stale `If-Match` ETag returns 412 Precondition Failed
 - `PATCH /items/{id}` without `If-Match` header succeeds (backward compatible)
@@ -122,12 +127,14 @@ cd frontend && npx tsc -b --noEmit
 `backend/app/routes/items.py` — existing `update_item` handler:
 
 The ETag infrastructure already exists:
+
 - `_hash_payload()` computes SHA256 of merged JSON-LD (line 34-36)
 - `content_hash` stored in items table (line 69)
 - ETags computed from content_hash + metadata (lines 39-41)
 - `If-None-Match` already supported on GET/sync for cache validation
 
 Add `If-Match` support:
+
 ```python
 if_match = request.headers.get("If-Match")
 if if_match:
@@ -142,11 +149,13 @@ if if_match:
 ### 2c. GREEN — Frontend sends If-Match on updates
 
 `frontend/src/lib/api-client.ts` — `ItemsApi.update()`:
+
 - Accept optional `etag` parameter
 - Set `If-Match` header when provided
 - Handle 412 response: invalidate cache, show toast "Item was modified elsewhere"
 
 `frontend/src/hooks/use-mutations.ts`:
+
 - Pass item's ETag from cache to update calls
 - On 412 error, invalidate query and show conflict toast
 
@@ -167,6 +176,7 @@ cd frontend && npx tsc -b --noEmit
 ### 3a. RED — Integration test for rate limiting
 
 `backend/tests/test_rate_limiting.py` (integration, requires nginx):
+
 - 100+ write requests within 1 minute → 429 Too Many Requests
 - Response includes `Retry-After` header
 - Auth endpoints limited to 10 failed attempts per minute
@@ -238,8 +248,8 @@ hey -n 200 -c 10 -m POST http://localhost/items ...
 
 ```json
 {
-  "name": "project",
-  "short_name": "TAY",
+  "name": "Senticor Project",
+  "short_name": "COPILOT",
   "description": "Productivity and task management",
   "start_url": "/workspace/inbox",
   "display": "standalone",
@@ -248,12 +258,18 @@ hey -n 200 -c 10 -m POST http://localhost/items ...
   "icons": [
     { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ]
 }
 ```
 
 `frontend/index.html` — add manifest link:
+
 ```html
 <link rel="manifest" href="/manifest.json" />
 <meta name="theme-color" content="#18181b" />
@@ -262,11 +278,13 @@ hey -n 200 -c 10 -m POST http://localhost/items ...
 ### 4c. GREEN — Service worker via vite-plugin-pwa
 
 `frontend/package.json` — add dependency:
+
 ```bash
 npm install -D vite-plugin-pwa
 ```
 
 `frontend/vite.config.ts` — configure Workbox:
+
 ```typescript
 import { VitePWA } from "vite-plugin-pwa";
 
@@ -285,10 +303,11 @@ plugins: [
       ],
     },
   }),
-]
+];
 ```
 
 **Caching strategy:**
+
 - Static assets (JS, CSS, fonts, icons): **CacheFirst** — immutable content-hashed files
 - API sync endpoint: **NetworkFirst** — try network, fall back to cache
 - HTML shell: **StaleWhileRevalidate** — serve cached, update in background
@@ -328,20 +347,24 @@ npx lighthouse http://localhost:4173 --only-categories=pwa --output=json
 ## Files to create/modify
 
 **Phase 1 (Touch audit):**
+
 - `frontend/src/components/work/EditableTitle.tsx` — add touch edit affordance
 - Various components — add `min-h-11 min-w-11` to small targets
 
 **Phase 2 (Conflict prevention):**
+
 - `backend/tests/test_conflict_detection.py` — new test file
 - `backend/app/routes/items.py` — add `If-Match` precondition check
 - `frontend/src/lib/api-client.ts` — pass ETag on updates
 - `frontend/src/hooks/use-mutations.ts` — handle 412 responses
 
 **Phase 3 (Rate limiting):**
+
 - `deploy/nginx/rate-limit.conf` — new nginx config
 - `deploy/alloy/config.alloy` — log parsing pipeline
 
 **Phase 4 (PWA):**
+
 - `frontend/public/manifest.json` — new web app manifest
 - `frontend/public/icons/` — PWA icons (192, 512, maskable)
 - `frontend/index.html` — manifest link + theme-color meta

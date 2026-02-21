@@ -5,7 +5,7 @@ import { Mermaid } from "../../components/docs/Mermaid";
 
 # Story-Driven Development
 
-project is built using **Storybook as the single source of truth** for the entire
+Senticor Project is built using **Storybook as the single source of truth** for the entire
 system — product vision, design language, engineering architecture, user flows, and
 interactive component demos all live here as MDX pages alongside component stories.
 
@@ -24,18 +24,18 @@ most of which are stale.
 
 **Story-Driven Development** collapses all of that into one place:
 
-| What                    | Traditional                       | Story-Driven                          |
-| ----------------------- | --------------------------------- | ------------------------------------- |
-| Product specs           | Confluence / Google Docs          | MDX pages in `docs/product/`          |
-| Design system           | Figma / Zeroheight                | MDX pages in `docs/design/`           |
-| Architecture docs       | Wiki / README files               | MDX pages in `docs/engineering/`      |
-| User journeys           | Miro / FigJam                     | MDX pages in `docs/flows/`            |
-| Component API           | Prop tables in README             | Interactive stories (`.stories.tsx`)   |
-| Visual regression       | Separate screenshot tool          | Storybook stories + Chromatic         |
-| Accessibility audits    | Manual WCAG checklist             | axe-core runs on every story          |
-| API mocking             | Separate mock server              | MSW handlers in stories               |
-| Integration tests       | Separate test harness             | Play functions in stories             |
-| Living styleguide       | Stale PDF export                  | Storybook IS the styleguide           |
+| What                 | Traditional              | Story-Driven                         |
+| -------------------- | ------------------------ | ------------------------------------ |
+| Product specs        | Confluence / Google Docs | MDX pages in `docs/product/`         |
+| Design system        | Figma / Zeroheight       | MDX pages in `docs/design/`          |
+| Architecture docs    | Wiki / README files      | MDX pages in `docs/engineering/`     |
+| User journeys        | Miro / FigJam            | MDX pages in `docs/flows/`           |
+| Component API        | Prop tables in README    | Interactive stories (`.stories.tsx`) |
+| Visual regression    | Separate screenshot tool | Storybook stories + Chromatic        |
+| Accessibility audits | Manual WCAG checklist    | axe-core runs on every story         |
+| API mocking          | Separate mock server     | MSW handlers in stories              |
+| Integration tests    | Separate test harness    | Play functions in stories            |
+| Living styleguide    | Stale PDF export         | Storybook IS the styleguide          |
 
 **One URL. One build. One truth.**
 
@@ -48,42 +48,42 @@ coverage map:
 
 ### Product (`docs/product/`)
 
-| Document                                                                                | Purpose                                 |
-| --------------------------------------------------------------------------------------- | --------------------------------------- |
-| [Product Vision](?path=/docs/product-product-vision--docs)                              | Core workflow, buckets, principles, Tay |
-| [Methodology](?path=/docs/product-methodology--docs)                                    | 5-phase task management lifecycle       |
-| [Feature Map](?path=/docs/product-feature-map--docs)                                    | Complete feature inventory              |
-| Epics (Tay Copilot, PWA, Export, Release, Schema Enrichment, Editable Title, Rename...) | Detailed feature specifications         |
+| Document                                                                            | Purpose                                     |
+| ----------------------------------------------------------------------------------- | ------------------------------------------- |
+| [Product Vision](?path=/docs/product-product-vision--docs)                          | Core workflow, buckets, principles, Copilot |
+| [Methodology](?path=/docs/product-methodology--docs)                                | 5-phase task management lifecycle           |
+| [Feature Map](?path=/docs/product-feature-map--docs)                                | Complete feature inventory                  |
+| Epics (Copilot, PWA, Export, Release, Schema Enrichment, Editable Title, Rename...) | Detailed feature specifications             |
 
 ### Design (`docs/design/`)
 
-| Document                                                                      | Purpose                              |
-| ----------------------------------------------------------------------------- | ------------------------------------ |
-| [Design Philosophy](?path=/docs/design-philosophy--docs)                      | Apple HIG adoption, Paperclip system |
-| [Paperclip Principles](?path=/docs/design-paperclip-principles--docs)         | 8 design principles with checklists  |
-| [Design Tokens](?path=/docs/design-tokens--docs)                              | Color, typography, spacing, motion   |
+| Document                                                              | Purpose                              |
+| --------------------------------------------------------------------- | ------------------------------------ |
+| [Design Philosophy](?path=/docs/design-philosophy--docs)              | Apple HIG adoption, Paperclip system |
+| [Paperclip Principles](?path=/docs/design-paperclip-principles--docs) | 8 design principles with checklists  |
+| [Design Tokens](?path=/docs/design-tokens--docs)                      | Color, typography, spacing, motion   |
 
 ### Engineering (`docs/engineering/`)
 
-| Document                                                                                          | Purpose                                   |
-| ------------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| [Architecture](?path=/docs/engineering-architecture--docs)                                        | Tech stack, dual-store, projections, AI   |
-| [Testing](?path=/docs/engineering-testing--docs)                                                  | 3 test layers, MSW, E2E patterns          |
-| [Data Model](?path=/docs/engineering-ontology--docs)                                              | Schema.org-first, JSON-LD, canonical IDs  |
-| [Deployment](?path=/docs/engineering-deployment--docs)                                            | Containers, K8s, CI/CD                    |
-| [FRBR Architecture](?path=/docs/engineering-ontology-frbr-knowledge-graph--docs)                  | Knowledge graph ontology                  |
-| [LexCEL Architecture](?path=/docs/engineering-ontology-lexcel-architecture--docs)                 | Typed reference system                    |
-| [Schema Reference](?path=/docs/engineering-ontology-schema-org-vocabulary--docs)                  | Full JSON-LD type catalog                 |
-| [Backend Architecture](?path=/docs/engineering-backend-architecture--docs)                        | FastAPI, Haystack, OpenRouter             |
-| [Email Integration](?path=/docs/engineering-email-integration--docs)                              | IMAP sync, email-to-action transform      |
+| Document                                                                          | Purpose                                  |
+| --------------------------------------------------------------------------------- | ---------------------------------------- |
+| [Architecture](?path=/docs/engineering-architecture--docs)                        | Tech stack, dual-store, projections, AI  |
+| [Testing](?path=/docs/engineering-testing--docs)                                  | 3 test layers, MSW, E2E patterns         |
+| [Data Model](?path=/docs/engineering-ontology--docs)                              | Schema.org-first, JSON-LD, canonical IDs |
+| [Deployment](?path=/docs/engineering-deployment--docs)                            | Containers, K8s, CI/CD                   |
+| [FRBR Architecture](?path=/docs/engineering-ontology-frbr-knowledge-graph--docs)  | Knowledge graph ontology                 |
+| [LexCEL Architecture](?path=/docs/engineering-ontology-lexcel-architecture--docs) | Typed reference system                   |
+| [Schema Reference](?path=/docs/engineering-ontology-schema-org-vocabulary--docs)  | Full JSON-LD type catalog                |
+| [Backend Architecture](?path=/docs/engineering-backend-architecture--docs)        | FastAPI, Haystack, OpenRouter            |
+| [Email Integration](?path=/docs/engineering-email-integration--docs)              | IMAP sync, email-to-action transform     |
 
 ### Flows (`docs/flows/`)
 
-| Document                                                                                 | Purpose                            |
-| ---------------------------------------------------------------------------------------- | ---------------------------------- |
-| [Collect to Engage](?path=/docs/flows-collect-to-engage--docs)                           | Complete task lifecycle            |
-| [Tax Prep Journey](?path=/docs/flows-tax-prep-journey--docs)                             | End-to-end domain walkthrough      |
-| Tax Prep epics (Triage, Import, Missing Docs)                                            | Detailed flow specifications       |
+| Document                                                       | Purpose                       |
+| -------------------------------------------------------------- | ----------------------------- |
+| [Collect to Engage](?path=/docs/flows-collect-to-engage--docs) | Complete task lifecycle       |
+| [Tax Prep Journey](?path=/docs/flows-tax-prep-journey--docs)   | End-to-end domain walkthrough |
+| Tax Prep epics (Triage, Import, Missing Docs)                  | Detailed flow specifications  |
 
 ### Components (co-located `.stories.tsx`)
 
@@ -99,7 +99,7 @@ Every UI component has interactive stories with:
 
 ## The AI-Augmented Development Loop
 
-project is built by a human-AI pair: one product owner/developer working with
+Senticor Project is built by a human-AI pair: one product owner/developer working with
 **Claude Code** (Anthropic's CLI agent). Storybook is the shared context that makes
 this collaboration work.
 
@@ -114,22 +114,22 @@ graph TD
   MM["MEMORY.md<br/>Learned patterns,<br/>gotchas, conventions"]
   CC["<b>CLAUDE CODE</b><br/>Reads docs · Writes code<br/>Runs tests · Updates docs"]
 
-  SB --- MDX
-  SB --- ST
-  MDX --> CM
-  ST --> CM
-  MDX --> MM
-  ST --> MM
-  CM --> CC
-  MM --> CC
-  CC -->|"closes the loop"| SB
+SB --- MDX
+SB --- ST
+MDX --> CM
+ST --> CM
+MDX --> MM
+ST --> MM
+CM --> CC
+MM --> CC
+CC -->|"closes the loop"| SB
 
-  style SB fill:#f8f4ee,stroke:#b8860b,stroke-width:2px,color:#333
-  style MDX fill:#fff,stroke:#999
-  style ST fill:#fff,stroke:#999
-  style CM fill:#e8f5e9,stroke:#4caf50
-  style MM fill:#e3f2fd,stroke:#2196f3
-  style CC fill:#fce4ec,stroke:#e91e63,stroke-width:2px,color:#333
+style SB fill:#f8f4ee,stroke:#b8860b,stroke-width:2px,color:#333
+style MDX fill:#fff,stroke:#999
+style ST fill:#fff,stroke:#999
+style CM fill:#e8f5e9,stroke:#4caf50
+style MM fill:#e3f2fd,stroke:#2196f3
+style CC fill:#fce4ec,stroke:#e91e63,stroke-width:2px,color:#333
 `} />
 
 ### The Feedback Loop
@@ -225,16 +225,16 @@ graph LR
   S6["6. Verify in Storybook<br/><i>Does it match the spec?</i>"]
   S7["7. Update MDX<br/><i>Close the loop</i>"]
 
-  S1 --> S2 --> S3 --> S4 --> S5 --> S6 --> S7
-  S7 -->|"next feature"| S1
+S1 --> S2 --> S3 --> S4 --> S5 --> S6 --> S7
+S7 -->|"next feature"| S1
 
-  style S1 fill:#e3f2fd,stroke:#1976d2
-  style S2 fill:#e3f2fd,stroke:#1976d2
-  style S3 fill:#fce4ec,stroke:#c62828
-  style S4 fill:#e8f5e9,stroke:#2e7d32
-  style S5 fill:#e8f5e9,stroke:#2e7d32
-  style S6 fill:#fff3e0,stroke:#ef6c00
-  style S7 fill:#e3f2fd,stroke:#1976d2
+style S1 fill:#e3f2fd,stroke:#1976d2
+style S2 fill:#e3f2fd,stroke:#1976d2
+style S3 fill:#fce4ec,stroke:#c62828
+style S4 fill:#e8f5e9,stroke:#2e7d32
+style S5 fill:#e8f5e9,stroke:#2e7d32
+style S6 fill:#fff3e0,stroke:#ef6c00
+style S7 fill:#e3f2fd,stroke:#1976d2
 `} />
 
 The story is both the design artifact and the test harness. There is no handoff
@@ -260,14 +260,14 @@ between "design" and "implementation" — they are the same file.
 
 ## Key Files
 
-| File                                      | Role                                          |
-| ----------------------------------------- | --------------------------------------------- |
-| `frontend/src/docs/**/*.mdx`              | All documentation (35+ pages)                 |
-| `frontend/src/**/*.stories.tsx`           | Component stories with tests and a11y         |
-| `frontend/.storybook/main.ts`            | Storybook configuration                       |
-| `frontend/.storybook/preview.tsx`        | Global decorators, MSW setup, a11y config     |
-| `CLAUDE.md`                               | AI agent instructions and project rules       |
-| `.claude/projects/*/memory/MEMORY.md`    | AI agent accumulated knowledge                |
+| File                                  | Role                                             |
+| ------------------------------------- | ------------------------------------------------ |
+| `frontend/src/docs/**/*.mdx`          | All documentation (35+ pages)                    |
+| `frontend/src/**/*.stories.tsx`       | Component stories with tests and a11y            |
+| `frontend/.storybook/main.ts`         | Storybook configuration                          |
+| `frontend/.storybook/preview.tsx`     | Global decorators, MSW setup, a11y config        |
+| `CLAUDE.md`                           | AI agent instructions and Senticor Project rules |
+| `.claude/projects/*/memory/MEMORY.md` | AI agent accumulated knowledge                   |
 
 ---
 

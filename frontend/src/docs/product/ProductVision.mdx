@@ -47,7 +47,7 @@ grounded in concepts from knowledge graph architecture
 
 - **Newest-First Inbox**: The most recently captured item appears at the top.
   Quick-entry items are immediately visible without scrolling.
-- **Sequential Projects**: Sub-actions within a project are ordered.
+- **Sequential Projects**: Sub-actions within a Senticor Project are ordered.
   Only the next action is visible until the current one completes.
 - **Structured Methodology Adherence**: The system enforces the methodology, not just suggests it.
 
@@ -89,7 +89,7 @@ Actions connect to each other via **typed references** (not just plain links):
 | `depends_on`   | Cannot start until dependency completes | "Deploy" depends_on "Pass tests"          |
 | `delegates_to` | Assigned to someone else                | "Review PR" delegates_to "@sarah"         |
 | `refers_to`    | Cross-reference                         | "Budget doc" refers_to "Q4 Plan"          |
-| `part_of`      | Sub-action of a project                 | "Write tests" part_of "Launch redesign"   |
+| `part_of`      | Sub-action of a Senticor Project        | "Write tests" part_of "Launch redesign"   |
 | `follows`      | Sequential ordering                     | Step 2 follows Step 1                     |
 | `waiting_on`   | External dependency                     | "Waiting on vendor response"              |
 
@@ -104,11 +104,11 @@ Actions connect to each other via **typed references** (not just plain links):
 
 ### Three-Phase Processing → Capture-Clarify-Enrich
 
-| Phase   | Paper Concept               | Implementation                                          |
-| ------- | --------------------------- | ------------------------------------------------------- |
-| Phase 1 | Heuristic classification    | Capture: item enters inbox, auto-tagged with source     |
-| Phase 2 | Hierarchy with placeholders | Clarify: create project/action structure, mark unknowns |
-| Phase 3 | Optional enrichment         | Enrich: fill in missing context, effort, done criteria  |
+| Phase   | Paper Concept               | Implementation                                                   |
+| ------- | --------------------------- | ---------------------------------------------------------------- |
+| Phase 1 | Heuristic classification    | Capture: item enters inbox, auto-tagged with source              |
+| Phase 2 | Hierarchy with placeholders | Clarify: create Senticor Project/action structure, mark unknowns |
+| Phase 3 | Optional enrichment         | Enrich: fill in missing context, effort, done criteria           |
 
 ### Confidence Scores
 
@@ -155,15 +155,15 @@ Users cannot delete items. This is a core design principle for audit compliance:
 7. **Interface-Level Responsiveness** — immediate feedback on every interaction
 8. **Speed Over Ceremony** — capture in &lt;2 seconds
 
-### Tay — The AI Assistant
+### Copilot — The AI Assistant
 
-**Tay** is the chat agent partner embedded in project.
+**Copilot** is the chat agent partner embedded in Senticor Project.
 
-- **Role**: Assists with inbox triage suggestions, project planning, weekly review prompts
+- **Role**: Assists with inbox triage suggestions, Senticor Project planning, weekly review prompts
 - **Personality**: Helpful, concise, respectful of user authority (Paperclip principle #5: AI is a contributor, not an authority)
 - **Avatar**: Uses the `chat_bubble` Material Symbol icon
-- **Interaction model**: Tay suggests, the user decides. Suggestions appear as detachable attachments — never auto-applied
-- **Name origin**: Short for project — your personal task management companion
+- **Interaction model**: Copilot suggests, the user decides. Suggestions appear as detachable attachments — never auto-applied
+- **Name origin**: Short for Senticor Project — your personal task management companion
 
 ### Language Policy
 

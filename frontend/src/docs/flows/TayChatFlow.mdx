@@ -1,11 +1,11 @@
 import { Meta } from "@storybook/addon-docs/blocks";
 import { Mermaid } from "../../components/docs/Mermaid";
 
-<Meta title="Flows/Chat with Tay" />
+<Meta title="Flows/Chat with Copilot" />
 
-# Flow: Chat with Tay
+# Flow: Chat with Copilot
 
-This document traces the user experience of chatting with Tay, from opening the panel to accepting a suggestion that creates real items in the workspace.
+This document traces the user experience of chatting with Copilot, from opening the panel to accepting a suggestion that creates real items in the workspace.
 
 ---
 
@@ -15,19 +15,19 @@ This document traces the user experience of chatting with Tay, from opening the 
 graph LR
   O["<b>OPEN</b><br/>Toggle panel"]
   C["<b>CHAT</b><br/>Send msg, get reply"]
-  S["<b>SUGGEST</b><br/>Tay tool call"]
+  S["<b>SUGGEST</b><br/>Copilot tool call"]
   R["<b>REVIEW</b><br/>Edit or dismiss"]
   CF["<b>CONFIRM</b><br/>Items created"]
 
-  O --> C --> S
-  S --> R
-  R --> CF
+O --> C --> S
+S --> R
+R --> CF
 
-  style O fill:#e3f2fd,stroke:#1976d2
-  style C fill:#e3f2fd,stroke:#1976d2
-  style S fill:#fff3e0,stroke:#ef6c00
-  style R fill:#fce4ec,stroke:#c62828
-  style CF fill:#e8f5e9,stroke:#2e7d32
+style O fill:#e3f2fd,stroke:#1976d2
+style C fill:#e3f2fd,stroke:#1976d2
+style S fill:#fff3e0,stroke:#ef6c00
+style R fill:#fce4ec,stroke:#c62828
+style CF fill:#e8f5e9,stroke:#2e7d32
 `} />
 
 ---
@@ -36,14 +36,14 @@ graph LR
 
 **Component**: `TayChatToggle` (in `AppHeader`) → `TayChatPanel`
 
-**User story**: "I want to talk to Tay about planning something. I click the sparkle icon in the header."
+**User story**: "I want to talk to Copilot about planning something. I click the sparkle icon in the header."
 
 **Flow**:
 
 1. User sees the `chat_bubble` icon button in `AppHeader` (between logo and hamburger menu)
 2. Clicks the button → `TayChatPanel` slides in from the right edge
 3. Panel is ~400px wide on desktop, full-screen on mobile
-4. Empty state shows a welcome message: "Hallo! Ich bin Tay. Wie kann ich helfen?"
+4. Empty state shows a welcome message: "Hallo! Ich bin Copilot. Wie kann ich helfen?"
 5. `ChatInput` is focused and ready for typing
 
 **Paperclip interactions**:
@@ -80,11 +80,11 @@ graph LR
 
 ---
 
-## Phase 3: Tay Responds
+## Phase 3: Copilot Responds
 
 **Components**: `TayMessageBubble` → `TaySuggestionCard`
 
-**User story**: "Tay understands what I need and shows me a suggestion."
+**User story**: "Copilot understands what I need and shows me a suggestion."
 
 **Flow**:
 
@@ -98,7 +98,7 @@ graph LR
 - `TayTextMessage` — the conversational text
 - `TaySuggestionMessage` — the tool call rendered as a card (status: `"pending"`)
 
-**Example**: Tay responds to "birthday party planning" with:
+**Example**: Copilot responds to "birthday party planning" with:
 
 ```
 TayMessageBubble: "Klingt nach einem Projekt! Hier ist mein Vorschlag:"
@@ -189,7 +189,7 @@ TaySuggestionCard:
 
 ## Phase 6: Continue Conversation
 
-**User story**: "I want to ask Tay for more things in the same conversation."
+**User story**: "I want to ask Copilot for more things in the same conversation."
 
 **Flow**:
 
@@ -207,27 +207,27 @@ graph TD
   AH["AppHeader"] --> TT["TayChatToggle<br/><i>chat_bubble button</i>"]
   TT -->|"onClick"| TCP["TayChatPanel<br/><i>right side panel</i>"]
 
-  TCP --> CML["ChatMessageList<br/><i>scrollable</i>"]
-  CML --> UMB["UserMessageBubble"]
-  CML --> TMB["TayMessageBubble"]
-  CML --> TTI["TayThinkingIndicator"]
-  CML --> TSC["TaySuggestionCard"]
-  CML --> TC["TayConfirmation"]
+TCP --> CML["ChatMessageList<br/><i>scrollable</i>"]
+CML --> UMB["UserMessageBubble"]
+CML --> TMB["TayMessageBubble"]
+CML --> TTI["TayThinkingIndicator"]
+CML --> TSC["TaySuggestionCard"]
+CML --> TC["TayConfirmation"]
 
-  TCP --> CI["ChatInput<br/><i>AutoGrowTextarea + send</i>"]
-  CI -->|"onSend"| UCS["useChatState<br/><i>local state: messages[]</i>"]
-  UCS --> UTA["useTayApi<br/><i>POST */chat/completions</i>"]
-  UCS -->|"on accept"| UTAC["useTayActions"]
-  UTAC --> UCP["useCreateProject()"]
-  UTAC --> UAPA["useAddProjectAction() x N"]
-  UTAC --> UCI["useCaptureInbox()"]
+TCP --> CI["ChatInput<br/><i>AutoGrowTextarea + send</i>"]
+CI -->|"onSend"| UCS["useChatState<br/><i>local state: messages[]</i>"]
+UCS --> UTA["useTayApi<br/><i>POST */chat/completions</i>"]
+UCS -->|"on accept"| UTAC["useTayActions"]
+UTAC --> UCP["useCreateProject()"]
+UTAC --> UAPA["useAddProjectAction() x N"]
+UTAC --> UCI["useCaptureInbox()"]
 
-  style AH fill:#f5f5f5,stroke:#999
-  style TCP fill:#e3f2fd,stroke:#1976d2
-  style CML fill:#fff,stroke:#999
-  style CI fill:#fff,stroke:#999
-  style UCS fill:#e8f5e9,stroke:#2e7d32
-  style UTAC fill:#fff3e0,stroke:#ef6c00
+style AH fill:#f5f5f5,stroke:#999
+style TCP fill:#e3f2fd,stroke:#1976d2
+style CML fill:#fff,stroke:#999
+style CI fill:#fff,stroke:#999
+style UCS fill:#e8f5e9,stroke:#2e7d32
+style UTAC fill:#fff3e0,stroke:#ef6c00
 `} />
 
 ---
@@ -242,18 +242,18 @@ graph LR
   MH["Mutation Hooks<br/><i>useCreateProject, etc.</i>"]
   IR["CreatedItemRef[]"]
 
-  CS -->|"sendMessage(text)"| TA
-  TA -->|"{ text, toolCalls? }"| CS
-  CS -->|"acceptSuggestion(id)"| TAC
-  CS -->|"dismissSuggestion(id)"| CS
-  TAC --> MH
-  MH --> IR
+CS -->|"sendMessage(text)"| TA
+TA -->|"{ text, toolCalls? }"| CS
+CS -->|"acceptSuggestion(id)"| TAC
+CS -->|"dismissSuggestion(id)"| CS
+TAC --> MH
+MH --> IR
 
-  style CS fill:#e8f5e9,stroke:#2e7d32
-  style TA fill:#e3f2fd,stroke:#1976d2
-  style TAC fill:#fff3e0,stroke:#ef6c00
-  style MH fill:#f5f5f5,stroke:#999
-  style IR fill:#f5f5f5,stroke:#999
+style CS fill:#e8f5e9,stroke:#2e7d32
+style TA fill:#e3f2fd,stroke:#1976d2
+style TAC fill:#fff3e0,stroke:#ef6c00
+style MH fill:#f5f5f5,stroke:#999
+style IR fill:#f5f5f5,stroke:#999
 `} />
 
 ---
@@ -270,18 +270,18 @@ graph LR
   HA["<b>Haystack Agent</b><br/>agents/tay.py"]
   OR["<b>OpenRouter API</b>"]
 
-  FE -->|"POST /chat/completions"| BP
-  BP -->|"httpx proxy"| AS
-  AS -->|"run_async()"| HA
-  HA -->|"chat completion"| OR
-  OR -->|"text + tool_calls"| HA
-  HA --> AS --> BP --> FE
+FE -->|"POST /chat/completions"| BP
+BP -->|"httpx proxy"| AS
+AS -->|"run_async()"| HA
+HA -->|"chat completion"| OR
+OR -->|"text + tool_calls"| HA
+HA --> AS --> BP --> FE
 
-  style FE fill:#e3f2fd,stroke:#1976d2
-  style BP fill:#fff3e0,stroke:#ef6c00
-  style AS fill:#e8f5e9,stroke:#2e7d32
-  style HA fill:#f3e5f5,stroke:#7b1fa2
-  style OR fill:#fce4ec,stroke:#c62828
+style FE fill:#e3f2fd,stroke:#1976d2
+style BP fill:#fff3e0,stroke:#ef6c00
+style AS fill:#e8f5e9,stroke:#2e7d32
+style HA fill:#f3e5f5,stroke:#7b1fa2
+style OR fill:#fce4ec,stroke:#c62828
 `} />
 
 **Key design decisions:**
@@ -289,4 +289,4 @@ graph LR
 - **Separate service** — agents run independently; the app works fully without AI (backend returns 503)
 - **No-op tools** — the agent's 3 tools return their arguments as JSON. Item creation happens client-side after user approval.
 - **Tool execution on frontend** — `useTayActions` maps tool calls to existing mutation hooks (`useCreateProject`, etc.)
-- **German system prompt** — Tay speaks German, helps organize tasks and projects, suggests but never executes
+- **German system prompt** — Copilot speaks German, helps organize tasks and projects, suggests but never executes

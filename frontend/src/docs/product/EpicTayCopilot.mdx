@@ -1,42 +1,42 @@
 import { Meta } from "@storybook/addon-docs/blocks";
 
-<Meta title="Product/Epics/Tay Copilot V1" />
+<Meta title="Product/Epics/Copilot V1" />
 
-# Epic: Tay Copilot V1 — Chat + Item Creation
+# Epic: Copilot V1 — Chat + Item Creation
 
 **Status:** V1 complete (frontend + backend + agents)
 **Priority:** Current
 
 ## Context
 
-Tay is the AI assistant embedded in project ([Product Vision](?path=/docs/product-vision--docs#tay--the-ai-assistant)). Until now, Tay existed only as a documented concept. This epic delivers V1: a conversational side panel where users chat with Tay and Tay can create items on the user's behalf — but **only after explicit approval**.
+Copilot is the AI assistant embedded in Senticor Project ([Product Vision](?path=/docs/product-vision--docs#copilot--the-ai-assistant)). Until now, Copilot existed only as a documented concept. This epic delivers V1: a conversational side panel where users chat with Copilot and Copilot can create items on the user's behalf — but **only after explicit approval**.
 
-**Design goal:** Tay suggests, the user decides. Suggestions appear as detachable preview cards in the chat. No data is committed until the user clicks Accept. This implements Paperclip principle #5: *AI is a contributor, not an authority*.
+**Design goal:** Copilot suggests, the user decides. Suggestions appear as detachable preview cards in the chat. No data is committed until the user clicks Accept. This implements Paperclip principle #5: _AI is a contributor, not an authority_.
 
 ---
 
 ## Personality & Constraints
 
-| Attribute | Value |
-| --- | --- |
-| Avatar | `chat_bubble` Material Symbol |
-| Primary language | German (matching UI language policy) |
-| Tone | Helpful, concise, respectful of user authority |
-| Interaction model | Suggestions as detachable attachments — never auto-applied |
-| Provenance | Items created via Tay carry `CaptureSource: { kind: "tay" }` |
+| Attribute         | Value                                                            |
+| ----------------- | ---------------------------------------------------------------- |
+| Avatar            | `chat_bubble` Material Symbol                                    |
+| Primary language  | German (matching UI language policy)                             |
+| Tone              | Helpful, concise, respectful of user authority                   |
+| Interaction model | Suggestions as detachable attachments — never auto-applied       |
+| Provenance        | Items created via Copilot carry `CaptureSource: { kind: "tay" }` |
 
 ---
 
 ## V1 Scope
 
-### What Tay can do
+### What Copilot can do
 
 1. **Chat** — free-form text conversation
 2. **Create a project with actions** — suggest a project name, desired outcome, and a list of actions. Optionally include a DigitalDocument (e.g. invitation template).
 3. **Create a single action** — suggest an action for any bucket, optionally linked to an existing project.
 4. **Create a reference** — suggest a reference material (document, URL, note).
 
-### What Tay cannot do (V1)
+### What Copilot cannot do (V1)
 
 - Search or read existing items
 - Move, rename, or archive items
@@ -49,10 +49,10 @@ Tay is the AI assistant embedded in project ([Product Vision](?path=/docs/produc
 
 The chat lives in a **right side panel** — the first implementation of the planned [Sheet / Side Panel](?path=/docs/design-paperclip-principles--docs) widget.
 
-| Viewport | Behavior |
-| --- | --- |
-| Desktop | ~400px panel slides in from the right edge, overlaying workspace |
-| Mobile | Full-screen overlay with back button |
+| Viewport | Behavior                                                         |
+| -------- | ---------------------------------------------------------------- |
+| Desktop  | ~400px panel slides in from the right edge, overlaying workspace |
+| Mobile   | Full-screen overlay with back button                             |
 
 **Toggle:** `chat_bubble` icon button in `AppHeader`, between the logo and the hamburger menu.
 
@@ -62,14 +62,14 @@ The chat lives in a **right side panel** — the first implementation of the pla
 
 ## Message Types
 
-| Type | Alignment | Visual |
-| --- | --- | --- |
-| **User text** | Right | Solid paper-100 bubble |
-| **Tay text** | Left | `chat_bubble` avatar + paper surface |
-| **Tay thinking** | Left | Animated dots with avatar |
-| **Tay suggestion** | Left | ObjectCard-style with Accept / Dismiss / Edit |
-| **Tay confirmation** | Left | Success badge + clickable item chips |
-| **Tay error** | Left | Error styling |
+| Type                     | Alignment | Visual                                        |
+| ------------------------ | --------- | --------------------------------------------- |
+| **User text**            | Right     | Solid paper-100 bubble                        |
+| **Copilot text**         | Left      | `chat_bubble` avatar + paper surface          |
+| **Copilot thinking**     | Left      | Animated dots with avatar                     |
+| **Copilot suggestion**   | Left      | ObjectCard-style with Accept / Dismiss / Edit |
+| **Copilot confirmation** | Left      | Success badge + clickable item chips          |
+| **Copilot error**        | Left      | Error styling                                 |
 
 ---
 
@@ -80,7 +80,9 @@ The chat lives in a **right side panel** — the first implementation of the pla
 ```json
 {
   "project": { "name": "string", "desiredOutcome": "string" },
-  "actions": [{ "name": "string", "bucket": "next|inbox|waiting|calendar|someday" }],
+  "actions": [
+    { "name": "string", "bucket": "next|inbox|waiting|calendar|someday" }
+  ],
   "documents": [{ "name": "string", "description": "string?" }]
 }
 ```
@@ -114,7 +116,7 @@ All tools map to existing mutation hooks in `use-mutations.ts`: `useCreateProjec
 ```
 User: "Ich hab bald Geburtstag und muss einiges organisieren"
 
-Tay: "Klingt nach einem Projekt! Hier ist ein Vorschlag:"
+Copilot: "Klingt nach einem Projekt! Hier ist ein Vorschlag:"
 
 ┌──────────────────────────────────────────────┐
 │ ✦ Projekt: Geburtstagsfeier planen           │
@@ -135,7 +137,7 @@ Tay: "Klingt nach einem Projekt! Hier ist ein Vorschlag:"
 
 User clicks [Übernehmen]:
 
-Tay: "Projekt 'Geburtstagsfeier planen' erstellt mit
+Copilot: "Projekt 'Geburtstagsfeier planen' erstellt mit
       5 Aktionen und 1 Dokument."
       [📋 Geburtstagsfeier planen →]
 ```
@@ -176,7 +178,7 @@ Tay: "Projekt 'Geburtstagsfeier planen' erstellt mit
 - [x] `AGENTS_URL` config in backend Settings
 - [x] `npm run dev` starts all 5 services (backend, worker, agents, frontend, storybook)
 
-**Deferred to V2+:** Conversation history, user items in prompt context, streaming (SSE), model fallback, K8s agent manifests, CI pipeline jobs, DB persistence for conversations. See [Tay Copilot V2+](?path=/docs/product-epics-tay-copilot-v2---docs).
+**Deferred to V2+:** Conversation history, user items in prompt context, streaming (SSE), model fallback, K8s agent manifests, CI pipeline jobs, DB persistence for conversations. See [Copilot V2+](?path=/docs/product-epics-copilot-v2---docs).
 
 ---
 
@@ -184,47 +186,47 @@ Tay: "Projekt 'Geburtstagsfeier planen' erstellt mit
 
 ### Frontend (new)
 
-| File | Purpose |
-| --- | --- |
-| `src/model/chat-types.ts` | Message and tool type definitions |
-| `src/hooks/use-chat-state.ts` | Conversation state management |
-| `src/hooks/use-tay-api.ts` | Chat API abstraction |
-| `src/hooks/use-tay-actions.ts` | Item creation orchestrator |
-| `src/components/chat/ChatInput.tsx` | Text input with send |
-| `src/components/chat/ChatMessageList.tsx` | Scrollable message list |
-| `src/components/chat/TayChatPanel.tsx` | Side panel container |
-| `src/components/chat/TaySuggestionCard.tsx` | Suggestion preview card |
-| Each component: `.stories.tsx` + `.test.tsx` | Stories and tests |
+| File                                         | Purpose                           |
+| -------------------------------------------- | --------------------------------- |
+| `src/model/chat-types.ts`                    | Message and tool type definitions |
+| `src/hooks/use-chat-state.ts`                | Conversation state management     |
+| `src/hooks/use-tay-api.ts`                   | Chat API abstraction              |
+| `src/hooks/use-tay-actions.ts`               | Item creation orchestrator        |
+| `src/components/chat/ChatInput.tsx`          | Text input with send              |
+| `src/components/chat/ChatMessageList.tsx`    | Scrollable message list           |
+| `src/components/chat/TayChatPanel.tsx`       | Side panel container              |
+| `src/components/chat/TaySuggestionCard.tsx`  | Suggestion preview card           |
+| Each component: `.stories.tsx` + `.test.tsx` | Stories and tests                 |
 
 ### Frontend (modified)
 
-| File | Change |
-| --- | --- |
-| `src/model/types.ts` | Add `CaptureSource` `tay` variant |
-| `src/components/shell/AppHeader.tsx` | Add chat toggle button |
-| `src/App.tsx` | Add panel state and rendering |
-| `src/test/msw/handlers.ts` | Add chat handlers |
-| `src/test/msw/fixtures.ts` | Add chat fixtures |
+| File                                 | Change                            |
+| ------------------------------------ | --------------------------------- |
+| `src/model/types.ts`                 | Add `CaptureSource` `tay` variant |
+| `src/components/shell/AppHeader.tsx` | Add chat toggle button            |
+| `src/App.tsx`                        | Add panel state and rendering     |
+| `src/test/msw/handlers.ts`           | Add chat handlers                 |
+| `src/test/msw/fixtures.ts`           | Add chat fixtures                 |
 
 ### Agents service (new — `agents/`)
 
-| File | Purpose |
-| --- | --- |
-| `agents/pyproject.toml` | Dependencies: haystack-ai, fastapi, uvicorn |
-| `agents/app.py` | FastAPI app with `/chat/completions` + `/health` |
-| `agents/tay.py` | Haystack Agent, system prompt, 3 tool definitions |
-| `agents/tests/test_app.py` | 4 tests (health, text, tool calls, error) |
+| File                       | Purpose                                           |
+| -------------------------- | ------------------------------------------------- |
+| `agents/pyproject.toml`    | Dependencies: haystack-ai, fastapi, uvicorn       |
+| `agents/app.py`            | FastAPI app with `/chat/completions` + `/health`  |
+| `agents/tay.py`            | Haystack Agent, system prompt, 3 tool definitions |
+| `agents/tests/test_app.py` | 4 tests (health, text, tool calls, error)         |
 
 ### Backend (new/modified)
 
-| File | Purpose |
-| --- | --- |
-| `backend/app/chat/__init__.py` | Package init |
-| `backend/app/chat/routes.py` | Proxy endpoint to agents service |
+| File                                | Purpose                                       |
+| ----------------------------------- | --------------------------------------------- |
+| `backend/app/chat/__init__.py`      | Package init                                  |
+| `backend/app/chat/routes.py`        | Proxy endpoint to agents service              |
 | `backend/tests/test_chat_routes.py` | 7 tests (auth, 503, 422, proxy, timeout, 502) |
-| `backend/app/config.py` | Added `agents_url: str \| None` |
-| `backend/app/main.py` | Registered chat router |
-| `scripts/start_agents.sh` | Dev startup script for agents |
+| `backend/app/config.py`             | Added `agents_url: str \| None`               |
+| `backend/app/main.py`               | Registered chat router                        |
+| `scripts/start_agents.sh`           | Dev startup script for agents                 |
 
 ---
 

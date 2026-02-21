@@ -35,12 +35,12 @@ If Storybook is already running, it reuses the existing instance.
 
 ### Output
 
-| File | Description |
-| ---- | ----------- |
-| `exports/product-docs.md` | Combined markdown (all 10 product docs) |
-| `exports/product-docs.pdf` | Styled A4 PDF with TOC and screenshots |
+| File                        | Description                                |
+| --------------------------- | ------------------------------------------ |
+| `exports/product-docs.md`   | Combined markdown (all 10 product docs)    |
+| `exports/product-docs.pdf`  | Styled A4 PDF with TOC and screenshots     |
 | `exports/product-docs.html` | Intermediate HTML (can be shared directly) |
-| `exports/screenshots/*.png` | Retina screenshots of key stories |
+| `exports/screenshots/*.png` | Retina screenshots of key stories          |
 
 ### What's Included
 
@@ -99,26 +99,26 @@ node scripts/export-e2e-videos.ts --grep "capture|triage"
 
 ### Output
 
-| File | Description |
-| ---- | ----------- |
-| `exports/videos/*.webm` | Individual test recordings (one per test) |
+| File                        | Description                                |
+| --------------------------- | ------------------------------------------ |
+| `exports/videos/*.webm`     | Individual test recordings (one per test)  |
 | `exports/e2e-showcase.webm` | Merged showcase video (all tests combined) |
 
 ### Test Sections (in showcase order)
 
-| Section | Tests | What It Demonstrates |
-| ------- | ----- | -------------------- |
-| Authentication | 3 | Register, login, logout, error handling |
-| Inbox Capture | 5 | Thought capture, FIFO ordering, input validation |
-| Inbox Triage | 4 | Bucket routing, archiving, date + complexity |
-| Full Cycle | 1 | End-to-end: capture, triage, manage, complete |
-| Action Management | 3 | Edit, focus, move, complete actions |
-| Project Tree | 8 | Hierarchy, expand/collapse, sequential actions |
-| Context Filters | 5 | Context chips, OR logic, clear filters |
-| Rapid Entry | 4 | Bulk capture in different buckets |
-| Import & Export | 3 | JSON export, Nirvana import, duplicate detection |
-| Email Triage | 5 | Email items, sender display, triage to buckets |
-| Nirvana Import | 1 | Large file import flow |
+| Section           | Tests | What It Demonstrates                             |
+| ----------------- | ----- | ------------------------------------------------ |
+| Authentication    | 3     | Register, login, logout, error handling          |
+| Inbox Capture     | 5     | Thought capture, FIFO ordering, input validation |
+| Inbox Triage      | 4     | Bucket routing, archiving, date + complexity     |
+| Full Cycle        | 1     | End-to-end: capture, triage, manage, complete    |
+| Action Management | 3     | Edit, focus, move, complete actions              |
+| Project Tree      | 8     | Hierarchy, expand/collapse, sequential actions   |
+| Context Filters   | 5     | Context chips, OR logic, clear filters           |
+| Rapid Entry       | 4     | Bulk capture in different buckets                |
+| Import & Export   | 3     | JSON export, Nirvana import, duplicate detection |
+| Email Triage      | 5     | Email items, sender display, triage to buckets   |
+| Nirvana Import    | 1     | Large file import flow                           |
 
 ## Quick Reference
 

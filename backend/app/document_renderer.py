@@ -12,7 +12,9 @@ only the render endpoint will fail.
 from __future__ import annotations
 
 import logging
+from importlib import import_module
 from pathlib import Path
+from typing import Any, cast
 
 from jinja2 import Environment, FileSystemLoader
 
@@ -99,7 +101,7 @@ def render_markdown_to_pdf(markdown_text: str, custom_css: str) -> bytes:
     Returns:
         PDF file contents as bytes.
     """
-    import markdown as md  # type: ignore[import-untyped]
+    md = cast(Any, import_module("markdown"))
 
     body_html = md.markdown(
         markdown_text,

@@ -13,14 +13,14 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 Users collect tax PDFs throughout the year — W-2, 1099-INT, 1099-DIV, 1099-B,
 1098, 1095-A, K-1, charitable receipts, property tax statements, medical expense
-records. They need to drag-drop these into TAY one by one, then process each.
+records. They need to drag-drop these into COPILOT one by one, then process each.
 
 ---
 
 ## User Story
 
 > "I have a folder of tax PDFs I've been collecting all year.
-> I want to drag-drop them into TAY one by one, then process each."
+> I want to drag-drop them into COPILOT one by one, then process each."
 
 ---
 
@@ -37,13 +37,13 @@ records. They need to drag-drop these into TAY one by one, then process each.
 
 ## Capability Assessment
 
-| Capability              | Status    | Notes                                                                                   |
-| ----------------------- | --------- | --------------------------------------------------------------------------------------- |
-| Text capture to inbox   | Works     | `rawCapture` field via InboxCapture                                                     |
-| PDF drag-drop to inbox  | **Works** | FileDropZone overlay + `useCaptureFile` in ActionList                                   |
-| Chunked file upload API | Works     | `FilesApi.initiate()` + `uploadChunk()` + `complete()`                                  |
-| File→Thing linking      | **Works** | `app:fileId` + `app:downloadUrl` in `additionalProperty`; `BaseEntity.fileId` in model  |
-| Drag to reference/focus | Works     | `@dnd-kit` drag handles on ReferenceRow; Focus is a drop target in BucketNav            |
+| Capability              | Status    | Notes                                                                                  |
+| ----------------------- | --------- | -------------------------------------------------------------------------------------- |
+| Text capture to inbox   | Works     | `rawCapture` field via InboxCapture                                                    |
+| PDF drag-drop to inbox  | **Works** | FileDropZone overlay + `useCaptureFile` in ActionList                                  |
+| Chunked file upload API | Works     | `FilesApi.initiate()` + `uploadChunk()` + `complete()`                                 |
+| File→Thing linking      | **Works** | `app:fileId` + `app:downloadUrl` in `additionalProperty`; `BaseEntity.fileId` in model |
+| Drag to reference/focus | Works     | `@dnd-kit` drag handles on ReferenceRow; Focus is a drop target in BucketNav           |
 
 ---
 
@@ -73,16 +73,16 @@ UUID-based file storage. The `download_url` provides the retrieval path.
 
 ## Remaining Gaps
 
-| Capability                          | Status  | Notes                                              |
-| ----------------------------------- | ------- | -------------------------------------------------- |
-| File preview/thumbnail in inbox     | **Gap** | No visual indicator that item has an attached file |
-| Download link in item detail        | **Gap** | `downloadUrl` stored but no UI to open/download    |
-| Link reference to project           | **Gap** | References have no `projectIds` field              |
-| Tay auto-classification             | **Gap** | Needs AI extraction pipeline                       |
+| Capability                      | Status  | Notes                                              |
+| ------------------------------- | ------- | -------------------------------------------------- |
+| File preview/thumbnail in inbox | **Gap** | No visual indicator that item has an attached file |
+| Download link in item detail    | **Gap** | `downloadUrl` stored but no UI to open/download    |
+| Link reference to project       | **Gap** | References have no `projectIds` field              |
+| Copilot auto-classification     | **Gap** | Needs AI extraction pipeline                       |
 
 ---
 
-## Tay Automation Potential
+## Copilot Automation Potential
 
-When a PDF is dropped, Tay could parse the document via an AI pipeline, identify
+When a PDF is dropped, Copilot could parse the document via an AI pipeline, identify
 the IRS form type, and auto-populate the name and tags.

@@ -49,7 +49,11 @@ export function DeveloperPanel({ onFlush, className }: DeveloperPanelProps) {
 
         <div className="rounded-[var(--radius-lg)] border-2 border-dashed border-status-error/40 p-4">
           <div className="flex items-start gap-3">
-            <Icon name="delete_forever" size={24} className="text-status-error" />
+            <Icon
+              name="delete_forever"
+              size={24}
+              className="text-status-error"
+            />
             <div className="flex-1 space-y-2">
               <span className="text-sm font-medium text-text-primary">
                 Flush All Data

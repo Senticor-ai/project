@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Locator } from "@playwright/test";
 import { LoginPage } from "../pages/login.page";
 import { WorkspacePage } from "../pages/workspace.page";
 import { ApiSeed } from "../helpers/api-seed";
@@ -31,7 +31,7 @@ test.skip(
 );
 
 test.describe("CV Enhancement Journey", () => {
-  test.setTimeout(240_000); // 4 min — multiple LLM round-trips (two-step flow)
+  test.setTimeout(420_000); // Real LLM can require multiple retries/tool-call nudges
 
   test("upload docs → triage → Tay tailors markdown → render PDF", async ({
     page,
@@ -148,15 +148,37 @@ test.describe("CV Enhancement Journey", () => {
       }
     });
 
-    await page.getByRole("button", { name: /Chat mit Tay/ }).click();
+    await page.getByRole("button", { name: /Chat mit Copilot/ }).click();
     await expect(
-      page.getByRole("complementary", { name: "Tay Chat" }),
+      page.getByRole("complementary", { name: "Copilot Chat" }),
     ).toBeVisible();
     log("Tay chat panel opened");
 
     const chatInput = page.getByRole("textbox", {
-      name: "Nachricht an Tay",
+      name: "Nachricht an Copilot",
     });
+
+    const waitForToolSuggestion = async (
+      acceptLocator: Locator,
+      retryPrompts: string[],
+      stepLabel: string,
+    ) => {
+      for (let attempt = 0; attempt <= retryPrompts.length; attempt++) {
+        const visible = await acceptLocator
+          .waitFor({ state: "visible", timeout: attempt === 0 ? 90_000 : 60_000 })
+          .then(() => true)
+          .catch(() => false);
+        if (visible) return;
+        if (attempt === retryPrompts.length) break;
+        log(`${stepLabel}: no tool call yet, sending retry prompt ${attempt + 1}`);
+        await page.waitForTimeout(1_000);
+        await chatInput.fill(retryPrompts[attempt]);
+        await chatInput.press("Enter");
+      }
+      throw new Error(
+        `${stepLabel}: no tool-call suggestion after ${retryPrompts.length + 1} attempts`,
+      );
+    };
 
     // ── 6. Step 1: Ask Tay to create a tailored markdown CV ────────────
     const prompt =
@@ -169,24 +191,22 @@ test.describe("CV Enhancement Journey", () => {
     await chatInput.press("Enter");
 
     // Wait for Tay to respond with a tool call suggestion (create_reference or render_cv).
-    const acceptButton = page.getByRole("button", { name: /Übernehmen/ });
-
-    let gotToolCall = await acceptButton
-      .waitFor({ state: "visible", timeout: 90_000 })
-      .then(() => true)
-      .catch(() => false);
-
-    if (!gotToolCall) {
-      log("No tool call on first attempt — sending nudge prompt");
-      await page.waitForTimeout(1_000);
-      await chatInput.fill(
+    const acceptButton = page
+      .getByRole("button", { name: /Übernehmen|Accept|Annehmen/i })
+      .last();
+    await waitForToolSuggestion(
+      acceptButton,
+      [
         "Bitte jetzt direkt einen create_reference Tool-Call vorschlagen " +
           "mit dem angepassten Lebenslauf als Markdown im description-Feld. " +
           `projectId: "${projectId}".`,
-      );
-      await chatInput.press("Enter");
-      await expect(acceptButton).toBeVisible({ timeout: 90_000 });
-    }
+        "Bitte verwende jetzt sofort einen create_reference Tool-Call. " +
+          "Kein weiterer Text, nur Tool-Vorschlag.",
+        "Vorheriger Versuch ist fehlgeschlagen. " +
+          "Bitte erneut create_reference als Tool-Call vorschlagen.",
+      ],
+      "Step 1",
+    );
     log("Step 1: Tool call suggestion received — Übernehmen button visible");
 
     // Screenshot: step 1 suggestion
@@ -242,26 +262,22 @@ test.describe("CV Enhancement Journey", () => {
       // Wait for next tool call suggestion (render_cv)
       // Need to wait for a NEW Übernehmen button (the old one is now "Übernommen")
       const newAcceptButton = page
-        .getByRole("button", { name: /Übernehmen/ })
+        .getByRole("button", { name: /Übernehmen|Accept|Annehmen/i })
         .last();
-
-      let gotRenderCall = await newAcceptButton
-        .waitFor({ state: "visible", timeout: 90_000 })
-        .then(() => true)
-        .catch(() => false);
-
-      if (!gotRenderCall) {
-        log("No render_cv on first attempt — sending nudge");
-        await page.waitForTimeout(1_000);
-        await chatInput.fill(
+      await waitForToolSuggestion(
+        newAcceptButton,
+        [
           "Bitte jetzt einen render_cv Tool-Call vorschlagen. " +
             "sourceItemId ist die eben erstellte Markdown-Referenz. " +
             "Schriftart Inter, schlichte Farben. " +
             `projectId: "${projectId}".`,
-        );
-        await chatInput.press("Enter");
-        await expect(newAcceptButton).toBeVisible({ timeout: 90_000 });
-      }
+          "Bitte direkt render_cv als Tool-Call vorschlagen. " +
+            "Kein weiterer Text, nur Tool-Vorschlag.",
+          "Vorheriger Versuch ist fehlgeschlagen. " +
+            "Bitte erneut render_cv als Tool-Call vorschlagen.",
+        ],
+        "Step 2",
+      );
       log("Step 2: render_cv suggestion received");
 
       // Screenshot: step 2 suggestion
@@ -309,7 +325,7 @@ test.describe("CV Enhancement Journey", () => {
 
     // ── 8. Close chat panel ───────────────────────────────────────────
     await page
-      .getByRole("complementary", { name: "Tay Chat" })
+      .getByRole("complementary", { name: "Copilot Chat" })
       .getByRole("button", { name: "Chat schließen" })
       .click();
     log("Chat panel closed");

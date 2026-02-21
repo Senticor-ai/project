@@ -526,6 +526,7 @@ export function ActionRow({
                   <button
                     type="button"
                     onClick={() => setShowMore((prev) => !prev)}
+                    aria-label={showMore ? "Less options" : "More options"}
                     className="mb-2 flex items-center gap-1 text-xs text-text-subtle hover:text-text"
                   >
                     <Icon

@@ -62,9 +62,9 @@ export interface ImportSource {
 export const IMPORT_SOURCES: ImportSource[] = [
   {
     id: "native",
-    name: "project",
+    name: "Senticor Project",
     icon: "swap_horiz",
-    description: "Import from a project JSON export",
+    description: "Import from a Senticor Project JSON export",
   },
   {
     id: "nirvana",

@@ -29,32 +29,32 @@ Light, warm neutrals for backgrounds and card surfaces.
 
 Industrial blue for primary actions, links, and focus states.
 
-| Token                   | Value                   | Usage                          |
-| ----------------------- | ----------------------- | ------------------------------ |
-| `--color-blueprint-50`  | `oklch(0.97 0.015 240)` | Selected/active backgrounds   |
-| `--color-blueprint-100` | `oklch(0.93 0.035 240)` | Hover backgrounds             |
-| `--color-blueprint-200` | `oklch(0.85 0.065 240)` | Light accents                 |
-| `--color-blueprint-300` | `oklch(0.75 0.100 238)` | Borders on primary elements   |
-| `--color-blueprint-400` | `oklch(0.65 0.130 236)` | Muted primary text            |
-| `--color-blueprint-500` | `oklch(0.52 0.155 234)` | Primary actions, icons        |
-| `--color-blueprint-600` | `oklch(0.48 0.160 232)` | Primary buttons               |
-| `--color-blueprint-700` | `oklch(0.40 0.145 230)` | Primary hover, headings       |
-| `--color-blueprint-800` | `oklch(0.33 0.120 228)` | Strong emphasis               |
-| `--color-blueprint-900` | `oklch(0.28 0.095 226)` | Maximum contrast              |
+| Token                   | Value                   | Usage                       |
+| ----------------------- | ----------------------- | --------------------------- |
+| `--color-blueprint-50`  | `oklch(0.97 0.015 240)` | Selected/active backgrounds |
+| `--color-blueprint-100` | `oklch(0.93 0.035 240)` | Hover backgrounds           |
+| `--color-blueprint-200` | `oklch(0.85 0.065 240)` | Light accents               |
+| `--color-blueprint-300` | `oklch(0.75 0.100 238)` | Borders on primary elements |
+| `--color-blueprint-400` | `oklch(0.65 0.130 236)` | Muted primary text          |
+| `--color-blueprint-500` | `oklch(0.52 0.155 234)` | Primary actions, icons      |
+| `--color-blueprint-600` | `oklch(0.48 0.160 232)` | Primary buttons             |
+| `--color-blueprint-700` | `oklch(0.40 0.145 230)` | Primary hover, headings     |
+| `--color-blueprint-800` | `oklch(0.33 0.120 228)` | Strong emphasis             |
+| `--color-blueprint-900` | `oklch(0.28 0.095 226)` | Maximum contrast            |
 
 ## Industrial (Accent)
 
 Warm orange for accents, warnings, and highlights.
 
-| Token                    | Value                  | Usage                       |
-| ------------------------ | ---------------------- | --------------------------- |
-| `--color-industrial-50`  | `oklch(0.97 0.020 60)` | Light accent backgrounds   |
-| `--color-industrial-100` | `oklch(0.93 0.050 55)` | Subtle accent tints        |
-| `--color-industrial-200` | `oklch(0.85 0.095 50)` | Light accent borders       |
-| `--color-industrial-300` | `oklch(0.75 0.140 45)` | Medium accent              |
-| `--color-industrial-400` | `oklch(0.68 0.165 40)` | Accent icons               |
-| `--color-industrial-500` | `oklch(0.60 0.180 35)` | Accent actions             |
-| `--color-industrial-600` | `oklch(0.52 0.170 33)` | Accent hover               |
+| Token                    | Value                  | Usage                    |
+| ------------------------ | ---------------------- | ------------------------ |
+| `--color-industrial-50`  | `oklch(0.97 0.020 60)` | Light accent backgrounds |
+| `--color-industrial-100` | `oklch(0.93 0.050 55)` | Subtle accent tints      |
+| `--color-industrial-200` | `oklch(0.85 0.095 50)` | Light accent borders     |
+| `--color-industrial-300` | `oklch(0.75 0.140 45)` | Medium accent            |
+| `--color-industrial-400` | `oklch(0.68 0.165 40)` | Accent icons             |
+| `--color-industrial-500` | `oklch(0.60 0.180 35)` | Accent actions           |
+| `--color-industrial-600` | `oklch(0.52 0.170 33)` | Accent hover             |
 
 ## Bucket Colors
 
@@ -89,11 +89,11 @@ Each token is a single base color — use Tailwind opacity modifiers for tinted 
 (`bg-status-error/10`) and borders (`border-status-error/30`), following the same
 `/15` tint pattern as bucket badges.
 
-| Token                    | Value / Maps to            | Usage                                       |
-| ------------------------ | -------------------------- | ------------------------------------------- |
-| `--color-status-error`   | `oklch(0.55 0.20 25)`     | Error text, icons, destructive buttons      |
-| `--color-status-success` | `oklch(0.50 0.16 145)`    | Success text, icons, completion indicators  |
-| `--color-status-warning` | `oklch(0.52 0.14 55)`     | Warning text, icons, caution banners        |
+| Token                    | Value / Maps to              | Usage                                       |
+| ------------------------ | ---------------------------- | ------------------------------------------- |
+| `--color-status-error`   | `oklch(0.55 0.20 25)`        | Error text, icons, destructive buttons      |
+| `--color-status-success` | `oklch(0.50 0.16 145)`       | Success text, icons, completion indicators  |
+| `--color-status-warning` | `oklch(0.52 0.14 55)`        | Warning text, icons, caution banners        |
 | `--color-status-info`    | `var(--color-blueprint-500)` | Informational text, icons (matches primary) |
 
 **Usage patterns:**
@@ -111,20 +111,20 @@ Higher-level tokens that map to the raw palettes above. **Prefer these in compon
 consistency — if the primary color changes from blueprint to something else, only the aliases
 need updating.
 
-| Token                    | Maps to                        | Usage                        |
-| ------------------------ | ------------------------------ | ---------------------------- |
-| `--color-surface`        | `var(--color-paper-50)`        | Page background              |
-| `--color-surface-raised` | `var(--color-paper-100)`       | Cards, raised panels         |
-| `--color-surface-overlay`| `var(--color-paper-200)`       | Overlays, dropdowns          |
-| `--color-border`         | `var(--color-paper-300)`       | Default borders              |
-| `--color-border-strong`  | `var(--color-paper-400)`       | Emphasized borders           |
-| `--color-text`           | `oklch(0.25 0.01 260)`        | Body text                    |
-| `--color-text-muted`     | `oklch(0.40 0.01 260)`        | Secondary text               |
-| `--color-text-subtle`    | `oklch(0.43 0.008 260)`       | Tertiary / hint text         |
-| `--color-primary`        | `var(--color-blueprint-600)`   | Primary actions, buttons     |
-| `--color-primary-hover`  | `var(--color-blueprint-700)`   | Primary hover state          |
-| `--color-accent`         | `var(--color-industrial-500)`  | Accent actions, highlights   |
-| `--color-accent-hover`   | `var(--color-industrial-600)`  | Accent hover state           |
+| Token                     | Maps to                       | Usage                      |
+| ------------------------- | ----------------------------- | -------------------------- |
+| `--color-surface`         | `var(--color-paper-50)`       | Page background            |
+| `--color-surface-raised`  | `var(--color-paper-100)`      | Cards, raised panels       |
+| `--color-surface-overlay` | `var(--color-paper-200)`      | Overlays, dropdowns        |
+| `--color-border`          | `var(--color-paper-300)`      | Default borders            |
+| `--color-border-strong`   | `var(--color-paper-400)`      | Emphasized borders         |
+| `--color-text`            | `oklch(0.25 0.01 260)`        | Body text                  |
+| `--color-text-muted`      | `oklch(0.40 0.01 260)`        | Secondary text             |
+| `--color-text-subtle`     | `oklch(0.43 0.008 260)`       | Tertiary / hint text       |
+| `--color-primary`         | `var(--color-blueprint-600)`  | Primary actions, buttons   |
+| `--color-primary-hover`   | `var(--color-blueprint-700)`  | Primary hover state        |
+| `--color-accent`          | `var(--color-industrial-500)` | Accent actions, highlights |
+| `--color-accent-hover`    | `var(--color-industrial-600)` | Accent hover state         |
 
 ## Typography
 

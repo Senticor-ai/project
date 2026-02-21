@@ -91,7 +91,7 @@ class Settings:
     csp_policy: str | None
     cors_methods: list[str]
     cors_headers: list[str]
-    # Agents service (Tay copilot)
+    # Agents service (Copilot agent)
     agents_url: str | None
     # OpenClaw (alternative agent backend)
     openclaw_url: str | None
@@ -178,8 +178,7 @@ def load_settings() -> Settings:
     return Settings(
         database_url=_build_database_url(),
         cors_origins=cors_origins,
-        session_cookie_name=_get_env("SESSION_COOKIE_NAME", "project_session")
-        or "project_session",
+        session_cookie_name=_get_env("SESSION_COOKIE_NAME", "project_session") or "project_session",
         session_ttl_days=session_ttl_days,
         session_ttl_seconds=session_ttl_seconds,
         session_refresh_ttl_days=int(_get_env("SESSION_REFRESH_TTL_DAYS", "30") or "30"),
@@ -202,8 +201,7 @@ def load_settings() -> Settings:
         ),
         trust_proxy_headers=_get_bool_env("TRUST_PROXY_HEADERS", False),
         csrf_enabled=_get_bool_env("CSRF_ENABLED", False),
-        csrf_cookie_name=_get_env("CSRF_COOKIE_NAME", "project_csrf")
-        or "project_csrf",
+        csrf_cookie_name=_get_env("CSRF_COOKIE_NAME", "project_csrf") or "project_csrf",
         csrf_header_name=_get_env("CSRF_HEADER_NAME", "X-CSRF-Token") or "X-CSRF-Token",
         csrf_cookie_secure=_get_bool_env("CSRF_COOKIE_SECURE", False),
         csrf_cookie_samesite=_get_samesite_env("CSRF_COOKIE_SAMESITE", "lax"),

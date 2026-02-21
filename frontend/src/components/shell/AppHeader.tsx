@@ -42,7 +42,7 @@ export function AppHeader({
 }: AppHeaderProps) {
   const menuSections: AppMenuSection[] = useMemo(() => {
     const headerSection: AppMenuSection = {
-      header: { username, appName: "project", appVersion },
+      header: { username, appName: "Senticor Project", appVersion },
       items: [],
     };
 
@@ -112,7 +112,7 @@ export function AppHeader({
         {onToggleChat && (
           <button
             onClick={onToggleChat}
-            aria-label={isChatOpen ? "Chat schließen" : "Chat mit Tay"}
+            aria-label={isChatOpen ? "Chat schließen" : "Chat mit Copilot"}
             aria-pressed={isChatOpen}
             className={cn(
               "flex h-8 w-8 items-center justify-center rounded-lg transition-colors",
@@ -130,9 +130,9 @@ export function AppHeader({
         onClick={onLogoClick}
         className="cursor-pointer md:order-1"
         aria-label="Go to Inbox"
-        title="project"
+        title="Senticor Project"
       >
-        <img src="/tay-logo.svg" alt="TAY" className="h-8 w-8" />
+        <img src="/tay-logo.svg" alt="Senticor Project" className="h-8 w-8" />
       </button>
     </header>
   );

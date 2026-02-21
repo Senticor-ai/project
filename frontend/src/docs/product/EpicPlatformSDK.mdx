@@ -5,23 +5,23 @@ import { Meta } from "@storybook/addon-docs/blocks";
 # Epic: Platform SDK & Agent CLI
 
 **Status:** Planned
-**See also:** [Tay Copilot V2+](?path=/docs/product-epics-tay-copilot-v2---docs), [Architecture](?path=/docs/engineering-architecture--docs)
+**See also:** [Copilot V2+](?path=/docs/product-epics-copilot-v2---docs), [Architecture](?path=/docs/engineering-architecture--docs)
 
-**Immediate goal (Phase 1):** Replace the current 3 Tay tool calls with a single `tay_cli` tool using an in-place, test-driven refactor. First lock in current behavior, then switch execution path.
+**Immediate goal (Phase 1):** Replace the current 3 Copilot tool calls with a single `tay_cli` tool using an in-place, test-driven refactor. First lock in current behavior, then switch execution path.
 
 ## Context
 
-Tay's tool logic is duplicated across two languages — Python `jsonld_builders.py` mirrors the
+Copilot's tool logic is duplicated across two languages — Python `jsonld_builders.py` mirrors the
 TypeScript `item-serializer.ts`, Python `backend_client.py` mirrors `api-client.ts`. Adding a new
-Tay capability requires changes in 4–5 Python files plus the system prompt. There is no client-side
+Copilot capability requires changes in 4–5 Python files plus the system prompt. There is no client-side
 validation layer (JSON-LD is built and POSTed with only backend enforcement), and no integration
 path for 3rd parties.
 
-**Problem:** Every new Tay tool means more Python code that duplicates existing TypeScript logic.
+**Problem:** Every new Copilot tool means more Python code that duplicates existing TypeScript logic.
 Validation rules live only on the server. External clients have no SDK.
 
 **Outcome:** A TypeScript `@project/core` package with CLI commands, serializers, API client,
-and validation — used by the frontend, Tay (as a single tool), and 3rd party integrations.
+and validation — used by the frontend, Copilot (as a single tool), and 3rd party integrations.
 
 ---
 
@@ -47,18 +47,18 @@ packages/core/
 
 The package runs in three environments:
 
-| Environment | Runtime | Entry point |
-| --- | --- | --- |
-| **Frontend** (React app) | Browser | `import { fromJsonLd, toJsonLd } from "@project/core"` |
-| **Tay** (agent tool) | Node.js subprocess | `npx tay items list --bucket=reference` |
-| **3rd party** | Browser or Node.js | `npm install @project/core` |
+| Environment              | Runtime            | Entry point                                            |
+| ------------------------ | ------------------ | ------------------------------------------------------ |
+| **Frontend** (React app) | Browser            | `import { fromJsonLd, toJsonLd } from "@project/core"` |
+| **Copilot** (agent tool) | Node.js subprocess | `npx tay items list --bucket=reference`                |
+| **3rd party**            | Browser or Node.js | `npm install @project/core`                            |
 
 The frontend's `src/lib/item-serializer.ts` and `src/lib/api-client.ts` become thin re-exports from
 the core package. No more maintaining two implementations.
 
 ---
 
-## Feature 1: CLI for Tay (Single Tool)
+## Feature 1: CLI for Copilot (Single Tool)
 
 ### Current State: 3 Tool Calls + Python Dispatch
 
@@ -85,12 +85,12 @@ Before replacing tools, prove baseline behavior is correct and stable. Then refa
 
 ### Target State: 1 Tool + CLI
 
-Tay gets a single tool in its Haystack tool schema:
+Copilot gets a single tool in its Haystack tool schema:
 
 ```json
 {
   "name": "tay_cli",
-  "description": "Execute a TAY CLI command. Run `help` for available commands.",
+  "description": "Execute a COPILOT CLI command. Run `help` for available commands.",
   "parameters": {
     "command": { "type": "string" }
   }
@@ -103,15 +103,15 @@ it calls the TypeScript CLI via subprocess.
 
 ### Read vs Write Commands
 
-| Type | Behavior | Examples |
-| --- | --- | --- |
-| **Read** (inline) | Executes immediately, returns data to Tay | `items list --bucket=reference`, `orgs get nueva-tierra --docs` |
-| **Write** (approval) | Returns structured preview, user confirms | `items create --type=Action --name="File taxes" --bucket=next` |
+| Type                 | Behavior                                      | Examples                                                        |
+| -------------------- | --------------------------------------------- | --------------------------------------------------------------- |
+| **Read** (inline)    | Executes immediately, returns data to Copilot | `items list --bucket=reference`, `orgs get nueva-tierra --docs` |
+| **Write** (approval) | Returns structured preview, user confirms     | `items create --type=Action --name="File taxes" --bucket=next`  |
 
 Write commands output structured JSON that the frontend renders as the same approval card the user
 already sees. The "propose, user confirms" pattern is unchanged.
 
-### Example CLI Session (as Tay would use it)
+### Example CLI Session (as Copilot would use it)
 
 ```bash
 # Discover workspace
@@ -233,7 +233,7 @@ item.orgDocType == "agent" && caller.role in ["agent", "admin"]
 ## Fail-Fast Validation Pattern
 
 ```txt
-Client (browser / CLI / Tay)              Server (backend)
+Client (browser / CLI / Copilot)              Server (backend)
 ────────────────────────────              ──────────────────
 1. Build JSON-LD (serializers)
 2. SHACL validate (fail fast)  ────────→  4. SHACL validate (enforce)
@@ -249,14 +249,14 @@ package.
 
 ## Why TypeScript
 
-| Consideration | TypeScript | Python |
-| --- | --- | --- |
-| Frontend canonical code | Already exists (`item-serializer.ts`, `api-client.ts`) | Would be a copy |
-| Browser-compatible | Yes — 3rd party web clients validate in-browser | No |
-| SHACL libraries | `rdf-validate-shacl`, `shacl-engine` | `pyshacl` (server-only) |
-| CEL libraries | `cel-js` | `cel-python` (server-only) |
-| Tay integration | subprocess or HTTP from Python Haystack | Native but duplicates frontend code |
-| Single codebase | One implementation, three consumers | Two implementations that drift |
+| Consideration           | TypeScript                                             | Python                              |
+| ----------------------- | ------------------------------------------------------ | ----------------------------------- |
+| Frontend canonical code | Already exists (`item-serializer.ts`, `api-client.ts`) | Would be a copy                     |
+| Browser-compatible      | Yes — 3rd party web clients validate in-browser        | No                                  |
+| SHACL libraries         | `rdf-validate-shacl`, `shacl-engine`                   | `pyshacl` (server-only)             |
+| CEL libraries           | `cel-js`                                               | `cel-python` (server-only)          |
+| Copilot integration     | subprocess or HTTP from Python Haystack                | Native but duplicates frontend code |
+| Single codebase         | One implementation, three consumers                    | Two implementations that drift      |
 
 ---
 
@@ -265,12 +265,12 @@ package.
 [NeurIPS'24 benchmark](https://medium.com/data-science/can-llms-talk-sql-sparql-cypher-and-mongodb-query-language-mql-equally-well-a478f64cc769)
 comparing LLM accuracy across query languages:
 
-| Approach | Zero-shot accuracy |
-| --- | --- |
+| Approach                  | Zero-shot accuracy                     |
+| ------------------------- | -------------------------------------- |
 | **Tool/function calling** | ~95%+ (models are fine-tuned for this) |
-| SQL | ~47% |
-| Cypher (Neo4j) | ~34% |
-| SPARQL | &lt;4% |
+| SQL                       | ~47%                                   |
+| Cypher (Neo4j)            | ~34%                                   |
+| SPARQL                    | &lt;4%                                 |
 
 Named CLI commands are structured tool calls with discoverability (`--help`) and composability.
 LLMs are explicitly trained for tool use — fighting that with query languages is working against the
@@ -284,7 +284,7 @@ ready, the need just isn't there yet.
 
 ## Implementation Phases
 
-### Phase 1: Baseline + Extract & CLI (enables Tay)
+### Phase 1: Baseline + Extract & CLI (enables Copilot)
 
 1. Verify current agent flow is green (`agents/tests/test_tay.py`, `agents/tests/test_tool_executor.py`, `agents/tests/test_jsonld_builders.py`, `agents/tests/test_backend_client.py`)
 2. Add parity tests that lock current tool-call schemas and write/read behavior
@@ -317,26 +317,26 @@ ready, the need just isn't there yet.
 
 ## Files to Modify/Create
 
-| Layer | File | Change |
-| --- | --- | --- |
-| Core | NEW: `packages/core/package.json` | Package setup, TypeScript config |
-| Core | NEW: `packages/core/cli/index.ts` | CLI entry point |
-| Core | NEW: `packages/core/cli/items.ts` | Items subcommands |
-| Core | NEW: `packages/core/cli/orgs.ts` | Orgs subcommands |
-| Core | NEW: `packages/core/cli/projects.ts` | Projects subcommands |
-| Core | `packages/core/serializers/` | Extracted from `item-serializer.ts` |
-| Core | `packages/core/client/` | Extracted from `api-client.ts` |
-| Core | NEW: `packages/core/validation/shacl/` | SHACL shape definitions (`.ttl`) |
-| Core | NEW: `packages/core/validation/cel/` | CEL rule definitions |
-| Frontend | `frontend/src/lib/item-serializer.ts` | Re-export from `@project/core` |
-| Frontend | `frontend/src/lib/api-client.ts` | Re-export from `@project/core` |
-| Agents | `agents/tay.py` | Replace 3 tools with single `tay_cli` tool |
-| Agents | `agents/tool_executor.py` | Replace per-tool dispatch with TS CLI subprocess execution |
-| Agents | `agents/jsonld_builders.py` | Deprecated (replaced by core serializers) |
-| Agents | `agents/backend_client.py` | Deprecated (replaced by core client) |
-| Agents | `agents/prompts/de/tay_system.j2` | CLI command documentation |
-| Monorepo | `package.json` | Workspace config for `packages/core` |
-| Monorepo | `tsconfig.json` | Project reference to `packages/core` |
+| Layer    | File                                   | Change                                                     |
+| -------- | -------------------------------------- | ---------------------------------------------------------- |
+| Core     | NEW: `packages/core/package.json`      | Package setup, TypeScript config                           |
+| Core     | NEW: `packages/core/cli/index.ts`      | CLI entry point                                            |
+| Core     | NEW: `packages/core/cli/items.ts`      | Items subcommands                                          |
+| Core     | NEW: `packages/core/cli/orgs.ts`       | Orgs subcommands                                           |
+| Core     | NEW: `packages/core/cli/projects.ts`   | Projects subcommands                                       |
+| Core     | `packages/core/serializers/`           | Extracted from `item-serializer.ts`                        |
+| Core     | `packages/core/client/`                | Extracted from `api-client.ts`                             |
+| Core     | NEW: `packages/core/validation/shacl/` | SHACL shape definitions (`.ttl`)                           |
+| Core     | NEW: `packages/core/validation/cel/`   | CEL rule definitions                                       |
+| Frontend | `frontend/src/lib/item-serializer.ts`  | Re-export from `@project/core`                             |
+| Frontend | `frontend/src/lib/api-client.ts`       | Re-export from `@project/core`                             |
+| Agents   | `agents/tay.py`                        | Replace 3 tools with single `tay_cli` tool                 |
+| Agents   | `agents/tool_executor.py`              | Replace per-tool dispatch with TS CLI subprocess execution |
+| Agents   | `agents/jsonld_builders.py`            | Deprecated (replaced by core serializers)                  |
+| Agents   | `agents/backend_client.py`             | Deprecated (replaced by core client)                       |
+| Agents   | `agents/prompts/de/tay_system.j2`      | CLI command documentation                                  |
+| Monorepo | `package.json`                         | Workspace config for `packages/core`                       |
+| Monorepo | `tsconfig.json`                        | Project reference to `packages/core`                       |
 
 ---
 
@@ -349,4 +349,4 @@ ready, the need just isn't there yet.
 5. Frontend storybook: `cd frontend && STORYBOOK_TESTS=1 CI=1 npx vitest run --project=storybook`
 6. Agents (post-refactor parity): `cd agents && uv run python -m pytest tests/` (CLI subprocess integration + compatibility expectations)
 7. CLI smoke test: `npx tay items list --help` returns usage info
-8. Manual E2E: Start dev stack → open Tay chat → ask "Was gibt es im Workspace?" → Tay calls `tay_cli("items list --summary")` → returns workspace overview
+8. Manual E2E: Start dev stack → open Copilot chat → ask "Was gibt es im Workspace?" → Copilot calls `tay_cli("items list --summary")` → returns workspace overview

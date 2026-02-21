@@ -3,9 +3,9 @@ import { Mermaid } from "../../components/docs/Mermaid";
 
 <Meta title="Flows/Job Search/Overview" />
 
-# Flow: Job Search — CV Tailoring with Tay
+# Flow: Job Search — CV Tailoring with Copilot
 
-Upload a job description, let Tay analyse it against your CV, create a tailored markdown version you can review and edit, then render a professional PDF — all within project.
+Upload a job description, let Copilot analyse it against your CV, create a tailored markdown version you can review and edit, then render a professional PDF — all within Senticor Project.
 
 ---
 
@@ -18,21 +18,21 @@ Upload a job description, let Tay analyse it against your CV, create a tailored 
 
 **Step-by-step:**
 
-1. **Create a project** — Open Tay and say: _"Erstelle ein Bewerbungsprojekt für die Rolle Product Manager bei Anthropic."_
-   Tay will suggest a project with actions. Accept the suggestion.
+1. **Create a project** — Open Copilot and say: _"Erstelle ein Bewerbungsprojekt für die Rolle Product Manager bei Anthropic."_
+   Copilot will suggest a project with actions. Accept the suggestion.
 
 2. **Upload your documents** — Drag your CV and the job description into the inbox. Triage them into the project as references.
 
 3. **Ask for analysis** — Say: _"Vergleiche meinen Lebenslauf mit der Stellenanzeige."_
-   Tay reads both documents, then lists strengths, gaps, and concrete suggestions.
+   Copilot reads both documents, then lists strengths, gaps, and concrete suggestions.
 
 4. **Request a tailored CV** — Say: _"Erstelle eine angepasste Version für diese Stelle."_
-   Tay creates a new markdown reference with the tailored CV content, linked to your project.
+   Copilot creates a new markdown reference with the tailored CV content, linked to your project.
 
 5. **Review and edit** — Find the new markdown reference in your project. It renders as formatted markdown. Click the edit icon to make changes directly.
 
 6. **Render PDF** — Say: _"Rendere die angepasste Version als PDF. Stil: modern, clean, Inter."_
-   Tay calls `render_cv` with the markdown reference + custom CSS. Accept the suggestion card.
+   Copilot calls `render_cv` with the markdown reference + custom CSS. Accept the suggestion card.
 
 7. **Download** — Find the PDF in your project's reference bucket. Click the download icon.
 
@@ -43,20 +43,20 @@ Upload a job description, let Tay analyse it against your CV, create a tailored 
 <Mermaid chart={`
 graph LR
   U["<b>UPLOAD</b><br/>CV + Job Description"]
-  A["<b>ANALYSE</b><br/>Tay reads & compares"]
-  T["<b>TAILOR</b><br/>Tay creates markdown"]
+  A["<b>ANALYSE</b><br/>Copilot reads & compares"]
+  T["<b>TAILOR</b><br/>Copilot creates markdown"]
   E["<b>EDIT</b><br/>User reviews & edits"]
   R["<b>RENDER</b><br/>PDF generated"]
-  S["<b>SAVE</b><br/>Reference in project"]
+  S["<b>SAVE</b><br/>Reference in Senticor Project"]
 
-  U --> A --> T --> E --> R --> S
+U --> A --> T --> E --> R --> S
 
-  style U fill:#e3f2fd,stroke:#1976d2
-  style A fill:#e3f2fd,stroke:#1976d2
-  style T fill:#fff3e0,stroke:#ef6c00
-  style E fill:#fff3e0,stroke:#ef6c00
-  style R fill:#e8f5e9,stroke:#2e7d32
-  style S fill:#e8f5e9,stroke:#2e7d32
+style U fill:#e3f2fd,stroke:#1976d2
+style A fill:#e3f2fd,stroke:#1976d2
+style T fill:#fff3e0,stroke:#ef6c00
+style E fill:#fff3e0,stroke:#ef6c00
+style R fill:#e8f5e9,stroke:#2e7d32
+style S fill:#e8f5e9,stroke:#2e7d32
 `} />
 
 ---
@@ -77,69 +77,69 @@ graph LR
 - Text extraction (pypdf for PDF, raw read for markdown/HTML) indexes the content
 - Items linked to the project via `projectIds`
 
-| Capability | Status |
-|---|---|
-| File drag-and-drop upload | Works |
-| PDF text extraction | Works |
-| Markdown/HTML text extraction | Works |
-| Triage into project | Works |
+| Capability                    | Status |
+| ----------------------------- | ------ |
+| File drag-and-drop upload     | Works  |
+| PDF text extraction           | Works  |
+| Markdown/HTML text extraction | Works  |
+| Triage into project           | Works  |
 
 ---
 
-## Phase 2: Analyse — Tay Reads Both Documents
+## Phase 2: Analyse — Copilot Reads Both Documents
 
 **User story**: _"How well does my CV fit this job? What should I emphasise?"_
 
 **Flow**:
 
-1. User asks Tay to compare CV and job description
-2. Tay calls `list_project_items(projectId)` → discovers item IDs
-3. Tay calls `read_item_content(jobDescriptionId)` → gets full text
-4. Tay calls `read_item_content(cvId)` → gets full text
-5. Tay streams an analysis: strengths, gaps, concrete suggestions
+1. User asks Copilot to compare CV and job description
+2. Copilot calls `list_project_items(projectId)` → discovers item IDs
+3. Copilot calls `read_item_content(jobDescriptionId)` → gets full text
+4. Copilot calls `read_item_content(cvId)` → gets full text
+5. Copilot streams an analysis: strengths, gaps, concrete suggestions
 
 **Key**: `read_item_content` and `list_project_items` are **not** exit conditions — the agent executes them inline and continues reasoning. No user approval needed (read-only, no side effects).
 
 <Mermaid chart={`
 sequenceDiagram
   participant U as User
-  participant T as Tay (Agent)
+  participant T as Copilot (Agent)
   participant B as Backend API
 
-  U->>T: "Vergleiche meinen Lebenslauf mit der Stellenanzeige"
-  T->>B: list_project_items(projectId)
-  B-->>T: [{id: cv_id, name: "CV.md"}, {id: jd_id, name: "Job Posting.html"}]
-  T->>B: read_item_content(jd_id)
-  B-->>T: "Product Manager, Safeguards — Anthropic..."
-  T->>B: read_item_content(cv_id)
-  B-->>T: "Wolfgang Ihloff — Product Leader..."
-  T-->>U: "Stärken: Cloud Platform experience, AI Adoption..."
+U->>T: "Vergleiche meinen Lebenslauf mit der Stellenanzeige"
+T->>B: list_project_items(projectId)
+B-->>T: [{id: cv_id, name: "CV.md"}, {id: jd_id, name: "Job Posting.html"}]
+T->>B: read_item_content(jd_id)
+B-->>T: "Product Manager, Safeguards — Anthropic..."
+T->>B: read_item_content(cv_id)
+B-->>T: "Wolfgang Ihloff — Product Leader..."
+T-->>U: "Stärken: Cloud Platform experience, AI Adoption..."
 `} />
 
-| Capability | Status |
-|---|---|
-| `list_project_items` tool | Works |
-| `read_item_content` tool | Works |
-| Text extraction for content endpoint | Works |
-| Agent inline tool execution (non-exit) | Works |
+| Capability                             | Status |
+| -------------------------------------- | ------ |
+| `list_project_items` tool              | Works  |
+| `read_item_content` tool               | Works  |
+| Text extraction for content endpoint   | Works  |
+| Agent inline tool execution (non-exit) | Works  |
 
 ---
 
-## Phase 3: Tailor — Tay Creates a Markdown CV
+## Phase 3: Tailor — Copilot Creates a Markdown CV
 
 **User story**: _"Create a tailored version. Emphasise platform experience and use concrete locations instead of 'Remote'."_
 
 **Two-step flow** (markdown first, then PDF):
 
-1. Tay reads the original CV via `read_item_content`
-2. Tay writes a **new tailored markdown CV** using `create_reference` with:
+1. Copilot reads the original CV via `read_item_content`
+2. Copilot writes a **new tailored markdown CV** using `create_reference` with:
    - `description`: the full markdown content
    - `projectId`: linked to the application project
 3. The original CV stays untouched — each tailored version is a new reference
 4. User reviews the rendered markdown in the reference bucket
 5. User can edit the markdown directly (click edit icon in the reference row)
 
-**What Tay can change**:
+**What Copilot can change**:
 
 - **Locations** — Change "Remote" to actual office cities for onsite roles
 - **Bullets** — Rewrite to emphasise skills matching the job description
@@ -173,8 +173,8 @@ sequenceDiagram
 
 **Flow**:
 
-1. User asks Tay to render the tailored CV as PDF with style preferences
-2. Tay calls `render_cv` with `sourceItemId` (the markdown reference) + CSS + filename + projectId
+1. User asks Copilot to render the tailored CV as PDF with style preferences
+2. Copilot calls `render_cv` with `sourceItemId` (the markdown reference) + CSS + filename + projectId
 3. This IS an exit condition — user sees a suggestion card and must approve
 4. On Accept, backend executes the rendering pipeline:
 
@@ -186,23 +186,23 @@ graph TD
   D["Merge CSS<br/><b>@font-face + base.css + agent CSS</b>"]
   E["WeasyPrint<br/><b>HTML+CSS → PDF</b>"]
   F["Store file<br/><b>POST /files/render-pdf</b>"]
-  G["Create reference<br/><b>CreativeWork in project</b>"]
+  G["Create reference<br/><b>CreativeWork in Senticor Project</b>"]
 
-  A --> B --> C
-  C --> E
-  D --> E
-  E --> F --> G
+A --> B --> C
+C --> E
+D --> E
+E --> F --> G
 
-  style A fill:#fff3e0,stroke:#ef6c00
-  style B fill:#e3f2fd,stroke:#1976d2
-  style C fill:#e3f2fd,stroke:#1976d2
-  style D fill:#e3f2fd,stroke:#1976d2
-  style E fill:#e8f5e9,stroke:#2e7d32
-  style F fill:#e8f5e9,stroke:#2e7d32
-  style G fill:#e8f5e9,stroke:#2e7d32
+style A fill:#fff3e0,stroke:#ef6c00
+style B fill:#e3f2fd,stroke:#1976d2
+style C fill:#e3f2fd,stroke:#1976d2
+style D fill:#e3f2fd,stroke:#1976d2
+style E fill:#e8f5e9,stroke:#2e7d32
+style F fill:#e8f5e9,stroke:#2e7d32
+style G fill:#e8f5e9,stroke:#2e7d32
 `} />
 
-**`render_cv` tool call** (what Tay produces):
+**`render_cv` tool call** (what Copilot produces):
 
 ```json
 {
@@ -215,19 +215,19 @@ graph TD
 
 **Available fonts** (self-hosted, no network needed):
 
-| Font | Style | Weights |
-|---|---|---|
-| Inter | Clean, modern sans-serif | Regular (400), Bold (700) |
+| Font          | Style                             | Weights                   |
+| ------------- | --------------------------------- | ------------------------- |
+| Inter         | Clean, modern sans-serif          | Regular (400), Bold (700) |
 | Source Sans 3 | Readable, professional sans-serif | Regular (400), Bold (700) |
 
-| Capability | Status |
-|---|---|
-| `render_cv` agent tool | Works |
-| Markdown → HTML conversion | Works |
-| WeasyPrint PDF rendering | Works |
-| Self-hosted fonts (Inter, Source Sans 3) | Works |
-| Page numbers + running header | Works |
-| A4 print layout | Works |
+| Capability                               | Status |
+| ---------------------------------------- | ------ |
+| `render_cv` agent tool                   | Works  |
+| Markdown → HTML conversion               | Works  |
+| WeasyPrint PDF rendering                 | Works  |
+| Self-hosted fonts (Inter, Source Sans 3) | Works  |
+| Page numbers + running header            | Works  |
+| A4 print layout                          | Works  |
 
 ---
 
@@ -247,10 +247,10 @@ graph TD
 
 The flow is designed for multiple rounds:
 
-- **"The summary is too long, shorten it."** → Edit the markdown reference directly, then ask Tay to re-render
-- **"Use Source Sans 3 instead of Inter."** → Tay generates new CSS with `render_cv`, same `sourceItemId`
-- **"Add my volunteer work."** → Edit the markdown, or ask Tay to create a new version
-- **"Make a version for the Berlin office."** → Tay creates another tailored markdown + renders PDF
+- **"The summary is too long, shorten it."** → Edit the markdown reference directly, then ask Copilot to re-render
+- **"Use Source Sans 3 instead of Inter."** → Copilot generates new CSS with `render_cv`, same `sourceItemId`
+- **"Add my volunteer work."** → Edit the markdown, or ask Copilot to create a new version
+- **"Make a version for the Berlin office."** → Copilot creates another tailored markdown + renders PDF
 
 Each tailored markdown is a separate reference. Each rendered PDF is another reference. All versions preserved (no-delete policy).
 
@@ -264,71 +264,71 @@ graph TD
   IT["InboxTriage<br/><i>assign to project</i>"]
   TCP["TayChatPanel<br/><i>conversation</i>"]
 
-  subgraph "Agent Tools (inline)"
-    LPI["list_project_items"]
-    RIC["read_item_content"]
-  end
+subgraph "Agent Tools (inline)"
+LPI["list_project_items"]
+RIC["read_item_content"]
+end
 
-  subgraph "Agent Tools (exit condition)"
-    CR["create_reference<br/><i>markdown CV</i>"]
-    RCV["render_cv<br/><i>PDF from markdown</i>"]
-  end
+subgraph "Agent Tools (exit condition)"
+CR["create_reference<br/><i>markdown CV</i>"]
+RCV["render_cv<br/><i>PDF from markdown</i>"]
+end
 
-  MV["MarkdownViewer<br/><i>review & edit</i>"]
-  TSC["TaySuggestionCard<br/><i>review & accept</i>"]
-  TE["Tool Executor<br/><i>agents/tool_executor.py</i>"]
-  DR["Document Renderer<br/><i>Markdown → WeasyPrint</i>"]
-  FS["File Storage"]
-  REF["Reference Item<br/><i>CreativeWork in project</i>"]
+MV["MarkdownViewer<br/><i>review & edit</i>"]
+TSC["TaySuggestionCard<br/><i>review & accept</i>"]
+TE["Tool Executor<br/><i>agents/tool_executor.py</i>"]
+DR["Document Renderer<br/><i>Markdown → WeasyPrint</i>"]
+FS["File Storage"]
+REF["Reference Item<br/><i>CreativeWork in Senticor Project</i>"]
 
-  IC --> IT --> TCP
-  TCP --> LPI
-  TCP --> RIC
-  TCP --> CR
-  TCP --> RCV
-  CR --> TSC
-  RCV --> TSC
-  TSC -->|"Accept"| TE
-  CR -.->|"creates"| REF
-  REF -->|"view/edit"| MV
-  TE --> DR
-  DR --> FS
-  TE --> REF
+IC --> IT --> TCP
+TCP --> LPI
+TCP --> RIC
+TCP --> CR
+TCP --> RCV
+CR --> TSC
+RCV --> TSC
+TSC -->|"Accept"| TE
+CR -.->|"creates"| REF
+REF -->|"view/edit"| MV
+TE --> DR
+DR --> FS
+TE --> REF
 
-  style IC fill:#e3f2fd,stroke:#1976d2
-  style IT fill:#e3f2fd,stroke:#1976d2
-  style TCP fill:#e3f2fd,stroke:#1976d2
-  style LPI fill:#f5f5f5,stroke:#999
-  style RIC fill:#f5f5f5,stroke:#999
-  style CR fill:#fff3e0,stroke:#ef6c00
-  style RCV fill:#fff3e0,stroke:#ef6c00
-  style MV fill:#fff3e0,stroke:#ef6c00
-  style TSC fill:#fff3e0,stroke:#ef6c00
-  style TE fill:#e8f5e9,stroke:#2e7d32
-  style DR fill:#e8f5e9,stroke:#2e7d32
-  style FS fill:#f5f5f5,stroke:#999
-  style REF fill:#f5f5f5,stroke:#999
+style IC fill:#e3f2fd,stroke:#1976d2
+style IT fill:#e3f2fd,stroke:#1976d2
+style TCP fill:#e3f2fd,stroke:#1976d2
+style LPI fill:#f5f5f5,stroke:#999
+style RIC fill:#f5f5f5,stroke:#999
+style CR fill:#fff3e0,stroke:#ef6c00
+style RCV fill:#fff3e0,stroke:#ef6c00
+style MV fill:#fff3e0,stroke:#ef6c00
+style TSC fill:#fff3e0,stroke:#ef6c00
+style TE fill:#e8f5e9,stroke:#2e7d32
+style DR fill:#e8f5e9,stroke:#2e7d32
+style FS fill:#f5f5f5,stroke:#999
+style REF fill:#f5f5f5,stroke:#999
 `} />
 
 ---
 
 ## Key Files
 
-| Layer | File | Purpose |
-|---|---|---|
-| **MD Template** | `backend/app/templates/cv/markdown.html.j2` | Minimal HTML wrapper for markdown content |
-| **CV Template** | `backend/app/templates/cv/base.html.j2` | Structured HTML for JSON CV (legacy) |
-| **Base CSS** | `backend/app/templates/cv/base.css` | Print foundations, page layout, page numbers |
-| **Fonts** | `backend/app/templates/cv/fonts/` | Inter + Source Sans 3 (woff2, self-hosted) |
-| **Renderer** | `backend/app/document_renderer.py` | `render_markdown_to_pdf()` + `render_cv_to_pdf()` |
-| **Endpoint** | `backend/app/routes/files.py` | `POST /files/render-pdf` (accepts `markdown` or `cv`) |
-| **Agent tools** | `agents/tay.py` | `render_cv`, `create_reference`, `read_item_content`, `list_project_items` |
-| **Tool executor** | `agents/tool_executor.py` | `_exec_render_cv` — reads markdown source → renders PDF → creates reference |
-| **Frontend types** | `frontend/src/model/chat-types.ts` | `RenderCvSuggestion` (with `sourceItemId`) |
-| **Markdown viewer** | `frontend/src/components/ui/MarkdownViewer.tsx` | Renders markdown content in reference view |
-| **Reference row** | `frontend/src/components/work/ReferenceRow.tsx` | View/edit toggle for markdown references |
-| **Frontend hook** | `frontend/src/hooks/use-tay-actions.ts` | Dispatches `render_cv` to backend |
-| **System prompt** | `agents/prompts/de/tay_system.j2` | Two-step CV flow instructions for Tay |
+| Layer               | File                                            | Purpose                                                                     |
+| ------------------- | ----------------------------------------------- | --------------------------------------------------------------------------- |
+| **MD Template**     | `backend/app/templates/cv/markdown.html.j2`     | Minimal HTML wrapper for markdown content                                   |
+| **CV Template**     | `backend/app/templates/cv/base.html.j2`         | Structured HTML for JSON CV (legacy)                                        |
+| **Base CSS**        | `backend/app/templates/cv/base.css`             | Print foundations, page layout, page numbers                                |
+| **Fonts**           | `backend/app/templates/cv/fonts/`               | Inter + Source Sans 3 (woff2, self-hosted)                                  |
+| **Renderer**        | `backend/app/document_renderer.py`              | `render_markdown_to_pdf()` + `render_cv_to_pdf()`                           |
+| **Endpoint**        | `backend/app/routes/files.py`                   | `POST /files/render-pdf` (accepts `markdown` or `cv`)                       |
+| **Agent tools**     | `agents/tay.py`                                 | `render_cv`, `create_reference`, `read_item_content`, `list_project_items`  |
+| **Tool executor**   | `agents/tool_executor.py`                       | `_exec_render_cv` — reads markdown source → renders PDF → creates reference |
+| **Frontend types**  | `frontend/src/model/chat-types.ts`              | `RenderCvSuggestion` (with `sourceItemId`)                                  |
+| **Markdown viewer** | `frontend/src/components/ui/MarkdownViewer.tsx` | Renders markdown content in reference view                                  |
+| **Reference row**   | `frontend/src/components/work/ReferenceRow.tsx` | View/edit toggle for markdown references                                    |
+| **Frontend hook**   | `frontend/src/hooks/use-tay-actions.ts`         | Dispatches `render_cv` to backend                                           |
+| **System prompt**   | `agents/prompts/de/tay_system.j2`               | Two-step CV flow instructions for Copilot                                   |
 
 ---
 
@@ -336,7 +336,7 @@ graph TD
 
 ```
 User:  Erstelle ein Bewerbungsprojekt für Product Manager bei Anthropic.
-Tay:   [create_project_with_actions suggestion card]
+Copilot:   [create_project_with_actions suggestion card]
        → Project: "Bewerbung PM Anthropic"
        → Actions: Lebenslauf anpassen, Anschreiben verfassen, ...
 User:  ✓ Accept
@@ -344,7 +344,7 @@ User:  ✓ Accept
 User:  [drags CV.md and job-posting.html into inbox, triages to project]
 
 User:  Vergleiche meinen Lebenslauf mit der Stellenanzeige.
-Tay:   [reads both documents via inline tools]
+Copilot:   [reads both documents via inline tools]
        Stärken:
        - 20+ Jahre Product Management — passt zur Senior-Anforderung
        - Cloud & AI Erfahrung bei Aleph Alpha — direkt relevant
@@ -359,14 +359,14 @@ Tay:   [reads both documents via inline tools]
        mit konkreten Standorten statt "Remote" angeben.
 
 User:  Erstelle eine angepasste Version. Adobe war San Jose und Hamburg.
-Tay:   [create_reference suggestion card — tailored markdown CV]
+Copilot:   [create_reference suggestion card — tailored markdown CV]
 User:  ✓ Accept
-       → New markdown reference created in project
+       → New markdown reference created in Senticor Project
 
 User:  [reviews rendered markdown in reference bucket, edits summary]
 
 User:  Rendere als PDF. Modern, clean, Inter.
-Tay:   [render_cv suggestion card — filename + "from markdown reference"]
+Copilot:   [render_cv suggestion card — filename + "from markdown reference"]
 User:  ✓ Accept
-       → PDF rendered from markdown, saved as reference in project
+       → PDF rendered from markdown, saved as reference in Senticor Project
 ```

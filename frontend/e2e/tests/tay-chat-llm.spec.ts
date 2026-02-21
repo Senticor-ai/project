@@ -3,7 +3,7 @@ import { WorkspacePage } from "../pages/workspace.page";
 import { GOLDEN_SCENARIOS } from "../fixtures/golden-prompts";
 
 /**
- * Real E2E tests for Tay Chat — uses actual LLM via OpenRouter.
+ * Real E2E tests for Copilot Chat — uses actual LLM via OpenRouter.
  *
  * Unlike `tay-chat-mocked.spec.ts` (integration), these tests do NOT
  * intercept any API calls. The full stack is exercised:
@@ -20,7 +20,7 @@ test.skip(
   "requires OPENROUTER_API_KEY for real LLM calls",
 );
 
-test.describe("Tay Chat — Real LLM", () => {
+test.describe("Copilot Chat — Real LLM", () => {
   test.setTimeout(120_000);
 
   for (const scenario of GOLDEN_SCENARIOS) {
@@ -30,13 +30,13 @@ test.describe("Tay Chat — Real LLM", () => {
       const ws = new WorkspacePage(page);
 
       // 1. Open chat panel
-      await page.getByRole("button", { name: /Chat mit Tay/ }).click();
+      await page.getByRole("button", { name: /Chat mit Copilot/ }).click();
       await expect(
-        page.getByRole("complementary", { name: "Tay Chat" }),
+        page.getByRole("complementary", { name: "Copilot Chat" }),
       ).toBeVisible();
 
       // 2. Send prompt from golden dataset
-      const input = page.getByRole("textbox", { name: "Nachricht an Tay" });
+      const input = page.getByRole("textbox", { name: "Nachricht an Copilot" });
       await input.fill(scenario.prompt);
       await input.press("Enter");
 
@@ -68,7 +68,7 @@ test.describe("Tay Chat — Real LLM", () => {
 
       // 6. Close chat panel
       await page
-        .getByRole("complementary", { name: "Tay Chat" })
+        .getByRole("complementary", { name: "Copilot Chat" })
         .getByRole("button", { name: "Chat schließen" })
         .click();
 
