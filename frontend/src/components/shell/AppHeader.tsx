@@ -42,7 +42,7 @@ export function AppHeader({
 }: AppHeaderProps) {
   const menuSections: AppMenuSection[] = useMemo(() => {
     const headerSection: AppMenuSection = {
-      header: { username, appName: "TerminAndoYo", appVersion },
+      header: { username, appName: "project", appVersion },
       items: [],
     };
 
@@ -130,7 +130,7 @@ export function AppHeader({
         onClick={onLogoClick}
         className="cursor-pointer md:order-1"
         aria-label="Go to Inbox"
-        title="TerminAndoYo"
+        title="project"
       >
         <img src="/tay-logo.svg" alt="TAY" className="h-8 w-8" />
       </button>

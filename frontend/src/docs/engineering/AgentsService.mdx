@@ -4,7 +4,7 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 # Agents Service
 
-TerminAndoYo supports two agent backends that share the same chat UI and backend APIs but are
+project supports two agent backends that share the same chat UI and backend APIs but are
 otherwise fully isolated. For the high-level system context see
 [Architecture](?path=/docs/engineering-architecture--docs). For LLM cache, traces, and
 evaluation see [LLM Evaluation](?path=/docs/engineering-llm-evaluation--docs).
@@ -153,8 +153,8 @@ the backend creates a short-lived delegated JWT for agent-to-backend calls.
 
 | Claim | Tay | OpenClaw | Purpose |
 | ----- | --- | -------- | ------- |
-| `iss` | `"terminandoyo-backend"` | `"terminandoyo-backend"` | Issuer |
-| `aud` | `"terminandoyo-backend"` | `"terminandoyo-backend"` | Audience (self-issued) |
+| `iss` | `"project-backend"` | `"project-backend"` | Issuer |
+| `aud` | `"project-backend"` | `"project-backend"` | Audience (self-issued) |
 | `sub` | User UUID | User UUID | Item ownership |
 | `org` | Org UUID | Org UUID | Organization context |
 | `act.sub` | `"tay"` | `"openclaw"` | Identifies the acting agent (audit trail) |
@@ -231,7 +231,7 @@ authentication (session cookie).
 | `AGENT_MODEL` | `openai/gpt-4o-mini` | Comma-separated OpenRouter model IDs (fallback chain) |
 | `OPENROUTER_API_KEY` | *required* | OpenRouter API authentication |
 | `OPENROUTER_APP_URL` | `""` | Sent as `HTTP-Referer` header to OpenRouter |
-| `OPENROUTER_APP_TITLE` | `TerminAndoYo` | Sent as `X-Title` header to OpenRouter |
+| `OPENROUTER_APP_TITLE` | `project` | Sent as `X-Title` header to OpenRouter |
 | `BACKEND_URL` | `http://localhost:8000` | Backend API base URL (for POST /items calls) |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | *(unset)* | OTLP collector endpoint; tracing disabled if absent |
 

@@ -8,7 +8,7 @@ data:
       url: https://gitlab.100-114-108-51.nip.io:30443
       health_url: https://gitlab.100-114-108-51.nip.io:30443/-/health
     projects:
-      - name: wolfgangihloff/terminandoyo
+      - name: Senticor-ai/project
         pull:
           refs:
             regexp: "^main$"

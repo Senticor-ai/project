@@ -46,15 +46,15 @@ class TestCreateDelegatedToken:
 
         # Decode without verification to inspect claims
         claims = jwt.decode(
-            token, _TEST_SECRET, algorithms=["HS256"], audience="terminandoyo-backend"
+            token, _TEST_SECRET, algorithms=["HS256"], audience="project-backend"
         )
         assert claims["sub"] == "user-1"
         assert claims["org"] == "org-1"
         assert claims["act"] == {"sub": "tay"}
         assert claims["scope"] == "items:write"
         assert claims["token_type"] == "delegated"
-        assert claims["iss"] == "terminandoyo-backend"
-        assert claims["aud"] == "terminandoyo-backend"
+        assert claims["iss"] == "project-backend"
+        assert claims["aud"] == "project-backend"
         assert "jti" in claims
         assert "exp" in claims
         assert "iat" in claims
@@ -70,7 +70,7 @@ class TestCreateDelegatedToken:
             scope="items:read",
         )
         claims = jwt.decode(
-            token, _TEST_SECRET, algorithms=["HS256"], audience="terminandoyo-backend"
+            token, _TEST_SECRET, algorithms=["HS256"], audience="project-backend"
         )
         assert claims["act"] == {"sub": "assistant"}
         assert claims["scope"] == "items:read"
@@ -81,7 +81,7 @@ class TestCreateDelegatedToken:
 
         token = create_delegated_token(user_id="u", org_id="o", ttl_seconds=10)
         claims = jwt.decode(
-            token, _TEST_SECRET, algorithms=["HS256"], audience="terminandoyo-backend"
+            token, _TEST_SECRET, algorithms=["HS256"], audience="project-backend"
         )
         # exp should be within ~10s of iat
         assert claims["exp"] - claims["iat"] == 10
@@ -97,7 +97,7 @@ class TestCreateDelegatedToken:
 
         token = create_delegated_token(user_id="u", org_id="o")
         claims = jwt.decode(
-            token, _TEST_SECRET, algorithms=["HS256"], audience="terminandoyo-backend"
+            token, _TEST_SECRET, algorithms=["HS256"], audience="project-backend"
         )
         assert claims["exp"] - claims["iat"] == 120
 
@@ -127,9 +127,9 @@ class TestVerifyDelegatedToken:
 
         # Create token with exp in the past
         payload = {
-            "iss": "terminandoyo-backend",
+            "iss": "project-backend",
             "sub": "user-1",
-            "aud": "terminandoyo-backend",
+            "aud": "project-backend",
             "exp": datetime.now(UTC) - timedelta(seconds=10),
             "iat": datetime.now(UTC) - timedelta(seconds=70),
             "jti": "expired-jti",
@@ -150,7 +150,7 @@ class TestVerifyDelegatedToken:
         payload = {
             "iss": "wrong-issuer",
             "sub": "user-1",
-            "aud": "terminandoyo-backend",
+            "aud": "project-backend",
             "exp": datetime.now(UTC) + timedelta(seconds=60),
             "iat": datetime.now(UTC),
             "jti": "jti-1",
@@ -169,7 +169,7 @@ class TestVerifyDelegatedToken:
         from app.delegation import verify_delegated_token
 
         payload = {
-            "iss": "terminandoyo-backend",
+            "iss": "project-backend",
             "sub": "user-1",
             "aud": "wrong-audience",
             "exp": datetime.now(UTC) + timedelta(seconds=60),
@@ -190,9 +190,9 @@ class TestVerifyDelegatedToken:
         from app.delegation import verify_delegated_token
 
         payload = {
-            "iss": "terminandoyo-backend",
+            "iss": "project-backend",
             "sub": "user-1",
-            "aud": "terminandoyo-backend",
+            "aud": "project-backend",
             "exp": datetime.now(UTC) + timedelta(seconds=60),
             "iat": datetime.now(UTC),
             "jti": "jti-1",
@@ -211,9 +211,9 @@ class TestVerifyDelegatedToken:
         from app.delegation import verify_delegated_token
 
         payload = {
-            "iss": "terminandoyo-backend",
+            "iss": "project-backend",
             "sub": "user-1",
-            "aud": "terminandoyo-backend",
+            "aud": "project-backend",
             "exp": datetime.now(UTC) + timedelta(seconds=60),
             "iat": datetime.now(UTC),
             "jti": "jti-1",
@@ -232,9 +232,9 @@ class TestVerifyDelegatedToken:
         from app.delegation import verify_delegated_token
 
         payload = {
-            "iss": "terminandoyo-backend",
+            "iss": "project-backend",
             "sub": "user-1",
-            "aud": "terminandoyo-backend",
+            "aud": "project-backend",
             "exp": datetime.now(UTC) + timedelta(seconds=60),
             "iat": datetime.now(UTC),
             "jti": "jti-1",

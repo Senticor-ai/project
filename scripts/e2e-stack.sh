@@ -79,13 +79,13 @@ export BACKEND_URL="http://localhost:${BACKEND_PORT}"
 echo "[e2e] PORT_OFFSET=${PORT_OFFSET}"
 echo "[e2e]   Frontend: :$FRONTEND_PORT | Backend: :$BACKEND_PORT | Agents: :$AGENTS_PORT"
 
-PG_USER="${POSTGRES_USER:-terminandoyo}"
+PG_USER="${POSTGRES_USER:-project}"
 PG_PASSWORD="${POSTGRES_PASSWORD:-changeme}"
 PG_HOST="${POSTGRES_HOST:-localhost}"
 PG_PORT="${POSTGRES_PORT:-5432}"
 
 # Derive E2E database name from PROJECT_PREFIX (set in .env)
-E2E_DB="${PROJECT_PREFIX:-tay}_e2e"
+E2E_DB="${PROJECT_PREFIX:-project}_e2e"
 
 # ── Helper: run psql (local binary or docker exec) ──────────────────
 DOCKER_COMPOSE_FILE="${ROOT_DIR}/infra/docker-compose.yml"

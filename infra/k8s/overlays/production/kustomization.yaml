@@ -9,14 +9,14 @@ resources:
   - secret-pubsub-sa.yaml
 
 images:
-  - name: terminandoyo-backend
-    newName: harbor.100-114-108-51.nip.io:30443/terminandoyo/backend
+  - name: project-backend
+    newName: harbor.100-114-108-51.nip.io:30443/project/backend
     newTag: "db7314ef"
-  - name: terminandoyo-frontend
-    newName: harbor.100-114-108-51.nip.io:30443/terminandoyo/frontend
+  - name: project-frontend
+    newName: harbor.100-114-108-51.nip.io:30443/project/frontend
     newTag: "db7314ef"
-  - name: terminandoyo-storybook
-    newName: harbor.100-114-108-51.nip.io:30443/terminandoyo/storybook
+  - name: project-storybook
+    newName: harbor.100-114-108-51.nip.io:30443/project/storybook
     newTag: "db7314ef"
 
 patches:

@@ -60,7 +60,7 @@ This keeps the cost of adding a new importer low while ensuring consistent UX ac
 | `shared.py`       | Common utilities: `_load_items_from_file`, `_IMPORT_JOB_STALE_ERROR`, job lifecycle helpers |
 | **nirvana/**      |                                                                                             |
 | `routes.py`       | `POST /imports/nirvana/inspect`, `POST /imports/nirvana/from-file`                          |
-| `transform.py`    | Nirvana JSON → TerminAndoYo item conversion logic                                           |
+| `transform.py`    | Nirvana JSON → project item conversion logic                                           |
 | `orchestrator.py` | `run_nirvana_import()` — coordinates transform → upsert → summary                           |
 | **native/**       |                                                                                             |
 | `routes.py`       | `POST /imports/native/inspect`, `POST /imports/native/from-file`                            |
@@ -133,7 +133,7 @@ Source-specific wrappers are typically ~15 lines.
 ### Backend (6 steps)
 
 1. **Create directory**: `backend/app/imports/{source}/` with `__init__.py`
-2. **Transform** (`transform.py`): Write a function that converts the source format into TerminAndoYo item dicts. Include bucket mapping and field normalization.
+2. **Transform** (`transform.py`): Write a function that converts the source format into project item dicts. Include bucket mapping and field normalization.
 3. **Orchestrator** (`orchestrator.py`): Implement `run_{source}_import(db, file_path, ...)` — load file, call transform, upsert items, build `ImportSummary`.
 4. **Routes** (`routes.py`): Add `POST /imports/{source}/inspect` and `POST /imports/{source}/from-file`. Use shared helpers from `shared.py` for job lifecycle.
 5. **Register router**: In `router.py`, import and include the new sub-router with prefix `/imports/{source}`.

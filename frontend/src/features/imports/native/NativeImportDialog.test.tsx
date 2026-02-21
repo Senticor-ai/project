@@ -114,7 +114,7 @@ describe("NativeImportDialog", () => {
   it("renders file drop zone when open", () => {
     renderDialog();
     expect(
-      screen.getByText("Drop TerminAndoYo export here"),
+      screen.getByText("Drop project export here"),
     ).toBeInTheDocument();
   });
 
@@ -203,7 +203,7 @@ describe("NativeImportDialog", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("Drop TerminAndoYo export here"),
+        screen.getByText("Drop project export here"),
       ).toBeInTheDocument();
     });
   });
@@ -290,7 +290,7 @@ describe("NativeImportDialog", () => {
     ) as HTMLInputElement;
     fileInput.dispatchEvent(new Event("change", { bubbles: true }));
     expect(
-      screen.getByText("Drop TerminAndoYo export here"),
+      screen.getByText("Drop project export here"),
     ).toBeInTheDocument();
     expect(mockedFiles.initiate).not.toHaveBeenCalled();
   });

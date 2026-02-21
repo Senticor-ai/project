@@ -46,7 +46,7 @@ spec:
                 sleep 2
               done
         - name: db-init
-          image: terminandoyo-backend:local
+          image: project-backend:local
           imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:
@@ -56,7 +56,7 @@ spec:
           command: ["uv", "run", "python", "-m", "app.db_init"]
       containers:
         - name: backend
-          image: terminandoyo-backend:local
+          image: project-backend:local
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000

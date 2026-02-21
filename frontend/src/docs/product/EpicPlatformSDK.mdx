@@ -20,7 +20,7 @@ path for 3rd parties.
 **Problem:** Every new Tay tool means more Python code that duplicates existing TypeScript logic.
 Validation rules live only on the server. External clients have no SDK.
 
-**Outcome:** A TypeScript `@terminandoyo/core` package with CLI commands, serializers, API client,
+**Outcome:** A TypeScript `@project/core` package with CLI commands, serializers, API client,
 and validation — used by the frontend, Tay (as a single tool), and 3rd party integrations.
 
 ---
@@ -49,9 +49,9 @@ The package runs in three environments:
 
 | Environment | Runtime | Entry point |
 | --- | --- | --- |
-| **Frontend** (React app) | Browser | `import { fromJsonLd, toJsonLd } from "@terminandoyo/core"` |
+| **Frontend** (React app) | Browser | `import { fromJsonLd, toJsonLd } from "@project/core"` |
 | **Tay** (agent tool) | Node.js subprocess | `npx tay items list --bucket=reference` |
-| **3rd party** | Browser or Node.js | `npm install @terminandoyo/core` |
+| **3rd party** | Browser or Node.js | `npm install @project/core` |
 
 The frontend's `src/lib/item-serializer.ts` and `src/lib/api-client.ts` become thin re-exports from
 the core package. No more maintaining two implementations.
@@ -328,8 +328,8 @@ ready, the need just isn't there yet.
 | Core | `packages/core/client/` | Extracted from `api-client.ts` |
 | Core | NEW: `packages/core/validation/shacl/` | SHACL shape definitions (`.ttl`) |
 | Core | NEW: `packages/core/validation/cel/` | CEL rule definitions |
-| Frontend | `frontend/src/lib/item-serializer.ts` | Re-export from `@terminandoyo/core` |
-| Frontend | `frontend/src/lib/api-client.ts` | Re-export from `@terminandoyo/core` |
+| Frontend | `frontend/src/lib/item-serializer.ts` | Re-export from `@project/core` |
+| Frontend | `frontend/src/lib/api-client.ts` | Re-export from `@project/core` |
 | Agents | `agents/tay.py` | Replace 3 tools with single `tay_cli` tool |
 | Agents | `agents/tool_executor.py` | Replace per-tool dispatch with TS CLI subprocess execution |
 | Agents | `agents/jsonld_builders.py` | Deprecated (replaced by core serializers) |

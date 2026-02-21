@@ -3,8 +3,8 @@ kind: ConfigMap
 metadata:
   name: app-config
 data:
-  POSTGRES_DB: terminandoyo
-  POSTGRES_USER: terminandoyo
+  POSTGRES_DB: project
+  POSTGRES_USER: project
   POSTGRES_HOST: postgres
   POSTGRES_PORT: "5432"
   CORS_ORIGINS: http://localhost:8080,http://127.0.0.1:8080
@@ -18,7 +18,7 @@ data:
   # Gmail OAuth (non-secret config — secrets go in app-secrets)
   GMAIL_REDIRECT_URI: "http://localhost:8080/api/email/oauth/gmail/callback"
   FRONTEND_BASE_URL: "http://localhost:8080"
-  OTEL_SERVICE_NAME: terminandoyo-backend
+  OTEL_SERVICE_NAME: project-backend
   OTEL_EXPORTER_OTLP_ENDPOINT: "http://alloy.observability.svc.cluster.local:4318"
   OTEL_EXPORTER_OTLP_PROTOCOL: "http/protobuf"
-  OTEL_RESOURCE_ATTRIBUTES: "service.namespace=terminandoyo,deployment.environment=local"
+  OTEL_RESOURCE_ATTRIBUTES: "service.namespace=project,deployment.environment=local"

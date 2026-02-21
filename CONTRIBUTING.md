@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for contributing to TerminAndoYo.
+Thanks for contributing to project.
 
 ## Scope
 

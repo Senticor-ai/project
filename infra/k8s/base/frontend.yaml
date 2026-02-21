@@ -26,7 +26,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: terminandoyo-frontend:local
+          image: project-frontend:local
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80

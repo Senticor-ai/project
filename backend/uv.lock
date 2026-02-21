@@ -2109,7 +2109,7 @@ wheels = [
 ]
 
 [[package]]
-name = "terminandoyo-backend"
+name = "project-backend"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

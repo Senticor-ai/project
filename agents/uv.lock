@@ -1277,7 +1277,7 @@ wheels = [
 ]
 
 [[package]]
-name = "terminandoyo-agents"
+name = "project-agents"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

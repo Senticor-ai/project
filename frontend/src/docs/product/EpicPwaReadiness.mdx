@@ -9,16 +9,16 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 ## Context
 
-A gap analysis against the Procedere team's PWA-readiness checklist confirmed that terminandoyo's core SPA architecture is solid: React Query hooks provide a swappable repository abstraction, optimistic mutations with rollback are universal, the OfflineBanner + `offlineFirst` network mode handle connectivity state, and the backend offers cursor-based sync with ETags and idempotent writes.
+A gap analysis against the Procedere team's PWA-readiness checklist confirmed that project's core SPA architecture is solid: React Query hooks provide a swappable repository abstraction, optimistic mutations with rollback are universal, the OfflineBanner + `offlineFirst` network mode handle connectivity state, and the backend offers cursor-based sync with ETags and idempotent writes.
 
-The remaining gaps before terminandoyo can become an installable, offline-capable PWA fall into four phases:
+The remaining gaps before project can become an installable, offline-capable PWA fall into four phases:
 
 1. Touch & mobile audit (prerequisite for any mobile deployment)
 2. Write conflict prevention (optimistic concurrency on the backend)
 3. Reverse proxy rate limiting (security hardening for production)
 4. PWA infrastructure (manifest, service worker, IndexedDB, background sync)
 
-**Design goal:** Users can install terminandoyo on mobile, work offline, and have changes sync automatically when reconnected — without any UI component rewrites.
+**Design goal:** Users can install project on mobile, work offline, and have changes sync automatically when reconnected — without any UI component rewrites.
 
 ---
 
@@ -238,7 +238,7 @@ hey -n 200 -c 10 -m POST http://localhost/items ...
 
 ```json
 {
-  "name": "TerminAndoYo",
+  "name": "project",
   "short_name": "TAY",
   "description": "Productivity and task management",
   "start_url": "/workspace/inbox",

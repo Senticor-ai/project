@@ -55,7 +55,7 @@ test.describe("CV Enhancement Journey", () => {
 
     // Get CSRF token for API seeding
     const cookies = await page.context().cookies();
-    const csrfCookie = cookies.find((c) => c.name === "tay_csrf");
+    const csrfCookie = cookies.find((c) => c.name === "project_csrf");
     const apiSeed = new ApiSeed(page.request, csrfCookie?.value ?? "");
 
     // ── 1. Create a project for the job application ───────────────────

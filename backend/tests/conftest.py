@@ -29,10 +29,10 @@ def _build_base_db_url() -> str | None:
     if not password:
         return None
 
-    user = os.environ.get("POSTGRES_USER", "terminandoyo")
+    user = os.environ.get("POSTGRES_USER", "project")
     host = os.environ.get("POSTGRES_HOST", "localhost")
     port = os.environ.get("POSTGRES_PORT", "5432")
-    database = os.environ.get("POSTGRES_DB", "tay")
+    database = os.environ.get("POSTGRES_DB", "project")
     return f"postgresql://{user}:{password}@{host}:{port}/{database}"
 
 

@@ -1,15 +1,15 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: terminandoyo
+  name: project
 spec:
   ingressClassName: traefik
   tls:
     - hosts:
-        - terminandoyo.100-114-108-51.nip.io
-      secretName: terminandoyo-tls
+        - project.senticor.runs.onstackit.cloud
+      secretName: project-tls
   rules:
-    - host: terminandoyo.100-114-108-51.nip.io
+    - host: project.senticor.runs.onstackit.cloud
       http:
         paths:
           - path: /storybook

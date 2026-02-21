@@ -16,8 +16,8 @@ from pydantic import BaseModel
 from .config import settings
 
 _ALGORITHM = "HS256"
-_ISSUER = "terminandoyo-backend"
-_AUDIENCE = "terminandoyo-backend"
+_ISSUER = "project-backend"
+_AUDIENCE = "project-backend"
 
 
 class DelegatedTokenClaims(BaseModel):

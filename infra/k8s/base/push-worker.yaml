@@ -35,7 +35,7 @@ spec:
               done
       containers:
         - name: push-worker
-          image: terminandoyo-backend:local
+          image: project-backend:local
           imagePullPolicy: IfNotPresent
           command: ["python", "-m", "app.push_worker", "--loop", "--interval", "1", "--batch-size", "10"]
           ports:

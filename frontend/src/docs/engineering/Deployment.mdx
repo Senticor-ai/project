@@ -4,7 +4,7 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 # Deployment
 
-TerminAndoYo uses a **GitOps** deployment model. Code changes on `main` trigger an automated pipeline that builds container images, pushes them to a private registry, and lets a cluster-side reconciler apply the updated Kubernetes manifests. No manual `kubectl apply` is needed.
+project uses a **GitOps** deployment model. Code changes on `main` trigger an automated pipeline that builds container images, pushes them to a private registry, and lets a cluster-side reconciler apply the updated Kubernetes manifests. No manual `kubectl apply` is needed.
 
 ---
 
@@ -224,10 +224,10 @@ OTEL tracing is initialised at app startup via `app/tracing.py`. The SDK auto-re
 
 | Variable | Value (production) |
 | --- | --- |
-| `OTEL_SERVICE_NAME` | `terminandoyo-backend` |
+| `OTEL_SERVICE_NAME` | `project-backend` |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://alloy.observability.svc.cluster.local:4318` |
 | `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/protobuf` |
-| `OTEL_RESOURCE_ATTRIBUTES` | `service.namespace=terminandoyo,deployment.environment=production` |
+| `OTEL_RESOURCE_ATTRIBUTES` | `service.namespace=project,deployment.environment=production` |
 
 FastAPI routes are auto-instrumented — every inbound request creates a span with method, route, and status. Traces are exported via `BatchSpanProcessor` to the Alloy collector, which forwards to Tempo.
 

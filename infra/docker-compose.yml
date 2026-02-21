@@ -1,4 +1,4 @@
-name: ${PROJECT_PREFIX:-tay}
+name: ${PROJECT_PREFIX:-project}
 
 services:
   postgres:
@@ -7,8 +7,8 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-tay}
-      POSTGRES_USER: ${POSTGRES_USER:-terminandoyo}
+      POSTGRES_DB: ${POSTGRES_DB:-project}
+      POSTGRES_USER: ${POSTGRES_USER:-project}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -26,6 +26,6 @@ services:
 
 volumes:
   postgres_data:
-    name: ${PROJECT_PREFIX:-tay}_postgres_data
+    name: ${PROJECT_PREFIX:-project}_postgres_data
   meili_data:
-    name: ${PROJECT_PREFIX:-tay}_meili_data
+    name: ${PROJECT_PREFIX:-project}_meili_data

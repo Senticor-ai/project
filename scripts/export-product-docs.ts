@@ -338,7 +338,7 @@ function assembleMarkdown(
   const parts: string[] = [];
 
   // Title
-  parts.push("# TerminAndoYo: Product Documentation\n");
+  parts.push("# project: Product Documentation\n");
   parts.push(`*Generated on ${new Date().toISOString().split("T")[0]}*\n`);
   parts.push("---\n");
 
@@ -388,8 +388,8 @@ function markdownToHtml(mdPath: string, htmlPath: string, cssPath: string): void
     "--embed-resources",
     `--css=${cssPath}`,
     // Set HTML <title> without rendering a visible title block
-    "-V", "title-meta=TerminAndoYo Product Documentation",
-    "-V", "pagetitle=TerminAndoYo Product Documentation",
+    "-V", "title-meta=project Product Documentation",
+    "-V", "pagetitle=project Product Documentation",
     "-o",
     htmlPath,
   ]);
@@ -412,7 +412,7 @@ async function htmlToPdf(htmlPath: string, pdfPath: string): Promise<void> {
     displayHeaderFooter: true,
     headerTemplate: `
       <div style="width:100%; font-size:9px; color:#999; padding:0 20mm; text-align:right; font-family:system-ui;">
-        TerminAndoYo &mdash; Product Documentation
+        project &mdash; Product Documentation
       </div>`,
     footerTemplate: `
       <div style="width:100%; font-size:9px; color:#999; padding:0 20mm; display:flex; justify-content:space-between; font-family:system-ui;">

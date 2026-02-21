@@ -82,7 +82,7 @@ export function LoginPage({
             <div className="flex items-center gap-2">
               <img src="/tay-logo.svg" alt="TAY" className="h-6 w-6" />
               <span className="font-mono text-sm text-text-muted">
-                terminandoyo
+                project
               </span>
             </div>
             <p className="text-sm leading-relaxed text-text-muted">

@@ -11,7 +11,7 @@ def test_system_prompt_rendered_from_template():
 
     prompt = build_system_prompt()
     assert "Tay" in prompt
-    assert "TerminAndoYo" in prompt
+    assert "project" in prompt
     # Buckets are rendered from the template
     assert "**inbox**" in prompt
     assert "**next**" in prompt

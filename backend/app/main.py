@@ -79,7 +79,7 @@ async def lifespan(application: FastAPI):
 
 
 app = FastAPI(
-    title="TerminAndoYo API",
+    title="project API",
     version="0.1.0",
     description=(
         "Session-authenticated API with structured logging. "

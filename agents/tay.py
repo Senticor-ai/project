@@ -397,7 +397,7 @@ def create_agent(
         generation_kwargs={
             "extra_headers": {
                 "HTTP-Referer": os.getenv("OPENROUTER_APP_URL", ""),
-                "X-Title": os.getenv("OPENROUTER_APP_TITLE", "TerminAndoYo"),
+                "X-Title": os.getenv("OPENROUTER_APP_TITLE", "project"),
             },
         },
     )

@@ -1,7 +1,7 @@
 import { test as base, type Page } from "@playwright/test";
 import { ApiSeed } from "../helpers/api-seed";
 
-const CSRF_COOKIE_NAME = process.env.CSRF_COOKIE_NAME ?? "terminandoyo_csrf";
+const CSRF_COOKIE_NAME = process.env.CSRF_COOKIE_NAME ?? "project_csrf";
 
 type TestFixtures = {
   authenticatedPage: Page;

@@ -31,7 +31,7 @@ logger = get_logger("imports.native")
     "/native/inspect",
     response_model=ImportJobResponse,
     summary="Validate native TAY import file",
-    description="Parses an uploaded TerminAndoYo JSON export and returns a dry-run import summary.",
+    description="Parses an uploaded project JSON export and returns a dry-run import summary.",
 )
 def inspect_native(
     payload: NativeImportInspectRequest = Body(...),
@@ -57,7 +57,7 @@ def inspect_native(
     "/native/from-file",
     response_model=ImportJobResponse,
     summary="Queue native TAY import job from file",
-    description="Queues an async import job for a previously uploaded TerminAndoYo JSON export.",
+    description="Queues an async import job for a previously uploaded project JSON export.",
     status_code=status.HTTP_202_ACCEPTED,
 )
 def import_native_from_file(

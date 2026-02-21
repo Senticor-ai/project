@@ -10,7 +10,7 @@ export default defineConfig({
     ? [["html", { open: "never" }], ["github"]]
     : [["html", { open: "on-failure" }]],
   use: {
-    baseURL: process.env.E2E_BASE_URL ?? "http://tay.localhost:5173",
+    baseURL: process.env.E2E_BASE_URL ?? "http://project.localhost:5173",
     ignoreHTTPSErrors: true,
     trace: "on-first-retry",
     screenshot: "only-on-failure",

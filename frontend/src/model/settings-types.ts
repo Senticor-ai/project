@@ -62,9 +62,9 @@ export interface ImportSource {
 export const IMPORT_SOURCES: ImportSource[] = [
   {
     id: "native",
-    name: "TerminAndoYo",
+    name: "project",
     icon: "swap_horiz",
-    description: "Import from a TerminAndoYo JSON export",
+    description: "Import from a project JSON export",
   },
   {
     id: "nirvana",

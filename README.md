@@ -1,4 +1,4 @@
-# TerminAndoYo (TAY)
+# project
 
 A **ontology-native task management system** bringing schema.org into a modern, evidence-first workspace raising productivity at work in any context and scale.
 
@@ -28,7 +28,7 @@ cd frontend && npm install && npm run storybook   # Storybook at http://localhos
 cd frontend && npm run dev                         # Vite dev server
 cd backend && uv sync && uv run uvicorn app.main:app --reload  # API server
 cd backend && uv run python -m app.worker --loop               # Worker
-cd agents && uv sync && uv run uvicorn app:app --reload --port 8002  # Tay agents
+cd agents && uv sync && uv run uvicorn app:app --reload --port 8002  # Senticor agents
 ```
 </details>
 

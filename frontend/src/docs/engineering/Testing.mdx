@@ -4,7 +4,7 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 # Testing Strategy
 
-This document is the testing reference for TerminAndoYo. It covers test layers, isolation
+This document is the testing reference for project. It covers test layers, isolation
 architecture, patterns, and conventions. For the technology overview see
 [Architecture](?path=/docs/engineering-architecture--docs).
 
@@ -97,7 +97,7 @@ unique user per test.
 ### E2E Isolation
 
 E2E tests run against a dedicated service stack started by `scripts/e2e-stack.sh`. The script
-creates an isolated PostgreSQL database (`terminandoyo_e2e`), starts the backend on port 8001,
+creates an isolated PostgreSQL database (`project_e2e`), starts the backend on port 8001,
 and the frontend on port 5174. Environment overrides live in `.env.e2e` (separate session
 cookies, file storage path).
 

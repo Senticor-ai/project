@@ -40,7 +40,7 @@ export const FullImportFlow: Story = {
     await step("Verify file selection step is shown", async () => {
       await waitFor(() => {
         expect(
-          canvas.getByText(/Drop TerminAndoYo export here/),
+          canvas.getByText(/Drop project export here/),
         ).toBeInTheDocument();
       });
     });

@@ -126,12 +126,12 @@ export const ImportNative: Story = {
     onExport: fn(),
   },
   play: async ({ canvas, userEvent, args }) => {
-    // TerminAndoYo source card visible
-    expect(canvas.getByText("TerminAndoYo")).toBeInTheDocument();
+    // project source card visible
+    expect(canvas.getByText("project")).toBeInTheDocument();
 
-    // Click TerminAndoYo import button
+    // Click project import button
     await userEvent.click(
-      canvas.getByRole("button", { name: /Import from TerminAndoYo/ }),
+      canvas.getByRole("button", { name: /Import from project/ }),
     );
     expect(args.onImportNative).toHaveBeenCalled();
   },

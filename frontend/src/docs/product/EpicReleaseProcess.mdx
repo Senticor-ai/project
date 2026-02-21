@@ -55,7 +55,7 @@ crane auth login harbor.100-114-108-51.nip.io:30443 -u $HARBOR_USER -p $HARBOR_P
 
 # Verify
 git tag -l                           # shows v0.1.0
-crane ls harbor.100-114-108-51.nip.io:30443/terminandoyo/frontend --insecure  # shows both SHA and v0.1.0
+crane ls harbor.100-114-108-51.nip.io:30443/project/frontend --insecure  # shows both SHA and v0.1.0
 glab release view v0.1.0             # shows release with notes
 
 # Push when ready
@@ -103,7 +103,7 @@ push-frontend:
   image: $CI_NODE_PYTHON_IMAGE
   needs: [build-frontend]
   script:
-    - crane push /tmp/frontend.tar "${HARBOR_REGISTRY}/terminandoyo/frontend:${CI_COMMIT_SHORT_SHA}" --insecure
+    - crane push /tmp/frontend.tar "${HARBOR_REGISTRY}/project/frontend:${CI_COMMIT_SHORT_SHA}" --insecure
 ```
 
 Add to `ci/Dockerfile.ci`:
@@ -150,8 +150,8 @@ smoke-test:
   needs: [update-manifests]
   script:
     - sleep 30
-    - curl -fsSk "https://terminandoyo.100-114-108-51.nip.io:30443/" || exit 1
-    - curl -fsSk "https://terminandoyo.100-114-108-51.nip.io:30443/api/health" || exit 1
+    - curl -fsSk "https://project.senticor.runs.onstackit.cloud/" || exit 1
+    - curl -fsSk "https://project.senticor.runs.onstackit.cloud/api/health" || exit 1
 ```
 
 ### 3b. SBOM generation

@@ -26,7 +26,7 @@ spec:
     spec:
       containers:
         - name: storybook
-          image: terminandoyo-storybook:local
+          image: project-storybook:local
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80

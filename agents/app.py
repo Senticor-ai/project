@@ -58,7 +58,7 @@ async def lifespan(application: FastAPI):
     shutdown_tracing(tracer_provider)
 
 
-app = FastAPI(title="TerminAndoYo Agents", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="project Agents", version="0.1.0", lifespan=lifespan)
 
 # ---------------------------------------------------------------------------
 # Pydantic models

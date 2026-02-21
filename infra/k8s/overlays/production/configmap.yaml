@@ -3,11 +3,11 @@ kind: ConfigMap
 metadata:
   name: app-config
 data:
-  POSTGRES_DB: terminandoyo
-  POSTGRES_USER: terminandoyo
+  POSTGRES_DB: project
+  POSTGRES_USER: project
   POSTGRES_HOST: postgres
   POSTGRES_PORT: "5432"
-  CORS_ORIGINS: "https://terminandoyo.100-114-108-51.nip.io:30443"
+  CORS_ORIGINS: "https://project.senticor.runs.onstackit.cloud"
   SESSION_COOKIE_SECURE: "true"
   SESSION_COOKIE_SAMESITE: lax
   SESSION_BIND_IP: "false"
@@ -16,12 +16,12 @@ data:
   FILE_STORAGE_PATH: /data/storage
   LOG_FORMAT: json
   # Gmail OAuth (non-secret config — secrets go in app-secrets)
-  GMAIL_REDIRECT_URI: "https://terminandoyo.100-114-108-51.nip.io:30443/api/email/oauth/gmail/callback"
-  FRONTEND_BASE_URL: "https://terminandoyo.100-114-108-51.nip.io:30443"
-  OTEL_SERVICE_NAME: terminandoyo-backend
+  GMAIL_REDIRECT_URI: "https://project.senticor.runs.onstackit.cloud/api/email/oauth/gmail/callback"
+  FRONTEND_BASE_URL: "https://project.senticor.runs.onstackit.cloud"
+  OTEL_SERVICE_NAME: project-backend
   OTEL_EXPORTER_OTLP_ENDPOINT: "http://alloy.observability.svc.cluster.local:4318"
   OTEL_EXPORTER_OTLP_PROTOCOL: "http/protobuf"
-  OTEL_RESOURCE_ATTRIBUTES: "service.namespace=terminandoyo,deployment.environment=production"
+  OTEL_RESOURCE_ATTRIBUTES: "service.namespace=project,deployment.environment=production"
   # Gmail Watch + Pub/Sub (non-secret config — SA JSON mounted from pubsub-sa secret)
   GMAIL_PUBSUB_PROJECT_ID: "procedere"
   GMAIL_PUBSUB_TOPIC: "projects/procedere/topics/gmail-push"

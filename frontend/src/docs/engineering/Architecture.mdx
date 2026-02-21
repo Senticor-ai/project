@@ -22,12 +22,12 @@ Who uses TAY and what external systems does it interact with?
 
 <Mermaid chart={`
 C4Context
-  title System Context — TerminAndoYo (TAY)
+  title System Context — project (TAY)
 
   Person(user, "Bundesbeamter", "Federal clerk managing tasks, documents, and workflows")
   Person(cpa, "CPA / Advisor", "Receives exported document packages")
 
-  System(tay, "TerminAndoYo", "Structured task management with AI-assisted triage, Schema.org data model, append-only audit trail")
+  System(tay, "project", "Structured task management with AI-assisted triage, Schema.org data model, append-only audit trail")
 
   System_Ext(gmail, "Gmail", "IMAP email sync via OAuth 2.0")
   System_Ext(openrouter, "OpenRouter", "LLM access for Tay AI agent")
@@ -48,11 +48,11 @@ What are the running processes, data stores, and how do they communicate?
 
 <Mermaid chart={`
 C4Container
-  title Container Diagram — TerminAndoYo
+  title Container Diagram — project
 
   Person(user, "User", "Federal clerk")
 
-  System_Boundary(tay, "TerminAndoYo") {
+  System_Boundary(tay, "project") {
     Container(spa, "Frontend SPA", "React 19, Vite, Tailwind v4", "Single-page app with offline-first sync, bucket navigation, inline triage")
     Container(storybook, "Storybook", "Storybook 10, MDX", "Living documentation hub — product specs, design system, component demos, architecture docs")
     Container(api, "Backend API", "Python, FastAPI", "REST API for items, files, imports, email, auth, search, push notifications, chat proxy")

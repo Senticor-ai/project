@@ -50,7 +50,7 @@ def run_native_import(
     emit_events: bool,
     on_progress: Callable[[int, dict[str, int]], None] | None = None,
 ) -> ImportSummary:
-    """Import items from a TerminAndoYo JSON export (``/items/export``).
+    """Import items from a project JSON export (``/items/export``).
 
     Each element is an ``ItemResponse`` dict with ``item`` (or legacy
     ``thing``) containing fully-formed JSON-LD.  No transformation is

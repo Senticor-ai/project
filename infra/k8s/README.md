@@ -1,6 +1,6 @@
 # Kubernetes Manifests
 
-Kustomize base/overlay structure for deploying TerminAndoYo to Kubernetes.
+Kustomize base/overlay structure for deploying project to Kubernetes.
 
 ## Structure
 
@@ -42,7 +42,7 @@ k8s/
 
 The base defines core workloads without namespace, resource limits, or
 environment-specific configuration. Images default to local builds
-(`terminandoyo-backend:local`, `terminandoyo-frontend:local`) with
+(`project-backend:local`, `project-frontend:local`) with
 `imagePullPolicy: IfNotPresent`.
 
 The backend API Deployment includes two init containers:
@@ -77,7 +77,7 @@ Target: k3s / k3d on Rancher Desktop.
 Create a k3d cluster (if not already done):
 
 ```bash
-k3d cluster create terminandoyo -p "8080:80@loadbalancer"
+k3d cluster create project -p "8080:80@loadbalancer"
 ```
 
 ### Build and load images
@@ -85,16 +85,16 @@ k3d cluster create terminandoyo -p "8080:80@loadbalancer"
 From repo root:
 
 ```bash
-docker build -f backend/Dockerfile -t terminandoyo-backend:local .
-docker build -f frontend/Dockerfile -t terminandoyo-frontend:local .
-k3d image import terminandoyo-backend:local terminandoyo-frontend:local -c terminandoyo
+docker build -f backend/Dockerfile -t project-backend:local .
+docker build -f frontend/Dockerfile -t project-frontend:local .
+k3d image import project-backend:local project-frontend:local -c project
 ```
 
 For k3s (containerd):
 
 ```bash
-docker save terminandoyo-backend:local | sudo k3s ctr images import -
-docker save terminandoyo-frontend:local | sudo k3s ctr images import -
+docker save project-backend:local | sudo k3s ctr images import -
+docker save project-frontend:local | sudo k3s ctr images import -
 ```
 
 ### Deploy
@@ -111,7 +111,7 @@ no separate job step needed.
 Port-forward:
 
 ```bash
-kubectl -n terminandoyo port-forward svc/frontend 8080:80
+kubectl -n project port-forward svc/frontend 8080:80
 ```
 
 Then open: `http://localhost:8080`

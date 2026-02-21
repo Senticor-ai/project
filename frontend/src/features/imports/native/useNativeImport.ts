@@ -4,10 +4,10 @@ import type { ImportSourceConfig } from "../shared/types";
 
 const nativeConfig: ImportSourceConfig = {
   sourceId: "native",
-  title: "Import from TerminAndoYo",
+  title: "Import from project",
   description:
-    "Drop your TerminAndoYo JSON export file below, or click to browse.",
-  dropLabel: "Drop TerminAndoYo export here",
+    "Drop your project JSON export file below, or click to browse.",
+  dropLabel: "Drop project export here",
   fileTestId: "native-file-input",
   inspectFn: (req) => ImportsApi.inspectNative(req),
   importFn: (req) => ImportsApi.importNativeFromFile(req),
