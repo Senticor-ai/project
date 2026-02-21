@@ -1,12 +1,12 @@
 ---
 name: backend-api
-description: Manage items, projects, and references in TerminAndoYo via REST API
+description: Manage items, projects, and references in Senticor Project via REST API
 user-invokable: false
 ---
 
-# Backend API for TerminAndoYo
+# Backend API for Senticor Project
 
-Du hast vollen Zugriff auf die TerminAndoYo Backend-API.
+Du hast vollen Zugriff auf die Senticor Project Backend-API.
 Verwende `exec` mit `curl`, um Items zu lesen, erstellen und aktualisieren.
 
 ## Authentifizierung
