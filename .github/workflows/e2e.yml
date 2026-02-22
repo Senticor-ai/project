@@ -1,0 +1,175 @@
+name: E2E
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Which E2E suite to run
+        type: choice
+        required: true
+        default: smoke
+        options:
+          - smoke
+          - fullstack
+      base_url:
+        description: Base URL override for smoke suite (optional)
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  e2e-smoke:
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.suite == 'smoke')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install smoke test dependencies
+        run: |
+          cd frontend
+          npm ci --ignore-scripts --silent
+          npx playwright install --with-deps chromium
+
+      - name: Run smoke suite
+        run: |
+          BASE_URL="${{ github.event.inputs.base_url }}"
+          if [ -z "$BASE_URL" ]; then
+            BASE_URL="https://project.senticor.runs.onstackit.cloud"
+          fi
+          cd frontend
+          E2E_BASE_URL="$BASE_URL" CI=1 npx playwright test --config e2e/playwright.config.ts --project=smoke
+
+      - name: Upload smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-smoke-artifacts
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+          if-no-files-found: ignore
+
+  e2e-fullstack:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.suite == 'fullstack'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: project
+          POSTGRES_PASSWORD: ci_test_password
+          POSTGRES_DB: project
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U project -d project"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      POSTGRES_USER: project
+      POSTGRES_PASSWORD: ci_test_password
+      POSTGRES_DB: project
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: '5432'
+      DATABASE_URL: postgresql://project:ci_test_password@localhost:5432/project
+      VITE_API_BASE_URL: http://localhost:8000
+      MEILI_URL: ''
+      JWT_SECRET: ci-jwt-secret
+      DELEGATION_JWT_SECRET: ci-delegation-jwt-secret
+      ENCRYPTION_KEY: t9se0op9pzW1QFbY3nnGn-5zzElb4Tjl84fjnCb6zCY=
+      OPENROUTER_API_KEY: ci-dummy-openrouter-key
+      AGENTS_URL: http://localhost:8002
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install uv
+        run: python -m pip install --upgrade pip uv
+
+      - name: Install fullstack dependencies
+        run: |
+          cd backend && uv sync --quiet --all-groups --all-extras
+          cd ../agents && uv sync --quiet
+          cd ../frontend && npm ci --ignore-scripts --silent
+          npx playwright install --with-deps chromium
+
+      - name: Run fullstack e2e suite
+        run: |
+          set -euo pipefail
+
+          wait_for() {
+            local url="$1"
+            local label="$2"
+            local retries="$3"
+            local sleep_s="$4"
+            for _ in $(seq 1 "$retries"); do
+              if curl -sf "$url" >/dev/null 2>&1; then
+                echo "$label is ready"
+                return 0
+              fi
+              sleep "$sleep_s"
+            done
+            echo "$label failed to become ready: $url"
+            return 1
+          }
+
+          cleanup() {
+            jobs -p | xargs -r kill || true
+          }
+          trap cleanup EXIT
+
+          cd backend
+          uv run python -m app.db_init
+
+          uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 > /tmp/backend.log 2>&1 &
+          wait_for "http://localhost:8000/health" "Backend" 45 1
+
+          uv run python -m app.worker --loop > /tmp/worker.log 2>&1 &
+
+          cd ../agents
+          uv run uvicorn app:app --host 0.0.0.0 --port 8002 > /tmp/agents.log 2>&1 &
+          wait_for "http://localhost:8002/health" "Agents" 20 1 || echo "Agents health endpoint not ready; continuing"
+
+          cd ../frontend
+          npm run dev -- --host 0.0.0.0 --port 5173 > /tmp/frontend.log 2>&1 &
+          wait_for "http://localhost:5173" "Frontend" 75 1
+
+          CI=1 npm run test:e2e
+
+      - name: Upload fullstack artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-fullstack-artifacts
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+            /tmp/backend.log
+            /tmp/worker.log
+            /tmp/agents.log
+            /tmp/frontend.log
+          if-no-files-found: ignore
