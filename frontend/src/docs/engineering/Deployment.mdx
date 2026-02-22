@@ -15,8 +15,8 @@ The pipeline validates every change before it reaches the cluster:
 ```
 Push to main
   │
-  ├─ Build ──────── Kaniko validates Docker builds for frontend, backend,
-  │                  and storybook images (no push in build stage)
+  ├─ Build+Push ─── Docker Buildx builds and pushes frontend, backend,
+  │                  and storybook images to registry.onstackit.cloud
   │
   ├─ Push ───────── images pushed to StackIT registry
   │                  (`registry.onstackit.cloud/senticor/project/*`)

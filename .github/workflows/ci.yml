@@ -161,10 +161,17 @@ jobs:
           node-version-file: .node-version
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - name: Run storybook tests
+      - name: Install frontend dependencies
         run: |
           cd frontend
           npm ci --silent
+      - name: Install Playwright browser for storybook tests
+        run: |
+          cd frontend
+          npx playwright install --with-deps chromium
+      - name: Run storybook tests
+        run: |
+          cd frontend
           STORYBOOK_TESTS=1 CI=1 npx vitest run --project=storybook
 
   backend-unit:

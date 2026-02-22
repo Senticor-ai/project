@@ -38,7 +38,7 @@ expect_present() {
 expect_absent "backend/README.md" "/things" "backend/README.md still references /things endpoints."
 expect_present "backend/README.md" "/items" "backend/README.md should document /items endpoints."
 
-# Deployment pipeline drift: CI is Kaniko-based with short-SHA tags on main.
+# Deployment pipeline drift: CI is GitHub Actions with Buildx + commit-SHA tags on main.
 expect_absent \
   "frontend/src/docs/engineering/Deployment.mdx" \
   "docker-compose.build.yml" \
@@ -49,12 +49,12 @@ expect_absent \
   "Deployment docs still claim latest image tagging on main."
 expect_present \
   "frontend/src/docs/engineering/Deployment.mdx" \
-  "Kaniko" \
-  "Deployment docs should describe Kaniko-based CI image builds."
+  "Docker Buildx" \
+  "Deployment docs should describe Docker Buildx-based CI image builds."
 expect_present \
   "frontend/src/docs/engineering/Deployment.mdx" \
-  "CI_COMMIT_SHORT_SHA" \
-  "Deployment docs should describe short-SHA image tags."
+  "github.sha" \
+  "Deployment docs should describe commit-SHA image tags."
 expect_present \
   "frontend/src/docs/engineering/Deployment.mdx" \
   "Dockerfile.storybook" \
