@@ -29,6 +29,16 @@ export default defineConfig({
       ],
     },
     {
+      name: "webkit",
+      use: { ...devices["Desktop Safari"] },
+      testIgnore: [
+        "**/tay-chat-llm.spec.ts",
+        "**/cv-enhancement-llm.spec.ts",
+        "**/tax-prep-journey.spec.ts",
+        "**/real-user-journey.spec.ts",
+      ],
+    },
+    {
       name: "llm",
       testMatch: "**/tay-chat-llm.spec.ts",
       use: { ...devices["Desktop Chrome"], actionTimeout: 60_000 },
