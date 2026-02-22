@@ -6,7 +6,7 @@ spec:
   template:
     spec:
       imagePullSecrets:
-        - name: harbor-pull-secret
+        - name: stackit-registry
       containers:
         - name: frontend
           imagePullPolicy: Always

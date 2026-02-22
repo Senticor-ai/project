@@ -13,7 +13,7 @@ stages:
   - integration  # 2 jobs: backend (Postgres), frontend-contract (no infra)
   - build        # 3 jobs: docker images + SAST (main only)
   - e2e          # 1 job: full stack Playwright (main only)
-  - push         # 3 jobs: push to Harbor (main only)
+  - push         # 3 jobs: push app images to StackIT registry (main only)
   - deploy       # 1 job: update k8s manifests (main only)
   - smoke        # 1 job: e2e against deployed instance (nightly + manual)
 
@@ -25,6 +25,9 @@ variables:
   CI_NODE_PYTHON_IMAGE: ${HARBOR_REGISTRY}/project/ci:latest
   # Docker pull auth for Harbor (allows runner to pull CI_NODE_PYTHON_IMAGE)
   DOCKER_AUTH_CONFIG: '{"auths":{"${HARBOR_REGISTRY}":{"username":"${HARBOR_USER}","password":"${HARBOR_PASSWORD}"}}}'
+  # App images are published for Flux consumption on senticor000.
+  STACKIT_REGISTRY: registry.onstackit.cloud
+  STACKIT_IMAGE_PREFIX: ${STACKIT_REGISTRY}/senticor/project
   # Cache directories (must be inside $CI_PROJECT_DIR for GitLab cache)
   npm_config_cache: '$CI_PROJECT_DIR/.npm-cache'
 
@@ -420,7 +423,7 @@ e2e:
       - frontend/playwright-report/
       - frontend/test-results/
 
-# ==================== PUSH (3 jobs: push to Harbor, main only) ====================
+# ==================== PUSH (3 jobs: push app images to StackIT, main only) ====================
 
 .push-base:
   stage: push
@@ -430,8 +433,10 @@ e2e:
   extends: .large-runner
   before_script:
     - mkdir -p /kaniko/.docker
-    - AUTH_B64="$(printf '%s:%s' "$HARBOR_USER" "$HARBOR_PASSWORD" | base64 | tr -d '\n')"
-    - printf '{"auths":{"%s":{"auth":"%s"}}}\n' "$HARBOR_REGISTRY" "$AUTH_B64" > /kaniko/.docker/config.json
+    - REGISTRY_USER="${STACKIT_REGISTRY_USER:-$HARBOR_USER}"
+    - REGISTRY_PASSWORD="${STACKIT_REGISTRY_PASSWORD:-$HARBOR_PASSWORD}"
+    - AUTH_B64="$(printf '%s:%s' "$REGISTRY_USER" "$REGISTRY_PASSWORD" | base64 | tr -d '\n')"
+    - printf '{"auths":{"%s":{"auth":"%s"}}}\n' "$STACKIT_REGISTRY" "$AUTH_B64" > /kaniko/.docker/config.json
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
 
@@ -440,24 +445,24 @@ push-frontend:
   needs: [build-frontend]
   script:
     - |
-      IMAGE_TAG="${CI_COMMIT_SHORT_SHA}"
-      /kaniko/executor --context "$CI_PROJECT_DIR" --dockerfile "$CI_PROJECT_DIR/frontend/Dockerfile" --destination "${HARBOR_REGISTRY}/project/frontend:${IMAGE_TAG}" --insecure --skip-tls-verify
+      IMAGE_TAG="${CI_COMMIT_SHA}"
+      /kaniko/executor --context "$CI_PROJECT_DIR" --dockerfile "$CI_PROJECT_DIR/frontend/Dockerfile" --destination "${STACKIT_IMAGE_PREFIX}/frontend:${IMAGE_TAG}"
 
 push-backend:
   extends: .push-base
   needs: [build-backend]
   script:
     - |
-      IMAGE_TAG="${CI_COMMIT_SHORT_SHA}"
-      /kaniko/executor --context "$CI_PROJECT_DIR" --dockerfile "$CI_PROJECT_DIR/backend/Dockerfile" --destination "${HARBOR_REGISTRY}/project/backend:${IMAGE_TAG}" --insecure --skip-tls-verify
+      IMAGE_TAG="${CI_COMMIT_SHA}"
+      /kaniko/executor --context "$CI_PROJECT_DIR" --dockerfile "$CI_PROJECT_DIR/backend/Dockerfile" --destination "${STACKIT_IMAGE_PREFIX}/backend:${IMAGE_TAG}"
 
 push-storybook:
   extends: .push-base
   needs: [build-storybook]
   script:
     - |
-      IMAGE_TAG="${CI_COMMIT_SHORT_SHA}"
-      /kaniko/executor --context "$CI_PROJECT_DIR" --dockerfile "$CI_PROJECT_DIR/frontend/Dockerfile.storybook" --build-arg STORYBOOK_BASE=/storybook/ --destination "${HARBOR_REGISTRY}/project/storybook:${IMAGE_TAG}" --insecure --skip-tls-verify
+      IMAGE_TAG="${CI_COMMIT_SHA}"
+      /kaniko/executor --context "$CI_PROJECT_DIR" --dockerfile "$CI_PROJECT_DIR/frontend/Dockerfile.storybook" --build-arg STORYBOOK_BASE=/storybook/ --destination "${STACKIT_IMAGE_PREFIX}/storybook:${IMAGE_TAG}"
 
 # ==================== DEPLOY ====================
 
@@ -470,12 +475,12 @@ update-manifests:
     - apk add --no-cache git sed
   script:
     - |
-      IMAGE_TAG="${CI_COMMIT_SHORT_SHA}"
+      IMAGE_TAG="${CI_COMMIT_SHA}"
       KUST="infra/k8s/overlays/production/kustomization.yaml"
-      echo "Updating kustomization to registry: ${HARBOR_REGISTRY}, tag: ${IMAGE_TAG}"
-      sed -i "s|newName: .*/backend|newName: ${HARBOR_REGISTRY}/project/backend|" "$KUST"
-      sed -i "s|newName: .*/frontend|newName: ${HARBOR_REGISTRY}/project/frontend|" "$KUST"
-      sed -i "s|newName: .*/storybook|newName: ${HARBOR_REGISTRY}/project/storybook|" "$KUST"
+      echo "Updating kustomization to registry: ${STACKIT_IMAGE_PREFIX}, tag: ${IMAGE_TAG}"
+      sed -i "s|newName: .*/backend|newName: ${STACKIT_IMAGE_PREFIX}/backend|" "$KUST"
+      sed -i "s|newName: .*/frontend|newName: ${STACKIT_IMAGE_PREFIX}/frontend|" "$KUST"
+      sed -i "s|newName: .*/storybook|newName: ${STACKIT_IMAGE_PREFIX}/storybook|" "$KUST"
       sed -i "s/newTag: .*/newTag: \"${IMAGE_TAG}\"/" "$KUST"
       cat "$KUST"
       git config user.email "ci@project.dev"

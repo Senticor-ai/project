@@ -4,19 +4,16 @@ resources:
   - ../../base
   - configmap.yaml
   - gitlab-ci-exporter-config.yaml
-  - ingress.yaml
-  - secret.yaml
-  - secret-pubsub-sa.yaml
 
 images:
   - name: project-backend
-    newName: harbor.100-114-108-51.nip.io:30443/project/backend
+    newName: registry.onstackit.cloud/senticor/project/backend
     newTag: "db7314ef"
   - name: project-frontend
-    newName: harbor.100-114-108-51.nip.io:30443/project/frontend
+    newName: registry.onstackit.cloud/senticor/project/frontend
     newTag: "db7314ef"
   - name: project-storybook
-    newName: harbor.100-114-108-51.nip.io:30443/project/storybook
+    newName: registry.onstackit.cloud/senticor/project/storybook
     newTag: "db7314ef"
 
 patches:

@@ -21,12 +21,12 @@ k8s/
     │   ├── configmap.yaml
     │   ├── secret.yaml
     │   └── ingress.yaml
-    └── production/         # Production (Harbor registry)
+    └── production/         # Production (Flux tenant on senticor000)
         ├── kustomization.yaml
         ├── configmap.yaml
-        ├── secret.yaml             # SOPS-encrypted app secrets
-        ├── secret-pubsub-sa.yaml   # SOPS-encrypted GCP service account
-        ├── ingress.yaml
+        ├── secret.yaml             # reference only (ops-managed secret contract)
+        ├── secret-pubsub-sa.yaml   # reference only (ops-managed secret contract)
+        ├── ingress.yaml            # reference only (ops-managed ingress)
         └── patches/
             ├── backend.yaml
             ├── worker.yaml
@@ -35,7 +35,8 @@ k8s/
             ├── storybook.yaml
             ├── postgres.yaml
             ├── backend-pubsub.yaml  # PubSub SA volume mount
-            └── worker-pubsub.yaml   # PubSub SA volume mount
+            ├── worker-pubsub.yaml   # PubSub SA volume mount
+            └── watch-worker-pubsub.yaml  # PubSub SA volume mount
 ```
 
 ## Base
@@ -134,80 +135,81 @@ E2E_BASE_URL=http://localhost:8080 npm run test:e2e
 
 ## Production Overlay
 
-Target: shared cluster with Harbor registry.
+Target: `senticor000` Flux tenant for `project.senticor.runs.onstackit.cloud`.
+
+Flux contract for this repo:
+
+- Entrypoint path: `infra/k8s/overlays/production`
+- Branch: `main`
 
 The production overlay:
 
-- Switches images to Harbor registry via Kustomize `images` transformer
+- Switches images to StackIT registry (`registry.onstackit.cloud/senticor/project/*`) via Kustomize `images`
 - Adds resource requests/limits via strategic merge patches
 - Sets `imagePullPolicy: Always` for application images
+- Uses `imagePullSecrets: stackit-registry` for application workloads
 - Provides production ConfigMap (HTTPS CORS, CSRF enabled, JSON logging, OTEL)
 - Exposes Prometheus metrics: backend API on `:8000/metrics`, worker on `:9090/metrics`, push-worker on `:9091/metrics`, watch-worker on `:9092/metrics`
 
-Namespace is managed by ops. Secrets are SOPS-encrypted in version control and auto-deployed by Flux.
+### Ops-managed resources
 
-### Secret management (SOPS + age)
+This overlay intentionally does **not** include:
 
-Production secrets are encrypted with [SOPS](https://github.com/getsops/sops) using [age](https://github.com/FiloSottile/age). Flux decrypts them automatically on the cluster.
+- `Namespace`
+- `Ingress`
+- `Secret` manifests
+- RBAC (`Role`, `RoleBinding`, `ClusterRole`, `ClusterRoleBinding`)
+- `NetworkPolicy`
 
-**Two secret files:**
+Ops provides these resources when onboarding the tenant.
 
-| File | Secret name | Contents |
-|------|-------------|----------|
-| `secret.yaml` | `app-secrets` | Env vars (DB password, JWT, OAuth, VAPID, API keys) |
-| `secret-pubsub-sa.yaml` | `pubsub-sa` | GCP service account JSON for Gmail Pub/Sub |
+### Secrets handoff contract (ops)
 
-The `pubsub-sa` secret is volume-mounted at `/etc/gcp/pubsub-sa.json` on backend, worker, and watch-worker pods.
+Application manifests still consume these two secret names by reference:
 
-**Prerequisites:**
+- `app-secrets` via `envFrom`/`secretKeyRef`
+- `pubsub-sa` via volume mount at `/etc/gcp/pubsub-sa.json`
 
-```bash
-brew install sops age
-```
+Required keys for `app-secrets`:
 
-**To edit secrets** (requires the age private key from 1Password):
+| Key | Used by |
+|-----|---------|
+| `POSTGRES_PASSWORD` | Postgres StatefulSet + backend/worker runtime DB connection |
+| `JWT_SECRET` | Backend auth token signing |
+| `GMAIL_CLIENT_ID` | Gmail OAuth |
+| `GMAIL_CLIENT_SECRET` | Gmail OAuth |
+| `GMAIL_STATE_SECRET` | Gmail OAuth state verification |
+| `ENCRYPTION_KEY` | Backend token encryption |
+| `VAPID_PUBLIC_KEY` | Web push |
+| `VAPID_PRIVATE_KEY` | Web push |
+| `OPENROUTER_API_KEY` | AI provider integration |
+| `GCPE_GITLAB_TOKEN` | `gitlab-ci-exporter` token |
 
-```bash
-# Set SOPS_AGE_KEY_FILE to point to your private key
-export SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt
+Required key for `pubsub-sa`:
 
-# Edit in-place (opens decrypted in $EDITOR, re-encrypts on save)
-sops infra/k8s/overlays/production/secret.yaml
-
-# Or decrypt to stdout for inspection
-sops --decrypt infra/k8s/overlays/production/secret.yaml
-```
-
-**To add a new secret file:**
-
-```bash
-# 1. Create plaintext YAML
-# 2. Encrypt in-place (uses .sops.yaml creation_rules)
-sops --encrypt --in-place infra/k8s/overlays/production/my-new-secret.yaml
-# 3. Add to kustomization.yaml resources list
-# 4. Commit and push — Flux auto-deploys within 5 minutes
-```
-
-**Key reference:**
-
-| Key | Description | How to generate |
-|-----|-------------|-----------------|
-| `POSTGRES_PASSWORD` | PostgreSQL password | — |
-| `JWT_SECRET` | Internal token signing | `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
-| `GMAIL_CLIENT_ID` | Google OAuth client ID | [Cloud Console > Credentials](https://console.cloud.google.com/apis/credentials) |
-| `GMAIL_CLIENT_SECRET` | Google OAuth client secret | Same as above |
-| `GMAIL_STATE_SECRET` | OAuth CSRF state signing | `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
-| `ENCRYPTION_KEY` | Fernet key for token encryption | `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
-| `VAPID_PUBLIC_KEY` | Web Push public key | `npx web-push generate-vapid-keys` |
-| `VAPID_PRIVATE_KEY` | Web Push private key | Same as above |
-| `OPENROUTER_API_KEY` | LLM API key | [OpenRouter dashboard](https://openrouter.ai/keys) |
+| Key | Format | Used by |
+|-----|--------|---------|
+| `pubsub-sa.json` | GCP service account JSON | backend/worker/watch-worker Gmail Pub/Sub client |
 
 Full setup guide: Storybook > Engineering > Email Integration (`?path=/docs/engineering-email-integration--docs`).
 
 ### Verify rendered manifests
 
 ```bash
-kubectl kustomize infra/k8s/overlays/production
+kubectl kustomize infra/k8s/overlays/production > /tmp/project-production-render.yaml
+
+# Must return no matches (tenant-safe overlay)
+rg -n "kind: (Namespace|Ingress|NetworkPolicy|Role|RoleBinding|ClusterRole|ClusterRoleBinding)|^[[:space:]]*namespace:" /tmp/project-production-render.yaml
+
+# Service contract checks
+awk 'BEGIN{RS="---";FS="\n"} /kind: Service/ {
+  name=""; port=""
+  for (i=1;i<=NF;i++) {
+    if ($i ~ /^[[:space:]]*name: / && name == "") { sub(/^[[:space:]]*name: /,"",$i); name=$i }
+    if ($i ~ /^[[:space:]]*port: / && port == "") { sub(/^[[:space:]]*port: /,"",$i); port=$i }
+  }
+  if (name == "frontend" || name == "storybook") print name ": " port
+}' /tmp/project-production-render.yaml
 ```
 
 ### Resource budget
