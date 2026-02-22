@@ -183,7 +183,6 @@ Required keys for `app-secrets`:
 | `VAPID_PUBLIC_KEY` | Web push |
 | `VAPID_PRIVATE_KEY` | Web push |
 | `OPENROUTER_API_KEY` | AI provider integration |
-| `GCPE_GITLAB_TOKEN` | `gitlab-ci-exporter` token |
 
 Required key for `pubsub-sa`:
 

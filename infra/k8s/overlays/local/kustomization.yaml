@@ -5,7 +5,6 @@ resources:
   - ../../base
   - namespace.yaml
   - configmap.yaml
-  - gitlab-ci-exporter-config.yaml
   - secret.yaml
   - ingress.yaml
 

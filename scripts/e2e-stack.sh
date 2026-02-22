@@ -209,7 +209,7 @@ done
 # ── Step 6: Start backend ────────────────────────────────────────────
 echo "[e2e] Starting backend on :$BACKEND_PORT..."
 cd "$ROOT_DIR/backend"
-uv run uvicorn app.main:app \
+uv run --python 3.12 python -m uvicorn app.main:app \
   --host 127.0.0.1 \
   --port "$BACKEND_PORT" \
   --log-level warning \
@@ -235,7 +235,7 @@ done
 # Without it, import jobs stay in "queued" status forever.
 echo "[e2e] Starting outbox worker..."
 cd "$ROOT_DIR/backend"
-uv run python -m app.worker --loop &
+uv run --python 3.12 python -m app.worker --loop &
 WORKER_PID=$!
 echo "[e2e] Worker started (PID $WORKER_PID)."
 
@@ -245,7 +245,7 @@ echo "[e2e] Worker started (PID $WORKER_PID)."
 echo "[e2e] Starting agents service on :$AGENTS_PORT..."
 cd "$ROOT_DIR/agents"
 BACKEND_URL="http://localhost:$BACKEND_PORT" \
-  uv run uvicorn app:app \
+  uv run --python 3.12 python -m uvicorn app:app \
     --host 127.0.0.1 \
     --port "$AGENTS_PORT" \
     --log-level warning \

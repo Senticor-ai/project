@@ -67,6 +67,12 @@ export function LoginPage({
 
   const inputClassName =
     "w-full border-b border-border bg-transparent px-0 py-2 text-sm outline-none transition-colors duration-[var(--duration-instant)] placeholder:text-text-subtle/40 focus:border-primary";
+  const isRegisterMode = mode === "register";
+  const emailFieldId = isRegisterMode ? "register-email" : "email";
+  const passwordFieldId = isRegisterMode ? "new-password" : "current-password";
+  const passwordFieldName = isRegisterMode
+    ? "new-password"
+    : "current-password";
 
   return (
     <div
@@ -116,7 +122,7 @@ export function LoginPage({
 
         {/* Right column — login form */}
         <div className="space-y-4">
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" key={mode}>
             <h2 className="text-sm font-medium text-text">
               {mode === "login" ? "Sign in to continue" : "Create account"}
             </h2>
@@ -135,16 +141,20 @@ export function LoginPage({
             <div className="space-y-3">
               <div>
                 <label
-                  htmlFor="email"
+                  htmlFor={emailFieldId}
                   className="mb-1 block text-xs text-text-muted"
                 >
                   Email
                 </label>
                 <input
-                  id="email"
+                  id={emailFieldId}
                   name="email"
                   type="email"
-                  autoComplete="username"
+                  autoComplete={isRegisterMode ? "email" : "username"}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  inputMode="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -155,18 +165,22 @@ export function LoginPage({
 
               <div>
                 <label
-                  htmlFor="password"
+                  htmlFor={passwordFieldId}
                   className="mb-1 block text-xs text-text-muted"
                 >
                   Password
                 </label>
                 <input
-                  id="password"
-                  name="password"
+                  key={mode}
+                  id={passwordFieldId}
+                  name={passwordFieldName}
                   type="password"
                   autoComplete={
-                    mode === "login" ? "current-password" : "new-password"
+                    isRegisterMode ? "new-password" : "current-password"
                   }
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   required
                   minLength={8}
                   value={password}

@@ -3,7 +3,6 @@ kind: Kustomization
 resources:
   - ../../base
   - configmap.yaml
-  - gitlab-ci-exporter-config.yaml
 
 images:
   - name: project-backend
@@ -27,4 +26,3 @@ patches:
   - path: patches/backend-pubsub.yaml
   - path: patches/worker-pubsub.yaml
   - path: patches/watch-worker-pubsub.yaml
-  - path: patches/gitlab-ci-exporter.yaml

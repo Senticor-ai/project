@@ -9,4 +9,3 @@ resources:
   - watch-worker.yaml
   - frontend.yaml
   - storybook.yaml
-  - gitlab-ci-exporter.yaml

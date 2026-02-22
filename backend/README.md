@@ -135,7 +135,7 @@ Migration policy (enforced in CI):
 
 ```
 cd backend
-uv run uvicorn app.main:app --reload --port 8000
+uv run --python 3.12 python -m uvicorn app.main:app --reload --port 8000
 ```
 
 ## Run Projection Worker
