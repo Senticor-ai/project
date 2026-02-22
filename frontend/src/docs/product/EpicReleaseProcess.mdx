@@ -9,7 +9,7 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 ## Context
 
-Every successful deploy to production pushes SHA-tagged container images to Harbor and auto-commits the new tag to the Kubernetes kustomization manifest. However there are no named releases, no git tags, no release notes, and no archived testing evidence. Additionally, all test jobs have `allow_failure: true`, meaning broken code can reach production without any gate.
+Every successful deploy to production pushes SHA-tagged container images to `registry.onstackit.cloud/senticor/project/*` and auto-commits the new tag to the Kubernetes kustomization manifest. However there are no named releases, no git tags, no release notes, and no archived testing evidence. Additionally, all test jobs have `allow_failure: true`, meaning broken code can reach production without any gate.
 
 This epic introduces a phased release process — starting with a minimal local script for tagging and release notes, then hardening the pipeline with quality gates and evidence archival, and finally adding supply-chain security measures.
 
@@ -31,32 +31,32 @@ A shell script (~120 lines) run locally that:
 
 1. **Validates** — clean working tree, on `main`, valid SemVer, tag does not already exist
 2. **Reads deployed SHA** from `infra/k8s/overlays/production/kustomization.yaml`
-3. **Re-tags container images** in Harbor using `crane tag` — adds a `v0.x.y` alias to the existing SHA-tagged manifest without rebuilding or transferring layers
+3. **Re-tags container images** in StackIT registry using `crane tag` — adds a `v0.x.y` alias to the existing SHA-tagged manifest without rebuilding or transferring layers
 4. **Updates `VERSION`** and bumps version in `frontend/package.json` (`npm version --no-git-tag-version`) and `backend/pyproject.toml`
 5. **Commits** the version bump locally
 6. **Creates annotated git tag** `v0.x.y` with image URIs in the tag message
 7. **Generates release notes** from commits since previous tag, filtering out auto-generated `deploy: update image tag` commits
-8. **Creates GitLab release** via `glab release create` with the generated notes
+8. **Creates GitHub release** via `gh release create` with the generated notes
 9. Prints a reminder to push — does NOT push (per project conventions)
 
 **Usage:** `./ci/release.sh 0.2.0`
 
-**Prerequisites:** `brew install crane`, `glab` authenticated, Harbor credentials available to crane.
+**Prerequisites:** `brew install crane`, `gh` authenticated, StackIT registry credentials available to crane.
 
 ### 1c. VERIFY
 
 ```bash
 # Install crane
 brew install crane
-crane auth login harbor.100-114-108-51.nip.io:30443 -u $HARBOR_USER -p $HARBOR_PASSWORD --insecure
+crane auth login registry.onstackit.cloud -u $STACKIT_REGISTRY_USER -p $STACKIT_REGISTRY_PASSWORD
 
 # Run first release
 ./ci/release.sh 0.1.0
 
 # Verify
 git tag -l                           # shows v0.1.0
-crane ls harbor.100-114-108-51.nip.io:30443/project/frontend --insecure  # shows both SHA and v0.1.0
-glab release view v0.1.0             # shows release with notes
+crane ls registry.onstackit.cloud/senticor/project/frontend  # shows both SHA and v0.1.0
+gh release view v0.1.0              # shows release with notes
 
 # Push when ready
 git push origin main --tags
@@ -77,7 +77,7 @@ These are related to triage button labels.
 
 ### 2b. Remove `allow_failure: true`
 
-Remove `allow_failure: true` from all 11 quality/test jobs in `.gitlab-ci.yml`. Add `needs:` to build jobs so they depend on quality+test completion:
+Remove `allow_failure: true` from all 11 quality/test jobs in `.gitlab/ci.yml` (included from `.gitlab-ci.yml`). Add `needs:` to build jobs so they depend on quality+test completion:
 
 ```yaml
 build-frontend:
@@ -96,7 +96,7 @@ build-backend:
 
 ### 2c. Add JUnit report artifacts
 
-Add `--reporter=junit --outputFile=test-results/junit.xml` to vitest jobs and `--junitxml=test-results/junit.xml` to pytest jobs. Declare as `reports: junit:` artifacts for native GitLab test report integration.
+Add `--reporter=junit --outputFile=test-results/junit.xml` to vitest jobs and `--junitxml=test-results/junit.xml` to pytest jobs. Declare as test report artifacts for native CI checks/reports integration.
 
 ### 2d. Fix push-rebuilds-from-scratch
 
@@ -110,7 +110,7 @@ push-frontend:
   image: $CI_NODE_PYTHON_IMAGE
   needs: [build-frontend]
   script:
-    - crane push /tmp/frontend.tar "${HARBOR_REGISTRY}/project/frontend:${CI_COMMIT_SHORT_SHA}" --insecure
+    - crane push /tmp/frontend.tar "${STACKIT_IMAGE_PREFIX}/frontend:${CI_COMMIT_SHA}"
 ```
 
 Add to `ci/Dockerfile.ci`:
@@ -124,23 +124,22 @@ RUN curl -sL https://github.com/google/go-containerregistry/releases/latest/down
 
 Enhance `ci/release.sh` (or add a CI `release` stage) to:
 
-1. Download pipeline artifacts for the deployed SHA via `glab api`
+1. Download pipeline artifacts for the deployed SHA via `gh api`
 2. Bundle test reports, coverage, and Playwright reports into `testing-evidence-v0.x.y.tar.gz`
-3. Attach to the GitLab release via `glab release upload`
+3. Attach to the GitHub release via `gh release upload`
 4. Include pipeline URL in release notes
 
 ### 2f. VERIFY
 
 ```bash
-# Rebuild CI image with crane
-glab ci run --variables BUILD_CI_IMAGE=true
+# Rebuild CI image with crane (trigger CI pipeline manually)
 
 # Push a commit with a failing test — verify pipeline stops at test stage
 # Fix the test, push — verify full pipeline succeeds and deploys
 
 # Create release with evidence
 ./ci/release.sh 0.2.0
-glab release view v0.2.0   # should show attached testing-evidence archive
+gh release view v0.2.0    # should show attached testing-evidence archive
 ```
 
 ---
@@ -196,7 +195,7 @@ Once Alembic migration versions are in use, list new migrations in release notes
 
 **Modified files (Phase 2):**
 
-- `.gitlab-ci.yml` — remove `allow_failure`, add `needs`, add JUnit artifacts, fix push stage
+- `.gitlab/ci.yml` (included from `.gitlab-ci.yml`) — remove `allow_failure`, add `needs`, add JUnit artifacts, fix push stage
 - `ci/Dockerfile.ci` — add `crane` binary
 
 **Modified at release time (by script):**
@@ -232,11 +231,11 @@ Once Alembic migration versions are in use, list new migrations in release notes
 
 ## Verification checklist
 
-- [ ] `ci/release.sh 0.x.y` creates git tag, re-tags images, creates GitLab release
+- [ ] `ci/release.sh 0.x.y` creates git tag, re-tags images, creates GitHub release
 - [ ] `crane ls` shows both SHA and version tags for all 3 images
-- [ ] `glab release view v0.x.y` shows release notes with commit log
+- [ ] `gh release view v0.x.y` shows release notes with commit log
 - [ ] Quality/test failures block the build stage (Phase 2)
-- [ ] JUnit reports appear in GitLab MR/pipeline UI (Phase 2)
+- [ ] JUnit reports appear in GitHub checks / CI report UI (Phase 2)
 - [ ] Testing evidence archive attached to release (Phase 2)
 - [ ] Pushed images are byte-identical to built tars (Phase 2)
 - [ ] Smoke test job runs after deploy (Phase 3)

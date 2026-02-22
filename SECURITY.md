@@ -19,7 +19,7 @@ Please report privately to project maintainers with:
 - reproduction steps or proof of concept
 - suggested mitigation (if known)
 
-If this repository is hosted on GitLab, prefer a private vulnerability report/security advisory workflow there.
+For this repository (`https://github.com/Senticor-ai/project`), prefer GitHub Security Advisories/private reporting workflows.
 
 ## Response Targets
 

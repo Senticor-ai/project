@@ -215,10 +215,10 @@ Dev stack uses `${PROJECT_PREFIX}.localhost` (e.g. `tay.localhost`) as the hostn
 
 - **OpenAPI UI**: `http://<PROJECT_PREFIX>.localhost:8000/docs` (e.g. `http://tay.localhost:8000/docs`)
 
-## GitLab
+## GitHub
 
-- **CLI**: Use `glab` (not `gh`) for all GitLab operations — issues, MRs, labels, milestones.
-- **Issue tracking**: Create GitLab issues for open/unvalidated work, features pending human testing, or tasks that need follow-up. This keeps work visible even when not yet code-complete.
+- **CLI**: Use `gh` for repository operations — issues, pull requests, labels, milestones, releases.
+- **Issue tracking**: Create GitHub issues for open/unvalidated work, features pending human testing, or tasks that need follow-up. This keeps work visible even when not yet code-complete.
 - Don't push unless explicitly asked.
 - Don't amend commits unless explicitly asked.
 - Don't force-push.
