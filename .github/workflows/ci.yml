@@ -1,0 +1,129 @@
+name: CI Publish + Flux Tag Update
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - infra/k8s/overlays/production/kustomization.yaml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  STACKIT_REGISTRY: registry.onstackit.cloud
+  STACKIT_IMAGE_PREFIX: registry.onstackit.cloud/senticor/project
+
+concurrency:
+  group: ci-main-publish
+  cancel-in-progress: false
+
+jobs:
+  push-frontend:
+    if: github.ref == 'refs/heads/main' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to StackIT registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.STACKIT_REGISTRY }}
+          username: ${{ secrets.STACKIT_REGISTRY_USER }}
+          password: ${{ secrets.STACKIT_REGISTRY_PASSWORD }}
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: frontend/Dockerfile
+          push: true
+          tags: ${{ env.STACKIT_IMAGE_PREFIX }}/frontend:${{ github.sha }}
+
+  push-backend:
+    if: github.ref == 'refs/heads/main' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to StackIT registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.STACKIT_REGISTRY }}
+          username: ${{ secrets.STACKIT_REGISTRY_USER }}
+          password: ${{ secrets.STACKIT_REGISTRY_PASSWORD }}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend/Dockerfile
+          push: true
+          tags: ${{ env.STACKIT_IMAGE_PREFIX }}/backend:${{ github.sha }}
+
+  push-storybook:
+    if: github.ref == 'refs/heads/main' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to StackIT registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.STACKIT_REGISTRY }}
+          username: ${{ secrets.STACKIT_REGISTRY_USER }}
+          password: ${{ secrets.STACKIT_REGISTRY_PASSWORD }}
+
+      - name: Build and push storybook image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: frontend/Dockerfile.storybook
+          build-args: |
+            STORYBOOK_BASE=/storybook/
+          push: true
+          tags: ${{ env.STACKIT_IMAGE_PREFIX }}/storybook:${{ github.sha }}
+
+  update-manifests:
+    if: github.ref == 'refs/heads/main' && github.actor != 'github-actions[bot]'
+    needs:
+      - push-frontend
+      - push-backend
+      - push-storybook
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Update production image tags for Flux
+        run: |
+          IMAGE_TAG="${GITHUB_SHA}"
+          KUST="infra/k8s/overlays/production/kustomization.yaml"
+
+          sed -i "s|newName: .*/backend|newName: ${STACKIT_IMAGE_PREFIX}/backend|" "$KUST"
+          sed -i "s|newName: .*/frontend|newName: ${STACKIT_IMAGE_PREFIX}/frontend|" "$KUST"
+          sed -i "s|newName: .*/storybook|newName: ${STACKIT_IMAGE_PREFIX}/storybook|" "$KUST"
+          sed -i "s/newTag: .*/newTag: \"${IMAGE_TAG}\"/" "$KUST"
+
+          if git diff --quiet -- "$KUST"; then
+            echo "No manifest change to commit"
+            exit 0
+          fi
+
+          git config user.email "ci@project.dev"
+          git config user.name "github-actions[bot]"
+          git add "$KUST"
+          git commit -m "deploy: update image tag to ${IMAGE_TAG} [skip ci]"
+          git pull --rebase origin main
+          git push origin HEAD:main

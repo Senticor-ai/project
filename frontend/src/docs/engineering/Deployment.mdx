@@ -37,13 +37,13 @@ Push to main
 
 ### CI/CD Configuration
 
-The pipeline is defined in `.gitlab/ci.yml` (included from root `.gitlab-ci.yml`) and uses Kaniko jobs per image Dockerfile for this GitHub repository (`https://github.com/Senticor-ai/project`).
+The active pipeline is defined in `.github/workflows/ci.yml` for this GitHub repository (`https://github.com/Senticor-ai/project`).
 Two masked CI/CD variables should be configured for StackIT registry auth:
 
 - `STACKIT_REGISTRY_USER` — robot/user account for `registry.onstackit.cloud`
 - `STACKIT_REGISTRY_PASSWORD` — registry password/token
 
-For this Senticor Project, CI uses Kaniko (no Docker daemon). The push jobs write `/kaniko/.docker/config.json` and publish images with immutable `CI_COMMIT_SHA` tags. The deploy job then updates `infra/k8s/overlays/production/kustomization.yaml` to that exact SHA on `main`.
+The workflow uses Docker Buildx and publishes images with immutable `github.sha` tags. The deploy job then updates `infra/k8s/overlays/production/kustomization.yaml` to that exact SHA on `main`.
 
 These are CI-only secrets. All application runtime secrets live in the cluster, managed by ops.
 

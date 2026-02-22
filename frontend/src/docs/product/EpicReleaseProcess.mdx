@@ -77,7 +77,7 @@ These are related to triage button labels.
 
 ### 2b. Remove `allow_failure: true`
 
-Remove `allow_failure: true` from all 11 quality/test jobs in `.gitlab/ci.yml` (included from `.gitlab-ci.yml`). Add `needs:` to build jobs so they depend on quality+test completion:
+Remove `allow_failure: true` from all 11 quality/test jobs in `.github/workflows/ci.yml`. Add explicit job dependencies so image publish jobs depend on quality+test completion:
 
 ```yaml
 build-frontend:
@@ -195,7 +195,7 @@ Once Alembic migration versions are in use, list new migrations in release notes
 
 **Modified files (Phase 2):**
 
-- `.gitlab/ci.yml` (included from `.gitlab-ci.yml`) — remove `allow_failure`, add `needs`, add JUnit artifacts, fix push stage
+- `.github/workflows/ci.yml` — remove `allow_failure`, add dependencies, add JUnit artifacts, fix push stage
 - `ci/Dockerfile.ci` — add `crane` binary
 
 **Modified at release time (by script):**
