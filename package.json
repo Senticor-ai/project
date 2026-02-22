@@ -1,6 +1,7 @@
 {
   "private": true,
   "scripts": {
-    "dev": "npm --prefix frontend run dev:stack"
+    "dev": "npm --prefix frontend run dev:stack",
+    "preflight:ci": "bash scripts/preflight-ci.sh"
   }
 }

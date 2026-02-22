@@ -58,23 +58,30 @@ export const RegisterMode: Story = {
 
 export const ToggleModes: Story = {
   play: async ({ canvas, userEvent }) => {
-    const pw = canvas.getByLabelText("Password");
-
     // Start in login mode
     expect(
       canvas.getByRole("heading", { name: "Sign in to continue" }),
     ).toBeInTheDocument();
-    expect(pw).toHaveAttribute("placeholder", "••••••••");
+    expect(canvas.getByLabelText("Password")).toHaveAttribute(
+      "placeholder",
+      "••••••••",
+    );
 
     // Switch to register
     await userEvent.click(canvas.getByText("Request access"));
     expect(canvas.queryByLabelText("Username")).toBeNull();
-    expect(pw).toHaveAttribute("placeholder", "Min. 8 characters");
+    expect(canvas.getByLabelText("Password")).toHaveAttribute(
+      "placeholder",
+      "Min. 8 characters",
+    );
 
     // Switch back to login
     await userEvent.click(canvas.getByRole("button", { name: "Sign in" }));
     expect(canvas.queryByLabelText("Username")).not.toBeInTheDocument();
-    expect(pw).toHaveAttribute("placeholder", "••••••••");
+    expect(canvas.getByLabelText("Password")).toHaveAttribute(
+      "placeholder",
+      "••••••••",
+    );
   },
 };
 

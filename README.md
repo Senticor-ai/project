@@ -31,9 +31,9 @@ Ctrl+C stops everything.
 docker compose -f infra/docker-compose.yml up -d postgres
 cd frontend && npm install && npm run storybook   # Storybook at http://localhost:6006
 cd frontend && npm run dev                         # Vite dev server
-cd backend && uv sync && uv run uvicorn app.main:app --reload  # API server
+cd backend && uv sync && uv run --python 3.12 python -m uvicorn app.main:app --reload  # API server
 cd backend && uv run python -m app.worker --loop               # Worker
-cd agents && uv sync && uv run uvicorn app:app --reload --port 8002  # Senticor agents
+cd agents && uv sync && uv run --python 3.12 python -m uvicorn app:app --reload --port 8002  # Senticor agents
 ```
 </details>
 
@@ -75,6 +75,9 @@ cd agents && uv run python -m pytest tests/          # Agents tests
 
 # Pre-commit checks (frontend)
 cd frontend && npx tsc -b --noEmit && npx eslint src/ && npx prettier --check src/
+
+# CI preflight (recommended before push)
+npm run preflight:ci
 ```
 
 ## API
