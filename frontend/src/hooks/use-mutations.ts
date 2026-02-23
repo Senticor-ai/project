@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useRef } from "react";
 import {
   useMutation,
   useQueryClient,
@@ -278,7 +278,8 @@ function applyOptimisticMove(qc: QueryClient, plan: MovePlan) {
         ? { ...plan.actionItem, projectIds: [plan.projectId] }
         : plan.actionItem;
     const refJsonLd =
-      itemWithProject && buildNewFileReferenceJsonLd(itemWithProject, plan.record);
+      itemWithProject &&
+      buildNewFileReferenceJsonLd(itemWithProject, plan.record);
     if (refJsonLd) {
       const now = new Date().toISOString();
       const tempRef = `temp-ref-${Date.now()}`;
@@ -531,14 +532,6 @@ export function useTriageItem() {
     new Map<string, { shouldSplit: boolean; record?: ItemRecord }>(),
   );
 
-  useEffect(
-    () => () => {
-      savedIds.current.clear();
-      savedSplitDecisions.current.clear();
-    },
-    [],
-  );
-
   return useMutation({
     mutationFn: async ({
       item,
@@ -772,13 +765,6 @@ export function useMoveAction() {
         projectId?: CanonicalId;
       }
     >(),
-  );
-
-  useEffect(
-    () => () => {
-      savedMeta.current.clear();
-    },
-    [],
   );
 
   return useMutation({
