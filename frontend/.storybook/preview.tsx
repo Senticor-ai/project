@@ -6,10 +6,17 @@ import { ToastProvider } from "../src/components/ui/ToastProvider";
 import { worker } from "./msw-setup";
 import "../src/index.css";
 
+type VitestGlobal = typeof globalThis & {
+  __vitest_worker__?: unknown;
+};
+
 // MSW lifecycle:
 // - vitest browser mode: started by vitest.setup.ts (beforeAll/afterAll)
 // - storybook dev + static build: started here (requires trusted TLS cert)
-const mswReady = import.meta.env.VITEST
+const isVitestRuntime =
+  import.meta.env.MODE === "test" ||
+  Boolean((globalThis as VitestGlobal).__vitest_worker__);
+const mswReady = isVitestRuntime
   ? Promise.resolve()
   : worker
       .start({
