@@ -2,6 +2,27 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { DeveloperPanel } from "./DeveloperPanel";
+import type { PwaStorageStats } from "./DeveloperPanel";
+
+const LOADED_STATS: PwaStorageStats = {
+  originUsage: 4_500_000,
+  originQuota: 2_147_483_648,
+  cachedQueryCount: 142,
+  queryCacheSize: 1_350_000,
+  cacheNames: ["items-sync", "workbox-precache"],
+  serviceWorkerActive: true,
+  loading: false,
+};
+
+const LOADING_STATS: PwaStorageStats = {
+  originUsage: null,
+  originQuota: null,
+  cachedQueryCount: null,
+  queryCacheSize: null,
+  cacheNames: [],
+  serviceWorkerActive: false,
+  loading: true,
+};
 
 describe("DeveloperPanel", () => {
   it("renders the flush button", () => {
@@ -82,5 +103,119 @@ describe("DeveloperPanel", () => {
     expect(
       screen.queryByLabelText(/type flush to confirm/i),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("DeveloperPanel — Local Storage", () => {
+  it("renders storage stats when provided", () => {
+    render(<DeveloperPanel storageStats={LOADED_STATS} />);
+
+    expect(screen.getByText("Local Storage")).toBeInTheDocument();
+    expect(screen.getByText(/4\.3 MB/)).toBeInTheDocument();
+    expect(screen.getByText(/142 queries/)).toBeInTheDocument();
+    expect(screen.getByText("Active")).toBeInTheDocument();
+  });
+
+  it("shows loading indicator when stats are loading", () => {
+    render(<DeveloperPanel storageStats={LOADING_STATS} />);
+
+    expect(screen.getByText("Local Storage")).toBeInTheDocument();
+    expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+  });
+
+  it("shows Not registered when service worker is inactive", () => {
+    render(
+      <DeveloperPanel
+        storageStats={{ ...LOADED_STATS, serviceWorkerActive: false }}
+      />,
+    );
+
+    expect(screen.getByText("Not registered")).toBeInTheDocument();
+  });
+
+  it("shows Clear Local Cache button", () => {
+    render(
+      <DeveloperPanel
+        storageStats={LOADED_STATS}
+        onClearLocalCache={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: /clear local cache/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows confirmation after clicking clear", async () => {
+    const user = userEvent.setup();
+    render(
+      <DeveloperPanel
+        storageStats={LOADED_STATS}
+        onClearLocalCache={vi.fn()}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: /clear local cache/i }),
+    );
+
+    expect(screen.getByText(/are you sure/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /confirm/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("calls onClearLocalCache when confirmed", async () => {
+    const user = userEvent.setup();
+    const onClear = vi.fn().mockResolvedValue(undefined);
+    render(
+      <DeveloperPanel
+        storageStats={LOADED_STATS}
+        onClearLocalCache={onClear}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: /clear local cache/i }),
+    );
+    await user.click(screen.getByRole("button", { name: /confirm/i }));
+
+    expect(onClear).toHaveBeenCalledOnce();
+    expect(await screen.findByText(/cleared/i)).toBeInTheDocument();
+  });
+
+  it("shows error when clear fails", async () => {
+    const user = userEvent.setup();
+    const onClear = vi.fn().mockRejectedValue(new Error("Clear failed"));
+    render(
+      <DeveloperPanel
+        storageStats={LOADED_STATS}
+        onClearLocalCache={onClear}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: /clear local cache/i }),
+    );
+    await user.click(screen.getByRole("button", { name: /confirm/i }));
+
+    expect(await screen.findByText(/clear failed/i)).toBeInTheDocument();
+  });
+
+  it("allows cancelling the clear confirmation", async () => {
+    const user = userEvent.setup();
+    render(
+      <DeveloperPanel
+        storageStats={LOADED_STATS}
+        onClearLocalCache={vi.fn()}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: /clear local cache/i }),
+    );
+    await user.click(screen.getByRole("button", { name: /cancel/i }));
+
+    expect(screen.queryByText(/are you sure/i)).not.toBeInTheDocument();
   });
 });

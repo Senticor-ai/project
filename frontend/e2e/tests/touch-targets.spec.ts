@@ -37,16 +37,10 @@ test.describe("Touch targets (44x44 minimum)", () => {
     if (isMobile) {
       // Mobile: sidebar is hidden, test AppMenu bucket items instead
       await ws.menuTrigger.click();
-      await assertMinSize(
-        page.getByRole("menuitem"),
-        "AppMenu bucket item",
-      );
+      await assertMinSize(page.getByRole("menuitem"), "AppMenu bucket item");
     } else {
       // Desktop: sidebar BucketNav is visible
-      await assertMinSize(
-        ws.bucketNav.getByRole("button"),
-        "BucketNav button",
-      );
+      await assertMinSize(ws.bucketNav.getByRole("button"), "BucketNav button");
     }
   });
 
@@ -111,10 +105,7 @@ test.describe("Touch targets (44x44 minimum)", () => {
     await page.reload();
     const ws = new WorkspacePage(page);
     await ws.navigateTo("Inbox");
-    await assertMinSize(
-      ws.triageButton("Next"),
-      "InboxTriage Next button",
-    );
+    await assertMinSize(ws.triageButton("Next"), "InboxTriage Next button");
     await assertMinSize(
       ws.triageButton("Waiting"),
       "InboxTriage Waiting button",
@@ -127,10 +118,7 @@ test.describe("Touch targets (44x44 minimum)", () => {
     const ws = new WorkspacePage(page);
     await assertMinSize(ws.menuTrigger, "AppMenu trigger");
     await ws.menuTrigger.click();
-    await assertMinSize(
-      page.getByRole("menuitem"),
-      "AppMenu menu item",
-    );
+    await assertMinSize(page.getByRole("menuitem"), "AppMenu menu item");
   });
 
   test("Tabs component headers have min 44x44 bounding box", async ({

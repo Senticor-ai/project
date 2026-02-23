@@ -297,7 +297,7 @@ describe("App", () => {
 
     const panel = screen.getByRole("complementary", { name: "Copilot Chat" });
     await user.click(
-      within(panel).getByRole("button", { name: "Chat schließen" }),
+      within(panel).getByRole("button", { name: "Chat minimieren" }),
     );
 
     expect(

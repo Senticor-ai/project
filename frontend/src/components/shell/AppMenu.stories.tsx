@@ -146,6 +146,40 @@ export const WithSectionHeaders: Story = {
 // ViewportClampMobile — menu stays fully inside mobile viewport
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// WithInstallItem — install app item shown when PWA installable
+// ---------------------------------------------------------------------------
+
+export const WithInstallItem: Story = {
+  args: {
+    sections: [
+      defaultSections[0]!,
+      {
+        items: [
+          {
+            id: "install-app",
+            label: "Install app",
+            icon: "install_mobile",
+            onClick: fn(),
+          },
+        ],
+      },
+      defaultSections[1]!,
+    ],
+  },
+  play: async ({ canvas, userEvent, step }) => {
+    await step("Open menu and verify install item", async () => {
+      await userEvent.click(canvas.getByRole("button", { name: "Main menu" }));
+      await expect(canvas.getByText("Install app")).toBeInTheDocument();
+      await expect(canvas.getAllByRole("menuitem")).toHaveLength(4);
+    });
+  },
+};
+
+// ---------------------------------------------------------------------------
+// ViewportClampMobile — menu stays fully inside mobile viewport
+// ---------------------------------------------------------------------------
+
 export const ViewportClampMobile: Story = {
   globals: { viewport: { value: "mobile1", isRotated: false } },
   decorators: [

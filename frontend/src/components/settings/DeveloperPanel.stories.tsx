@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, waitFor, within } from "storybook/test";
-import { DeveloperPanel } from "./DeveloperPanel";
+import { DeveloperPanel, type PwaStorageStats } from "./DeveloperPanel";
 
 const meta = {
   title: "Settings/DeveloperPanel",
@@ -35,9 +35,21 @@ const mockFlushResult = {
   },
 };
 
+const mockStorageStats: PwaStorageStats = {
+  originUsage: 4_400_000,
+  originQuota: 2_100_000_000,
+  cachedQueryCount: 142,
+  queryCacheSize: 1_300_000,
+  cacheNames: ["items-sync", "workbox-precache-v2"],
+  serviceWorkerActive: true,
+  loading: false,
+};
+
 export const Default: Story = {
   args: {
     onFlush: fn(async () => mockFlushResult),
+    storageStats: mockStorageStats,
+    onClearLocalCache: fn(async () => {}),
   },
 };
 
@@ -74,5 +86,64 @@ export const FlushFlow: Story = {
       const main = within(canvas.getByText(/data flushed/i).closest("div")!);
       await expect(main.getByText(/items: 42/)).toBeInTheDocument();
     });
+  },
+};
+
+// ---------------------------------------------------------------------------
+// StorageStatsLoading — shows loading placeholders
+// ---------------------------------------------------------------------------
+
+export const StorageStatsLoading: Story = {
+  args: {
+    onFlush: fn(async () => mockFlushResult),
+    storageStats: { ...mockStorageStats, loading: true },
+    onClearLocalCache: fn(async () => {}),
+  },
+};
+
+// ---------------------------------------------------------------------------
+// ClearCacheFlow — clear local cache confirmation and success
+// ---------------------------------------------------------------------------
+
+export const ClearCacheFlow: Story = {
+  args: {
+    onFlush: fn(async () => mockFlushResult),
+    storageStats: mockStorageStats,
+    onClearLocalCache: fn(async () => {}),
+  },
+  play: async ({ canvas, userEvent, step }) => {
+    await step("Click clear button", async () => {
+      await userEvent.click(
+        canvas.getByRole("button", { name: /clear local cache/i }),
+      );
+    });
+
+    await step("Confirm clear", async () => {
+      await userEvent.click(canvas.getByRole("button", { name: /confirm/i }));
+    });
+
+    await step("Verify success message", async () => {
+      await waitFor(() => {
+        expect(
+          canvas.getByText(/local cache cleared successfully/i),
+        ).toBeInTheDocument();
+      });
+    });
+  },
+};
+
+// ---------------------------------------------------------------------------
+// NoServiceWorker — SW not registered
+// ---------------------------------------------------------------------------
+
+export const NoServiceWorker: Story = {
+  args: {
+    onFlush: fn(async () => mockFlushResult),
+    storageStats: {
+      ...mockStorageStats,
+      serviceWorkerActive: false,
+      cacheNames: [],
+    },
+    onClearLocalCache: fn(async () => {}),
   },
 };

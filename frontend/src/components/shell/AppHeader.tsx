@@ -25,6 +25,8 @@ export interface AppHeaderProps {
   isChatOpen?: boolean;
   mobileBucketNav?: MobileBucketNav;
   appVersion?: string;
+  canInstall?: boolean;
+  onInstall?: () => void;
   showControls?: boolean;
   className?: string;
 }
@@ -38,6 +40,8 @@ export interface AppHeaderControlsProps {
   isChatOpen?: boolean;
   mobileBucketNav?: MobileBucketNav;
   appVersion?: string;
+  canInstall?: boolean;
+  onInstall?: () => void;
   className?: string;
 }
 
@@ -50,6 +54,8 @@ export function AppHeaderControls({
   isChatOpen,
   mobileBucketNav,
   appVersion,
+  canInstall,
+  onInstall,
   className,
 }: AppHeaderControlsProps) {
   const menuSections: AppMenuSection[] = useMemo(() => {
@@ -77,6 +83,20 @@ export function AppHeaderControls({
       ],
     };
 
+    const installSection: AppMenuSection | null =
+      canInstall && onInstall
+        ? {
+            items: [
+              {
+                id: "install-app",
+                label: "Install app",
+                icon: "install_mobile",
+                onClick: onInstall,
+              },
+            ],
+          }
+        : null;
+
     const signOutSection: AppMenuSection = {
       items: [
         {
@@ -88,8 +108,13 @@ export function AppHeaderControls({
       ],
     };
 
+    const trailing: AppMenuSection[] = [
+      ...(installSection ? [installSection] : []),
+      signOutSection,
+    ];
+
     if (!mobileBucketNav) {
-      return [headerSection, navSection, signOutSection];
+      return [headerSection, navSection, ...trailing];
     }
 
     const bucketSection: AppMenuSection = {
@@ -106,7 +131,7 @@ export function AppHeaderControls({
       }),
     };
 
-    return [headerSection, navSection, bucketSection, signOutSection];
+    return [headerSection, navSection, bucketSection, ...trailing];
   }, [
     currentView,
     onNavigate,
@@ -114,6 +139,8 @@ export function AppHeaderControls({
     mobileBucketNav,
     username,
     appVersion,
+    canInstall,
+    onInstall,
   ]);
 
   return (
@@ -148,6 +175,8 @@ export function AppHeader({
   isChatOpen,
   mobileBucketNav,
   appVersion,
+  canInstall,
+  onInstall,
   showControls = true,
   className,
 }: AppHeaderProps) {
@@ -171,6 +200,8 @@ export function AppHeader({
           isChatOpen={isChatOpen}
           mobileBucketNav={mobileBucketNav}
           appVersion={appVersion}
+          canInstall={canInstall}
+          onInstall={onInstall}
           className="gap-1.5"
         />
       )}

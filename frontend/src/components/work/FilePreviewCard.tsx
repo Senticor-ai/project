@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { formatBytes } from "@/lib/format";
 import { Icon } from "@/components/ui/Icon";
 
 export interface FileConfirmMeta {
@@ -17,12 +18,6 @@ export interface FilePreviewCardProps {
   onDiscard: () => void;
   targetBucket?: "reference" | "inbox";
   className?: string;
-}
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function fileIcon(contentType: string): string {
@@ -110,7 +105,7 @@ export function FilePreviewCard({
 
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-text">{file.name}</p>
-          <p className="text-xs text-text-muted">{formatFileSize(file.size)}</p>
+          <p className="text-xs text-text-muted">{formatBytes(file.size)}</p>
         </div>
       </div>
 

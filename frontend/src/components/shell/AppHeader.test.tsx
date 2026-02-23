@@ -102,4 +102,31 @@ describe("AppHeader", () => {
     const workspaceItem = screen.getByText("Workspace").closest("button");
     expect(workspaceItem?.className).not.toContain("bg-blueprint-50");
   });
+
+  it("shows Install app item when canInstall is true", async () => {
+    const user = userEvent.setup();
+    render(<AppHeader {...defaults} canInstall onInstall={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: "Main menu" }));
+    expect(screen.getByText("Install app")).toBeInTheDocument();
+  });
+
+  it("does not show Install app item when canInstall is false", async () => {
+    const user = userEvent.setup();
+    render(<AppHeader {...defaults} />);
+
+    await user.click(screen.getByRole("button", { name: "Main menu" }));
+    expect(screen.queryByText("Install app")).not.toBeInTheDocument();
+  });
+
+  it("fires onInstall when Install app is clicked", async () => {
+    const onInstall = vi.fn();
+    const user = userEvent.setup();
+    render(<AppHeader {...defaults} canInstall onInstall={onInstall} />);
+
+    await user.click(screen.getByRole("button", { name: "Main menu" }));
+    await user.click(screen.getByText("Install app"));
+
+    expect(onInstall).toHaveBeenCalledOnce();
+  });
 });

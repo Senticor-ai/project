@@ -34,9 +34,7 @@ export class WorkspacePage {
         .getByRole("menuitem", { name: new RegExp(bucket) })
         .click();
     } else {
-      await this.bucketNav
-        .getByRole("button", { name: bucket })
-        .click();
+      await this.bucketNav.getByRole("button", { name: bucket }).click();
     }
   }
 

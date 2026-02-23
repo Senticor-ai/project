@@ -3,8 +3,9 @@ import type {
   PersistedClient,
   Persister,
 } from "@tanstack/react-query-persist-client";
+import type { QueryClient } from "@tanstack/react-query";
 
-const IDB_KEY = "tay-query-cache";
+export const IDB_KEY = "tay-query-cache";
 
 /**
  * Creates an IDB-backed persister for TanStack Query.
@@ -35,4 +36,44 @@ export function createIdbPersister(): Persister {
       }
     },
   };
+}
+
+/**
+ * Clears all local PWA caches: IDB query cache, Workbox runtime caches,
+ * and in-memory TanStack Query state. Server data is not affected.
+ */
+export async function clearAllLocalCaches(queryClient: QueryClient): Promise<{
+  queriesCleared: number;
+  cachesCleared: string[];
+}> {
+  // Read count before clearing (for summary)
+  let queriesCleared = 0;
+  try {
+    const persisted = await get<PersistedClient>(IDB_KEY);
+    queriesCleared = persisted?.clientState?.queries?.length ?? 0;
+  } catch {
+    /* ignore */
+  }
+
+  // Clear IDB persisted cache
+  await del(IDB_KEY);
+
+  // Clear Workbox runtime caches
+  const cachesCleared: string[] = [];
+  if ("caches" in globalThis && globalThis.caches) {
+    try {
+      const names = await globalThis.caches.keys();
+      for (const name of names) {
+        await globalThis.caches.delete(name);
+        cachesCleared.push(name);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  // Reset in-memory TanStack Query cache
+  queryClient.clear();
+
+  return { queriesCleared, cachesCleared };
 }

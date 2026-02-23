@@ -464,9 +464,7 @@ export type EmailConnectionUpdateRequest = {
 
 export const EmailApi = {
   getGmailAuthUrl: (returnUrl?: string) => {
-    const qs = returnUrl
-      ? `?return_url=${encodeURIComponent(returnUrl)}`
-      : "";
+    const qs = returnUrl ? `?return_url=${encodeURIComponent(returnUrl)}` : "";
     return request<{ url: string }>(`/email/oauth/gmail/authorize${qs}`);
   },
 
@@ -654,10 +652,12 @@ export const ItemsApi = {
     source?: string,
     idempotencyKey?: string,
     nameSource?: string,
+    etag?: string | null,
   ) => {
     const headers: Record<string, string> = {};
     if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
-    return request<ItemRecord>(`/items/${itemId}`, {
+    if (etag) headers["If-Match"] = etag;
+    return requestWithResponse<ItemRecord>(`/items/${itemId}`, {
       method: "PATCH",
       body: JSON.stringify({
         item,

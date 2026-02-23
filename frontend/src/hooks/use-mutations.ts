@@ -96,7 +96,8 @@ function recordMatchesCanonicalId(
   canonicalId: CanonicalId,
 ): boolean {
   return (
-    record.canonical_id === canonicalId || recordJsonLdId(record) === canonicalId
+    record.canonical_id === canonicalId ||
+    recordJsonLdId(record) === canonicalId
   );
 }
 

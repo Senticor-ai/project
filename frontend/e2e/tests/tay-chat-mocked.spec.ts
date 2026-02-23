@@ -69,9 +69,7 @@ test.describe("Copilot Chat (mocked)", () => {
         }
         const documents = (args.documents as Array<{ name: string }>) ?? [];
         for (const doc of documents) {
-          await expect(
-            page.getByText(doc.name, { exact: true }),
-          ).toBeVisible();
+          await expect(page.getByText(doc.name, { exact: true })).toBeVisible();
         }
       }
 
