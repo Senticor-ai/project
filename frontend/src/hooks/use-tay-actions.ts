@@ -13,10 +13,15 @@ export function useTayActions() {
       suggestion: TaySuggestion,
       conversationId: string,
     ): Promise<CreatedItemRef[]> => {
+      const toolArguments =
+        suggestion.type === "copilot_cli"
+          ? { argv: suggestion.argv }
+          : (suggestion as unknown as Record<string, unknown>);
+
       const response = await ChatApi.executeTool({
         toolCall: {
           name: suggestion.type,
-          arguments: suggestion as unknown as Record<string, unknown>,
+          arguments: toolArguments,
         },
         conversationId,
       });

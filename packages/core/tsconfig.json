@@ -12,5 +12,5 @@
     "resolveJsonModule": true,
     "declaration": false
   },
-  "include": ["cli/**/*", "client/**/*", "serializers/**/*"]
+  "include": ["cli/**/*", "client/**/*", "serializers/**/*", "validation/**/*"]
 }

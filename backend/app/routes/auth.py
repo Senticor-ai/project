@@ -120,6 +120,9 @@ def _validate_email(email: str) -> str:
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Email must include a domain",
         )
+    normalized_domain = domain.lower()
+    if normalized_domain == "localhost" or normalized_domain.endswith(".localhost"):
+        return value
     if DOMAIN_RE.match(domain) is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

@@ -50,6 +50,9 @@ export default defineConfig({
     entries: ["index.html", "src/**/*.{ts,tsx}"],
   },
   server: {
+    fs: {
+      allow: [path.resolve(dirname, "..")],
+    },
     proxy: {
       "/api": {
         target: `http://localhost:${process.env.VITE_BACKEND_PORT ?? "8000"}`,

@@ -21,14 +21,33 @@ type Story = StoryObj<typeof meta>;
 // Render states
 // ---------------------------------------------------------------------------
 
-export const Default: Story = {};
+export const Default: Story = {
+  args: {
+    title: "Buy groceries",
+    isEditing: false,
+    onSave: fn(),
+    onToggleEdit: fn(),
+    completed: false,
+  },
+};
 
 export const Editing: Story = {
-  args: { isEditing: true },
+  args: {
+    title: "Buy groceries",
+    isEditing: true,
+    onSave: fn(),
+    onToggleEdit: fn(),
+  },
 };
 
 export const Completed: Story = {
-  args: { completed: true },
+  args: {
+    title: "Buy groceries",
+    isEditing: false,
+    onSave: fn(),
+    onToggleEdit: fn(),
+    completed: true,
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -36,36 +55,63 @@ export const Completed: Story = {
 // ---------------------------------------------------------------------------
 
 export const ClickToEdit: Story = {
+  args: {
+    title: "Buy groceries",
+    isEditing: false,
+    onSave: fn(),
+    onToggleEdit: fn(),
+  },
   play: async ({ canvas, userEvent, args }) => {
+    const inlineArgs = args as {
+      onToggleEdit: ReturnType<typeof fn>;
+    };
     const button = canvas.getByRole("button", { name: "Buy groceries" });
     await userEvent.click(button);
-    expect(args.onToggleEdit).toHaveBeenCalled();
+    expect(inlineArgs.onToggleEdit).toHaveBeenCalled();
   },
 };
 
 export const EditAndSave: Story = {
-  args: { isEditing: true },
+  args: {
+    title: "Buy groceries",
+    isEditing: true,
+    onSave: fn(),
+    onToggleEdit: fn(),
+  },
   play: async ({ canvas, userEvent, args }) => {
+    const inlineArgs = args as {
+      onSave: ReturnType<typeof fn>;
+      onToggleEdit: ReturnType<typeof fn>;
+    };
     const textarea = canvas.getByLabelText(/Edit title/);
     expect(textarea).toHaveValue("Buy groceries");
 
     await userEvent.clear(textarea);
     await userEvent.type(textarea, "Buy organic groceries{Enter}");
 
-    expect(args.onSave).toHaveBeenCalledWith("Buy organic groceries");
-    expect(args.onToggleEdit).toHaveBeenCalled();
+    expect(inlineArgs.onSave).toHaveBeenCalledWith("Buy organic groceries");
+    expect(inlineArgs.onToggleEdit).toHaveBeenCalled();
   },
 };
 
 export const EscapeCancels: Story = {
-  args: { isEditing: true },
+  args: {
+    title: "Buy groceries",
+    isEditing: true,
+    onSave: fn(),
+    onToggleEdit: fn(),
+  },
   play: async ({ canvas, userEvent, args }) => {
+    const inlineArgs = args as {
+      onSave: ReturnType<typeof fn>;
+      onToggleEdit: ReturnType<typeof fn>;
+    };
     const textarea = canvas.getByLabelText(/Edit title/);
     await userEvent.type(textarea, " extra text");
     await userEvent.keyboard("{Escape}");
 
-    expect(args.onSave).not.toHaveBeenCalled();
-    expect(args.onToggleEdit).toHaveBeenCalled();
+    expect(inlineArgs.onSave).not.toHaveBeenCalled();
+    expect(inlineArgs.onToggleEdit).toHaveBeenCalled();
   },
 };
 
@@ -131,9 +177,12 @@ export const RenameViaEnter: Story = {
     onRename: fn(),
   },
   play: async ({ canvas, userEvent, args }) => {
+    const splitArgs = args as unknown as {
+      onRename?: (newName: string) => void;
+    };
     const input = canvas.getByLabelText("Title (optional)");
     await userEvent.clear(input);
     await userEvent.type(input, "Neue Bezeichnung{Enter}");
-    expect(args.onRename).toHaveBeenCalledWith("Neue Bezeichnung");
+    expect(splitArgs.onRename).toHaveBeenCalledWith("Neue Bezeichnung");
   },
 };

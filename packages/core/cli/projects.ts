@@ -1,9 +1,12 @@
 import { Command } from "commander";
 
 import type { ItemRecord } from "../client/api.js";
-import { itemType, readAdditionalProperty } from "../serializers/jsonld.js";
-import { createApi, printHuman } from "./context.js";
+import { buildCreateItemJsonLd, itemType, readAdditionalProperty } from "../serializers/jsonld.js";
+import { throwIfInvalid, validateCreateItem } from "../validation/index.js";
+import { createApi, printHuman, resolveOrgId } from "./context.js";
 import { printSuccessJson } from "./output.js";
+import { type CreateProposalPayload, executeProposal } from "./proposals-lib.js";
+import { addProposal } from "./state.js";
 
 function isProject(item: ItemRecord): boolean {
   return itemType(item.item) === "Project";
@@ -96,6 +99,79 @@ export function registerProjectsCommands(program: Command): void {
         printSuccessJson(data);
       } else {
         printHuman(JSON.stringify(data, null, 2));
+      }
+    });
+
+  projects
+    .command("create")
+    .description("Create a project (proposal by default)")
+    .requiredOption("--name <name>", "Project name")
+    .option("--description <text>", "Desired outcome/description")
+    .option("--conversation-id <id>", "Conversation id for app:captureSource")
+    .option("--propose", "Store as proposal (default)")
+    .option("--apply", "Apply immediately (requires --yes)")
+    .action(async function createAction(this: Command) {
+      const { api, options } = await createApi(this);
+      const cmdOpts = this.opts<{
+        name: string;
+        description?: string;
+        conversationId?: string;
+        propose?: boolean;
+        apply?: boolean;
+      }>();
+
+      if (cmdOpts.apply && cmdOpts.propose) {
+        throw new Error("Use either --propose or --apply, not both");
+      }
+
+      const payload: CreateProposalPayload = {
+        type: "Project",
+        name: cmdOpts.name,
+        description: cmdOpts.description,
+        conversationId: cmdOpts.conversationId,
+        orgId: await resolveOrgId(api, options),
+      };
+
+      const previewItem = buildCreateItemJsonLd(payload);
+      throwIfInvalid(validateCreateItem(previewItem), "Project payload failed validation");
+
+      const shouldApply = Boolean(cmdOpts.apply);
+      if (!shouldApply) {
+        const proposal = await addProposal("items.create", payload as Record<string, unknown>);
+        if (options.json) {
+          printSuccessJson({
+            mode: "proposal",
+            proposal: {
+              id: proposal.id,
+              operation: proposal.operation,
+              preview: {
+                ...payload,
+                item: previewItem,
+              },
+            },
+          });
+        } else {
+          printHuman(`Proposal created: ${proposal.id}`);
+        }
+        return;
+      }
+
+      if (!options.yes) {
+        throw new Error("--apply requires --yes");
+      }
+
+      const applied = await executeProposal(api, {
+        id: "inline",
+        operation: "items.create",
+        status: "pending",
+        createdAt: new Date().toISOString(),
+        payload: payload as Record<string, unknown>,
+      });
+
+      if (options.json) {
+        printSuccessJson({ mode: "applied", result: applied });
+      } else {
+        printHuman("Project created");
       }
     });
 }

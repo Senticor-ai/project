@@ -22,7 +22,7 @@ def mock_response():
     resp.json.return_value = {
         "item_id": "id-1",
         "canonical_id": "urn:app:action:uuid-1",
-        "source": "tay",
+        "source": "senticor-copilot",
         "item": {"@id": "urn:app:action:uuid-1"},
         "created_at": "2026-01-01T00:00:00Z",
         "updated_at": "2026-01-01T00:00:00Z",
@@ -53,7 +53,7 @@ class TestBackendClient:
         mock_client.post.assert_called_once()
         call_kwargs = mock_client.post.call_args
         assert call_kwargs.args[0] == "http://test:8000/items"
-        assert call_kwargs.kwargs["json"] == {"item": jsonld, "source": "tay"}
+        assert call_kwargs.kwargs["json"] == {"item": jsonld, "source": "senticor-copilot"}
         assert result["canonical_id"] == "urn:app:action:uuid-1"
 
     @pytest.mark.anyio
@@ -76,7 +76,7 @@ class TestBackendClient:
             await client.create_item({"@id": "x"}, auth_ctx)
 
         headers = mock_client.post.call_args.kwargs["headers"]
-        assert headers["X-Agent"] == "tay"
+        assert headers["X-Agent"] == "senticor-copilot"
 
     @pytest.mark.anyio
     async def test_create_item_forwards_org_id(self, auth_ctx, mock_response):

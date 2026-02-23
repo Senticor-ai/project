@@ -142,7 +142,7 @@ export class TayApi {
     });
   }
 
-  createItem(item: Record<string, unknown>, source = "tay-cli") {
+  createItem(item: Record<string, unknown>, source = "senticor-copilot-cli") {
     return this.client.requestJson<ItemRecord>(
       "/items",
       {
@@ -179,7 +179,7 @@ export class TayApi {
         headers,
         body: JSON.stringify({
           item: patch,
-          source: options?.source ?? "tay-cli",
+          source: options?.source ?? "senticor-copilot-cli",
           ...(options?.nameSource ? { name_source: options.nameSource } : {}),
         }),
       },

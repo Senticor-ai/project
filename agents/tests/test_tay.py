@@ -18,9 +18,9 @@ def test_system_prompt_rendered_from_template():
     assert "**someday**" in prompt
     assert "**reference**" in prompt
     # Rules are present
-    assert "create_project_with_actions" in prompt
-    assert "create_action" in prompt
-    assert "create_reference" in prompt
+    assert "copilot_cli" in prompt
+    assert "items create" in prompt
+    assert "items list" in prompt
     # System time is injected
     assert "Systemzeit (UTC)" in prompt
 
@@ -117,16 +117,11 @@ def test_system_prompt_includes_workspace_overview_tool():
 
 
 def test_tools_defined():
-    """Four exit-condition tools are defined with correct names."""
+    """Single CLI exit-condition tool is defined."""
     from tay import TOOLS
 
     names = [t.name for t in TOOLS]
-    assert names == [
-        "create_project_with_actions",
-        "create_action",
-        "create_reference",
-        "render_cv",
-    ]
+    assert names == ["copilot_cli"]
 
 
 def test_run_async_from_sync_context():

@@ -118,11 +118,17 @@ export interface RenderCvSuggestion {
   projectId: CanonicalId;
 }
 
+export interface CopilotCliSuggestion {
+  type: "copilot_cli";
+  argv: string[];
+}
+
 export type TaySuggestion =
   | CreateProjectWithActionsSuggestion
   | CreateActionSuggestion
   | CreateReferenceSuggestion
-  | RenderCvSuggestion;
+  | RenderCvSuggestion
+  | CopilotCliSuggestion;
 
 // ---------------------------------------------------------------------------
 // Chat API Types (for MSW / backend)

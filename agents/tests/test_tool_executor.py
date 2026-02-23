@@ -1,430 +1,157 @@
-"""Tests for tool_executor — dispatches tool calls and creates items via backend API."""
+"""Tests for tool_executor CLI subprocess dispatch."""
 
-from unittest.mock import AsyncMock
+from __future__ import annotations
+
+import json
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from backend_client import AuthContext, BackendClient
+from backend_client import AuthContext
 from tool_executor import ToolCallInput, execute_tool
 
 
 @pytest.fixture
 def auth_ctx():
-    return AuthContext(
-        token="jwt-delegated-token",
-        org_id="org-1",
-    )
+    return AuthContext(token="jwt-delegated-token", org_id="org-1")
 
 
-@pytest.fixture
-def mock_client():
-    return AsyncMock(spec=BackendClient)
+class _DummyProcess:
+    def __init__(self, returncode: int, stdout: str, stderr: str = ""):
+        self.returncode = returncode
+        self._stdout = stdout.encode("utf-8")
+        self._stderr = stderr.encode("utf-8")
+
+    async def communicate(self):
+        return self._stdout, self._stderr
 
 
-def _make_item_response(canonical_id: str) -> dict:
-    return {
-        "item_id": f"id-{canonical_id}",
-        "canonical_id": canonical_id,
-        "source": "tay",
-        "item": {"@id": canonical_id},
-        "created_at": "2026-01-01T00:00:00Z",
-        "updated_at": "2026-01-01T00:00:00Z",
-    }
-
-
-# ---------------------------------------------------------------------------
-# create_project_with_actions
-# ---------------------------------------------------------------------------
-
-
-class TestCreateProjectWithActions:
-    @pytest.mark.anyio
-    async def test_creates_project_then_actions_then_docs(self, auth_ctx, mock_client):
-        mock_client.create_item = AsyncMock(
-            side_effect=[
-                _make_item_response("urn:app:project:p1"),
-                _make_item_response("urn:app:action:a1"),
-                _make_item_response("urn:app:action:a2"),
-                _make_item_response("urn:app:reference:r1"),
-            ]
+@pytest.mark.anyio
+async def test_unknown_tool_raises(auth_ctx):
+    with pytest.raises(ValueError, match="Unknown tool"):
+        await execute_tool(
+            ToolCallInput(name="create_action", arguments={"name": "x"}),
+            conversation_id="conv-1",
+            auth=auth_ctx,
         )
 
+
+@pytest.mark.anyio
+async def test_invalid_argv_raises(auth_ctx):
+    with pytest.raises(ValueError, match="argv"):
+        await execute_tool(
+            ToolCallInput(name="copilot_cli", arguments={"argv": []}),
+            conversation_id="conv-1",
+            auth=auth_ctx,
+        )
+
+
+@pytest.mark.anyio
+async def test_executes_cli_and_parses_created_item(auth_ctx):
+    payload = {
+        "schema_version": "copilot.v1",
+        "ok": True,
+        "data": {
+            "mode": "applied",
+            "result": {
+                "operation": "items.create",
+                "created": {
+                    "item_id": "id-1",
+                    "canonical_id": "urn:app:action:a1",
+                    "item": {
+                        "@type": "Action",
+                        "additionalProperty": [
+                            {
+                                "@type": "PropertyValue",
+                                "propertyID": "app:rawCapture",
+                                "value": "Einkaufen",
+                            }
+                        ],
+                    },
+                },
+            },
+        },
+        "meta": {},
+    }
+
+    process = _DummyProcess(0, stdout=json.dumps(payload))
+
+    with patch(
+        "tool_executor.asyncio.create_subprocess_exec",
+        new=AsyncMock(return_value=process),
+    ) as create_proc:
         result = await execute_tool(
             ToolCallInput(
-                name="create_project_with_actions",
+                name="copilot_cli",
                 arguments={
-                    "project": {"name": "Umzug", "desiredOutcome": "Neue Wohnung"},
-                    "actions": [
-                        {"name": "Kartons besorgen", "bucket": "next"},
-                        {"name": "Strom ummelden", "bucket": "waiting"},
-                    ],
-                    "documents": [{"name": "Checkliste"}],
+                    "argv": [
+                        "items",
+                        "create",
+                        "--type",
+                        "Action",
+                        "--name",
+                        "Einkaufen",
+                        "--bucket",
+                        "next",
+                        "--apply",
+                    ]
                 },
             ),
             conversation_id="conv-42",
             auth=auth_ctx,
-            client=mock_client,
         )
 
-        # 4 items created total
-        assert len(result) == 4
-        assert result[0].item_type == "project"
-        assert result[0].canonical_id == "urn:app:project:p1"
-        assert result[0].name == "Umzug"
-        assert result[1].item_type == "action"
-        assert result[1].name == "Kartons besorgen"
-        assert result[2].item_type == "action"
-        assert result[2].name == "Strom ummelden"
-        assert result[3].item_type == "reference"
-        assert result[3].name == "Checkliste"
+    assert len(result) == 1
+    assert result[0].canonical_id == "urn:app:action:a1"
+    assert result[0].name == "Einkaufen"
+    assert result[0].item_type == "action"
 
-        # Verify 4 create_item calls
-        assert mock_client.create_item.call_count == 4
+    args, kwargs = create_proc.call_args
+    assert "--json" in args
+    assert "--non-interactive" in args
+    assert "--yes" in args
+    assert "--conversation-id" in args
+    assert kwargs["env"]["COPILOT_TOKEN"] == "jwt-delegated-token"
+    assert kwargs["env"]["COPILOT_ORG_ID"] == "org-1"
 
-    @pytest.mark.anyio
-    async def test_actions_have_project_refs(self, auth_ctx, mock_client):
-        mock_client.create_item = AsyncMock(
-            side_effect=[
-                _make_item_response("urn:app:project:p1"),
-                _make_item_response("urn:app:action:a1"),
-            ]
-        )
 
-        await execute_tool(
-            ToolCallInput(
-                name="create_project_with_actions",
-                arguments={
-                    "project": {"name": "P", "desiredOutcome": "D"},
-                    "actions": [{"name": "A1", "bucket": "next"}],
-                },
-            ),
-            conversation_id="conv-1",
-            auth=auth_ctx,
-            client=mock_client,
-        )
+@pytest.mark.anyio
+async def test_returns_empty_list_for_read_command(auth_ctx):
+    process = _DummyProcess(
+        0,
+        stdout='{"schema_version":"copilot.v1","ok":true,"data":{"total":1},"meta":{}}',
+    )
 
-        # Second call is the action — verify its JSON-LD has projectRefs
-        action_jsonld = mock_client.create_item.call_args_list[1].args[0]
-        props = {p["propertyID"]: p["value"] for p in action_jsonld["additionalProperty"]}
-        assert props["app:projectRefs"] == ["urn:app:project:p1"]
-
-    @pytest.mark.anyio
-    async def test_without_documents(self, auth_ctx, mock_client):
-        mock_client.create_item = AsyncMock(
-            side_effect=[
-                _make_item_response("urn:app:project:p1"),
-                _make_item_response("urn:app:action:a1"),
-            ]
-        )
-
+    with patch(
+        "tool_executor.asyncio.create_subprocess_exec",
+        new=AsyncMock(return_value=process),
+    ):
         result = await execute_tool(
             ToolCallInput(
-                name="create_project_with_actions",
-                arguments={
-                    "project": {"name": "P", "desiredOutcome": "D"},
-                    "actions": [{"name": "A1", "bucket": "next"}],
-                },
+                name="copilot_cli",
+                arguments={"argv": ["items", "list", "--summary"]},
             ),
             conversation_id="conv-1",
             auth=auth_ctx,
-            client=mock_client,
         )
 
-        assert len(result) == 2
-        assert mock_client.create_item.call_count == 2
+    assert result == []
 
 
-# ---------------------------------------------------------------------------
-# create_action
-# ---------------------------------------------------------------------------
+@pytest.mark.anyio
+async def test_cli_failure_raises(auth_ctx):
+    process = _DummyProcess(4, stdout="", stderr="VALIDATION_FAILED")
 
-
-class TestCreateAction:
-    @pytest.mark.anyio
-    async def test_basic(self, auth_ctx, mock_client):
-        mock_client.create_item = AsyncMock(return_value=_make_item_response("urn:app:action:a1"))
-
-        result = await execute_tool(
-            ToolCallInput(
-                name="create_action",
-                arguments={"name": "Einkaufen", "bucket": "next"},
-            ),
-            conversation_id="conv-1",
-            auth=auth_ctx,
-            client=mock_client,
-        )
-
-        assert len(result) == 1
-        assert result[0].item_type == "action"
-        assert result[0].name == "Einkaufen"
-        assert result[0].canonical_id == "urn:app:action:a1"
-
-    @pytest.mark.anyio
-    async def test_with_project_id(self, auth_ctx, mock_client):
-        mock_client.create_item = AsyncMock(return_value=_make_item_response("urn:app:action:a1"))
-
-        await execute_tool(
-            ToolCallInput(
-                name="create_action",
-                arguments={
-                    "name": "Task",
-                    "bucket": "next",
-                    "projectId": "urn:app:project:p1",
-                },
-            ),
-            conversation_id="conv-1",
-            auth=auth_ctx,
-            client=mock_client,
-        )
-
-        action_jsonld = mock_client.create_item.call_args.args[0]
-        props = {p["propertyID"]: p["value"] for p in action_jsonld["additionalProperty"]}
-        assert props["app:projectRefs"] == ["urn:app:project:p1"]
-
-    @pytest.mark.anyio
-    async def test_defaults_bucket_to_next(self, auth_ctx, mock_client):
-        mock_client.create_item = AsyncMock(return_value=_make_item_response("urn:app:action:a1"))
-
-        await execute_tool(
-            ToolCallInput(
-                name="create_action",
-                arguments={"name": "Task"},
-            ),
-            conversation_id="conv-1",
-            auth=auth_ctx,
-            client=mock_client,
-        )
-
-        action_jsonld = mock_client.create_item.call_args.args[0]
-        props = {p["propertyID"]: p["value"] for p in action_jsonld["additionalProperty"]}
-        assert props["app:bucket"] == "next"
-
-
-# ---------------------------------------------------------------------------
-# create_reference
-# ---------------------------------------------------------------------------
-
-
-class TestCreateReference:
-    @pytest.mark.anyio
-    async def test_basic(self, auth_ctx, mock_client):
-        mock_client.create_item = AsyncMock(
-            return_value=_make_item_response("urn:app:reference:r1")
-        )
-
-        result = await execute_tool(
-            ToolCallInput(
-                name="create_reference",
-                arguments={"name": "Styleguide"},
-            ),
-            conversation_id="conv-1",
-            auth=auth_ctx,
-            client=mock_client,
-        )
-
-        assert len(result) == 1
-        assert result[0].item_type == "reference"
-        assert result[0].name == "Styleguide"
-
-    @pytest.mark.anyio
-    async def test_with_url(self, auth_ctx, mock_client):
-        mock_client.create_item = AsyncMock(
-            return_value=_make_item_response("urn:app:reference:r1")
-        )
-
-        await execute_tool(
-            ToolCallInput(
-                name="create_reference",
-                arguments={"name": "Link", "url": "https://example.com"},
-            ),
-            conversation_id="conv-1",
-            auth=auth_ctx,
-            client=mock_client,
-        )
-
-        ref_jsonld = mock_client.create_item.call_args.args[0]
-        assert ref_jsonld["url"] == "https://example.com"
-
-    @pytest.mark.anyio
-    async def test_with_description(self, auth_ctx, mock_client):
-        mock_client.create_item = AsyncMock(
-            return_value=_make_item_response("urn:app:reference:r1")
-        )
-
-        await execute_tool(
-            ToolCallInput(
-                name="create_reference",
-                arguments={"name": "Doc", "description": "A useful doc"},
-            ),
-            conversation_id="conv-1",
-            auth=auth_ctx,
-            client=mock_client,
-        )
-
-        ref_jsonld = mock_client.create_item.call_args.args[0]
-        assert ref_jsonld["description"] == "A useful doc"
-
-    @pytest.mark.anyio
-    async def test_with_project_id(self, auth_ctx, mock_client):
-        mock_client.create_item = AsyncMock(
-            return_value=_make_item_response("urn:app:reference:r1")
-        )
-
-        await execute_tool(
-            ToolCallInput(
-                name="create_reference",
-                arguments={
-                    "name": "Tailored CV",
-                    "description": "# Wolfgang Ihloff\n\nProduct Leader...",
-                    "projectId": "urn:app:project:p1",
-                },
-            ),
-            conversation_id="conv-1",
-            auth=auth_ctx,
-            client=mock_client,
-        )
-
-        ref_jsonld = mock_client.create_item.call_args.args[0]
-        props = {p["propertyID"]: p["value"] for p in ref_jsonld["additionalProperty"]}
-        assert props["app:projectRefs"] == ["urn:app:project:p1"]
-        assert ref_jsonld["description"] == "# Wolfgang Ihloff\n\nProduct Leader..."
-
-
-# ---------------------------------------------------------------------------
-# render_cv
-# ---------------------------------------------------------------------------
-
-
-class TestRenderCv:
-    @pytest.mark.anyio
-    async def test_reads_source_then_renders_pdf(self, auth_ctx, mock_client):
-        """render_cv reads markdown from source item, renders PDF, creates reference."""
-        mock_client.get_item_content = AsyncMock(
-            return_value={
-                "name": "Tailored CV",
-                "description": "# Wolfgang Ihloff\n\n## Experience\n\n- Adobe",
-            }
-        )
-        mock_client.render_pdf = AsyncMock(return_value={"file_id": "file-abc123"})
-        mock_client.create_item = AsyncMock(
-            return_value=_make_item_response("urn:app:reference:pdf1")
-        )
-
-        result = await execute_tool(
-            ToolCallInput(
-                name="render_cv",
-                arguments={
-                    "sourceItemId": "urn:app:reference:md1",
-                    "css": "body { font-family: Inter; }",
-                    "filename": "lebenslauf-anthropic.pdf",
-                    "projectId": "urn:app:project:p1",
-                },
-            ),
-            conversation_id="conv-1",
-            auth=auth_ctx,
-            client=mock_client,
-        )
-
-        # 1. Read source item
-        mock_client.get_item_content.assert_called_once_with("urn:app:reference:md1", auth_ctx)
-
-        # 2. Render PDF with markdown content
-        mock_client.render_pdf.assert_called_once_with(
-            markdown="# Wolfgang Ihloff\n\n## Experience\n\n- Adobe",
-            css="body { font-family: Inter; }",
-            filename="lebenslauf-anthropic.pdf",
-            auth=auth_ctx,
-        )
-
-        # 3. Create file reference
-        assert mock_client.create_item.call_count == 1
-        ref_jsonld = mock_client.create_item.call_args.args[0]
-        props = {p["propertyID"]: p["value"] for p in ref_jsonld["additionalProperty"]}
-        assert props["app:fileId"] == "file-abc123"
-        assert props["app:downloadUrl"] == "/files/file-abc123"
-        assert props["app:projectRefs"] == ["urn:app:project:p1"]
-
-        # Return value
-        assert len(result) == 1
-        assert result[0].item_type == "reference"
-        assert result[0].name == "lebenslauf-anthropic.pdf"
-
-    @pytest.mark.anyio
-    async def test_falls_back_to_file_content(self, auth_ctx, mock_client):
-        """render_cv uses file_content when description is empty (uploaded file)."""
-        mock_client.get_item_content = AsyncMock(
-            return_value={
-                "name": "CV.md",
-                "description": None,
-                "file_content": "# CV from file\n\n## Skills\n\n- Python",
-            }
-        )
-        mock_client.render_pdf = AsyncMock(return_value={"file_id": "file-xyz"})
-        mock_client.create_item = AsyncMock(
-            return_value=_make_item_response("urn:app:reference:pdf2")
-        )
-
-        result = await execute_tool(
-            ToolCallInput(
-                name="render_cv",
-                arguments={
-                    "sourceItemId": "urn:app:reference:uploaded-cv",
-                    "css": "body { font-family: Inter; }",
-                    "filename": "cv-rendered.pdf",
-                    "projectId": "urn:app:project:p1",
-                },
-            ),
-            conversation_id="conv-1",
-            auth=auth_ctx,
-            client=mock_client,
-        )
-
-        # Should use file_content since description is None
-        mock_client.render_pdf.assert_called_once_with(
-            markdown="# CV from file\n\n## Skills\n\n- Python",
-            css="body { font-family: Inter; }",
-            filename="cv-rendered.pdf",
-            auth=auth_ctx,
-        )
-        assert len(result) == 1
-        assert result[0].name == "cv-rendered.pdf"
-
-    @pytest.mark.anyio
-    async def test_raises_when_source_has_no_content(self, auth_ctx, mock_client):
-        """render_cv raises ValueError when source has neither description nor file_content."""
-        mock_client.get_item_content = AsyncMock(
-            return_value={"name": "Empty", "description": None, "file_content": None}
-        )
-
-        with pytest.raises(ValueError, match="no description or file content"):
+    with patch(
+        "tool_executor.asyncio.create_subprocess_exec",
+        new=AsyncMock(return_value=process),
+    ):
+        with pytest.raises(RuntimeError, match="exit code 4"):
             await execute_tool(
                 ToolCallInput(
-                    name="render_cv",
-                    arguments={
-                        "sourceItemId": "urn:app:reference:empty",
-                        "css": "",
-                        "filename": "test.pdf",
-                        "projectId": "urn:app:project:p1",
-                    },
+                    name="copilot_cli",
+                    arguments={"argv": ["items", "create", "--type", "Action", "--name", "x"]},
                 ),
                 conversation_id="conv-1",
                 auth=auth_ctx,
-                client=mock_client,
-            )
-
-
-# ---------------------------------------------------------------------------
-# Error handling
-# ---------------------------------------------------------------------------
-
-
-class TestErrorHandling:
-    @pytest.mark.anyio
-    async def test_unknown_tool_raises_error(self, auth_ctx, mock_client):
-        with pytest.raises(ValueError, match="Unknown tool"):
-            await execute_tool(
-                ToolCallInput(name="unknown_tool", arguments={}),
-                conversation_id="conv-1",
-                auth=auth_ctx,
-                client=mock_client,
             )

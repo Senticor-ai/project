@@ -1,0 +1,42 @@
+@prefix app: <urn:app:property:> .
+@prefix schema: <https://schema.org/> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+app:ActionShape a sh:NodeShape ;
+  sh:targetClass schema:Action ;
+  sh:property [
+    sh:path app:bucket ;
+    sh:minCount 1 ;
+    sh:in ("inbox" "next" "waiting" "someday" "calendar" "reference" "completed")
+  ] ;
+  sh:property [
+    sh:path app:rawCapture ;
+    sh:minCount 1 ;
+    sh:datatype xsd:string
+  ] .
+
+app:ProjectShape a sh:NodeShape ;
+  sh:targetClass schema:Project ;
+  sh:property [
+    sh:path schema:name ;
+    sh:minCount 1 ;
+    sh:datatype xsd:string
+  ] .
+
+app:ReferenceShape a sh:NodeShape ;
+  sh:targetClass schema:CreativeWork ;
+  sh:property [
+    sh:path schema:name ;
+    sh:minCount 1 ;
+    sh:datatype xsd:string
+  ] .
+
+app:PersonShape a sh:NodeShape ;
+  sh:targetClass schema:Person ;
+  sh:property [ sh:path schema:name ; sh:minCount 1 ] ;
+  sh:property [ sh:path app:orgRef ; sh:minCount 1 ] ;
+  sh:property [
+    sh:path app:orgRole ;
+    sh:in ("member" "founder" "accountant" "advisor" "interest")
+  ] .

@@ -27,10 +27,10 @@ export type ProposalState = {
   payload: Record<string, unknown>;
 };
 
-const DEFAULT_CONFIG_DIR = path.join(os.homedir(), ".config", "tay");
+const DEFAULT_CONFIG_DIR = path.join(os.homedir(), ".config", "senticor-copilot");
 
 function configDir(): string {
-  return process.env.TAY_CONFIG_DIR?.trim() || DEFAULT_CONFIG_DIR;
+  return process.env.COPILOT_CONFIG_DIR?.trim() || DEFAULT_CONFIG_DIR;
 }
 
 function sessionPath(): string {

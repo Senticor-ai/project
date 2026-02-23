@@ -65,11 +65,19 @@ def test_chat_text_response(client: TestClient):
 def test_chat_tool_call_response(client: TestClient):
     tool_calls = [
         ToolCall(
-            tool_name="create_action",
+            tool_name="copilot_cli",
             arguments={
-                "type": "create_action",
-                "name": "E-Mail beantworten",
-                "bucket": "next",
+                "argv": [
+                    "items",
+                    "create",
+                    "--type",
+                    "Action",
+                    "--name",
+                    "E-Mail beantworten",
+                    "--bucket",
+                    "next",
+                    "--apply",
+                ]
             },
         ),
     ]
@@ -89,9 +97,9 @@ def test_chat_tool_call_response(client: TestClient):
     assert body["text"] == "Hier ist mein Vorschlag:"
     assert len(body["toolCalls"]) == 1
     tc = body["toolCalls"][0]
-    assert tc["name"] == "create_action"
-    assert tc["arguments"]["name"] == "E-Mail beantworten"
-    assert tc["arguments"]["bucket"] == "next"
+    assert tc["name"] == "copilot_cli"
+    assert tc["arguments"]["argv"][0] == "items"
+    assert "E-Mail beantworten" in tc["arguments"]["argv"]
 
 
 # ---------------------------------------------------------------------------
@@ -142,8 +150,8 @@ class TestFindAssistantMessage:
             "Hier mein Vorschlag:",
             tool_calls=[
                 ToolCall(
-                    tool_name="create_action",
-                    arguments={"name": "Test", "bucket": "next"},
+                    tool_name="copilot_cli",
+                    arguments={"argv": ["items", "create", "--type", "Action", "--name", "Test"]},
                 ),
             ],
         )
@@ -160,7 +168,7 @@ class TestFindAssistantMessage:
         found = _find_assistant_message(result)
         assert found is assistant_msg
         assert found.tool_calls is not None
-        assert found.tool_calls[0].tool_name == "create_action"
+        assert found.tool_calls[0].tool_name == "copilot_cli"
 
     def test_text_exit_ignores_inline_read_tools(self):
         """Agent exits on text after using inline read tools — must NOT return the read tool's message."""
@@ -276,8 +284,20 @@ class TestModelFallback:
             "Hier ist dein Projekt:",
             tool_calls=[
                 ToolCall(
-                    tool_name="create_project_with_actions",
-                    arguments={"project": {"name": "Test"}, "actions": []},
+                    tool_name="copilot_cli",
+                    arguments={
+                        "argv": [
+                            "items",
+                            "create",
+                            "--type",
+                            "Project",
+                            "--name",
+                            "Test",
+                            "--description",
+                            "Projekt",
+                            "--apply",
+                        ]
+                    },
                 ),
             ],
         )
@@ -301,7 +321,7 @@ class TestModelFallback:
             result = await run_agent([MessagePayload(role="user", content="Erstelle ein Projekt")])
 
         assert result.tool_calls is not None
-        assert result.tool_calls[0].tool_name == "create_project_with_actions"
+        assert result.tool_calls[0].tool_name == "copilot_cli"
         assert result.text == "Hier ist dein Projekt:"
 
 
@@ -377,8 +397,8 @@ class TestMultiTurn:
                         toolCalls=[
                             ChatToolCallResponse(
                                 id="call_abc123",
-                                name="create_action",
-                                arguments={"name": "Test", "bucket": "next"},
+                                name="copilot_cli",
+                                arguments={"argv": ["items", "create", "--type", "Action", "--name", "Test"]},
                             )
                         ],
                     ),
@@ -389,7 +409,7 @@ class TestMultiTurn:
         assert len(captured_messages) == 3
         assistant_msg = captured_messages[1]
         assert assistant_msg.tool_calls is not None
-        assert assistant_msg.tool_calls[0].tool_name == "create_action"
+        assert assistant_msg.tool_calls[0].tool_name == "copilot_cli"
         # ToolCall must preserve the original id (required by OpenAI API format)
         assert assistant_msg.tool_calls[0].id == "call_abc123"
 
@@ -423,8 +443,8 @@ class TestMultiTurn:
                         toolCalls=[
                             ChatToolCallResponse(
                                 # No id — simulates old DB records
-                                name="create_action",
-                                arguments={"name": "Test", "bucket": "next"},
+                                name="copilot_cli",
+                                arguments={"argv": ["items", "create", "--type", "Action", "--name", "Test"]},
                             )
                         ],
                     ),
@@ -492,7 +512,10 @@ class TestStreaming:
     def test_streaming_with_tool_calls(self, client: TestClient):
         """Streaming emits tool_calls event after text."""
         tool_calls = [
-            ToolCall(tool_name="create_action", arguments={"name": "Test", "bucket": "next"}),
+            ToolCall(
+                tool_name="copilot_cli",
+                arguments={"argv": ["items", "create", "--type", "Action", "--name", "Test"]},
+            ),
         ]
         reply = ChatMessage.from_assistant("Hier:", tool_calls=tool_calls)
 
@@ -522,7 +545,7 @@ class TestStreaming:
         events = [json.loads(line) for line in resp.text.strip().split("\n") if line]
         tool_events = [e for e in events if e["type"] == "tool_calls"]
         assert len(tool_events) == 1
-        assert tool_events[0]["toolCalls"][0]["name"] == "create_action"
+        assert tool_events[0]["toolCalls"][0]["name"] == "copilot_cli"
 
     def test_non_streaming_default(self, client: TestClient):
         """Without stream=True, returns normal JSON response."""
@@ -547,11 +570,24 @@ class TestStreaming:
 class TestExecuteTool:
     """Test POST /execute-tool endpoint."""
 
-    def _make_request(self, tool_name="create_action", arguments=None):
+    def _make_request(self, tool_name="copilot_cli", arguments=None):
         return {
             "toolCall": {
                 "name": tool_name,
-                "arguments": arguments or {"name": "Einkaufen", "bucket": "next"},
+                "arguments": arguments
+                or {
+                    "argv": [
+                        "items",
+                        "create",
+                        "--type",
+                        "Action",
+                        "--name",
+                        "Einkaufen",
+                        "--bucket",
+                        "next",
+                        "--apply",
+                    ]
+                },
             },
             "conversationId": "conv-42",
             "auth": {
@@ -575,7 +611,7 @@ class TestExecuteTool:
         assert body["createdItems"][0]["name"] == "Einkaufen"
         assert body["createdItems"][0]["type"] == "action"
 
-    def test_project_with_actions(self, client: TestClient):
+    def test_multiple_created_items(self, client: TestClient):
         from backend_client import CreatedItemRef
 
         mock_result = [
@@ -587,14 +623,7 @@ class TestExecuteTool:
         with patch("app.execute_tool", new_callable=AsyncMock, return_value=mock_result):
             resp = client.post(
                 "/execute-tool",
-                json=self._make_request(
-                    "create_project_with_actions",
-                    {
-                        "project": {"name": "Umzug", "desiredOutcome": "Neue Wohnung"},
-                        "actions": [{"name": "Kartons", "bucket": "next"}],
-                        "documents": [{"name": "Checkliste"}],
-                    },
-                ),
+                json=self._make_request("copilot_cli", {"argv": ["projects", "list", "--json"]}),
             )
 
         assert resp.status_code == 200

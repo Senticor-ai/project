@@ -1,4 +1,4 @@
-"""Backend API client for Tay tool execution.
+"""Backend API client for Senticor Copilot tool execution.
 
 Calls the backend's POST /items endpoint on behalf of the user,
 using a delegated JWT (Bearer token) for authentication.
@@ -41,7 +41,7 @@ class BackendClient:
     def _headers(self, auth: AuthContext) -> dict[str, str]:
         headers: dict[str, str] = {
             "Authorization": f"Bearer {auth.token}",
-            "X-Agent": "tay",
+            "X-Agent": "senticor-copilot",
         }
         if auth.org_id:
             headers["X-Org-Id"] = auth.org_id
@@ -51,7 +51,7 @@ class BackendClient:
         self,
         jsonld: dict,
         auth: AuthContext,
-        source: str = "tay",
+        source: str = "senticor-copilot",
     ) -> dict:
         """POST /items with a delegated Bearer JWT."""
         async with httpx.AsyncClient(timeout=self._timeout) as client:

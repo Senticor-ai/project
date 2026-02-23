@@ -44,6 +44,16 @@ def test_register_rejects_invalid_email_domain(client):
     assert response.status_code == 422
 
 
+def test_register_allows_localhost_email_domain(client):
+    response = _register_user(client, email=f"user-{uuid.uuid4().hex}@localhost")
+    assert response.status_code == 200
+
+
+def test_register_allows_subdomain_localhost_email_domain(client):
+    response = _register_user(client, email=f"user-{uuid.uuid4().hex}@dev.localhost")
+    assert response.status_code == 200
+
+
 def test_register_rejects_password_without_digit_or_symbol(client):
     response = _register_user(client, password="Password")
     assert response.status_code == 422

@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = "tay.v1";
+export const SCHEMA_VERSION = "copilot.v1";
 
 export type ExitCode = 0 | 2 | 3 | 4 | 5 | 10 | 20;
 

@@ -1,8 +1,4 @@
-"""Tay — the productivity copilot agent built with Haystack.
-
-Uses OpenRouter (OpenAI-compatible) via Haystack's OpenAIChatGenerator
-with tool calling for creating projects, actions, and references.
-"""
+"""Senticor Copilot agent built with Haystack."""
 
 from __future__ import annotations
 
@@ -83,27 +79,12 @@ def _parse_models() -> list[str]:
 MODELS = _parse_models()
 
 # ---------------------------------------------------------------------------
-# Tool definitions — no-op functions that return their arguments
+# Tool definitions — no-op function that returns arguments
 # ---------------------------------------------------------------------------
 
 
-def _noop_create_project_with_actions(**kwargs) -> str:
+def _noop_copilot_cli(**kwargs) -> str:
     """No-op: returns arguments as JSON. Frontend handles item creation."""
-    return json.dumps(kwargs, ensure_ascii=False)
-
-
-def _noop_create_action(**kwargs) -> str:
-    """No-op: returns arguments as JSON. Frontend handles item creation."""
-    return json.dumps(kwargs, ensure_ascii=False)
-
-
-def _noop_create_reference(**kwargs) -> str:
-    """No-op: returns arguments as JSON. Frontend handles item creation."""
-    return json.dumps(kwargs, ensure_ascii=False)
-
-
-def _noop_render_cv(**kwargs) -> str:
-    """No-op: returns arguments as JSON. Frontend handles rendering."""
     return json.dumps(kwargs, ensure_ascii=False)
 
 
@@ -113,161 +94,33 @@ def _noop_render_cv(**kwargs) -> str:
 
 TOOLS = [
     Tool(
-        name="create_project_with_actions",
+        name="copilot_cli",
         description=(
-            "Erstelle ein Projekt mit zugehörigen Aktionen und optionalen Dokumenten. "
-            "Verwende dies für komplexe Ziele mit mehreren Schritten."
+            "Fuehre Senticor-Copilot-CLI-Befehle aus. "
+            "Uebergib nur argv: string[] ohne Shell-Quoting."
         ),
         parameters={
             "type": "object",
             "properties": {
-                "type": {
-                    "type": "string",
-                    "const": "create_project_with_actions",
-                },
-                "project": {
-                    "type": "object",
-                    "properties": {
-                        "name": {"type": "string", "description": "Name des Projekts"},
-                        "desiredOutcome": {
-                            "type": "string",
-                            "description": "Gewünschtes Ergebnis des Projekts",
-                        },
-                    },
-                    "required": ["name", "desiredOutcome"],
-                },
-                "actions": {
+                "argv": {
                     "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "name": {"type": "string", "description": "Name der Aktion"},
-                            "bucket": {
-                                "type": "string",
-                                "enum": ["inbox", "next", "waiting", "calendar", "someday"],
-                                "description": "Bucket für die Aktion",
-                            },
-                        },
-                        "required": ["name", "bucket"],
-                    },
-                    "description": "Liste der Aktionen für das Projekt",
-                },
-                "documents": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "name": {"type": "string"},
-                            "description": {"type": "string"},
-                        },
-                        "required": ["name"],
-                    },
-                    "description": "Optionale Dokumente/Referenzen für das Projekt",
-                },
-            },
-            "required": ["type", "project", "actions"],
-        },
-        function=_noop_create_project_with_actions,
-    ),
-    Tool(
-        name="create_action",
-        description="Erstelle eine einzelne Aktion/Aufgabe.",
-        parameters={
-            "type": "object",
-            "properties": {
-                "type": {
-                    "type": "string",
-                    "const": "create_action",
-                },
-                "name": {"type": "string", "description": "Name der Aktion"},
-                "bucket": {
-                    "type": "string",
-                    "enum": ["inbox", "next", "waiting", "calendar", "someday"],
-                    "description": "Bucket für die Aktion",
-                },
-                "projectId": {
-                    "type": "string",
-                    "description": "Optionale ID eines bestehenden Projekts",
-                },
-            },
-            "required": ["type", "name", "bucket"],
-        },
-        function=_noop_create_action,
-    ),
-    Tool(
-        name="create_reference",
-        description=(
-            "Erstelle ein Referenzmaterial (Link, Dokument, Notiz, Markdown-Inhalt). "
-            "Kann einem Projekt zugeordnet werden."
-        ),
-        parameters={
-            "type": "object",
-            "properties": {
-                "type": {
-                    "type": "string",
-                    "const": "create_reference",
-                },
-                "name": {"type": "string", "description": "Name der Referenz"},
-                "description": {
-                    "type": "string",
-                    "description": "Inhalt der Referenz (Markdown, Notizen, etc.)",
-                },
-                "url": {"type": "string", "description": "URL der Referenz"},
-                "projectId": {
-                    "type": "string",
-                    "description": "Optionale ID eines bestehenden Projekts",
-                },
-            },
-            "required": ["type", "name"],
-        },
-        function=_noop_create_reference,
-    ),
-    Tool(
-        name="render_cv",
-        description=(
-            "Rendere eine Markdown-Referenz als professionelle PDF-Datei. "
-            "Liest den Markdown-Inhalt aus der angegebenen Referenz und "
-            "generiert daraus ein gestyltes PDF."
-        ),
-        parameters={
-            "type": "object",
-            "properties": {
-                "type": {"type": "string", "const": "render_cv"},
-                "sourceItemId": {
-                    "type": "string",
+                    "items": {"type": "string"},
+                    "minItems": 1,
                     "description": (
-                        "Kanonische ID der Markdown-Referenz, deren Inhalt "
-                        "als PDF gerendert werden soll."
+                        'CLI argv ohne Shell-String, z.B. ["items","create","--type","Action",'
+                        '"--name","Steuerberater anrufen","--bucket","next","--apply"]'
                     ),
                 },
-                "css": {
-                    "type": "string",
-                    "description": (
-                        "Benutzerdefiniertes CSS fuer Layout, Typografie, Farben. "
-                        "Verfuegbare Schriftarten: Inter, Source Sans 3."
-                    ),
-                },
-                "filename": {
-                    "type": "string",
-                    "description": "Dateiname (z.B. 'lebenslauf-angepasst.pdf')",
-                },
-                "projectId": {
-                    "type": "string",
-                    "description": "Projekt-ID, in das die PDF als Referenz gespeichert wird",
-                },
             },
-            "required": ["type", "sourceItemId", "css", "filename", "projectId"],
+            "required": ["argv"],
         },
-        function=_noop_render_cv,
+        function=_noop_copilot_cli,
     ),
 ]
 
 # Exit conditions: these tools require user approval
 EXIT_TOOL_NAMES = [
-    "create_project_with_actions",
-    "create_action",
-    "create_reference",
-    "render_cv",
+    "copilot_cli",
 ]
 
 # ---------------------------------------------------------------------------

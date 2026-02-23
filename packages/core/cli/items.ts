@@ -2,6 +2,7 @@ import { Command } from "commander";
 
 import type { ItemRecord } from "../client/api.js";
 import { buildCreateItemJsonLd, itemType, readAdditionalProperty } from "../serializers/jsonld.js";
+import { throwIfInvalid, validateCreateItem, validateTriageTransition } from "../validation/index.js";
 import { createApi, printHuman, resolveOrgId } from "./context.js";
 import { printSuccessJson } from "./output.js";
 import {
@@ -41,6 +42,17 @@ function getBucket(record: ItemRecord): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
+function getDisplayName(record: ItemRecord): string | null {
+  if (typeof record.item.name === "string" && record.item.name.trim()) {
+    return record.item.name;
+  }
+  const rawCapture = readAdditionalProperty(record.item, "app:rawCapture");
+  if (typeof rawCapture === "string" && rawCapture.trim()) {
+    return rawCapture;
+  }
+  return null;
+}
+
 function formatItem(record: ItemRecord): Record<string, unknown> {
   const orgRef = parseOrgRef(readAdditionalProperty(record.item, "app:orgRef"));
   const projectRefs = readAdditionalProperty(record.item, "app:projectRefs");
@@ -48,7 +60,7 @@ function formatItem(record: ItemRecord): Record<string, unknown> {
     item_id: record.item_id,
     canonical_id: record.canonical_id,
     type: itemType(record.item),
-    name: typeof record.item.name === "string" ? record.item.name : null,
+    name: getDisplayName(record),
     bucket: getBucket(record) ?? null,
     org_ref: orgRef,
     project_refs: Array.isArray(projectRefs) ? projectRefs : [],
@@ -63,7 +75,7 @@ function printItemLines(records: ItemRecord[]): void {
       record.item_id,
       record.canonical_id,
       itemType(record.item),
-      typeof record.item.name === "string" ? record.item.name : "(unnamed)",
+      getDisplayName(record) ?? "(unnamed)",
       getBucket(record) ?? "-",
     ].join("\t");
     printHuman(line);
@@ -222,6 +234,9 @@ export function registerItemsCommands(program: Command): void {
         conversationId: cmdOpts.conversationId,
       };
 
+      const previewItem = buildCreateItemJsonLd(payload);
+      throwIfInvalid(validateCreateItem(previewItem), "Create payload failed validation");
+
       const shouldApply = Boolean(cmdOpts.apply);
       if (!shouldApply) {
         const proposal = await addProposal("items.create", payload as Record<string, unknown>);
@@ -233,7 +248,7 @@ export function registerItemsCommands(program: Command): void {
               operation: proposal.operation,
               preview: {
                 ...payload,
-                item: buildCreateItemJsonLd(payload),
+                item: previewItem,
               },
             },
           });
@@ -285,6 +300,14 @@ export function registerItemsCommands(program: Command): void {
         id,
         bucket: cmdOpts.bucket,
       };
+
+      throwIfInvalid(
+        validateTriageTransition({
+          sourceBucket: "inbox",
+          targetBucket: cmdOpts.bucket,
+        }).filter((issue) => issue.code !== "TRIAGE_INBOX_TARGET_INVALID"),
+        "Triage payload failed validation",
+      );
 
       const shouldApply = Boolean(cmdOpts.apply);
       if (!shouldApply) {

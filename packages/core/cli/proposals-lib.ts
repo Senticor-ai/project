@@ -1,5 +1,6 @@
 import type { ItemRecord, TayApi } from "../client/api.js";
 import { buildBucketPatch, buildCreateItemJsonLd } from "../serializers/jsonld.js";
+import { throwIfInvalid, validateCreateItem, validateTriageTransition } from "../validation/index.js";
 import type { ProposalState } from "./state.js";
 
 export type CreateProposalPayload = {
@@ -74,7 +75,8 @@ export async function executeProposal(api: TayApi, proposal: ProposalState): Pro
       proposal.payload.orgId = await resolveCreateOrgId(api);
     }
     const jsonld = buildCreateItemJsonLd(proposal.payload);
-    const created = await api.createItem(jsonld, "tay-cli");
+    throwIfInvalid(validateCreateItem(jsonld), "Create payload failed validation");
+    const created = await api.createItem(jsonld, "senticor-copilot-cli");
     return {
       operation: proposal.operation,
       created,
@@ -87,8 +89,16 @@ export async function executeProposal(api: TayApi, proposal: ProposalState): Pro
     }
 
     const item = await findItemByIdentifier(api, proposal.payload.id);
+    const existingBucket = readBucket(item.item);
+    throwIfInvalid(
+      validateTriageTransition({
+        sourceBucket: existingBucket,
+        targetBucket: proposal.payload.bucket,
+      }),
+      "Triage payload failed validation",
+    );
     const patched = await api.patchItem(item.item_id, buildBucketPatch(proposal.payload.bucket), {
-      source: "tay-cli",
+      source: "senticor-copilot-cli",
     });
 
     return {
@@ -125,6 +135,29 @@ async function resolveCreateOrgId(api: TayApi): Promise<string> {
   }
 
   throw new Error(
-    "Org context required for org-scoped @id. Pass --org-id or set TAY_ORG_ID.",
+    "Org context required for org-scoped @id. Pass --org-id or set COPILOT_ORG_ID.",
   );
+}
+
+function readBucket(item: Record<string, unknown>): string | undefined {
+  const list = item.additionalProperty;
+  if (!Array.isArray(list)) {
+    return undefined;
+  }
+
+  for (const entry of list) {
+    if (
+      entry &&
+      typeof entry === "object" &&
+      "propertyID" in entry &&
+      (entry as { propertyID?: unknown }).propertyID === "app:bucket"
+    ) {
+      const value = (entry as { value?: unknown }).value;
+      if (typeof value === "string") {
+        return value;
+      }
+    }
+  }
+
+  return undefined;
 }

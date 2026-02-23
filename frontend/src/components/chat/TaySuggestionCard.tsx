@@ -65,6 +65,9 @@ export function TaySuggestionCard({
         {suggestion.type === "render_cv" && (
           <RenderCvSuggestionContent suggestion={suggestion} />
         )}
+        {suggestion.type === "copilot_cli" && (
+          <CopilotCliSuggestionContent suggestion={suggestion} />
+        )}
 
         {/* Action bar */}
         {status === "pending" && (
@@ -191,6 +194,24 @@ function RenderCvSuggestionContent({
       <p className="mt-1 ml-5.5 text-xs text-text-muted">
         Aus Markdown-Referenz rendern
       </p>
+    </>
+  );
+}
+
+function CopilotCliSuggestionContent({
+  suggestion,
+}: {
+  suggestion: Extract<TaySuggestion, { type: "copilot_cli" }>;
+}) {
+  return (
+    <>
+      <div className="flex items-center gap-1.5">
+        <Icon name="terminal" size={16} className="text-blueprint-500" />
+        <span className="text-sm font-medium">Senticor Copilot CLI</span>
+      </div>
+      <code className="mt-1 block rounded bg-paper-100 px-2 py-1 text-xs text-text">
+        {suggestion.argv.join(" ")}
+      </code>
     </>
   );
 }

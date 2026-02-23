@@ -65,9 +65,9 @@ function baseJsonLd(type: string, name?: string, orgId?: string): Record<string,
 
 function captureSource(conversationId?: string): unknown {
   if (!conversationId) {
-    return { kind: "tay-cli" };
+    return { kind: "senticor-copilot-cli" };
   }
-  return { kind: "tay-cli", conversationId };
+  return { kind: "senticor-copilot-cli", conversationId };
 }
 
 function withDefaults(

@@ -1,14 +1,14 @@
 # @project/core (CLI slice)
 
-This package contains the first working `tay` CLI slice for Senticor Project.
+This package contains the first working `senticor-copilot` CLI slice for Senticor Project.
 
 ## Run locally
 
 From repo root:
 
 ```bash
-npm run tay -- --help
-npm run tay -- auth status --json
+npm run copilot -- --help
+npm run copilot -- auth status --json
 ```
 
 ## Current commands
@@ -24,12 +24,12 @@ npm run tay -- auth status --json
 Write commands default to proposal mode:
 
 ```bash
-npm run tay -- items create --type Action --name "File taxes" --bucket next --propose --json
-npm run tay -- proposals apply <proposal-id> --yes --json
+npm run copilot -- items create --type Action --name "File taxes" --bucket next --propose --json
+npm run copilot -- proposals apply <proposal-id> --yes --json
 ```
 
 Direct apply is also available:
 
 ```bash
-npm run tay -- items create --type Action --name "File taxes" --bucket next --apply --yes --json
+npm run copilot -- items create --type Action --name "File taxes" --bucket next --apply --yes --json
 ```

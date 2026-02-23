@@ -26,9 +26,11 @@ export function getGlobalOptions(command: Command): GlobalOptions {
     color?: boolean;
   };
 
-  const host = normalizeHost(options.host ?? process.env.TAY_HOST ?? "http://localhost:8000");
-  const orgId = options.orgId ?? process.env.TAY_ORG_ID;
-  const token = process.env.TAY_TOKEN;
+  const host = normalizeHost(
+    options.host ?? process.env.COPILOT_HOST ?? "http://localhost:8000",
+  );
+  const orgId = options.orgId ?? process.env.COPILOT_ORG_ID;
+  const token = process.env.COPILOT_TOKEN;
 
   return {
     host,
@@ -79,7 +81,7 @@ export async function resolveOrgId(api: TayApi, options: GlobalOptions): Promise
   }
 
   throw new Error(
-    "Org context required. Pass --org-id or set TAY_ORG_ID so IDs can be org-scoped.",
+    "Org context required. Pass --org-id or set COPILOT_ORG_ID so IDs can be org-scoped.",
   );
 }
 

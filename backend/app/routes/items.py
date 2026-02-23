@@ -27,6 +27,7 @@ from ..outbox import enqueue_event
 from ..search.jobs import enqueue_job, get_job, serialize_job
 from ..storage import get_storage
 from ..text_extractor import extract_file_text
+from ..validation import raise_if_invalid, validate_item_create, validate_item_update
 
 router = APIRouter(
     prefix="/items",
@@ -292,6 +293,12 @@ def list_project_items(
     for row in rows:
         jsonld = row["schema_jsonld"] or {}
         name = jsonld.get("name") if isinstance(jsonld.get("name"), str) else None
+        if not name:
+            raw_capture = _get_additional_property(jsonld, "app:rawCapture")
+            if isinstance(raw_capture, str):
+                trimmed = raw_capture.strip()
+                if trimmed:
+                    name = trimmed
         type_val = jsonld.get("@type")
         item_type: str | None = None
         if isinstance(type_val, str):
@@ -831,7 +838,7 @@ def update_item(
 
     if not merged.get("@type"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="@type is required")
-    _validate_action_bucket(merged)
+    raise_if_invalid(validate_item_update(existing["schema_jsonld"], merged))
 
     content_hash = _hash_payload(merged)
     source = payload.source or existing["source"]
@@ -991,7 +998,7 @@ def create_item(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="@id is required")
     if not item_data.get("@type"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="@type is required")
-    _validate_action_bucket(item_data)
+    raise_if_invalid(validate_item_create(item_data))
 
     content_hash = _hash_payload(item_data)
 
