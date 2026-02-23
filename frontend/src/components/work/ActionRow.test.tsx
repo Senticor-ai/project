@@ -120,6 +120,20 @@ describe("ActionRow rendering", () => {
     expect(screen.getByText("mail")).toBeInTheDocument();
   });
 
+  it("shows attach_file icon for file captures", () => {
+    const thing = createActionItem({
+      name: "Tax return.pdf",
+      captureSource: {
+        kind: "file",
+        fileName: "Tax return.pdf",
+        mimeType: "application/pdf",
+      },
+    });
+    renderRow({ thing });
+    expect(screen.getByText("attach_file")).toBeInTheDocument();
+    expect(screen.getByText("via file")).toBeInTheDocument();
+  });
+
   it("shows note indicator when expanded and notes exist", () => {
     const thing = createActionItem({ name: "Task", description: "Some notes" });
     renderRow({

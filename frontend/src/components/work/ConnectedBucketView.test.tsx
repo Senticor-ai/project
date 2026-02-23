@@ -58,7 +58,7 @@ vi.mock("@/hooks/use-organizations", () => ({
 }));
 
 const mockCapture = { mutateAsync: vi.fn() };
-const mockCaptureFile = { mutate: vi.fn() };
+const mockCaptureFile = { mutateAsync: vi.fn() };
 const mockAddAction = { mutateAsync: vi.fn() };
 const mockComplete = { mutate: vi.fn() };
 const mockFocus = { mutate: vi.fn() };
@@ -156,6 +156,7 @@ describe("ConnectedBucketView", () => {
     mockAllItems.mockReturnValue(loadedQuery([]));
     mockProjects.mockReturnValue(loadedQuery([]));
     mockReferences.mockReturnValue(loadedQuery([]));
+    mockCaptureFile.mutateAsync.mockResolvedValue(undefined);
   });
 
   it("renders loading spinner when queries are loading", () => {
@@ -405,9 +406,73 @@ describe("ConnectedBucketView", () => {
       const file1 = new File(["a"], "report.pdf", { type: "application/pdf" });
       const file2 = new File(["b"], "photo.png", { type: "image/png" });
       onFileDrop([file1, file2]);
-      expect(mockCaptureFile.mutate).toHaveBeenCalledTimes(2);
-      expect(mockCaptureFile.mutate).toHaveBeenCalledWith(file1);
-      expect(mockCaptureFile.mutate).toHaveBeenCalledWith(file2);
+      expect(mockCaptureFile.mutateAsync).toHaveBeenCalledTimes(2);
+      expect(mockCaptureFile.mutateAsync).toHaveBeenNthCalledWith(1, file1);
+      expect(mockCaptureFile.mutateAsync).toHaveBeenNthCalledWith(2, file2);
+    });
+
+    it("shows minimizable upload notice while background uploads are running", async () => {
+      mockCaptureFile.mutateAsync.mockReturnValue(new Promise(() => {}));
+      const user = userEvent.setup();
+      const onFileDrop = capturedProps.onFileDrop as (files: File[]) => void;
+      const file = new File(["a"], "report.pdf", { type: "application/pdf" });
+
+      act(() => {
+        onFileDrop([file]);
+      });
+
+      expect(
+        screen.getByRole("status", { name: "Background uploads" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Uploading 1 file in background"),
+      ).toBeInTheDocument();
+
+      await user.click(
+        screen.getByRole("button", { name: "Minimize upload status" }),
+      );
+      expect(
+        screen.getByRole("button", { name: "Show upload status" }),
+      ).toBeInTheDocument();
+    });
+
+    it("clears upload notice when background upload succeeds", async () => {
+      mockCaptureFile.mutateAsync.mockResolvedValue(undefined);
+      const onFileDrop = capturedProps.onFileDrop as (files: File[]) => void;
+      const file = new File(["a"], "report.pdf", { type: "application/pdf" });
+
+      act(() => {
+        onFileDrop([file]);
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(
+        screen.queryByRole("status", { name: "Background uploads" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("keeps failed upload notice until dismissed", async () => {
+      mockCaptureFile.mutateAsync.mockRejectedValue(new Error("Upload failed"));
+      const user = userEvent.setup();
+      const onFileDrop = capturedProps.onFileDrop as (files: File[]) => void;
+      const file = new File(["a"], "report.pdf", { type: "application/pdf" });
+
+      act(() => {
+        onFileDrop([file]);
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(screen.getByText("1 upload failed")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Dismiss" }));
+      expect(
+        screen.queryByRole("status", { name: "Background uploads" }),
+      ).not.toBeInTheDocument();
     });
   });
 });

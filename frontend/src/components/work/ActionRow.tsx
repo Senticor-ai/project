@@ -149,6 +149,7 @@ export function ActionRow({
 
   const { captureSource } = thing;
   const isEmail = captureSource.kind === "email";
+  const isFileCapture = captureSource.kind === "file";
   const isReadAction = !!thing.objectRef;
   const subtitle = (() => {
     if (isReadAction) return "Read";
@@ -163,6 +164,7 @@ export function ActionRow({
   const subtitleIcon = (() => {
     if (isReadAction) return "auto_stories";
     if (isEmail) return "mail";
+    if (isFileCapture) return "attach_file";
     return undefined;
   })();
 

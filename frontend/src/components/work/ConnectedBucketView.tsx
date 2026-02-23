@@ -23,6 +23,12 @@ import { cn } from "@/lib/utils";
 
 import type { Bucket } from "@/model/types";
 
+type BackgroundUpload = {
+  id: string;
+  fileName: string;
+  status: "uploading" | "failed";
+};
+
 export interface ConnectedBucketViewProps {
   activeBucket: Bucket;
   onBucketChange: (bucket: Bucket) => void;
@@ -72,6 +78,43 @@ export function ConnectedBucketView({
       setShowRefetch(false);
     };
   }, [isFetching, isLoading]);
+
+  const [backgroundUploads, setBackgroundUploads] = useState<BackgroundUpload[]>(
+    [],
+  );
+  const [uploadNoticeMinimized, setUploadNoticeMinimized] = useState(false);
+
+  const activeBackgroundUploads = useMemo(
+    () => backgroundUploads.filter((upload) => upload.status === "uploading"),
+    [backgroundUploads],
+  );
+  const failedBackgroundUploads = useMemo(
+    () => backgroundUploads.filter((upload) => upload.status === "failed"),
+    [backgroundUploads],
+  );
+  const activeUploadCount = activeBackgroundUploads.length;
+  const failedUploadCount = failedBackgroundUploads.length;
+  const showUploadNotice = activeUploadCount > 0 || failedUploadCount > 0;
+
+  const markUploadFailed = useCallback((uploadId: string) => {
+    setBackgroundUploads((current) =>
+      current.map((upload) =>
+        upload.id === uploadId ? { ...upload, status: "failed" } : upload,
+      ),
+    );
+  }, []);
+
+  const clearUpload = useCallback((uploadId: string) => {
+    setBackgroundUploads((current) =>
+      current.filter((upload) => upload.id !== uploadId),
+    );
+  }, []);
+
+  const clearFailedUploads = useCallback(() => {
+    setBackgroundUploads((current) =>
+      current.filter((upload) => upload.status !== "failed"),
+    );
+  }, []);
 
   const error =
     actionItemsQuery.error ?? projectsQuery.error ?? referencesQuery.error;
@@ -173,11 +216,21 @@ export function ConnectedBucketView({
 
   const handleFileDrop = useCallback(
     (files: File[]) => {
+      setUploadNoticeMinimized(false);
       for (const file of files) {
-        captureFileMutation.mutate(file);
+        const uploadId =
+          "upload-" + Date.now().toString(36) + "-" + crypto.randomUUID();
+        setBackgroundUploads((current) => [
+          ...current,
+          { id: uploadId, fileName: file.name, status: "uploading" },
+        ]);
+        void captureFileMutation
+          .mutateAsync(file)
+          .then(() => clearUpload(uploadId))
+          .catch(() => markUploadFailed(uploadId));
       }
     },
-    [captureFileMutation],
+    [captureFileMutation, clearUpload, markUploadFailed],
   );
 
   const handleNavigateToReference = useCallback(() => {
@@ -233,6 +286,90 @@ export function ConnectedBucketView({
           aria-label="Refreshing data"
           className="absolute inset-x-0 top-0 z-10 h-0.5 animate-pulse rounded-full bg-blueprint-400"
         />
+      )}
+      {showUploadNotice && (
+        <div className="absolute top-2 right-2 z-20 w-[min(24rem,calc(100%-1rem))]">
+          {uploadNoticeMinimized ? (
+            <button
+              type="button"
+              onClick={() => setUploadNoticeMinimized(false)}
+              aria-label="Show upload status"
+              className="ml-auto flex items-center gap-2 rounded-[var(--radius-md)] border border-border bg-surface-raised px-3 py-1.5 text-xs font-medium text-text shadow-[var(--shadow-sheet)]"
+            >
+              <Icon
+                name={activeUploadCount > 0 ? "cloud_upload" : "error"}
+                size={14}
+                className={cn(activeUploadCount > 0 && "animate-pulse")}
+              />
+              {activeUploadCount > 0
+                ? `Uploading ${activeUploadCount} file${activeUploadCount === 1 ? "" : "s"}`
+                : `${failedUploadCount} upload${failedUploadCount === 1 ? "" : "s"} failed`}
+              <Icon name="expand_less" size={14} />
+            </button>
+          ) : (
+            <section
+              role="status"
+              aria-live="polite"
+              aria-label="Background uploads"
+              className="rounded-[var(--radius-md)] border border-border bg-surface-raised p-3 shadow-[var(--shadow-sheet)]"
+            >
+              <div className="mb-2 flex items-start justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2">
+                  <Icon
+                    name={activeUploadCount > 0 ? "cloud_upload" : "error"}
+                    size={16}
+                    className={cn(
+                      activeUploadCount > 0
+                        ? "animate-spin text-blueprint-600"
+                        : "text-status-error",
+                    )}
+                  />
+                  <span className="text-sm font-medium text-text-primary">
+                    {activeUploadCount > 0
+                      ? `Uploading ${activeUploadCount} file${activeUploadCount === 1 ? "" : "s"} in background`
+                      : `${failedUploadCount} upload${failedUploadCount === 1 ? "" : "s"} failed`}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setUploadNoticeMinimized(true)}
+                  aria-label="Minimize upload status"
+                  className="shrink-0 rounded-[var(--radius-sm)] p-0.5 text-text-subtle hover:bg-paper-100 hover:text-text"
+                >
+                  <Icon name="expand_more" size={14} />
+                </button>
+              </div>
+
+              {activeUploadCount > 0 && (
+                <div className="space-y-1 text-xs text-text-muted">
+                  {activeBackgroundUploads.slice(0, 3).map((upload) => (
+                    <p key={upload.id} className="truncate">
+                      {upload.fileName}
+                    </p>
+                  ))}
+                  {activeUploadCount > 3 && (
+                    <p>+{activeUploadCount - 3} more files</p>
+                  )}
+                </div>
+              )}
+
+              {failedUploadCount > 0 && (
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <p className="text-xs text-status-error">
+                    Some files were captured, but upload failed.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={clearFailedUploads}
+                    className="shrink-0 rounded-[var(--radius-sm)] border border-border px-2 py-0.5 text-xs text-text-subtle hover:bg-paper-100"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              )}
+            </section>
+          )}
+        </div>
       )}
       <BucketView
         actionItems={actionItemsQuery.data ?? []}

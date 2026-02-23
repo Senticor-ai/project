@@ -1,0 +1,153 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Product/Epics/Collaboration Workspace" />
+
+# Epic: Collaboration Workspace (Shared Projects + Kanban)
+
+**Status:** Not started
+**Priority:** Current
+**Inspiration:** [Trello tour](https://trello.com/en/tour) for board-first team workflow
+
+## Context
+
+Senticor Project is strong for personal task execution, but the current project experience is
+mostly single-user and list-oriented. To support real joint execution, users need to share a
+project with teammates, collaborate on the same work items, and track progress visually.
+
+**Problem:** Two people working on the same initiative cannot reliably coordinate in one shared
+project with a clear flow from intake to completion.
+
+**Outcome:** A shared project workspace where registered users can collaborate in either list or
+kanban mode, create actions/events/references, and move work through a default delivery flow.
+
+---
+
+## User Story
+
+> "I want to share a project with my colleague, switch to a board view when planning execution,
+> and move tasks through clear steps so we can manage joint work in one place."
+
+---
+
+## MVP Scope
+
+### 1) Shared project access (registered users only)
+
+- Project owner can add collaborators by email from project settings.
+- Invite target must already be a registered user in the system.
+- If user is not registered, sharing is blocked with a clear message to register first.
+- Owner can remove collaborators.
+- Collaborators can view and edit project content.
+
+### 2) List <-> Kanban view toggle per project
+
+- A project can be viewed in either list mode (existing behavior) or kanban mode.
+- Toggle is available in project workspace header.
+- Preference persists per project and user.
+- Both views operate on the same underlying items (no duplicate data models).
+
+### 3) Board cards: actions, events, references
+
+- Users can add three card types directly from board columns:
+  - `Action`
+  - `Event`
+  - `Reference`
+- Quick-add supports minimal required fields; full editing remains in the item editor.
+- References support URL or file-linked context as available in existing model.
+
+### 4) Default workflow steps
+
+Board uses fixed columns for MVP:
+
+1. `new`
+2. `backlog`
+3. `in progress`
+4. `review`
+5. `done`
+6. `archive`
+
+Cards can be moved between steps via drag-and-drop and keyboard-accessible move actions.
+
+---
+
+## Trello-Inspired Interaction Model (MVP)
+
+Borrow the following proven patterns:
+
+- Board-first planning with columns as explicit stages
+- Quick card creation inside each column
+- Drag-and-drop card movement between columns
+- Lightweight card details panel for metadata edits
+
+Do not include in MVP:
+
+- Power-ups/automation rules
+- Custom column definitions
+- External guest invites
+- Advanced reporting dashboards
+
+---
+
+## Product Behavior
+
+### Permissions
+
+- `Owner`: manage collaborators, edit all project items, move/archive cards.
+- `Member`: edit project items, move cards across workflow steps.
+- Non-members cannot access the project.
+
+### State model
+
+- Workflow state stored on each item as `app:workflowStep`.
+- Allowed MVP values: `new | backlog | in_progress | review | done | archive`.
+- Existing list view derives grouping/sorting from the same workflow step field.
+
+### Multi-user consistency
+
+- Changes by one member are visible to other members on refresh.
+- Activity metadata records `updatedBy` and timestamp for auditability.
+
+---
+
+## Acceptance Criteria
+
+- Project owner can add an existing registered user to a project by email.
+- Sharing with an unregistered email is rejected with actionable feedback.
+- Project header shows a working list/kanban toggle.
+- Kanban board shows the 6 default columns in the defined order.
+- Users can create `Action`, `Event`, and `Reference` cards from board UI.
+- Cards can move between columns and persist after page reload.
+- Both owner and member can collaborate on the same project without permission leakage.
+- `done` and `archive` are available as explicit final workflow states.
+
+---
+
+## Delivery Plan
+
+### Phase 1: Sharing foundations
+
+- Project member table + API + permission checks
+- Project settings UI for add/remove collaborator
+- Registered-user lookup and validation messaging
+
+### Phase 2: Kanban read/write
+
+- Project view toggle (list/kanban)
+- Fixed board columns + item queries by `workflowStep`
+- Drag-and-drop plus keyboard move affordance
+
+### Phase 3: Card creation + polish
+
+- Quick-add for Action/Event/Reference in board
+- Card detail editing flow
+- Empty states and onboarding hints
+
+---
+
+## Definition of Done
+
+- [ ] Acceptance criteria implemented and tested for owner/member scenarios.
+- [ ] Permission boundaries verified on backend routes and frontend guards.
+- [ ] Accessibility checks pass for board navigation and card movement actions.
+- [ ] List and kanban remain consistent views of the same project items.
+- [ ] Product docs and export order include this epic.

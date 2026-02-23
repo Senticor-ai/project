@@ -40,6 +40,7 @@ const DOC_ORDER = [
   "EpicSchemaEnrichment.mdx",
   "EpicPwaReadiness.mdx",
   "EpicReleaseProcess.mdx",
+  "EpicCollaboration.mdx",
   "EpicRenameToProcedere.mdx",
   "RoadmapProjects.mdx",
 ];
