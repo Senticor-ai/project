@@ -124,7 +124,9 @@ describe("App", () => {
     });
 
     renderApp();
-    expect(screen.getByText("progress_activity")).toBeInTheDocument();
+    expect(
+      screen.getByRole("status", { name: "Loading app" }),
+    ).toBeInTheDocument();
   });
 
   it("shows LoginPage when user is not authenticated", () => {

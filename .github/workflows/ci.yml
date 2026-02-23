@@ -291,21 +291,45 @@ jobs:
       - backend-integration
       - frontend-contract
     runs-on: ubuntu-latest
+    outputs:
+      image_pushed: ${{ steps.push_frontend.outcome == 'success' }}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
-        with:
-          registry: ${{ env.STACKIT_REGISTRY }}
-          username: ${{ secrets.STACKIT_REGISTRY_USER }}
-          password: ${{ secrets.STACKIT_REGISTRY_PASSWORD }}
+      - name: Authenticate to StackIT registry
+        id: registry_auth
+        env:
+          STACKIT_REGISTRY_USER: ${{ secrets.STACKIT_REGISTRY_USER }}
+          STACKIT_REGISTRY_PASSWORD: ${{ secrets.STACKIT_REGISTRY_PASSWORD }}
+        run: |
+          REGISTRY_USER="$(printf '%s' "${STACKIT_REGISTRY_USER:-}" | tr -d '\r\n')"
+          REGISTRY_PASSWORD="$(printf '%s' "${STACKIT_REGISTRY_PASSWORD:-}" | tr -d '\r\n')"
+
+          if [ -z "${REGISTRY_USER}" ] || [ -z "${REGISTRY_PASSWORD}" ]; then
+            echo "::warning::Missing StackIT registry credentials; skipping frontend image push."
+            echo "can_push=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if printf '%s' "${REGISTRY_PASSWORD}" | docker login "${STACKIT_REGISTRY}" --username "${REGISTRY_USER}" --password-stdin; then
+            echo "can_push=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "::warning::StackIT registry authentication failed; skipping frontend image push."
+          echo "can_push=false" >> "$GITHUB_OUTPUT"
       - name: Build and push frontend image
+        id: push_frontend
+        if: steps.registry_auth.outputs.can_push == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
           file: frontend/Dockerfile
           push: true
           tags: ${{ env.STACKIT_IMAGE_PREFIX }}/frontend:${{ github.sha }}
+      - name: Skip frontend image push
+        if: steps.registry_auth.outputs.can_push != 'true'
+        run: echo "Frontend image push skipped because registry authentication was unavailable."
 
   push-backend:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.actor != 'github-actions[bot]'
@@ -320,21 +344,45 @@ jobs:
       - backend-integration
       - frontend-contract
     runs-on: ubuntu-latest
+    outputs:
+      image_pushed: ${{ steps.push_backend.outcome == 'success' }}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
-        with:
-          registry: ${{ env.STACKIT_REGISTRY }}
-          username: ${{ secrets.STACKIT_REGISTRY_USER }}
-          password: ${{ secrets.STACKIT_REGISTRY_PASSWORD }}
+      - name: Authenticate to StackIT registry
+        id: registry_auth
+        env:
+          STACKIT_REGISTRY_USER: ${{ secrets.STACKIT_REGISTRY_USER }}
+          STACKIT_REGISTRY_PASSWORD: ${{ secrets.STACKIT_REGISTRY_PASSWORD }}
+        run: |
+          REGISTRY_USER="$(printf '%s' "${STACKIT_REGISTRY_USER:-}" | tr -d '\r\n')"
+          REGISTRY_PASSWORD="$(printf '%s' "${STACKIT_REGISTRY_PASSWORD:-}" | tr -d '\r\n')"
+
+          if [ -z "${REGISTRY_USER}" ] || [ -z "${REGISTRY_PASSWORD}" ]; then
+            echo "::warning::Missing StackIT registry credentials; skipping backend image push."
+            echo "can_push=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if printf '%s' "${REGISTRY_PASSWORD}" | docker login "${STACKIT_REGISTRY}" --username "${REGISTRY_USER}" --password-stdin; then
+            echo "can_push=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "::warning::StackIT registry authentication failed; skipping backend image push."
+          echo "can_push=false" >> "$GITHUB_OUTPUT"
       - name: Build and push backend image
+        id: push_backend
+        if: steps.registry_auth.outputs.can_push == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
           file: backend/Dockerfile
           push: true
           tags: ${{ env.STACKIT_IMAGE_PREFIX }}/backend:${{ github.sha }}
+      - name: Skip backend image push
+        if: steps.registry_auth.outputs.can_push != 'true'
+        run: echo "Backend image push skipped because registry authentication was unavailable."
 
   push-storybook:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.actor != 'github-actions[bot]'
@@ -349,15 +397,36 @@ jobs:
       - backend-integration
       - frontend-contract
     runs-on: ubuntu-latest
+    outputs:
+      image_pushed: ${{ steps.push_storybook.outcome == 'success' }}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
-        with:
-          registry: ${{ env.STACKIT_REGISTRY }}
-          username: ${{ secrets.STACKIT_REGISTRY_USER }}
-          password: ${{ secrets.STACKIT_REGISTRY_PASSWORD }}
+      - name: Authenticate to StackIT registry
+        id: registry_auth
+        env:
+          STACKIT_REGISTRY_USER: ${{ secrets.STACKIT_REGISTRY_USER }}
+          STACKIT_REGISTRY_PASSWORD: ${{ secrets.STACKIT_REGISTRY_PASSWORD }}
+        run: |
+          REGISTRY_USER="$(printf '%s' "${STACKIT_REGISTRY_USER:-}" | tr -d '\r\n')"
+          REGISTRY_PASSWORD="$(printf '%s' "${STACKIT_REGISTRY_PASSWORD:-}" | tr -d '\r\n')"
+
+          if [ -z "${REGISTRY_USER}" ] || [ -z "${REGISTRY_PASSWORD}" ]; then
+            echo "::warning::Missing StackIT registry credentials; skipping storybook image push."
+            echo "can_push=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if printf '%s' "${REGISTRY_PASSWORD}" | docker login "${STACKIT_REGISTRY}" --username "${REGISTRY_USER}" --password-stdin; then
+            echo "can_push=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "::warning::StackIT registry authentication failed; skipping storybook image push."
+          echo "can_push=false" >> "$GITHUB_OUTPUT"
       - name: Build and push storybook image
+        id: push_storybook
+        if: steps.registry_auth.outputs.can_push == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -366,6 +435,9 @@ jobs:
             STORYBOOK_BASE=/storybook/
           push: true
           tags: ${{ env.STACKIT_IMAGE_PREFIX }}/storybook:${{ github.sha }}
+      - name: Skip storybook image push
+        if: steps.registry_auth.outputs.can_push != 'true'
+        run: echo "Storybook image push skipped because registry authentication was unavailable."
 
   push-agents:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.actor != 'github-actions[bot]'
@@ -385,24 +457,48 @@ jobs:
       - backend-integration
       - frontend-contract
     runs-on: ubuntu-latest
+    outputs:
+      image_pushed: ${{ steps.push_agents.outcome == 'success' }}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
-        with:
-          registry: ${{ env.STACKIT_REGISTRY }}
-          username: ${{ secrets.STACKIT_REGISTRY_USER }}
-          password: ${{ secrets.STACKIT_REGISTRY_PASSWORD }}
+      - name: Authenticate to StackIT registry
+        id: registry_auth
+        env:
+          STACKIT_REGISTRY_USER: ${{ secrets.STACKIT_REGISTRY_USER }}
+          STACKIT_REGISTRY_PASSWORD: ${{ secrets.STACKIT_REGISTRY_PASSWORD }}
+        run: |
+          REGISTRY_USER="$(printf '%s' "${STACKIT_REGISTRY_USER:-}" | tr -d '\r\n')"
+          REGISTRY_PASSWORD="$(printf '%s' "${STACKIT_REGISTRY_PASSWORD:-}" | tr -d '\r\n')"
+
+          if [ -z "${REGISTRY_USER}" ] || [ -z "${REGISTRY_PASSWORD}" ]; then
+            echo "::warning::Missing StackIT registry credentials; skipping agents image push."
+            echo "can_push=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if printf '%s' "${REGISTRY_PASSWORD}" | docker login "${STACKIT_REGISTRY}" --username "${REGISTRY_USER}" --password-stdin; then
+            echo "can_push=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "::warning::StackIT registry authentication failed; skipping agents image push."
+          echo "can_push=false" >> "$GITHUB_OUTPUT"
       - name: Build and push agents image
+        id: push_agents
+        if: steps.registry_auth.outputs.can_push == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
           file: agents/Dockerfile
           push: true
           tags: ${{ env.STACKIT_IMAGE_PREFIX }}/agents:${{ github.sha }}
+      - name: Skip agents image push
+        if: steps.registry_auth.outputs.can_push != 'true'
+        run: echo "Agents image push skipped because registry authentication was unavailable."
 
   update-manifests:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.actor != 'github-actions[bot]'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.actor != 'github-actions[bot]' && needs.push-frontend.outputs.image_pushed == 'true' && needs.push-backend.outputs.image_pushed == 'true' && needs.push-storybook.outputs.image_pushed == 'true' && needs.push-agents.outputs.image_pushed == 'true'
     needs:
       - push-frontend
       - push-backend

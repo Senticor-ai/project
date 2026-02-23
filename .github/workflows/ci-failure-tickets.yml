@@ -82,14 +82,22 @@ jobs:
               }
             );
 
+            const jobsByKey = new Map(
+              jobs.map((job) => [
+                normalizeKey(`${run.name}::${job.name}`),
+                job,
+              ])
+            );
+
             const failedJobs = jobs
               .map((job) => {
                 const failedSteps = (job.steps || []).filter(
                   (step) => step.conclusion === "failure"
                 );
                 const jobFailed =
-                  ["failure", "timed_out", "action_required"].includes(job.conclusion) ||
-                  failedSteps.length > 0;
+                  ["failure", "timed_out", "action_required", "cancelled"].includes(
+                    job.conclusion || ""
+                  );
                 return { job, failedSteps, jobFailed };
               })
               .filter((entry) => entry.jobFailed);
@@ -165,4 +173,47 @@ jobs:
                 body: failureSummary,
               });
               core.info(`Commented on issue #${existing.number} for "${job.name}".`);
+            }
+
+            for (const item of trackedIssues) {
+              if (item.pull_request || item.state !== "open") {
+                continue;
+              }
+
+              const body = item.body || "";
+              const markerMatch = body.match(/<!--\s*ci-failure-key:([a-z0-9-]+)\s*-->/i);
+              if (!markerMatch) {
+                continue;
+              }
+
+              const issueKey = markerMatch[1];
+              const matchingJob = jobsByKey.get(issueKey);
+              if (!matchingJob || matchingJob.conclusion !== "success") {
+                continue;
+              }
+
+              const resolutionSummary = [
+                `Resolved in workflow run [#${run.run_number} (attempt ${run.run_attempt})](${run.html_url}).`,
+                "",
+                `- Job: [${matchingJob.name}](${matchingJob.html_url})`,
+                `- Branch: \`${run.head_branch}\``,
+                `- Commit: \`${run.head_sha.slice(0, 7)}\``,
+                `- Conclusion: \`${matchingJob.conclusion}\``,
+              ].join("\n");
+
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: item.number,
+                body: resolutionSummary,
+              });
+
+              await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number: item.number,
+                state: "closed",
+              });
+
+              core.info(`Closed issue #${item.number} after recovery of "${matchingJob.name}".`);
             }

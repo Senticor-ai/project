@@ -71,10 +71,10 @@ const NativeImportDialog = lazy(() =>
 function LoadingFallback() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface">
-      <Icon
-        name="progress_activity"
-        size={32}
-        className="animate-spin text-blueprint-500"
+      <div
+        role="status"
+        aria-label="Loading app"
+        className="h-8 w-8 animate-spin rounded-full border-2 border-blueprint-200 border-t-blueprint-600"
       />
     </div>
   );
