@@ -1,0 +1,168 @@
+name: CI Failure Tickets
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+
+permissions:
+  actions: read
+  contents: read
+  issues: write
+
+jobs:
+  track-failures:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create or update tickets for failed jobs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const run = context.payload.workflow_run;
+            const labelName = "ci-failure";
+
+            if (!run) {
+              core.info("No workflow_run payload found.");
+              return;
+            }
+
+            async function ensureLabel() {
+              try {
+                await github.rest.issues.getLabel({
+                  owner,
+                  repo,
+                  name: labelName,
+                });
+              } catch (error) {
+                if (error.status !== 404) {
+                  throw error;
+                }
+                await github.rest.issues.createLabel({
+                  owner,
+                  repo,
+                  name: labelName,
+                  color: "D73A4A",
+                  description: "Tracking recurring CI job failures",
+                });
+                core.info(`Created label "${labelName}".`);
+              }
+            }
+
+            function normalizeKey(value) {
+              return value
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, "-")
+                .replace(/^-+|-+$/g, "");
+            }
+
+            await ensureLabel();
+
+            const trackedIssues = await github.paginate(
+              github.rest.issues.listForRepo,
+              {
+                owner,
+                repo,
+                state: "all",
+                labels: labelName,
+                per_page: 100,
+              }
+            );
+
+            const jobs = await github.paginate(
+              github.rest.actions.listJobsForWorkflowRun,
+              {
+                owner,
+                repo,
+                run_id: run.id,
+                per_page: 100,
+              }
+            );
+
+            const failedJobs = jobs
+              .map((job) => {
+                const failedSteps = (job.steps || []).filter(
+                  (step) => step.conclusion === "failure"
+                );
+                const jobFailed =
+                  ["failure", "timed_out", "action_required"].includes(job.conclusion) ||
+                  failedSteps.length > 0;
+                return { job, failedSteps, jobFailed };
+              })
+              .filter((entry) => entry.jobFailed);
+
+            if (failedJobs.length === 0) {
+              core.info("No failed jobs detected for this run.");
+              return;
+            }
+
+            for (const entry of failedJobs) {
+              const { job, failedSteps } = entry;
+              const issueKey = normalizeKey(`${run.name}::${job.name}`);
+              const marker = `ci-failure-key:${issueKey}`;
+              const markerComment = `<!-- ${marker} -->`;
+              const title = `[CI Failure] ${run.name} / ${job.name}`;
+              const failedStepText =
+                failedSteps.length === 0
+                  ? "n/a"
+                  : failedSteps.map((step) => `\`${step.name}\``).join(", ");
+
+              const failureSummary = [
+                `Detected another failure for \`${job.name}\`.`,
+                "",
+                `- Workflow run: [#${run.run_number} (attempt ${run.run_attempt})](${run.html_url})`,
+                `- Job: [${job.name}](${job.html_url})`,
+                `- Branch: \`${run.head_branch}\``,
+                `- Commit: \`${run.head_sha.slice(0, 7)}\``,
+                `- Conclusion: \`${job.conclusion || "unknown"}\``,
+                `- Failed steps: ${failedStepText}`,
+              ].join("\n");
+
+              const existing = trackedIssues.find(
+                (item) => !item.pull_request && (item.body || "").includes(markerComment)
+              );
+
+              if (!existing) {
+                const issueBody = [
+                  markerComment,
+                  "",
+                  `Tracking recurring failures for \`${job.name}\` in workflow \`${run.name}\`.`,
+                  "",
+                  "Latest failure:",
+                  "",
+                  failureSummary,
+                ].join("\n");
+
+                const created = await github.rest.issues.create({
+                  owner,
+                  repo,
+                  title,
+                  body: issueBody,
+                  labels: [labelName],
+                });
+                core.info(`Created issue #${created.data.number} for "${job.name}".`);
+                trackedIssues.push(created.data);
+                continue;
+              }
+
+              if (existing.state === "closed") {
+                await github.rest.issues.update({
+                  owner,
+                  repo,
+                  issue_number: existing.number,
+                  state: "open",
+                });
+                core.info(`Reopened issue #${existing.number} for "${job.name}".`);
+              }
+
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: existing.number,
+                body: failureSummary,
+              });
+              core.info(`Commented on issue #${existing.number} for "${job.name}".`);
+            }

@@ -15,6 +15,11 @@ export class ApiError extends Error {
   }
 }
 
+export type ApiResponse<T> = {
+  data: T;
+  headers: Headers;
+};
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
 
 /** Construct an absolute URL for a backend file path (e.g. `/files/{id}`). */
@@ -69,11 +74,11 @@ function createRequestId(): string {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-async function request<T>(
+async function requestWithResponse<T>(
   path: string,
   init?: RequestInit,
   _isRetry = false,
-): Promise<T> {
+): Promise<ApiResponse<T>> {
   const headers = new Headers(init?.headers ?? {});
   const method = (init?.method ?? "GET").toUpperCase();
   const hasBody = typeof init?.body !== "undefined";
@@ -115,7 +120,7 @@ async function request<T>(
           refreshPromise = AuthApi.refresh();
         }
         await refreshPromise;
-        return request<T>(path, init, true);
+        return requestWithResponse<T>(path, init, true);
       } catch {
         onSessionExpired?.();
         throw new ApiError({
@@ -127,6 +132,20 @@ async function request<T>(
       }
     }
 
+    if (response.status === 429) {
+      const retryAfterHeader = response.headers.get("Retry-After");
+      const parsedRetryAfter = retryAfterHeader
+        ? Number.parseInt(retryAfterHeader, 10)
+        : Number.NaN;
+      throw new ApiError({
+        message: "Too many requests. Please wait a moment and try again.",
+        status: 429,
+        details: {
+          retryAfter: Number.isFinite(parsedRetryAfter) ? parsedRetryAfter : 30,
+        },
+      });
+    }
+
     const details = await parseJson(response);
     throw new ApiError({
       message: details?.detail ?? "Request failed",
@@ -135,7 +154,15 @@ async function request<T>(
     });
   }
 
-  return (await parseJson(response)) as T;
+  return {
+    data: (await parseJson(response)) as T,
+    headers: response.headers,
+  };
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const { data } = await requestWithResponse<T>(path, init);
+  return data;
 }
 
 export type AuthUser = {
@@ -623,10 +650,12 @@ export const ItemsApi = {
     source?: string,
     idempotencyKey?: string,
     nameSource?: string,
+    ifMatchEtag?: string,
   ) => {
     const headers: Record<string, string> = {};
     if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
-    return request<ItemRecord>(`/items/${itemId}`, {
+    if (ifMatchEtag) headers["If-Match"] = ifMatchEtag;
+    return requestWithResponse<ItemRecord>(`/items/${itemId}`, {
       method: "PATCH",
       body: JSON.stringify({
         item,

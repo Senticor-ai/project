@@ -48,11 +48,17 @@ npm run lint
 echo "[preflight] typechecking frontend"
 npm run type-check
 
+echo "[preflight] running frontend unit tests"
+CI=1 npx vitest run --project=unit
+
 echo "[preflight] building frontend (catches tsc -b + bundling issues)"
 npm run build
 
 echo "[preflight] smoke-testing Storybook indexing/build startup"
 npm run storybook -- --smoke-test
+
+echo "[preflight] running frontend storybook tests"
+STORYBOOK_TESTS=1 CI=1 npx vitest run --project=storybook
 
 echo "[preflight] syncing backend dependencies"
 cd "$ROOT_DIR/backend"

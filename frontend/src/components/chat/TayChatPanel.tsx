@@ -132,7 +132,7 @@ export function TayChatPanel({
           </button>
           <button
             onClick={onClose}
-            aria-label="Chat schließen"
+            aria-label="Chat minimieren"
             className="flex h-8 w-8 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-paper-100"
           >
             <Icon name="close" size={18} />

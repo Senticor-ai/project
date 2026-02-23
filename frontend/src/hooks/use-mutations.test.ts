@@ -897,7 +897,7 @@ describe("useUpdateItem", () => {
         additionalProperty: [pv("app:bucket", "project")],
       },
     });
-    mocked.update.mockResolvedValue(mismatchRecord);
+    mocked.update.mockResolvedValue(apiResponse(mismatchRecord));
 
     const { result } = renderHook(() => useUpdateItem(), {
       wrapper: createWrapper([mismatchRecord]),
@@ -1104,7 +1104,7 @@ describe("useToggleFocus edge cases", () => {
         ],
       },
     });
-    mocked.update.mockResolvedValue(orgScopedRecord);
+    mocked.update.mockResolvedValue(apiResponse(orgScopedRecord));
 
     const { result } = renderHook(() => useToggleFocus(), {
       wrapper: createWrapper([orgScopedRecord]),

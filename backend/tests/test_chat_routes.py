@@ -13,7 +13,7 @@ from unittest.mock import MagicMock
 
 import httpx
 
-from app.chat.queries import get_conversation_messages, get_or_create_conversation, save_message
+from app.chat.queries import get_conversation_messages
 from app.config import settings
 
 _DUMMY_REQUEST = httpx.Request("POST", "http://localhost:8002/chat/completions")

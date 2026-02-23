@@ -550,7 +550,9 @@ export const InboxWithEmail: Story = {
     });
 
     await step("Verify email sender is shown", async () => {
-      expect(canvas.getByText("h.schmidt@example.de")).toBeInTheDocument();
+      expect(canvas.getAllByText("h.schmidt@example.de").length).toBeGreaterThan(
+        0,
+      );
       expect(canvas.getAllByText("sekretariat@bund.de").length).toBeGreaterThan(
         0,
       );
@@ -725,18 +727,20 @@ export const ConflictToast: Story = {
     },
   },
   render: () => <ConnectedBucketViewDemo initialBucket={"next" as Bucket} />,
-  play: async ({ canvas, step }) => {
+  play: async ({ canvas, step, userEvent }) => {
     await step("Wait for items to load", async () => {
       await waitFor(() => {
-        expect(canvas.getAllByRole("listitem").length).toBeGreaterThan(0);
+        expect(
+          canvas.getByRole("button", { name: /^Unfocus Review PR$/i }),
+        ).toBeInTheDocument();
       }, WAIT);
     });
 
     await step("Click focus star to trigger 412 conflict", async () => {
-      const stars = canvas.getAllByLabelText(/Toggle focus/i);
-      if (stars.length > 0) {
-        await stars[0]!.click();
-      }
+      const targetButton = canvas.getByRole("button", {
+        name: /^Unfocus Review PR$/i,
+      });
+      await userEvent.click(targetButton);
     });
 
     await step("Verify error toast appears", async () => {

@@ -38,7 +38,6 @@ export function Tabs({
             key={tab.id}
             role="tab"
             aria-selected={isActive}
-            aria-controls={isActive ? `tabpanel-${tab.id}` : undefined}
             onClick={() => onSelect(tab.id)}
             className={cn(
               "flex min-h-11 items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm",

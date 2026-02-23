@@ -43,43 +43,41 @@ export function ConversationList({
       </div>
 
       {/* Conversation list */}
-      <div
-        className="flex-1 overflow-y-auto"
-        role="list"
-        aria-label="Gespräche"
-      >
+      <div className="flex-1 overflow-y-auto">
         {conversations.length === 0 ? (
           <p className="px-4 py-8 text-center text-sm text-text-muted">
             Keine bisherigen Gespräche
           </p>
         ) : (
-          conversations.map((conv) => (
-            <div
-              key={conv.conversationId}
-              role="listitem"
-              className="group flex items-center gap-2 border-b border-paper-100 px-4 py-3 transition-colors hover:bg-paper-100"
-            >
-              <button
-                onClick={() => onSelect(conv.conversationId)}
-                className="flex min-w-0 flex-1 flex-col gap-0.5 text-left"
-                aria-label={`Gespräch fortsetzen: ${conv.title ?? conv.externalId}`}
+          <div role="list" aria-label="Gespräche">
+            {conversations.map((conv) => (
+              <div
+                key={conv.conversationId}
+                role="listitem"
+                className="group flex items-center gap-2 border-b border-paper-100 px-4 py-3 transition-colors hover:bg-paper-100"
               >
-                <span className="truncate text-sm font-medium">
-                  {conv.title ?? conv.externalId}
-                </span>
-                <span className="text-xs text-text-muted">
-                  {formatRelativeDate(conv.updatedAt)}
-                </span>
-              </button>
-              <button
-                onClick={() => onArchive(conv.conversationId)}
-                aria-label="Gespräch archivieren"
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-muted opacity-0 transition-all hover:bg-paper-200 hover:text-red-600 group-hover:opacity-100"
-              >
-                <Icon name="archive" size={16} />
-              </button>
-            </div>
-          ))
+                <button
+                  onClick={() => onSelect(conv.conversationId)}
+                  className="flex min-w-0 flex-1 flex-col gap-0.5 text-left"
+                  aria-label={`Gespräch fortsetzen: ${conv.title ?? conv.externalId}`}
+                >
+                  <span className="truncate text-sm font-medium">
+                    {conv.title ?? conv.externalId}
+                  </span>
+                  <span className="text-xs text-text-muted">
+                    {formatRelativeDate(conv.updatedAt)}
+                  </span>
+                </button>
+                <button
+                  onClick={() => onArchive(conv.conversationId)}
+                  aria-label="Gespräch archivieren"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-muted opacity-0 transition-all hover:bg-paper-200 hover:text-red-600 group-hover:opacity-100"
+                >
+                  <Icon name="archive" size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>
