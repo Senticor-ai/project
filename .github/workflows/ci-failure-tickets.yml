@@ -97,7 +97,8 @@ jobs:
                 const jobFailed =
                   ["failure", "timed_out", "action_required", "cancelled"].includes(
                     job.conclusion || ""
-                  );
+                  ) ||
+                  ((job.conclusion || "") === "neutral" && failedSteps.length > 0);
                 return { job, failedSteps, jobFailed };
               })
               .filter((entry) => entry.jobFailed);
