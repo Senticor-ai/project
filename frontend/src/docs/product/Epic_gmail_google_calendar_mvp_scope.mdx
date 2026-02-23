@@ -1,0 +1,246 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Product/Epics/Gmail + Google Calendar MVP Integration" />
+
+# Epic: Gmail + Google Calendar MVP Integration
+
+**Status:** Draft
+**Priority:** Current
+**Last updated:** 2026-02-23
+**Depends on:** OAuth/auth foundation, connector runtime, search/normalization pipeline, Tay Copilot approval flow
+
+## Context
+
+Senticor Project needs a reliable way for a user to connect Google Workspace and immediately get useful email/calendar context in-product. The existing product direction is clear: AI can suggest, but user approval controls all write actions.
+
+**Problem:** Without a production-grade Google connection backbone (OAuth lifecycle + incremental sync), users experience stale data, reconnect loops, and low trust.
+
+**Outcome:** A single-user MVP where Gmail and Google Calendar data is ingested reliably, surfaced in Senticor context/search, and used by Tay to generate confirmation-gated proposals for time-sensitive workflows.
+
+---
+
+## User Story
+
+> "I want to connect my Google account once, see fresh email/calendar context in Senticor, and let Tay suggest useful actions that only execute after I confirm."
+
+---
+
+## Objectives
+
+1. Fast time-to-value: connect account and get first useful context quickly.
+2. Trust by default: least-privilege scopes, clear consent, auditable actions.
+3. Operational reliability: incremental sync, token refresh, retries, and observability.
+4. Safe automation: proposal-first assistant behavior with explicit per-action confirmation.
+
+---
+
+## MVP Scope
+
+### In scope
+
+- Google OAuth 2.0 connect/reconnect/disconnect flow
+- Connector setup for Gmail + Google Calendar
+- Initial backfill + incremental sync
+  - Gmail incremental via `historyId` polling
+  - Calendar sync for near-term and changed events
+- Normalized records for agent/search usage (`EmailRecord`, `CalendarEventRecord`)
+- UX states: connected, syncing, error, reconnect required, last synced timestamp
+- Search/context across email subject/snippet/participants and calendar title/attendees/time
+- Tay proposal flows (confirmation required) for:
+  - meeting reschedule requests close to event time
+  - personal pickup/errand requests (for example "pick up kids early")
+- Basic audit log for sync and executed actions
+
+### Out of scope
+
+- Multi-account merge and advanced tenancy routing
+- Microsoft 365 support
+- Fully autonomous "auto-act" behavior without confirmation
+- Rich full-mailbox semantic archive as part of initial MVP
+- Real-time push infra as a requirement (polling is acceptable for MVP)
+
+---
+
+## Product Behavior
+
+### Connect and sync experience
+
+1. User clicks **Connect Google Workspace**.
+2. User grants required scopes.
+3. Senticor shows **Connection successful** and starts first sync.
+4. User sees sync progress and freshness timestamp.
+5. If token is revoked/expired, user sees **Reconnect required** with one-click recovery.
+
+### Proposal and approval model
+
+- Tay analyzes new relevant emails using nearby calendar context.
+- Tay outputs either `NoAction` or a proposal payload.
+- Every write action stays blocked until explicit user confirmation.
+- User can confirm both actions, confirm one, or dismiss.
+
+---
+
+## Permissions (OAuth)
+
+Least-privilege scopes:
+
+- `https://www.googleapis.com/auth/gmail.readonly`
+- `https://www.googleapis.com/auth/gmail.send`
+- `https://www.googleapis.com/auth/calendar.events`
+- Optional only when needed: `https://www.googleapis.com/auth/calendar`
+
+Rules:
+
+- Read paths may run automatically after consent.
+- Write paths (send email, create/update calendar event) always require per-action confirmation.
+
+---
+
+## Architecture Overview
+
+- **Frontend:** Google connection settings, sync status, proposal feed, approval controls.
+- **Auth service:** OAuth authorization code flow, token exchange, encrypted token storage.
+- **Connector workers:** Gmail fetcher, Calendar fetcher, incremental cursor management.
+- **Normalization layer:** map provider payloads into internal records and entity graph.
+- **Agent tooling layer:** deterministic Gmail/Calendar tools invoked by Tay.
+- **Search/storage:** index normalized fields and relationship edges.
+- **Observability:** metrics, traces, and structured logs per connector run and tool execution.
+
+### Data model (single-user MVP)
+
+- `User`
+- `ConnectedAccount` (provider metadata, scopes, encrypted tokens, expiry)
+- `EmailRecord` (provider ids, participants, snippet/body ref, labels)
+- `CalendarEventRecord` (provider id, summary, time window, attendees, organizer)
+- `ActionAuditLog` (proposal id, user decision, executed operations, timestamps)
+
+---
+
+## Agent Tooling (MVP)
+
+- `gmail_get_message(message_id)`
+- `gmail_send_reply(thread_id, to, subject, body, in_reply_to_message_id)`
+- `gcal_list_events(time_min, time_max)`
+- `gcal_get_event(event_id)`
+- `gcal_freebusy(time_min, time_max)` (optional)
+- `gcal_update_event(event_id, new_start, new_end)`
+- `gcal_create_event(summary, start, end, attendees?, description?)`
+
+Output contract:
+
+- `NoAction`
+- `Proposal.RescheduleMeeting`
+- `Proposal.PersonalRequest`
+
+Each proposal includes `why`, `confidence`, `suggested_actions[]`, and `requires_confirmation = true`.
+
+---
+
+## Key MVP Workflows
+
+### 1) Meeting reschedule
+
+Trigger: relevant inbound message close to scheduled event.
+
+Flow:
+
+1. Ingestion emits candidate email + nearby event context.
+2. Tay detects reschedule intent and proposes time shift.
+3. Tool checks free/busy viability.
+4. UI shows proposal card and draft reply.
+5. On user confirm: update event + send reply.
+6. Persist action audit trail.
+
+### 2) Personal pickup request
+
+Trigger: trusted contact or personal-request classification.
+
+Flow:
+
+1. Tay extracts requested time/task from email.
+2. Tay proposes calendar reminder/event + draft reply.
+3. UI requests explicit confirmation.
+4. On confirm: create/update event + send reply.
+5. Persist action audit trail.
+
+---
+
+## Safety and Compliance
+
+- Token encryption at rest; refresh token handling via secret/KMS policy.
+- Scope minimization with change control.
+- No long-lived access tokens in logs.
+- Confirmation gate for every write action.
+- Best-effort undo messaging:
+  - calendar changes can be reverted
+  - sent email cannot be unsent
+- Retry/backoff + rate limiting for Google API quota and 429 handling.
+
+---
+
+## Acceptance Criteria
+
+- [ ] User can connect Google account and recover via reconnect flow.
+- [ ] First sync completes and exposes Gmail + Calendar context with freshness timestamp.
+- [ ] Incremental polling updates new Gmail messages and relevant calendar changes.
+- [ ] Tay generates proposal cards for both target workflows.
+- [ ] No write action executes without explicit confirmation.
+- [ ] Confirmed actions correctly call Google APIs and persist audit records.
+- [ ] Core connector metrics and failure alerts are visible.
+
+---
+
+## Key Effort (Critical Path)
+
+The largest effort is the **secure OAuth + incremental synchronization backbone**:
+
+- token lifecycle and encrypted credential storage
+- cursor-based incremental ingestion
+- idempotent processing and retries
+- observability to detect stale sync, token churn, and quota failures
+
+Without this backbone, UX quality degrades quickly even if proposal UI exists.
+
+---
+
+## Delivery Plan
+
+### Phase 1: Connection foundations (Week 1)
+
+- OAuth consent and credential persistence
+- connect/disconnect/reconnect UX states
+
+### Phase 2: Ingestion reliability (Week 2)
+
+- Gmail + Calendar backfill
+- incremental cursors, idempotent upserts, retry/dead-letter handling
+
+### Phase 3: Search + proposal feed (Week 3)
+
+- normalized indexing and freshness metadata
+- proposal cards + approval controls
+
+### Phase 4: Write-action hardening and launch (Weeks 4-6)
+
+- confirmation-gated execution for send/update/create actions
+- audit log completion, dashboards, alerts, pilot rollout
+
+---
+
+## Risks and Mitigations
+
+- OAuth scope creep -> fixed scope baseline + security approval for changes.
+- API quota exhaustion -> batching, backoff, incremental windows.
+- Token lifecycle failures -> centralized refresh + proactive renewal.
+- Duplicate/dirty entities -> deterministic ids + idempotent upserts.
+- User trust concerns -> explicit consent copy and easy disconnect path.
+
+---
+
+## Success Metrics
+
+- Connect to first useful context: `< 10 minutes` (p50)
+- Daily incremental sync success rate: `> 99%`
+- Reconnect-required rate: `< 2%` weekly active connectors
+- Duplicate entity rate after normalization: `< 0.5%`
+- Proposal-to-confirmation conversion on target workflows: `> 40%` after pilot onboarding

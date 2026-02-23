@@ -76,6 +76,8 @@ export default defineConfig({
   },
   optimizeDeps: {
     entries: ["index.html", "src/**/*.{ts,tsx}"],
+    // Prevent mid-run dependency optimization reloads in Vitest browser mode.
+    include: ["workbox-window"],
   },
   server: {
     fs: {

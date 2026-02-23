@@ -4,7 +4,8 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 # Epic: Collaboration Workspace (Shared Projects + Kanban)
 
-**Status:** Not started
+**Status:** In progress (backend architecture + API integration tests complete)
+**Last updated:** 2026-02-23
 **Priority:** Current
 **Design direction:** Board-first team workflow
 
@@ -218,24 +219,26 @@ Do not include in MVP:
 
 ## Acceptance Criteria
 
-- Project owner can add an existing registered user to a project by email.
-- Sharing with an unregistered email is rejected with actionable feedback.
-- Project header shows a working list/kanban toggle.
-- Project list/board URLs are deep-linkable and restore project + view mode on load.
-- Clicking project name opens inline settings with collaborator management and due date.
-- Shared projects show a visible collaboration icon/badge.
-- Kanban board shows 4 default columns mapped to `actionStatus`: Backlog, In Progress, Done, Blocked.
-- Users can create `Action` cards from board UI.
-- Action cards can attach/link event and asset context (for example Event and DigitalDocument references).
-- Action owner can be set quickly from directory/contacts or free-text fallback.
-- Due date can be set quickly on cards and clearly indicates today/overdue states.
-- Freeform tags can be added quickly and filtered in list/kanban.
-- Cards show comment indicator/count; threaded comments are accessible from card/detail.
-- Action edits are revisioned with actor + timestamp.
-- Card quick-edit works inline and double-click opens advanced edit panel.
-- Cards can move between columns and persist after page reload.
-- Board and list views stay consistent via shared `actionStatus` source.
-- Both owner and member can collaborate on the same project without permission leakage.
+- [x] Project owner can add an existing registered user to a project by email.
+- [x] Sharing with an unregistered email is rejected with actionable feedback.
+- [ ] Project header shows a working list/kanban toggle.
+- [ ] Project list/board URLs are deep-linkable and restore project + view mode on load.
+- [ ] Clicking project name opens inline settings with collaborator management and due date.
+- [ ] Shared projects show a visible collaboration icon/badge.
+- [ ] Kanban board shows 4 default columns mapped to `actionStatus`: Backlog, In Progress, Done, Blocked.
+- [ ] Users can create `Action` cards from board UI.
+- [ ] Action cards can attach/link event and asset context (for example Event and DigitalDocument references).
+- [ ] Action owner can be set quickly from directory/contacts or free-text fallback.
+- [ ] Due date can be set quickly on cards and clearly indicates today/overdue states.
+- [ ] Freeform tags can be added quickly and filtered in list/kanban.
+- [ ] Cards show comment indicator/count; threaded comments are accessible from card/detail.
+- [x] Action edits are revisioned with actor + timestamp.
+- [ ] Card quick-edit works inline and double-click opens advanced edit panel.
+- [ ] Cards can move between columns and persist after page reload.
+- [ ] Board and list views stay consistent via shared `actionStatus` source.
+- [x] Both owner and member can collaborate on the same project without permission leakage.
+- [ ] Collaboration commands are available via `senticor-copilot` and `@project/core` SDK wrappers.
+- [ ] Copilot can complete the collaboration workflow using only `copilot_cli` (`argv[]`, `--json`, non-interactive).
 
 ---
 
@@ -243,33 +246,51 @@ Do not include in MVP:
 
 ### Phase 1: Sharing foundations
 
-- Project member table + API + permission checks
-- Inline project settings UI (project-name click to open settings section)
-- Collaborator add/remove + project due date
-- Shared project visual marker in project list/header
-- Deep-link routing for project list/kanban views
-- Registered-user lookup and validation messaging
+- [x] Project member table + API + permission checks
+- [ ] Inline project settings UI (project-name click to open settings section)
+- [x] Collaborator add/remove APIs
+- [ ] Project due date in inline project settings
+- [ ] Shared project visual marker in project list/header
+- [ ] Deep-link routing for project list/kanban views
+- [x] Registered-user lookup and validation messaging
 
 ### Phase 2: Kanban read/write
 
-- Project view toggle (list/kanban)
-- Board columns rendered from workflow definition + item queries by projected `actionStatus`
-- Drag-and-drop plus keyboard move affordance
-- Backend transition validator with policy mode (`open` now, `restricted` later)
-- Append-only transition event writes + state projection updater
-- Assignee quick edit (directory + contact + free-text fallback)
-- Due date quick set + visual urgency indicators
-- Tag quick edit + tag filtering in board/list
+- [ ] Project view toggle (list/kanban)
+- [x] Workflow definition endpoint + item queries by projected `actionStatus`
+- [ ] Board columns rendered in UI from workflow definition
+- [ ] Drag-and-drop plus keyboard move affordance
+- [x] Backend transition validator with policy mode (`open` now, `restricted` later)
+- [x] Append-only transition event writes + state projection updater
+- [x] Assignee backend model/API (`owner_user_id` + `owner_text` fallback)
+- [ ] Assignee quick edit UX (directory + contact + free-text flow)
+- [x] Due date backend/API support
+- [ ] Due date quick-set UX + visual urgency indicators
+- [x] Tag backend/API support + filtering params
+- [ ] Tag quick edit + filtering UX in board/list
 
 ### Phase 3: Card creation + polish
 
-- Quick-add for `Action` in board
-- Inline card quick-edit behaviors
-- Advanced edit panel on double-click with full markdown description editing
-- Event/asset linking inside action detail
-- Threaded comments with card-level indicator
-- Revision history timeline in advanced action view
-- Empty states and onboarding hints
+- [x] Action create API (`POST /projects/{project_id}/actions`)
+- [ ] Quick-add for `Action` in board UI
+- [x] Action update API (`PATCH /projects/{project_id}/actions/{action_id}`)
+- [ ] Inline card quick-edit behaviors
+- [ ] Advanced edit panel on double-click with full markdown description editing
+- [x] Event/asset link field support in action API (`object_ref`)
+- [ ] Event/asset linking UX inside action detail
+- [x] Threaded comments API (`POST /comments` with `parent_comment_id`)
+- [ ] Threaded comments with card-level indicator
+- [x] Revision history + transition history APIs
+- [ ] Revision history timeline in advanced action view
+- [ ] Empty states and onboarding hints
+
+### Phase 4: CLI/SDK + Copilot collaboration flows
+
+- [ ] Add collaboration command group(s) to CLI (`projects members`, `projects actions`, `projects workflow`)
+- [ ] Add matching `@project/core` SDK methods with typed request/response envelopes
+- [ ] Ensure write commands return projection + last-event metadata for deterministic agent follow-up
+- [ ] Add agent integration tests for create -> transition -> comment -> history flow through `copilot_cli`
+- [ ] Add non-interactive contract checks (`--json`, exit codes, structured errors, conflict handling)
 
 ---
 
@@ -356,20 +377,73 @@ Concurrency:
 - Advanced panel: full description markdown editing, references, threaded comments, revision timeline.
 - Project header holds inline settings and deep-linkable list/board routes.
 
-### A6) CLI/Agent Enablement
+### A6) CLI/SDK + Copilot Enablement
 
-Expose agent-safe commands/endpoints for:
+Collaboration flows must be first-class in both:
 
-1. list projects and members
-2. list actions by status/tag/assignee/due
-3. create/update/transition actions
-4. add/read comments and revisions
-5. manage collaborators
+1. `senticor-copilot` CLI (and `copilot` alias)
+2. `@project/core` SDK wrappers used by frontend and agent tooling
 
-Operational requirements:
+This epic depends on the platform contract in
+[Epic: Platform SDK & Agent CLI](?path=/docs/product-epics-platform-sdk-agent-cli--docs),
+but defines collaboration-specific command coverage and Copilot behavior.
 
-- Include actor identity and correlation ID for each write.
-- Return both projection state and last event metadata for deterministic automation.
+#### A6.1) Required collaboration command surface
+
+Read operations (must be available as CLI + SDK wrappers):
+
+1. `projects list --json`
+2. `projects get <project_id> --members --workflow --json`
+3. `projects actions list --project=<project_id> [--status=<actionStatus>] [--tag=<tag>] [--assignee=<user_or_text>] [--due=overdue|today|upcoming] --json`
+4. `projects actions get --project=<project_id> --action=<action_id> --comments --history --json`
+5. `projects members list --project=<project_id> --json`
+
+Write operations (must be available as CLI + SDK wrappers):
+
+1. `projects members add --project=<project_id> --email=<registered_user_email> --role=member --apply --yes --json`
+2. `projects members remove --project=<project_id> --user=<user_id> --apply --yes --json`
+3. `projects actions create --project=<project_id> --name="<title>" [--description="<markdown>"] [--status=PotentialActionStatus] [--due=<iso8601>] [--assignee-user=<user_id>|--assignee-text="<name>"] [--tag=<tag>]... --apply --yes --json`
+4. `projects actions update --project=<project_id> --action=<action_id> [--name=...] [--description=...] [--due=<iso8601>] [--assignee-user=<user_id>|--assignee-text=...] [--tag-add=<tag>] [--tag-remove=<tag>] --apply --yes --json`
+5. `projects actions transition --project=<project_id> --action=<action_id> --to=<PotentialActionStatus|ActiveActionStatus|CompletedActionStatus|FailedActionStatus> --expected-last-event=<event_id> --correlation-id=<cid> --apply --yes --json`
+6. `projects actions comments add --project=<project_id> --action=<action_id> --body="<markdown>" --apply --yes --json`
+7. `projects actions comments reply --project=<project_id> --action=<action_id> --parent=<comment_id> --body="<markdown>" --apply --yes --json`
+
+#### A6.2) Copilot tool-call contract
+
+Copilot uses the single `copilot_cli` tool only (no direct route-specific tool explosion).
+
+Invocation rules:
+
+1. pass command as `argv: string[]` (never a shell string)
+2. always include `--json`
+3. always include `--non-interactive`
+4. write commands run with `--apply --yes` only after user confirmation in approval UI
+5. for status transitions, always pass `--expected-last-event` and a stable `--correlation-id`
+
+Deterministic output requirements for agent use:
+
+1. stdout returns one `copilot.v1` JSON envelope
+2. stderr contains logs/warnings only
+3. write responses include projection status and event metadata (`last_event_id`, `updated_at`, `correlation_id`)
+
+#### A6.3) Minimal Copilot collaboration workflow
+
+Copilot must be able to complete this workflow entirely via CLI/SDK:
+
+1. discover project + collaborators (`projects get --members --workflow`)
+2. list backlog work (`projects actions list --status=PotentialActionStatus`)
+3. create a new action card (`projects actions create ...`)
+4. move card to in-progress with optimistic concurrency (`projects actions transition ... --expected-last-event=...`)
+5. add execution comment and verify history (`projects actions comments add`, then `projects actions get --history`)
+
+If any step cannot run through `copilot_cli`, collaboration is not yet Copilot-ready.
+
+#### A6.4) Validation and safety requirements
+
+1. all writes enforce actor identity, org/project scope, and role checks at backend boundary
+2. all writes carry correlation IDs for traceability across CLI, agent, and backend logs
+3. stale transition attempts return conflict semantics (non-zero exit + structured error envelope)
+4. unregistered collaborator emails fail fast with actionable validation errors
 
 ### A7) Schema Compliance Boundary
 
@@ -389,13 +463,13 @@ Extend with product namespace only for workflow internals not covered by schema.
 
 ### A8) Initial Setup Sequence
 
-1. Add DB tables for `action_transition_event`, `action_state_projection`, `project_member`,
-   `action_comment`, `action_revision`, workflow policy tables.
-2. Implement transition command service + workflow validator.
-3. Implement projection updater + rebuild tool from event log.
-4. Wire list/board APIs to projection reads.
-5. Wire UI quick edit + advanced edit panel to command/query APIs.
-6. Add preflight checks for docs + Storybook indexing and collaboration flow tests.
+- [x] Add DB tables for `action_transition_event`, `action_state_projection`, `project_member`,
+  `action_comment`, `action_revision`, workflow policy tables.
+- [x] Implement transition command service + workflow validator.
+- [ ] Implement projection updater + rebuild tool from event log.
+- [x] Wire list/board APIs to projection reads.
+- [ ] Wire UI quick edit + advanced edit panel to command/query APIs.
+- [ ] Add preflight checks for docs + Storybook indexing and collaboration flow tests.
 
 ---
 
@@ -405,8 +479,10 @@ Extend with product namespace only for workflow internals not covered by schema.
 - [ ] Permission boundaries verified on backend routes and frontend guards.
 - [ ] Accessibility checks pass for board navigation and card movement actions.
 - [ ] List and kanban remain consistent views of action items via `actionStatus`.
-- [ ] Workflow policy is data-driven and supports future restricted transitions.
+- [x] Workflow policy is data-driven and supports future restricted transitions.
 - [ ] Deep links restore project and view context reliably.
 - [ ] Due dates, tags, assignees, and comments are usable from quick edit on cards.
-- [ ] Threaded comments and revision history capture actor/time for collaboration auditability.
+- [x] Threaded comments and revision history capture actor/time for collaboration auditability.
 - [ ] Product docs and export order include this epic.
+- [ ] CLI/SDK collaboration operations are documented and executable with deterministic machine output.
+- [ ] Copilot can run an end-to-end collaboration workflow through `copilot_cli` without manual API wiring.
