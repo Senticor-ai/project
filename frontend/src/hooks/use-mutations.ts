@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import {
   useMutation,
   useQueryClient,
@@ -75,7 +75,7 @@ function needsTypePromotion(
 ): boolean {
   const record = findRecord(qc, canonicalId);
   if (!record) return false;
-  const currentType = record.item["@type"] as string;
+  const currentType = normalizeType(record.item["@type"]);
   const expectedType = targetTypeForBucket(targetBucket);
   return currentType !== expectedType;
 }
@@ -85,6 +85,37 @@ function needsTypePromotion(
 // ---------------------------------------------------------------------------
 
 type AdditionalProp = { "@type": string; propertyID: string; value: unknown };
+
+function normalizeType(t: unknown): string | undefined {
+  if (typeof t === "string") return t;
+  if (Array.isArray(t) && typeof t[0] === "string") return t[0];
+  return undefined;
+}
+
+function mergeAdditionalProperty(
+  existing: unknown,
+  patchProps: AdditionalProp[],
+): AdditionalProp[] {
+  const old = Array.isArray(existing) ? (existing as AdditionalProp[]) : [];
+  const byId = new Map<string, AdditionalProp>();
+  for (const pv of old) {
+    if (pv?.propertyID) byId.set(pv.propertyID, pv);
+  }
+  for (const pv of patchProps) {
+    if (pv?.propertyID) byId.set(pv.propertyID, pv);
+  }
+  return Array.from(byId.values());
+}
+
+function upsertAdditionalProperty(
+  item: Record<string, unknown>,
+  pv: AdditionalProp,
+): Record<string, unknown> {
+  return {
+    ...item,
+    additionalProperty: mergeAdditionalProperty(item.additionalProperty, [pv]),
+  };
+}
 
 function recordJsonLdId(record: ItemRecord): string | undefined {
   const jsonLdId = record.item?.["@id"];
@@ -124,13 +155,20 @@ function removeFromCompleted(qc: QueryClient, canonicalId: CanonicalId) {
   );
 }
 
-/** Add a record to a cache partition. */
-function addToCache(
+/** Upsert a record in a cache partition using canonical identity. */
+function upsertIntoCache(
   qc: QueryClient,
   key: readonly unknown[],
   record: ItemRecord,
 ) {
-  qc.setQueryData<ItemRecord[]>(key, (old) => [...(old ?? []), record]);
+  qc.setQueryData<ItemRecord[]>(key, (old) => {
+    const rows = old ?? [];
+    const idx = rows.findIndex((r) =>
+      recordMatchesCanonicalId(r, record.canonical_id as CanonicalId),
+    );
+    if (idx === -1) return [...rows, record];
+    return rows.map((r, i) => (i === idx ? record : r));
+  });
 }
 
 /** Remove a record from the active cache by canonical ID. */
@@ -195,6 +233,74 @@ function shouldSplitOnTriage(
   return (record.item["@type"] as string) === "DigitalDocument";
 }
 
+type MovePlan = {
+  canonicalId: CanonicalId;
+  bucket: string;
+  needsPromotion: boolean;
+  shouldSplit: boolean;
+  record?: ItemRecord;
+  actionItem?: ActionItem;
+  projectId?: CanonicalId;
+};
+
+function computeMovePlan(
+  qc: QueryClient,
+  canonicalId: CanonicalId,
+  bucket: string,
+  projectId?: CanonicalId,
+): MovePlan {
+  const needsPromotion = needsTypePromotion(qc, canonicalId, bucket);
+  const shouldSplit = shouldSplitOnTriage(qc, canonicalId, bucket);
+  const record = shouldSplit ? findRecord(qc, canonicalId) : undefined;
+  const actionItem =
+    shouldSplit && record
+      ? (() => {
+          const item = fromJsonLd(record);
+          return isActionItem(item) ? item : undefined;
+        })()
+      : undefined;
+
+  return {
+    canonicalId,
+    bucket,
+    needsPromotion,
+    shouldSplit,
+    record,
+    actionItem,
+    projectId,
+  };
+}
+
+function applyOptimisticMove(qc: QueryClient, plan: MovePlan) {
+  if (plan.shouldSplit && plan.record) {
+    const itemWithProject =
+      plan.projectId && plan.actionItem
+        ? { ...plan.actionItem, projectIds: [plan.projectId] }
+        : plan.actionItem;
+    const refJsonLd =
+      itemWithProject && buildNewFileReferenceJsonLd(itemWithProject, plan.record);
+    if (refJsonLd) {
+      const now = new Date().toISOString();
+      const tempRef = `temp-ref-${Date.now()}`;
+      const optimisticRef: ItemRecord = {
+        item_id: tempRef,
+        canonical_id: refJsonLd["@id"] as string,
+        source: "auto-split",
+        item: refJsonLd,
+        created_at: now,
+        updated_at: now,
+      };
+      upsertIntoCache(qc, ACTIVE_KEY, optimisticRef);
+    }
+    promoteTypeInCache(qc, plan.canonicalId, "ReadAction");
+  }
+
+  updateBucketInCache(qc, plan.canonicalId, plan.bucket);
+  if (!plan.shouldSplit && plan.needsPromotion) {
+    promoteTypeInCache(qc, plan.canonicalId, targetTypeForBucket(plan.bucket));
+  }
+}
+
 /** Promote @type to the appropriate type in the active cache. */
 function promoteTypeInCache(
   qc: QueryClient,
@@ -221,14 +327,11 @@ function updateBucketInCache(
       recordMatchesCanonicalId(r, canonicalId)
         ? {
             ...r,
-            item: {
-              ...r.item,
-              additionalProperty: (
-                r.item.additionalProperty as AdditionalProp[]
-              ).map((p) =>
-                p.propertyID === "app:bucket" ? { ...p, value: newBucket } : p,
-              ),
-            },
+            item: upsertAdditionalProperty(r.item, {
+              "@type": "PropertyValue",
+              propertyID: "app:bucket",
+              value: newBucket,
+            }),
           }
         : r,
     ),
@@ -260,10 +363,7 @@ export function useCaptureInbox() {
         created_at: now,
         updated_at: now,
       };
-      qc.setQueryData<ItemRecord[]>(ACTIVE_KEY, (old) => [
-        ...(old ?? []),
-        optimistic,
-      ]);
+      upsertIntoCache(qc, ACTIVE_KEY, optimistic);
       return { prev };
     },
     onSuccess: (data) => {
@@ -383,10 +483,7 @@ export function useCaptureFile() {
         created_at: now,
         updated_at: now,
       };
-      qc.setQueryData<ItemRecord[]>(ACTIVE_KEY, (old) => [
-        ...(old ?? []),
-        optimistic,
-      ]);
+      upsertIntoCache(qc, ACTIVE_KEY, optimistic);
       return { prev };
     },
     onSuccess: (data) => {
@@ -434,6 +531,14 @@ export function useTriageItem() {
     new Map<string, { shouldSplit: boolean; record?: ItemRecord }>(),
   );
 
+  useEffect(
+    () => () => {
+      savedIds.current.clear();
+      savedSplitDecisions.current.clear();
+    },
+    [],
+  );
+
   return useMutation({
     mutationFn: async ({
       item,
@@ -474,12 +579,10 @@ export function useTriageItem() {
       const itemId = findItemId(qc, item.id);
       if (itemId) savedIds.current.set(item.id, itemId);
 
-      // Compute split decision BEFORE optimistic updates change the cache
-      const doSplit = shouldSplitOnTriage(qc, item.id, result.targetBucket);
-      const record = doSplit ? findRecord(qc, item.id) : undefined;
+      const plan = computeMovePlan(qc, item.id, result.targetBucket);
       savedSplitDecisions.current.set(item.id, {
-        shouldSplit: doSplit,
-        record,
+        shouldSplit: plan.shouldSplit,
+        record: plan.record,
       });
 
       if (result.targetBucket === "archive") {
@@ -488,7 +591,7 @@ export function useTriageItem() {
         removeFromCache(qc, item.id);
         // Optimistically show in Done section
         if (archiveRecord) {
-          addToCache(qc, COMPLETED_KEY, {
+          upsertIntoCache(qc, COMPLETED_KEY, {
             ...archiveRecord,
             item: { ...archiveRecord.item, endTime: new Date().toISOString() },
           });
@@ -498,31 +601,10 @@ export function useTriageItem() {
 
       const prev = await snapshotActive(qc);
 
-      if (doSplit && record) {
-        // Optimistically add a reference record to the cache
-        const now = new Date().toISOString();
-        const refJsonLd = buildNewFileReferenceJsonLd(item, record);
-        const optimisticRef: ItemRecord = {
-          item_id: `temp-ref-${Date.now()}`,
-          canonical_id: refJsonLd["@id"] as string,
-          source: "auto-split",
-          item: refJsonLd,
-          created_at: now,
-          updated_at: now,
-        };
-        addToCache(qc, ACTIVE_KEY, optimisticRef);
-        // Promote type to ReadAction with object ref
-        promoteTypeInCache(qc, item.id, "ReadAction");
-      }
-
-      updateBucketInCache(qc, item.id, result.targetBucket);
-      if (!doSplit && needsTypePromotion(qc, item.id, result.targetBucket)) {
-        promoteTypeInCache(
-          qc,
-          item.id,
-          targetTypeForBucket(result.targetBucket),
-        );
-      }
+      applyOptimisticMove(qc, {
+        ...plan,
+        actionItem: item,
+      });
       return { prevActive: prev };
     },
     onError: (_err, _vars, context) => {
@@ -548,6 +630,13 @@ export function useCompleteAction() {
   const qc = useQueryClient();
   const savedRecords = useRef(new Map<string, ItemRecord>());
 
+  useEffect(
+    () => () => {
+      savedRecords.current.clear();
+    },
+    [],
+  );
+
   return useMutation({
     mutationFn: async (canonicalId: CanonicalId) => {
       const record =
@@ -569,7 +658,7 @@ export function useCompleteAction() {
       if (isCompleted && record) {
         // Un-completing: move from COMPLETED → ACTIVE (clear endTime)
         removeFromCompleted(qc, canonicalId);
-        addToCache(qc, ACTIVE_KEY, {
+        upsertIntoCache(qc, ACTIVE_KEY, {
           ...record,
           item: { ...record.item, endTime: undefined },
         });
@@ -577,7 +666,7 @@ export function useCompleteAction() {
         // Completing: move from ACTIVE → COMPLETED (set endTime)
         removeFromCache(qc, canonicalId);
         if (record) {
-          addToCache(qc, COMPLETED_KEY, {
+          upsertIntoCache(qc, COMPLETED_KEY, {
             ...record,
             item: { ...record.item, endTime: new Date().toISOString() },
           });
@@ -605,6 +694,13 @@ export function useCompleteAction() {
 export function useToggleFocus() {
   const qc = useQueryClient();
   const savedRecords = useRef(new Map<string, ItemRecord>());
+
+  useEffect(
+    () => () => {
+      savedRecords.current.clear();
+    },
+    [],
+  );
 
   return useMutation({
     mutationFn: async (canonicalId: CanonicalId) => {
@@ -639,12 +735,21 @@ export function useToggleFocus() {
                 ...r,
                 item: {
                   ...r.item,
-                  additionalProperty: (
-                    r.item.additionalProperty as AdditionalProp[]
-                  ).map((p) =>
-                    p.propertyID === "app:isFocused"
-                      ? { ...p, value: !p.value }
-                      : p,
+                  additionalProperty: mergeAdditionalProperty(
+                    r.item.additionalProperty,
+                    [
+                      {
+                        "@type": "PropertyValue",
+                        propertyID: "app:isFocused",
+                        value: !(
+                          (Array.isArray(r.item.additionalProperty)
+                            ? (r.item.additionalProperty as AdditionalProp[])
+                            : []
+                          ).find((p) => p.propertyID === "app:isFocused")
+                            ?.value ?? false
+                        ),
+                      },
+                    ],
                   ),
                 },
               }
@@ -681,6 +786,13 @@ export function useMoveAction() {
         projectId?: CanonicalId;
       }
     >(),
+  );
+
+  useEffect(
+    () => () => {
+      savedMeta.current.clear();
+    },
+    [],
   );
 
   return useMutation({
@@ -755,59 +867,21 @@ export function useMoveAction() {
     },
     onMutate: async ({ canonicalId, bucket, projectId }) => {
       const itemId = findItemId(qc, canonicalId);
-      const needsPromotion = needsTypePromotion(qc, canonicalId, bucket);
-      const doSplit = shouldSplitOnTriage(qc, canonicalId, bucket);
-      const record = doSplit ? findRecord(qc, canonicalId) : undefined;
-      const actionItem =
-        doSplit && record
-          ? (() => {
-              const item = fromJsonLd(record);
-              return isActionItem(item) ? item : undefined;
-            })()
-          : undefined;
+      const plan = computeMovePlan(qc, canonicalId, bucket, projectId);
 
       if (itemId)
         savedMeta.current.set(canonicalId, {
           itemId,
-          needsPromotion,
-          shouldSplit: doSplit,
-          record,
-          actionItem,
+          needsPromotion: plan.needsPromotion,
+          shouldSplit: plan.shouldSplit,
+          record: plan.record,
+          actionItem: plan.actionItem,
           projectId,
         });
 
       const prev = await snapshotActive(qc);
 
-      if (doSplit && record) {
-        // Inject projectId so optimistic reference gets it
-        const itemWithProject =
-          projectId && actionItem
-            ? { ...actionItem, projectIds: [projectId] }
-            : actionItem;
-        // Optimistically add a reference record to the cache
-        const refJsonLd =
-          itemWithProject &&
-          buildNewFileReferenceJsonLd(itemWithProject, record);
-        if (refJsonLd) {
-          const now = new Date().toISOString();
-          const optimisticRef: ItemRecord = {
-            item_id: `temp-ref-${Date.now()}`,
-            canonical_id: refJsonLd["@id"] as string,
-            source: "auto-split",
-            item: refJsonLd,
-            created_at: now,
-            updated_at: now,
-          };
-          addToCache(qc, ACTIVE_KEY, optimisticRef);
-        }
-        // Promote type to ReadAction
-        promoteTypeInCache(qc, canonicalId, "ReadAction");
-      }
-
-      updateBucketInCache(qc, canonicalId, bucket);
-      if (!doSplit && needsPromotion) {
-        promoteTypeInCache(qc, canonicalId, targetTypeForBucket(bucket));
-      }
+      applyOptimisticMove(qc, plan);
       return { prev };
     },
     onError: (_err, _vars, context) => {
@@ -852,16 +926,10 @@ export function useUpdateItem() {
           const merged = { ...r.item, ...patch };
           // Merge additionalProperty by propertyID (matching backend _deep_merge)
           if (Array.isArray(patch.additionalProperty)) {
-            const byId = new Map<string, unknown>();
-            for (const pv of (r.item.additionalProperty as AdditionalProp[]) ??
-              []) {
-              if (pv.propertyID) byId.set(pv.propertyID, pv);
-            }
-            for (const pv of patch.additionalProperty as AdditionalProp[]) {
-              if ((pv as AdditionalProp).propertyID)
-                byId.set((pv as AdditionalProp).propertyID, pv);
-            }
-            merged.additionalProperty = Array.from(byId.values());
+            merged.additionalProperty = mergeAdditionalProperty(
+              r.item.additionalProperty,
+              patch.additionalProperty as AdditionalProp[],
+            );
           }
           return { ...r, item: merged };
         }),
@@ -898,18 +966,16 @@ export function useAddAction() {
     onMutate: async ({ title, bucket }) => {
       const prev = await snapshotActive(qc);
       const now = new Date().toISOString();
+      const tempId = `temp-${Date.now()}`;
       const optimistic: ItemRecord = {
-        item_id: `temp-${Date.now()}`,
-        canonical_id: `urn:app:action:temp-${Date.now()}` as CanonicalId,
+        item_id: tempId,
+        canonical_id: `urn:app:action:${tempId}` as CanonicalId,
         source: "manual",
         item: buildNewActionJsonLd(title, bucket),
         created_at: now,
         updated_at: now,
       };
-      qc.setQueryData<ItemRecord[]>(ACTIVE_KEY, (old) => [
-        ...(old ?? []),
-        optimistic,
-      ]);
+      upsertIntoCache(qc, ACTIVE_KEY, optimistic);
       return { prev };
     },
     onError: (_err, _vars, context) => {
@@ -936,18 +1002,16 @@ export function useAddReference() {
     onMutate: async (title) => {
       const prev = await snapshotActive(qc);
       const now = new Date().toISOString();
+      const tempId = `temp-${Date.now()}`;
       const optimistic: ItemRecord = {
-        item_id: `temp-${Date.now()}`,
-        canonical_id: `urn:app:ref:temp-${Date.now()}`,
+        item_id: tempId,
+        canonical_id: `urn:app:ref:${tempId}`,
         source: "manual",
         item: buildNewReferenceJsonLd(title),
         created_at: now,
         updated_at: now,
       };
-      qc.setQueryData<ItemRecord[]>(ACTIVE_KEY, (old) => [
-        ...(old ?? []),
-        optimistic,
-      ]);
+      upsertIntoCache(qc, ACTIVE_KEY, optimistic);
       return { prev };
     },
     onError: (_err, _vars, context) => {
@@ -980,18 +1044,16 @@ export function useAddProjectAction() {
     onMutate: async ({ projectId, title }) => {
       const prev = await snapshotActive(qc);
       const now = new Date().toISOString();
+      const tempId = `temp-${Date.now()}`;
       const optimistic: ItemRecord = {
-        item_id: `temp-${Date.now()}`,
-        canonical_id: `urn:app:action:temp-${Date.now()}` as CanonicalId,
+        item_id: tempId,
+        canonical_id: `urn:app:action:${tempId}` as CanonicalId,
         source: "manual",
         item: buildNewActionJsonLd(title, "next", { projectId }),
         created_at: now,
         updated_at: now,
       };
-      qc.setQueryData<ItemRecord[]>(ACTIVE_KEY, (old) => [
-        ...(old ?? []),
-        optimistic,
-      ]);
+      upsertIntoCache(qc, ACTIVE_KEY, optimistic);
       return { prev };
     },
     onError: (_err, _vars, context) => {
@@ -1024,18 +1086,16 @@ export function useCreateProject() {
     onMutate: async ({ name, desiredOutcome }) => {
       const prev = await snapshotActive(qc);
       const now = new Date().toISOString();
+      const tempId = `temp-${Date.now()}`;
       const optimistic: ItemRecord = {
-        item_id: `temp-${Date.now()}`,
-        canonical_id: `urn:app:project:temp-${Date.now()}` as CanonicalId,
+        item_id: tempId,
+        canonical_id: `urn:app:project:${tempId}` as CanonicalId,
         source: "manual",
         item: buildNewProjectJsonLd(name, desiredOutcome),
         created_at: now,
         updated_at: now,
       };
-      qc.setQueryData<ItemRecord[]>(ACTIVE_KEY, (old) => [
-        ...(old ?? []),
-        optimistic,
-      ]);
+      upsertIntoCache(qc, ACTIVE_KEY, optimistic);
       return { prev };
     },
     onError: (_err, _vars, context) => {
@@ -1072,7 +1132,7 @@ export function useArchiveReference() {
       removeFromCache(qc, canonicalId);
       // Optimistically show in Archived section
       if (record) {
-        addToCache(qc, COMPLETED_KEY, {
+        upsertIntoCache(qc, COMPLETED_KEY, {
           ...record,
           item: { ...record.item, endTime: new Date().toISOString() },
         });

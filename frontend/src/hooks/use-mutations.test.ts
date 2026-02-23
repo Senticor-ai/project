@@ -138,6 +138,20 @@ function createWrapper(
     createElement(QueryClientProvider, { client: qc }, children);
 }
 
+function createWrapperWithClient(
+  initialData?: ItemRecord[],
+  completedData?: ItemRecord[],
+) {
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  if (initialData) qc.setQueryData(ACTIVE_KEY, initialData);
+  if (completedData) qc.setQueryData(COMPLETED_KEY, completedData);
+  const wrapper = ({ children }: { children: React.ReactNode }) =>
+    createElement(QueryClientProvider, { client: qc }, children);
+  return { qc, wrapper };
+}
+
 beforeEach(() => {
   vi.resetAllMocks();
 });
@@ -516,6 +530,27 @@ describe("useCaptureFile", () => {
 // ---------------------------------------------------------------------------
 
 describe("useAddAction", () => {
+  it("uses one temp id seed for item_id and canonical_id", async () => {
+    mocked.create.mockImplementation(() => new Promise(() => {}));
+    let tick = 1000;
+    const nowSpy = vi.spyOn(Date, "now").mockImplementation(() => tick++);
+
+    const { qc, wrapper } = createWrapperWithClient();
+    const { result } = renderHook(() => useAddAction(), { wrapper });
+
+    act(() => result.current.mutate({ title: "temp", bucket: "next" }));
+
+    await waitFor(() => {
+      const active = qc.getQueryData<ItemRecord[]>(ACTIVE_KEY) ?? [];
+      expect(active).toHaveLength(1);
+      const itemId = active[0]?.item_id;
+      expect(itemId).toMatch(/^temp-\d+$/);
+      expect(active[0]?.canonical_id).toBe(`urn:app:action:${itemId}`);
+    });
+
+    nowSpy.mockRestore();
+  });
+
   it("creates action with specified bucket", async () => {
     mocked.create.mockResolvedValue(makeRecord({ item: {} }));
 
@@ -676,6 +711,64 @@ describe("useMoveAction", () => {
     expect(patch.additionalProperty).toEqual([
       { "@type": "PropertyValue", propertyID: "app:bucket", value: "next" },
     ]);
+  });
+
+  it("handles missing additionalProperty in optimistic move", async () => {
+    const noPropsRecord = makeRecord({
+      item_id: "tid-move-noprops-1",
+      canonical_id: "urn:app:move:noprops:1",
+      item: {
+        "@type": "Action",
+        "@id": "urn:app:move:noprops:1",
+        name: "No props move",
+      },
+    });
+    mocked.update.mockResolvedValue(apiResponse(noPropsRecord));
+
+    const { result } = renderHook(() => useMoveAction(), {
+      wrapper: createWrapper([noPropsRecord]),
+    });
+
+    act(() =>
+      result.current.mutate({
+        canonicalId: "urn:app:move:noprops:1" as CanonicalId,
+        bucket: "someday",
+      }),
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const [, patch] = mocked.update.mock.calls[0]!;
+    expect(patch.additionalProperty).toEqual([
+      { "@type": "PropertyValue", propertyID: "app:bucket", value: "someday" },
+    ]);
+  });
+
+  it("treats @type arrays as normalized when deciding promotion", async () => {
+    const arrayTypeRecord = makeRecord({
+      item_id: "tid-type-array-1",
+      canonical_id: "urn:app:type-array:1",
+      item: {
+        "@type": ["Action", "Thing"],
+        "@id": "urn:app:type-array:1",
+        additionalProperty: [pv("app:bucket", "inbox")],
+      },
+    });
+    mocked.update.mockResolvedValue(apiResponse(arrayTypeRecord));
+
+    const { result } = renderHook(() => useMoveAction(), {
+      wrapper: createWrapper([arrayTypeRecord]),
+    });
+
+    act(() =>
+      result.current.mutate({
+        canonicalId: "urn:app:type-array:1" as CanonicalId,
+        bucket: "next",
+      }),
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const [, patch] = mocked.update.mock.calls[0]!;
+    expect(patch["@type"]).toBeUndefined();
   });
 
   it("splits DigitalDocument from inbox to next into ReadAction + reference", async () => {
@@ -1085,6 +1178,32 @@ describe("useToggleFocus edge cases", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     const [, patch] = mocked.update.mock.calls[0]!;
     // Missing prop defaults to false, so toggle sets to true
+    expect(patch.additionalProperty).toEqual([
+      { "@type": "PropertyValue", propertyID: "app:isFocused", value: true },
+    ]);
+  });
+
+  it("handles missing additionalProperty without crashing", async () => {
+    const noPropsRecord = makeRecord({
+      item_id: "tid-noprops-1",
+      canonical_id: "urn:app:noprops:1",
+      item: {
+        "@type": "Action",
+        "@id": "urn:app:noprops:1",
+        name: "No props",
+        endTime: null,
+      },
+    });
+    mocked.update.mockResolvedValue(apiResponse(noPropsRecord));
+
+    const { result } = renderHook(() => useToggleFocus(), {
+      wrapper: createWrapper([noPropsRecord]),
+    });
+
+    act(() => result.current.mutate("urn:app:noprops:1" as CanonicalId));
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const [, patch] = mocked.update.mock.calls[0]!;
     expect(patch.additionalProperty).toEqual([
       { "@type": "PropertyValue", propertyID: "app:isFocused", value: true },
     ]);
