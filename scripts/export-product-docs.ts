@@ -41,6 +41,7 @@ const DOC_ORDER = [
   "EpicPwaReadiness.mdx",
   "EpicReleaseProcess.mdx",
   "EpicRenameToProcedere.mdx",
+  "RoadmapProjects.mdx",
 ];
 
 // ── Screenshot configuration ───────────────────────────────────────
@@ -141,9 +142,7 @@ Options:
 
   const outputIdx = args.indexOf("--output");
   const outputDir =
-    outputIdx !== -1 && args[outputIdx + 1]
-      ? args[outputIdx + 1]
-      : "exports";
+    outputIdx !== -1 && args[outputIdx + 1] ? args[outputIdx + 1] : "exports";
 
   return {
     noScreenshots: args.includes("--no-screenshots"),
@@ -254,11 +253,15 @@ async function isStorybookRunning(): Promise<boolean> {
 }
 
 async function startStorybook(): Promise<ChildProcess> {
-  const proc = spawn("npx", ["storybook", "dev", "-p", String(STORYBOOK_PORT), "--no-open"], {
-    cwd: FRONTEND,
-    stdio: ["ignore", "pipe", "pipe"],
-    env: { ...process.env },
-  });
+  const proc = spawn(
+    "npx",
+    ["storybook", "dev", "-p", String(STORYBOOK_PORT), "--no-open"],
+    {
+      cwd: FRONTEND,
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env },
+    },
+  );
 
   // Log Storybook stderr for debugging
   proc.stderr?.on("data", (chunk: Buffer) => {
@@ -289,8 +292,12 @@ async function startStorybook(): Promise<ChildProcess> {
 
 async function captureScreenshots(screenshotDir: string): Promise<void> {
   // playwright is a devDependency in frontend/, resolve from there
-  const requireFromFrontend = createRequire(path.join(FRONTEND, "package.json"));
-  const { chromium } = requireFromFrontend("playwright") as typeof import("playwright");
+  const requireFromFrontend = createRequire(
+    path.join(FRONTEND, "package.json"),
+  );
+  const { chromium } = requireFromFrontend(
+    "playwright",
+  ) as typeof import("playwright");
 
   const browser = await chromium.launch();
   const context = await browser.newContext({
@@ -317,7 +324,7 @@ async function captureScreenshots(screenshotDir: string): Promise<void> {
       console.log(`[export]   ${entry.name}.png (${entry.id})`);
     } catch (err) {
       console.warn(
-        `[export]   Warning: Failed to capture ${entry.name}: ${err instanceof Error ? err.message : err}`
+        `[export]   Warning: Failed to capture ${entry.name}: ${err instanceof Error ? err.message : err}`,
       );
     } finally {
       await page.close();
@@ -333,7 +340,7 @@ function assembleMarkdown(
   sections: DocSection[],
   toc: string,
   screenshotDir: string,
-  includeScreenshots: boolean
+  includeScreenshots: boolean,
 ): string {
   const parts: string[] = [];
 
@@ -353,7 +360,7 @@ function assembleMarkdown(
     // Embed screenshots after relevant sections
     if (includeScreenshots) {
       const screenshots = SCREENSHOT_CONFIG.filter(
-        (s) => s.afterDoc === section.key
+        (s) => s.afterDoc === section.key,
       );
       for (const ss of screenshots) {
         const imgPath = path.resolve(screenshotDir, `${ss.name}.png`);
@@ -371,10 +378,14 @@ function assembleMarkdown(
 
 // ── Phase 5: Markdown → HTML → PDF ─────────────────────────────────
 
-function markdownToHtml(mdPath: string, htmlPath: string, cssPath: string): void {
+function markdownToHtml(
+  mdPath: string,
+  htmlPath: string,
+  cssPath: string,
+): void {
   if (!existsSync(PANDOC)) {
     throw new Error(
-      `pandoc not found at ${PANDOC}. Install with: brew install pandoc`
+      `pandoc not found at ${PANDOC}. Install with: brew install pandoc`,
     );
   }
 
@@ -388,16 +399,22 @@ function markdownToHtml(mdPath: string, htmlPath: string, cssPath: string): void
     "--embed-resources",
     `--css=${cssPath}`,
     // Set HTML <title> without rendering a visible title block
-    "-V", "title-meta=project Product Documentation",
-    "-V", "pagetitle=project Product Documentation",
+    "-V",
+    "title-meta=project Product Documentation",
+    "-V",
+    "pagetitle=project Product Documentation",
     "-o",
     htmlPath,
   ]);
 }
 
 async function htmlToPdf(htmlPath: string, pdfPath: string): Promise<void> {
-  const requireFromFrontend = createRequire(path.join(FRONTEND, "package.json"));
-  const { chromium } = requireFromFrontend("playwright") as typeof import("playwright");
+  const requireFromFrontend = createRequire(
+    path.join(FRONTEND, "package.json"),
+  );
+  const { chromium } = requireFromFrontend(
+    "playwright",
+  ) as typeof import("playwright");
 
   const browser = await chromium.launch();
   const page = await browser.newPage();
@@ -470,7 +487,12 @@ async function main(): Promise<void> {
 
   // Phase 4
   console.log("[export] Phase 4: Assembling Markdown...");
-  const markdown = assembleMarkdown(sections, toc, screenshotDir, includeScreenshots);
+  const markdown = assembleMarkdown(
+    sections,
+    toc,
+    screenshotDir,
+    includeScreenshots,
+  );
 
   const mdPath = path.join(outputDir, "product-docs.md");
   await writeFile(mdPath, markdown, "utf-8");

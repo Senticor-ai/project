@@ -264,3 +264,92 @@ describe("EditableTitle", () => {
     expect(button.className).toContain("line-through");
   });
 });
+
+describe("EditableTitle (split mode)", () => {
+  it("renders name in editable input and rawCapture below", () => {
+    render(
+      <EditableTitle
+        variant="split"
+        name="Weekly groceries"
+        rawCapture="buy bananas and apples"
+      />,
+    );
+
+    expect(screen.getByLabelText("Title (optional)")).toHaveValue(
+      "Weekly groceries",
+    );
+    expect(screen.getByLabelText("Captured text")).toHaveTextContent(
+      "buy bananas and apples",
+    );
+  });
+
+  it("uses rawCapture as title when name is missing", () => {
+    render(
+      <EditableTitle
+        variant="split"
+        rawCapture="call Steuerberater tomorrow"
+      />,
+    );
+
+    expect(screen.getByLabelText("Title (optional)")).toHaveValue(
+      "call Steuerberater tomorrow",
+    );
+  });
+
+  it("shows provenance badge label for AI and user", () => {
+    const { rerender } = render(
+      <EditableTitle
+        variant="split"
+        name="Renamed title"
+        rawCapture="captured text"
+        nameProvenance={{
+          setBy: "ai",
+          setAt: "2026-01-01T00:00:00Z",
+          source: "AI suggested from rawCapture",
+        }}
+      />,
+    );
+    expect(screen.getByText(/AI suggested/)).toBeInTheDocument();
+
+    rerender(
+      <EditableTitle
+        variant="split"
+        name="Renamed title"
+        rawCapture="captured text"
+        nameProvenance={{
+          setBy: "user",
+          setAt: "2026-01-01T00:00:00Z",
+          source: "user renamed in EditableTitle",
+        }}
+      />,
+    );
+    expect(screen.getByText(/User edited/)).toBeInTheDocument();
+  });
+
+  it("calls onRename on Enter and blur when changed", async () => {
+    const user = userEvent.setup();
+    const onRename = vi.fn();
+
+    render(
+      <>
+        <EditableTitle
+          variant="split"
+          name="Original title"
+          rawCapture="captured text"
+          onRename={onRename}
+        />
+        <button type="button">outside</button>
+      </>,
+    );
+
+    const input = screen.getByLabelText("Title (optional)");
+    await user.clear(input);
+    await user.type(input, "Updated title{Enter}");
+    expect(onRename).toHaveBeenCalledWith("Updated title");
+
+    await user.clear(input);
+    await user.type(input, "Updated again");
+    await user.click(screen.getByText("outside"));
+    expect(onRename).toHaveBeenCalledWith("Updated again");
+  });
+});

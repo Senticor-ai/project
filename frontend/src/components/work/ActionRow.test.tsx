@@ -739,6 +739,75 @@ describe("ActionRow title editing", () => {
   });
 });
 
+describe("ActionRow editable title split mode", () => {
+  it("renders split editor in expanded non-inbox rows", () => {
+    renderRow({
+      thing: createActionItem({
+        name: "Renamed title",
+        rawCapture: "captured sentence",
+        bucket: "next",
+      }),
+      isExpanded: true,
+      onToggleExpand: vi.fn(),
+      onEdit: vi.fn(),
+      onUpdateTitle: vi.fn(),
+    });
+
+    expect(screen.getByLabelText("Title (optional)")).toHaveValue(
+      "Renamed title",
+    );
+    expect(screen.getByLabelText("Captured text")).toHaveTextContent(
+      "captured sentence",
+    );
+  });
+
+  it("calls onUpdateTitle with nameSource when split editor renames", async () => {
+    const user = userEvent.setup();
+    const onUpdateTitle = vi.fn();
+    const thing = createActionItem({
+      name: "Old",
+      rawCapture: "captured text",
+      bucket: "next",
+    });
+    renderRow({
+      thing,
+      isExpanded: true,
+      onToggleExpand: vi.fn(),
+      onEdit: vi.fn(),
+      onUpdateTitle,
+    });
+
+    const input = screen.getByLabelText("Title (optional)");
+    await user.clear(input);
+    await user.type(input, "New title{Enter}");
+
+    expect(onUpdateTitle).toHaveBeenCalledWith(
+      thing.id,
+      "New title",
+      "user renamed in EditableTitle",
+    );
+  });
+
+  it("shows split editor for inbox only after opening more options", async () => {
+    const user = userEvent.setup();
+    renderRow({
+      thing: createActionItem({
+        name: "Inbox rename",
+        rawCapture: "raw inbox capture",
+        bucket: "inbox",
+      }),
+      isExpanded: true,
+      onToggleExpand: vi.fn(),
+      onEdit: vi.fn(),
+      onUpdateTitle: vi.fn(),
+    });
+
+    expect(screen.queryByLabelText("Title (optional)")).not.toBeInTheDocument();
+    await user.click(screen.getByLabelText("More options"));
+    expect(screen.getByLabelText("Title (optional)")).toBeInTheDocument();
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Calendar triage date picker
 // ---------------------------------------------------------------------------

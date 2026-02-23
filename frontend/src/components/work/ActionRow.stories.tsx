@@ -180,6 +180,44 @@ export const NamedItem: Story = {
   },
 };
 
+export const AIRenamedItem: Story = {
+  args: {
+    thing: createActionItem({
+      name: "Steuerberater kontaktieren",
+      rawCapture: "steuerberater schreiben",
+      bucket: "next",
+      nameProvenance: {
+        setBy: "ai",
+        setAt: "2026-01-15T09:00:00Z",
+        source: "AI suggested from rawCapture",
+      },
+    }),
+    isExpanded: true,
+    onToggleExpand: fn(),
+    onEdit: fn(),
+    onUpdateTitle: fn(),
+  },
+};
+
+export const UserRenamedItem: Story = {
+  args: {
+    thing: createActionItem({
+      name: "Steuerberater wegen Umsatzsteuer kontaktieren",
+      rawCapture: "steuerberater schreiben",
+      bucket: "next",
+      nameProvenance: {
+        setBy: "user",
+        setAt: "2026-01-15T10:00:00Z",
+        source: "user renamed in EditableTitle",
+      },
+    }),
+    isExpanded: true,
+    onToggleExpand: fn(),
+    onEdit: fn(),
+    onUpdateTitle: fn(),
+  },
+};
+
 // ---------------------------------------------------------------------------
 // Interactive stories with play functions
 // ---------------------------------------------------------------------------

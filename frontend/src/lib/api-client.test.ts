@@ -318,14 +318,25 @@ describe("ItemsApi", () => {
     });
   });
 
-  it("update sends PATCH with Idempotency-Key header when provided", async () => {
+  it("update sends PATCH with Idempotency-Key and name_source when provided", async () => {
     fetchSpy.mockResolvedValue(jsonResponse({ item_id: "t-1" }));
-    await ItemsApi.update("t-1", { name: "Updated" }, "manual", "key-abc");
+    await ItemsApi.update(
+      "t-1",
+      { name: "Updated" },
+      "manual",
+      "key-abc",
+      "user renamed in EditableTitle",
+    );
 
     const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
     expect(init.method).toBe("PATCH");
     const headers = new Headers(init.headers);
     expect(headers.get("Idempotency-Key")).toBe("key-abc");
+    expect(JSON.parse(init.body as string)).toEqual({
+      item: { name: "Updated" },
+      source: "manual",
+      name_source: "user renamed in EditableTitle",
+    });
   });
 
   it("archive sends DELETE", async () => {

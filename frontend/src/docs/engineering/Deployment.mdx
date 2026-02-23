@@ -47,6 +47,19 @@ The workflow uses Docker Buildx and publishes images with immutable `github.sha`
 
 These are CI-only secrets. All application runtime secrets live in the cluster, managed by ops.
 
+### Release management (current baseline)
+
+The current release model is **SHA-first GitOps**:
+
+- Quality and test jobs are required before any push jobs run.
+- `push-frontend`, `push-backend`, and `push-storybook` publish SHA-tagged images.
+- `update-manifests` commits the corresponding SHA into production kustomization.
+- Flux applies that manifest update to the cluster.
+
+Current baseline does **not** include named SemVer tags, GitHub release notes, or release-evidence
+bundles. Those enhancements are tracked in
+[Product / Roadmap Projects](?path=/docs/product-roadmap-projects--docs).
+
 ---
 
 ## Container Structure

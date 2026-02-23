@@ -13,6 +13,7 @@ import type {
   TriageResult,
   ItemEditableFields,
   OrgRef,
+  NameProvenance,
 } from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
 import { createCanonicalId } from "@/model/canonical-id";
@@ -88,6 +89,9 @@ function serializeActionItemAdditionalProps(
 
   if (thing.rawCapture !== undefined) {
     props.push(pv("app:rawCapture", thing.rawCapture));
+  }
+  if (thing.nameProvenance !== undefined) {
+    props.push(pv("app:nameProvenance", thing.nameProvenance));
   }
   if (thing.delegatedTo !== undefined) {
     props.push(pv("app:delegatedTo", thing.delegatedTo));
@@ -308,6 +312,11 @@ export function fromJsonLd(record: ItemRecord): AppItem {
       rawCapture:
         (getAdditionalProperty(props, "app:rawCapture") as string) ||
         (bucket === "inbox" ? base.name : undefined),
+      nameProvenance:
+        (getAdditionalProperty(
+          props,
+          "app:nameProvenance",
+        ) as NameProvenance) || undefined,
       objectRef,
     };
   }

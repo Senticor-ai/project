@@ -313,11 +313,30 @@ describe("ConnectedBucketView", () => {
       const onUpdateTitle = capturedProps.onUpdateTitle as (
         id: CanonicalId,
         newTitle: string,
+        nameSource?: string,
       ) => void;
       onUpdateTitle("thing:test-4" as CanonicalId, "Updated title");
       expect(mockUpdate.mutate).toHaveBeenCalledWith({
         canonicalId: "thing:test-4",
         patch: { name: "Updated title" },
+      });
+    });
+
+    it("onUpdateTitle forwards nameSource when provided", () => {
+      const onUpdateTitle = capturedProps.onUpdateTitle as (
+        id: CanonicalId,
+        newTitle: string,
+        nameSource?: string,
+      ) => void;
+      onUpdateTitle(
+        "thing:test-4" as CanonicalId,
+        "Updated title",
+        "user renamed in EditableTitle",
+      );
+      expect(mockUpdate.mutate).toHaveBeenCalledWith({
+        canonicalId: "thing:test-4",
+        patch: { name: "Updated title" },
+        nameSource: "user renamed in EditableTitle",
       });
     });
 

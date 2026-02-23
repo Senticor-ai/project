@@ -777,14 +777,18 @@ export function useUpdateItem() {
     mutationFn: async ({
       canonicalId,
       patch,
+      source,
+      nameSource,
     }: {
       canonicalId: CanonicalId;
       patch: Record<string, unknown>;
+      source?: string;
+      nameSource?: string;
     }) => {
       const itemId = findItemId(qc, canonicalId);
       if (!itemId) throw new Error(`Item not found: ${canonicalId}`);
 
-      return ItemsApi.update(itemId, patch);
+      return ItemsApi.update(itemId, patch, source, undefined, nameSource);
     },
     onMutate: async ({ canonicalId, patch }) => {
       const prev = await snapshotActive(qc);

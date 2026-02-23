@@ -4,10 +4,30 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 # Epic: Platform SDK & Agent CLI
 
-**Status:** Planned
-**See also:** [Copilot V2+](?path=/docs/product-epics-copilot-v2---docs), [Architecture](?path=/docs/engineering-architecture--docs)
+**Status:** In progress (Phase 1 CLI slice started)
+**See also:** [Copilot V2+](?path=/docs/product-epics-copilot-v2--docs), [Architecture](?path=/docs/engineering-architecture--docs)
 
 **Immediate goal (Phase 1):** Replace the current 3 Copilot tool calls with a single `tay_cli` tool using an in-place, test-driven refactor. First lock in current behavior, then switch execution path.
+
+## Collaboration Goal (Dogfooding)
+
+The CLI is only "sufficient" when Codex and Claude Code can collaborate with a human operator to
+plan, schedule, and execute improvement/development work directly inside a self-hosted Senticor
+Project workspace.
+
+Target outcome for internal dogfooding:
+
+- Senticor Project is the operational workspace for its own product development
+- CLI-first collaboration loop works for human + agent pair programming/project management
+- Planning/scheduling/delivery artifacts are captured in-product as items and references
+
+Definition of "sufficient for collaboration":
+
+- Codex and Claude Code can list projects, inspect work, and create/triage/update items using only `tay_cli`
+- Codex and Claude Code can create/update epic-tracking todos in existing self-hosted projects
+- Human + agent collaboration can run end-to-end in Senticor Project for planning, scheduling, and execution
+- Decisions, plans, and references are stored in Senticor Project as the primary system of record
+- Typical loop (plan -> propose -> confirm -> apply -> verify) runs reliably through CLI + UI
 
 ## Context
 
@@ -92,7 +112,11 @@ Copilot gets a single tool in its Haystack tool schema:
   "name": "tay_cli",
   "description": "Execute a COPILOT CLI command. Run `help` for available commands.",
   "parameters": {
-    "command": { "type": "string" }
+    "argv": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "CLI arguments without shell quoting, e.g. [\"items\", \"list\", \"--summary\", \"--json\"]"
+    }
   }
 }
 ```
@@ -101,34 +125,113 @@ The Python Haystack orchestrator (`agents/tay.py`) stays — it handles LLM inte
 history, and streaming. Only the tool executor changes: instead of dispatching to Python functions,
 it calls the TypeScript CLI via subprocess.
 
+### Agent Compatibility Contract (Codex, Claude Code, and other tool callers)
+
+To make `tay` usable like `gh`/`glab`, the CLI contract must be deterministic, shell-free, and
+machine-first.
+
+#### Tool Interface (No Shell String)
+
+Agents call `tay_cli` with `argv: string[]` and execute `["tay", ...argv]` directly. Raw shell
+strings are out of scope because quoting/parsing differences create brittle behavior across runtimes.
+
+#### Machine Output Contract (`--json`)
+
+When `--json` is present, stdout must contain exactly one JSON object. Human-readable logs and
+warnings go to stderr only.
+
+Read responses:
+
+```json
+{
+  "schema_version": "tay.v1",
+  "ok": true,
+  "data": {},
+  "meta": { "request_id": "req_123", "duration_ms": 42 }
+}
+```
+
+Write proposals:
+
+```json
+{
+  "schema_version": "tay.v1",
+  "ok": true,
+  "mode": "proposal",
+  "proposal": {
+    "id": "prp_123",
+    "operation": "items.create",
+    "preview": {}
+  }
+}
+```
+
+Errors:
+
+```json
+{
+  "schema_version": "tay.v1",
+  "ok": false,
+  "error": {
+    "code": "VALIDATION_FAILED",
+    "message": "bucket must be one of inbox,next,waiting,someday,scheduled,completed",
+    "details": [{ "field": "bucket", "rule": "enum" }],
+    "retryable": false
+  }
+}
+```
+
+#### Auth + Non-Interactive Behavior
+
+- Support token auth via both `tay auth login --with-token` and `TAY_TOKEN`
+- Support `TAY_HOST` for environment targeting
+- Support `--non-interactive`, `--yes`, `--no-color`, `--json`
+- In non-interactive mode, missing auth/input exits immediately with a non-zero code (no prompts)
+
+#### Exit Codes
+
+| Exit code | Meaning                          |
+| --------- | -------------------------------- |
+| `0`       | Success                          |
+| `2`       | Usage/argument error             |
+| `3`       | Authentication/authorization     |
+| `4`       | Validation failed                |
+| `5`       | Not found                        |
+| `10`      | Conflict/precondition failed     |
+| `20`      | Transient backend/network error  |
+
 ### Read vs Write Commands
 
-| Type                 | Behavior                                      | Examples                                                        |
-| -------------------- | --------------------------------------------- | --------------------------------------------------------------- |
-| **Read** (inline)    | Executes immediately, returns data to Copilot | `items list --bucket=reference`, `orgs get nueva-tierra --docs` |
-| **Write** (approval) | Returns structured preview, user confirms     | `items create --type=Action --name="File taxes" --bucket=next`  |
+| Type                         | Behavior                                                         | Examples                                                                                                  |
+| ---------------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| **Read** (inline)            | Executes immediately, returns data to Copilot                    | `items list --bucket=reference --json`, `orgs get nueva-tierra --docs --json`                           |
+| **Write** (proposal + apply) | Step 1 returns proposal JSON. Step 2 executes only after confirm | `items create --type=Action --name="File taxes" --bucket=next --propose --json`, `proposals apply <id> --yes --json` |
 
-Write commands output structured JSON that the frontend renders as the same approval card the user
-already sees. The "propose, user confirms" pattern is unchanged.
+Write commands return proposal JSON that the frontend renders as the same approval card the user
+already sees. The two-step "propose, user confirms, apply" pattern is unchanged.
 
 ### Example CLI Session (as Copilot would use it)
 
 ```bash
 # Discover workspace
-tay items list --summary
+tay items list --summary --json
 
 # Read an org's details
-tay orgs get nueva-tierra --docs
+tay orgs get nueva-tierra --docs --json
 
 # Read a specific document
-tay items get urn:app:reference:abc123 --content
+tay items get urn:app:reference:abc123 --content --json
 
-# Propose creating a person (returns structured JSON for approval)
+# Check auth/session status
+tay auth status --json
+
+# Propose creating a person (returns proposal JSON for approval UI)
 tay items create --type=Person --name="Steuerberater Schmidt" \
-  --org=nueva-tierra --role=accountant --email="schmidt@steuer.de"
+  --org=nueva-tierra --role=accountant --email="schmidt@steuer.de" \
+  --propose --json
 
-# Append to org log (returns structured JSON for approval)
-tay orgs append-log nueva-tierra --entry="Steuererklärung 2024 eingereicht"
+# Apply only after explicit user confirmation
+tay proposals apply prp_123 --yes --json
 ```
 
 ### System Prompt Change
@@ -136,20 +239,30 @@ tay orgs append-log nueva-tierra --entry="Steuererklärung 2024 eingereicht"
 ```jinja2
 ## Werkzeug
 Du hast ein einziges Werkzeug: `tay_cli`. Damit führst du Befehle aus.
+Übergebe Befehle immer als `argv: string[]` (kein Shell-String).
+
+### Agent-Regeln
+- Für maschinenlesbare Antworten immer `--json` setzen.
+- Keine interaktiven Prompts verwenden (`--non-interactive`, `--yes`).
+- Schreibbefehle immer 2-stufig:
+  1. Vorschlag mit `--propose --json`
+  2. Nach Nutzerbestätigung `proposals apply <id> --yes --json`
 
 ### Lesen (sofort)
-- `items list [--bucket=X] [--org=X] [--summary]` — Elemente auflisten
-- `items get <id> [--content]` — Element lesen
-- `orgs list` — Organisationen auflisten
-- `orgs get <id> [--docs]` — Organisation mit Dokumenten lesen
-- `projects list` — Projekte auflisten
-- `projects get <id> [--items]` — Projekt mit Elementen lesen
+- `items list [--bucket=X] [--org=X] [--summary] --json` — Elemente auflisten
+- `items get <id> [--content] --json` — Element lesen
+- `orgs list --json` — Organisationen auflisten
+- `orgs get <id> [--docs] --json` — Organisation mit Dokumenten lesen
+- `projects list --json` — Projekte auflisten
+- `projects get <id> [--items] --json` — Projekt mit Elementen lesen
+- `auth status --json` — Auth-Status prüfen
 
 ### Schreiben (Nutzer muss bestätigen)
-- `items create --type=<Type> --name="..." [--bucket=X] [--project=X]`
-- `items triage <id> --bucket=<target>`
-- `orgs append-log <org> --entry="..."`
-- `orgs update-doc <org> --doc=agent --content="..."`
+- `items create --type=<Type> --name="..." [--bucket=X] [--project=X] --propose --json`
+- `items triage <id> --bucket=<target> --propose --json`
+- `orgs append-log <org> --entry="..." --propose --json`
+- `orgs update-doc <org> --doc=agent --content="..." --propose --json`
+- `proposals apply <id> --yes --json`
 
 Verwende `tay_cli help` für die vollständige Befehlsreferenz.
 ```
@@ -287,12 +400,12 @@ ready, the need just isn't there yet.
 ### Phase 1: Baseline + Extract & CLI (enables Copilot)
 
 1. Verify current agent flow is green (`agents/tests/test_tay.py`, `agents/tests/test_tool_executor.py`, `agents/tests/test_jsonld_builders.py`, `agents/tests/test_backend_client.py`)
-2. Add parity tests that lock current tool-call schemas and write/read behavior
+2. Add parity tests that lock tool-call schema, JSON output contracts (`tay.v1`), and exit codes
 3. Create `packages/core/` with TypeScript project
 4. Move `item-serializer.ts` and `api-client.ts` to core, re-export from frontend
-5. Add CLI entry point with subcommands (`items`, `orgs`, `projects`) plus compatibility commands for current create flows
-6. Wire as single `tay_cli` tool in Haystack, replace Python tool executor dispatch with CLI subprocess call
-7. Update system prompt to document CLI commands
+5. Add CLI entry point with subcommands (`items`, `orgs`, `projects`, `auth`, `proposals`) plus compatibility commands for current create flows
+6. Wire as single `tay_cli` tool in Haystack using `argv` arrays, replace Python tool executor dispatch with CLI subprocess call
+7. Update system prompt to document CLI commands and proposal/apply semantics
 8. Remove old tool-call definitions only after parity tests pass
 
 ### Phase 2: SHACL Shapes
@@ -324,6 +437,9 @@ ready, the need just isn't there yet.
 | Core     | NEW: `packages/core/cli/items.ts`      | Items subcommands                                          |
 | Core     | NEW: `packages/core/cli/orgs.ts`       | Orgs subcommands                                           |
 | Core     | NEW: `packages/core/cli/projects.ts`   | Projects subcommands                                       |
+| Core     | NEW: `packages/core/cli/auth.ts`       | Auth commands (`login`, `status`)                         |
+| Core     | NEW: `packages/core/cli/proposals.ts`  | Proposal/apply workflow commands                           |
+| Core     | NEW: `packages/core/cli/output.ts`     | Stable `tay.v1` JSON envelope + error mapping             |
 | Core     | `packages/core/serializers/`           | Extracted from `item-serializer.ts`                        |
 | Core     | `packages/core/client/`                | Extracted from `api-client.ts`                             |
 | Core     | NEW: `packages/core/validation/shacl/` | SHACL shape definitions (`.ttl`)                           |
@@ -348,5 +464,9 @@ ready, the need just isn't there yet.
 4. Frontend unit: `cd frontend && CI=1 npx vitest run --project=unit`
 5. Frontend storybook: `cd frontend && STORYBOOK_TESTS=1 CI=1 npx vitest run --project=storybook`
 6. Agents (post-refactor parity): `cd agents && uv run python -m pytest tests/` (CLI subprocess integration + compatibility expectations)
-7. CLI smoke test: `npx tay items list --help` returns usage info
-8. Manual E2E: Start dev stack → open Copilot chat → ask "Was gibt es im Workspace?" → Copilot calls `tay_cli("items list --summary")` → returns workspace overview
+7. CLI contract tests: `npx tay items list --summary --json` returns valid `tay.v1` envelope (stdout-only JSON, non-zero errors on stderr)
+8. CLI write flow tests: `npx tay items create --type=Action --name="File taxes" --bucket=next --propose --json` returns proposal id, then `npx tay proposals apply <id> --yes --json` executes
+9. CLI auth/non-interactive tests: missing token in CI mode fails with exit code `3` and structured error JSON
+10. Manual E2E: Start dev stack → open Copilot chat → ask "Was gibt es im Workspace?" → Copilot calls `tay_cli(argv=["items","list","--summary","--json"])` → returns workspace overview
+11. Dogfooding E2E: Using only `tay_cli`, create/update epic todos and references in active projects, then confirm state is visible in Senticor Project UI
+12. Collaboration sufficiency check: Codex/Claude Code + human can run weekly planning/scheduling/review directly in self-hosted Senticor Project with no external tracker dependency

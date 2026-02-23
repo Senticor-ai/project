@@ -68,3 +68,72 @@ export const EscapeCancels: Story = {
     expect(args.onToggleEdit).toHaveBeenCalled();
   },
 };
+
+// ---------------------------------------------------------------------------
+// Split title mode (rename provenance epic)
+// ---------------------------------------------------------------------------
+
+export const DefaultSplit: Story = {
+  args: {
+    variant: "split",
+    name: "Steuerunterlagen vorbereiten",
+    rawCapture: "ich muss die steuerunterlagen fuer 2025 vorbereiten",
+    nameProvenance: {
+      setBy: "ai",
+      setAt: "2026-01-15T09:00:00Z",
+      source: "AI suggested from rawCapture",
+    },
+    onRename: fn(),
+  },
+};
+
+export const RawCaptureOnly: Story = {
+  args: {
+    variant: "split",
+    rawCapture: "e-mail an steuerberater wegen frist",
+    onRename: fn(),
+  },
+};
+
+export const AIRenamed: Story = {
+  args: {
+    variant: "split",
+    name: "E-Mail an Steuerberater senden",
+    rawCapture: "steuerberater schreiben",
+    nameProvenance: {
+      setBy: "ai",
+      setAt: "2026-01-15T09:00:00Z",
+      source: "AI suggested from rawCapture",
+    },
+    onRename: fn(),
+  },
+};
+
+export const UserRenamed: Story = {
+  args: {
+    variant: "split",
+    name: "Steuerberater wegen Umsatzsteuer kontaktieren",
+    rawCapture: "steuerberater schreiben",
+    nameProvenance: {
+      setBy: "user",
+      setAt: "2026-01-15T10:00:00Z",
+      source: "user renamed in EditableTitle",
+    },
+    onRename: fn(),
+  },
+};
+
+export const RenameViaEnter: Story = {
+  args: {
+    variant: "split",
+    name: "Alte Bezeichnung",
+    rawCapture: "urspruenglicher text",
+    onRename: fn(),
+  },
+  play: async ({ canvas, userEvent, args }) => {
+    const input = canvas.getByLabelText("Title (optional)");
+    await userEvent.clear(input);
+    await userEvent.type(input, "Neue Bezeichnung{Enter}");
+    expect(args.onRename).toHaveBeenCalledWith("Neue Bezeichnung");
+  },
+};

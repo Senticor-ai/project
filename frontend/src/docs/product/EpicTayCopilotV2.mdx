@@ -98,6 +98,30 @@ V1 conversations are ephemeral (frontend state only). V2 persists conversations 
 
 ---
 
+## Acceptance criteria
+
+- Conversation history is persisted and each new completion request includes recent conversation turns for the active conversation.
+- Prompt context injection includes only current-user items and applies a documented token-budget strategy.
+- Streaming endpoint emits incremental assistant content and the frontend renders partial tokens without waiting for full completion.
+- Tool calls remain valid under streaming mode (partial tool JSON is assembled and executed only after valid completion).
+- Model fallback retries across configured models with bounded backoff and records the final serving model in telemetry.
+- Agents deployment manifests include health probes, resource limits, and network policy for API/OpenRouter paths.
+- CI includes agent lint, type-check, unit tests, and integration tool-call verification.
+- Conversation persistence APIs support list, fetch messages, append message, and archive flows.
+
+---
+
+## Definition of Done
+
+- [ ] All acceptance criteria above are covered by automated tests or reproducible manual verification steps.
+- [ ] Backend endpoints for streaming and conversations have passing test coverage (unit + integration).
+- [ ] Frontend chat UI has passing tests for multi-turn, streaming, and resume/archive behavior.
+- [ ] Agent reliability behaviors (fallback, telemetry attributes, retry limits) are observable in logs/traces.
+- [ ] Deployment + CI updates are merged and validated in non-local environments.
+- [ ] Documentation for sequence/dependencies stays aligned with shipped scope.
+
+---
+
 ## Verification
 
 ```bash

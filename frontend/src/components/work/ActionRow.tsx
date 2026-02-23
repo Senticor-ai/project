@@ -19,7 +19,11 @@ export interface ActionRowProps {
   isExpanded?: boolean;
   onToggleExpand?: () => void;
   onEdit?: (id: CanonicalId, fields: Partial<ItemEditableFields>) => void;
-  onUpdateTitle?: (id: CanonicalId, newTitle: string) => void;
+  onUpdateTitle?: (
+    id: CanonicalId,
+    newTitle: string,
+    nameSource?: string,
+  ) => void;
   /** Called when user clicks the ReadAction "Read" subtitle to navigate to the reference. */
   onNavigateToReference?: (refId: CanonicalId) => void;
   projects?: Pick<Project, "id" | "name">[];
@@ -140,6 +144,8 @@ export function ActionRow({
   const isCompleted = !!thing.completedAt;
   const dueDateInfo = thing.dueDate ? formatDueDate(thing.dueDate) : null;
   const isInbox = thing.bucket === "inbox";
+  const showSplitTitleEditor =
+    !!onUpdateTitle && !!onEdit && (!isInbox || showMore);
 
   const { captureSource } = thing;
   const isEmail = captureSource.kind === "email";
@@ -176,7 +182,7 @@ export function ActionRow({
   };
 
   const handleTitleDoubleClick = () => {
-    if (!isEditingTitle && isExpanded) {
+    if (!showSplitTitleEditor && !isEditingTitle && isExpanded) {
       setIsEditingTitle(true);
     }
   };
@@ -437,6 +443,22 @@ export function ActionRow({
       {/* Expanded content */}
       {isExpanded && (
         <div className="mt-1 ml-8">
+          {showSplitTitleEditor && (
+            <EditableTitle
+              variant="split"
+              name={thing.name}
+              rawCapture={thing.rawCapture}
+              nameProvenance={thing.nameProvenance}
+              onRename={(newTitle) =>
+                onUpdateTitle(
+                  thing.id,
+                  newTitle,
+                  "user renamed in EditableTitle",
+                )
+              }
+            />
+          )}
+
           {/* Email body viewer */}
           {isEmail && thing.emailBody && (
             <EmailBodyViewer

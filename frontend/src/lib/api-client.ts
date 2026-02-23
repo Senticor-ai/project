@@ -622,12 +622,17 @@ export const ItemsApi = {
     item: Record<string, unknown>,
     source?: string,
     idempotencyKey?: string,
+    nameSource?: string,
   ) => {
     const headers: Record<string, string> = {};
     if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
     return request<ItemRecord>(`/items/${itemId}`, {
       method: "PATCH",
-      body: JSON.stringify({ item, ...(source && { source }) }),
+      body: JSON.stringify({
+        item,
+        ...(source && { source }),
+        ...(nameSource && { name_source: nameSource }),
+      }),
       headers,
     });
   },

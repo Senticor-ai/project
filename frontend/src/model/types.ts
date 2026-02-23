@@ -57,6 +57,12 @@ export interface ProvenanceEntry {
   note?: string;
 }
 
+export interface NameProvenance {
+  setBy: "user" | "ai" | "system";
+  setAt: string;
+  source: string;
+}
+
 // ---------------------------------------------------------------------------
 // Contexts
 // ---------------------------------------------------------------------------
@@ -200,6 +206,7 @@ export type ActionItemBucket =
 export interface ActionItem extends BaseEntity {
   bucket: ActionItemBucket;
   rawCapture?: string;
+  nameProvenance?: NameProvenance;
   contexts: CanonicalId[];
   projectIds: CanonicalId[];
   delegatedTo?: string;

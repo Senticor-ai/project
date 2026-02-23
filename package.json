@@ -2,6 +2,9 @@
   "private": true,
   "scripts": {
     "dev": "npm --prefix frontend run dev:stack",
-    "preflight:ci": "bash scripts/preflight-ci.sh"
+    "preflight:ci": "bash scripts/preflight-ci.sh",
+    "tay": "npm --prefix packages/core run tay --",
+    "tay:build": "npm --prefix packages/core run build",
+    "tay:test": "npm --prefix packages/core run test"
   }
 }

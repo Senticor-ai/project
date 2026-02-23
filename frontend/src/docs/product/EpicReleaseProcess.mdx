@@ -4,238 +4,33 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 # Epic: Release Process & Hygiene
 
-**Status:** Not started
-**Priority:** Future (deferred until beta users)
+**Status:** Closed
+**Closed on:** February 23, 2026
+**Decision owner:** Product + Engineering
 
-## Context
+## Decision
 
-Every successful deploy to production pushes SHA-tagged container images to `registry.onstackit.cloud/senticor/project/*` and auto-commits the new tag to the Kubernetes kustomization manifest. However there are no named releases, no git tags, no release notes, and no archived testing evidence. Additionally, all test jobs have `allow_failure: true`, meaning broken code can reach production without any gate.
+This epic is closed as a standalone implementation epic.
 
-This epic introduces a phased release process — starting with a minimal local script for tagging and release notes, then hardening the pipeline with quality gates and evidence archival, and finally adding supply-chain security measures.
+The currently implemented release/deploy flow is treated as baseline operating process and is now
+documented in [Engineering / Deployment](?path=/docs/engineering-deployment--docs).
 
-**Versioning scheme:** SemVer (`MAJOR.MINOR.PATCH`), single version for the monorepo since frontend and backend deploy atomically. Tag format: `v0.x.y`. A root `VERSION` file is the authoritative source; `package.json` and `pyproject.toml` are updated at release time.
+Remaining enhancements are tracked as roadmap projects in
+[Product / Roadmap Projects](?path=/docs/product-roadmap-projects--docs).
 
-**Release trigger:** Manual. A human decides "this deployed SHA is stable enough to be a named release" and runs the script with a version number.
+## What is in place today
 
----
+- GitHub Actions enforces quality/test gates before image publishing.
+- Frontend, backend, and storybook images are built and pushed with immutable SHA tags.
+- Production manifests are automatically updated to the deployed SHA in
+  `infra/k8s/overlays/production/kustomization.yaml`.
+- Deploy commits are written with `deploy: update image tag ... [skip ci]`.
+- Coverage artifacts are uploaded for frontend unit and backend integration jobs.
 
-## Phase 1: Minimum Viable Release (local script)
+## What moved to roadmap projects
 
-### 1a. `VERSION` file
-
-Create a plain text file at the repo root containing the current version (e.g., `0.1.0`). This is the single source of truth read by the release script.
-
-### 1b. `ci/release.sh`
-
-A shell script (~120 lines) run locally that:
-
-1. **Validates** — clean working tree, on `main`, valid SemVer, tag does not already exist
-2. **Reads deployed SHA** from `infra/k8s/overlays/production/kustomization.yaml`
-3. **Re-tags container images** in StackIT registry using `crane tag` — adds a `v0.x.y` alias to the existing SHA-tagged manifest without rebuilding or transferring layers
-4. **Updates `VERSION`** and bumps version in `frontend/package.json` (`npm version --no-git-tag-version`) and `backend/pyproject.toml`
-5. **Commits** the version bump locally
-6. **Creates annotated git tag** `v0.x.y` with image URIs in the tag message
-7. **Generates release notes** from commits since previous tag, filtering out auto-generated `deploy: update image tag` commits
-8. **Creates GitHub release** via `gh release create` with the generated notes
-9. Prints a reminder to push — does NOT push (per project conventions)
-
-**Usage:** `./ci/release.sh 0.2.0`
-
-**Prerequisites:** `brew install crane`, `gh` authenticated, StackIT registry credentials available to crane.
-
-### 1c. VERIFY
-
-```bash
-# Install crane
-brew install crane
-crane auth login registry.onstackit.cloud -u $STACKIT_REGISTRY_USER -p $STACKIT_REGISTRY_PASSWORD
-
-# Run first release
-./ci/release.sh 0.1.0
-
-# Verify
-git tag -l                           # shows v0.1.0
-crane ls registry.onstackit.cloud/senticor/project/frontend  # shows both SHA and v0.1.0
-gh release view v0.1.0              # shows release with notes
-
-# Push when ready
-git push origin main --tags
-```
-
----
-
-## Phase 2: Quality Gates + Testing Evidence
-
-### 2a. Fix pre-existing test failures
-
-Before removing `allow_failure`, fix known failures:
-
-- `Workflow.stories.tsx` (TriageToNext, TriageToWaiting, FullWorkflow)
-- `WorkScreen.stories.tsx` (CapturTriageNavigate)
-
-These are related to triage button labels.
-
-### 2b. Remove `allow_failure: true`
-
-Remove `allow_failure: true` from all 11 quality/test jobs in `.github/workflows/ci.yml`. Add explicit job dependencies so image publish jobs depend on quality+test completion:
-
-```yaml
-build-frontend:
-  needs:
-    [
-      frontend-lint,
-      frontend-typecheck,
-      frontend-unit,
-      frontend-storybook,
-      frontend-integration,
-    ]
-
-build-backend:
-  needs: [backend-lint, backend-typecheck, backend-unit, backend-integration]
-```
-
-### 2c. Add JUnit report artifacts
-
-Add `--reporter=junit --outputFile=test-results/junit.xml` to vitest jobs and `--junitxml=test-results/junit.xml` to pytest jobs. Declare as test report artifacts for native CI checks/reports integration.
-
-### 2d. Fix push-rebuilds-from-scratch
-
-The push stage currently re-runs Kaniko with the full Dockerfile instead of pushing the tar artifact from the build stage. This means the pushed image may differ from the built/tested one if any `RUN` commands have non-deterministic behavior.
-
-Fix by adding `crane` to the CI image and replacing the push jobs:
-
-```yaml
-push-frontend:
-  extends: .push-base
-  image: $CI_NODE_PYTHON_IMAGE
-  needs: [build-frontend]
-  script:
-    - crane push /tmp/frontend.tar "${STACKIT_IMAGE_PREFIX}/frontend:${CI_COMMIT_SHA}"
-```
-
-Add to `ci/Dockerfile.ci`:
-
-```dockerfile
-RUN curl -sL https://github.com/google/go-containerregistry/releases/latest/download/go-containerregistry_Linux_x86_64.tar.gz \
-    | tar xz -C /usr/local/bin crane
-```
-
-### 2e. Testing evidence archival
-
-Enhance `ci/release.sh` (or add a CI `release` stage) to:
-
-1. Download pipeline artifacts for the deployed SHA via `gh api`
-2. Bundle test reports, coverage, and Playwright reports into `testing-evidence-v0.x.y.tar.gz`
-3. Attach to the GitHub release via `gh release upload`
-4. Include pipeline URL in release notes
-
-### 2f. VERIFY
-
-```bash
-# Rebuild CI image with crane (trigger CI pipeline manually)
-
-# Push a commit with a failing test — verify pipeline stops at test stage
-# Fix the test, push — verify full pipeline succeeds and deploys
-
-# Create release with evidence
-./ci/release.sh 0.2.0
-gh release view v0.2.0    # should show attached testing-evidence archive
-```
-
----
-
-## Phase 3: Advanced Hygiene
-
-### 3a. Post-deploy smoke tests
-
-Add a CI job after `update-manifests` that curls health endpoints on the production URL to verify the new version is serving:
-
-```yaml
-smoke-test:
-  stage: deploy
-  needs: [update-manifests]
-  script:
-    - sleep 30
-    - curl -fsSk "https://project.senticor.runs.onstackit.cloud/" || exit 1
-    - curl -fsSk "https://project.senticor.runs.onstackit.cloud/api/health" || exit 1
-```
-
-### 3b. SBOM generation
-
-Use `syft` to generate Software Bill of Materials for each container image at release time. Attach SPDX JSON files as release assets.
-
-### 3c. Container image signing
-
-Use `cosign` to sign released images. Store the private key as a CI/CD variable, commit `cosign.pub` to the repo. Signatures prove images have not been tampered with between build and deploy.
-
-### 3d. CHANGELOG automation
-
-Generate `CHANGELOG.md` from git tags. Each release section lists non-deploy commits since the previous tag.
-
-### 3e. Conventional Commits
-
-Enforce structured commit messages via `commitlint`. Enables categorized changelogs (features, fixes, breaking changes).
-
-### 3f. Rollback runbook
-
-Document `docs/rollback.md` with step-by-step procedures for reverting to a previous release tag, including database migration downgrade considerations.
-
-### 3g. DB migration tracking
-
-Once Alembic migration versions are in use, list new migrations in release notes with a reminder to run `uv run alembic upgrade head`.
-
----
-
-## Files to create/modify
-
-**New files (Phase 1):**
-
-- `VERSION` — single-line version string (repo root)
-- `ci/release.sh` — release script (~120 lines)
-
-**Modified files (Phase 2):**
-
-- `.github/workflows/ci.yml` — remove `allow_failure`, add dependencies, add JUnit artifacts, fix push stage
-- `ci/Dockerfile.ci` — add `crane` binary
-
-**Modified at release time (by script):**
-
-- `frontend/package.json` — version field bumped
-- `backend/pyproject.toml` — version field bumped
-- `infra/k8s/overlays/production/kustomization.yaml` — read for deployed SHA
-
-**New files (Phase 3):**
-
-- `docs/rollback.md` — rollback procedures
-
----
-
-## Priority matrix
-
-| Item                             | Phase | Effort | Impact                                    |
-| -------------------------------- | ----- | ------ | ----------------------------------------- |
-| `VERSION` + `ci/release.sh`      | 1     | Small  | High — enables named releases             |
-| First release `v0.1.0`           | 1     | Tiny   | High — proves the process                 |
-| Fix pre-existing test failures   | 2     | Medium | Critical — prerequisite for quality gates |
-| Remove `allow_failure: true`     | 2     | Small  | High — tests protect deploys              |
-| Fix push-rebuilds-from-scratch   | 2     | Small  | High — image integrity                    |
-| JUnit report artifacts           | 2     | Small  | Medium — CI visibility                    |
-| Testing evidence archival        | 2     | Small  | Medium — audit trail                      |
-| Post-deploy smoke tests          | 3     | Small  | Medium — catch deploy failures            |
-| SBOM generation                  | 3     | Small  | Low — compliance prep                     |
-| Container signing                | 3     | Medium | Low — supply chain security               |
-| Changelog + conventional commits | 3     | Medium | Medium — developer experience             |
-| Rollback runbook                 | 3     | Small  | Medium — operational safety               |
-
----
-
-## Verification checklist
-
-- [ ] `ci/release.sh 0.x.y` creates git tag, re-tags images, creates GitHub release
-- [ ] `crane ls` shows both SHA and version tags for all 3 images
-- [ ] `gh release view v0.x.y` shows release notes with commit log
-- [ ] Quality/test failures block the build stage (Phase 2)
-- [ ] JUnit reports appear in GitHub checks / CI report UI (Phase 2)
-- [ ] Testing evidence archive attached to release (Phase 2)
-- [ ] Pushed images are byte-identical to built tars (Phase 2)
-- [ ] Smoke test job runs after deploy (Phase 3)
+- Named release workflow (`VERSION`, SemVer tag/release automation)
+- Test evidence bundling and release asset archival
+- Post-deploy smoke checks
+- Supply-chain hardening (SBOM/signing)
+- Changelog/commit-policy automation and rollback runbook

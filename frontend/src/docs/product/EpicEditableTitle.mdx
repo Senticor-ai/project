@@ -4,8 +4,9 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 # Epic: Editable Title & Rename Provenance
 
-**Status:** In progress (backend complete, frontend pending)
+**Status:** Complete
 **Priority:** Current
+**Progress note:** Frontend delivered on February 23, 2026.
 
 ## Context
 
@@ -74,7 +75,7 @@ Three partial indexes on `schema_jsonld` (filtered `WHERE archived_at IS NULL`):
 
 ---
 
-## What's next (frontend)
+## What shipped (frontend)
 
 ### Phase 1: Model layer
 
@@ -190,11 +191,11 @@ cd frontend && npx storybook build
 
 ## Verification checklist
 
-- [ ] `nameProvenance` roundtrips through serializer
-- [ ] EditableTitle renders name vs rawCapture separately
-- [ ] Provenance badge shows AI vs user attribution
-- [ ] Rename calls PATCH with `name_source`
-- [ ] Multiple renames accumulate in provenance history
-- [ ] All unit tests pass
-- [ ] TypeScript clean (`tsc --noEmit`)
-- [ ] Storybook builds
+- [x] `nameProvenance` roundtrips through serializer
+- [x] EditableTitle renders name vs rawCapture separately
+- [x] Provenance badge shows AI vs user attribution
+- [x] Rename calls PATCH with `name_source`
+- [x] Multiple renames accumulate in provenance history
+- [x] All unit tests pass
+- [x] TypeScript clean (`tsc --noEmit`)
+- [x] Storybook builds

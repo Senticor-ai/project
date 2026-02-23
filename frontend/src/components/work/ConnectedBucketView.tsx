@@ -117,10 +117,11 @@ export function ConnectedBucketView({
   );
 
   const handleUpdateTitle = useCallback(
-    (id: CanonicalId, newTitle: string) =>
+    (id: CanonicalId, newTitle: string, nameSource?: string) =>
       updateItemMutation.mutate({
         canonicalId: id,
         patch: { name: newTitle },
+        ...(nameSource ? { nameSource } : {}),
       }),
     [updateItemMutation],
   );

@@ -145,6 +145,26 @@ describe("toJsonLd", () => {
       expectPropertyValue(ld, "app:rawCapture", "Buy milk");
     });
 
+    it("stores nameProvenance as additionalProperty when provided", () => {
+      const item = createAction({
+        name: "Plan launch",
+        bucket: "next",
+        rawCapture: "plan launch",
+        nameProvenance: {
+          setBy: "ai",
+          setAt: "2026-01-10T12:00:00Z",
+          source: "AI suggested from rawCapture",
+        },
+      });
+      const ld = toJsonLd(item);
+
+      expectPropertyValue(ld, "app:nameProvenance", {
+        setBy: "ai",
+        setAt: "2026-01-10T12:00:00Z",
+        source: "AI suggested from rawCapture",
+      });
+    });
+
     it("stores needsEnrichment as additionalProperty", () => {
       const item = createInboxItem({ name: "Buy milk" });
       const ld = toJsonLd(item);
@@ -600,6 +620,71 @@ describe("fromJsonLd", () => {
       expect(action.scheduledDate).toBe("2026-03-01");
       expect(action.projectIds).toEqual(["urn:app:project:p-1"]);
       expect(action.tags).toEqual(["health"]);
+    });
+
+    it("deserializes app:nameProvenance when present", () => {
+      const record = wrapAsItemRecord({
+        "@id": "urn:app:action:nameprov-1",
+        "@type": "Action",
+        _schemaVersion: 2,
+        name: "Quarterly planning",
+        startTime: null,
+        endTime: null,
+        keywords: [],
+        dateCreated: "2025-01-01T00:00:00Z",
+        dateModified: "2025-01-01T00:00:00Z",
+        additionalProperty: [
+          { "@type": "PropertyValue", propertyID: "app:bucket", value: "next" },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:rawCapture",
+            value: "do quarterly planning",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:nameProvenance",
+            value: {
+              setBy: "user",
+              setAt: "2026-01-20T09:30:00Z",
+              source: "user renamed in EditableTitle",
+            },
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:needsEnrichment",
+            value: false,
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:confidence",
+            value: "high",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:captureSource",
+            value: { kind: "thought" },
+          },
+          { "@type": "PropertyValue", propertyID: "app:contexts", value: [] },
+          { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:typedReferences",
+            value: [],
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:provenanceHistory",
+            value: [],
+          },
+        ],
+      });
+
+      const action = fromJsonLd(record) as ActionItem;
+      expect(action.nameProvenance).toEqual({
+        setBy: "user",
+        setAt: "2026-01-20T09:30:00Z",
+        source: "user renamed in EditableTitle",
+      });
     });
   });
 
@@ -1165,6 +1250,29 @@ describe("fromJsonLd", () => {
       expect(restored.projectIds).toEqual(["urn:app:project:p-1"]);
       expect(restored.delegatedTo).toBe("Bob");
       expect(restored.sequenceOrder).toBe(3);
+    });
+
+    it("roundtrips nameProvenance for action items", () => {
+      const original = createAction({
+        name: "Refined title",
+        bucket: "next",
+        rawCapture: "messy captured sentence",
+        nameProvenance: {
+          setBy: "ai",
+          setAt: "2026-02-01T12:00:00Z",
+          source: "AI suggested from rawCapture",
+        },
+      });
+
+      const ld = toJsonLd(original);
+      const record = wrapAsItemRecord(ld);
+      const restored = fromJsonLd(record) as ActionItem;
+
+      expect(restored.nameProvenance).toEqual({
+        setBy: "ai",
+        setAt: "2026-02-01T12:00:00Z",
+        source: "AI suggested from rawCapture",
+      });
     });
 
     it("preserves project data", () => {

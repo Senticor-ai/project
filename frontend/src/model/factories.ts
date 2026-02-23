@@ -61,6 +61,7 @@ export function createActionItem(overrides: ActionItemOverrides): ActionItem {
     bucket,
     name: overrides.name,
     rawCapture: overrides.rawCapture,
+    nameProvenance: overrides.nameProvenance,
     description: overrides.description,
     tags: overrides.tags ?? [],
     references: overrides.references ?? [],

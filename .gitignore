@@ -54,6 +54,8 @@ playwright-report/
 blob-report/
 frontend/e2e/artifacts/
 frontend/coverage/
+.playwright-cli/
+
 
 # Exported documentation
 exports/

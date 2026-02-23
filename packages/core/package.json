@@ -1,0 +1,27 @@
+{
+  "name": "@project/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "tay": "./dist/cli/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "tay": "tsx cli/index.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "commander": "^13.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.8",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.8"
+  }
+}

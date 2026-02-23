@@ -35,16 +35,16 @@ If Storybook is already running, it reuses the existing instance.
 
 ### Output
 
-| File                        | Description                                |
-| --------------------------- | ------------------------------------------ |
-| `exports/product-docs.md`   | Combined markdown (all 10 product docs)    |
-| `exports/product-docs.pdf`  | Styled A4 PDF with TOC and screenshots     |
-| `exports/product-docs.html` | Intermediate HTML (can be shared directly) |
-| `exports/screenshots/*.png` | Retina screenshots of key stories          |
+| File                        | Description                                          |
+| --------------------------- | ---------------------------------------------------- |
+| `exports/product-docs.md`   | Combined markdown (all product docs in export order) |
+| `exports/product-docs.pdf`  | Styled A4 PDF with TOC and screenshots               |
+| `exports/product-docs.html` | Intermediate HTML (can be shared directly)           |
+| `exports/screenshots/*.png` | Retina screenshots of key stories                    |
 
 ### What's Included
 
-The PDF contains all product documentation in this order:
+The PDF contains product documentation in this order:
 
 1. **Product Vision** — What is project, core workflow, design principles, knowledge architecture
 2. **Methodology** — Five-phase task management, inbox processing, smart lists
@@ -54,8 +54,9 @@ The PDF contains all product documentation in this order:
 6. **Epic: Export** — Item export (JSON/CSV)
 7. **Epic: Schema Enrichment** — Schema.org type enrichment
 8. **Epic: PWA Readiness** — Progressive Web App phases
-9. **Epic: Release Process** — CI/CD and release hygiene
-10. **Epic: Rename to Procedere** — Future rebrand plan
+9. **Epic: Release Process** — Closed summary + roadmap handoff
+10. **Epic: Rename to Procedere** — Archived decision record
+11. **Roadmap Projects** — Planned follow-up projects
 
 Screenshots are captured from these stories: ConnectedBucketView (inbox, capture, email),
 ActionRow (triage, focus), ActionList, BucketView (projects), FileDropZone, and Settings.

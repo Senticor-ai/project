@@ -1,0 +1,32 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Product/Roadmap Projects" />
+
+# Product Roadmap Projects
+
+Delivery-oriented roadmap items that are not part of active epics.
+
+## Current projects
+
+| Project                | Problem solved                                                             | Scope                                                        | Status  | Depends on     |
+| ---------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------ | ------- | -------------- |
+| Named Releases         | Production deploys are SHA-only, without human-friendly release tags/notes | `VERSION` file, release script, SemVer tags, GitHub releases | Planned | None           |
+| Release Evidence       | Test and coverage outputs are not attached to named releases               | Collect CI artifacts and attach to release assets            | Planned | Named Releases |
+| Post-Deploy Smoke      | Deploy success is inferred from pipeline completion only                   | Add production smoke checks after manifest update            | Planned | None           |
+| Supply-Chain Hardening | No SBOM/signature assets for release images                                | SBOM generation + image signing process                      | Planned | Named Releases |
+| Change Governance      | Changelog and commit hygiene are ad-hoc                                    | Changelog automation, commit policy, rollback runbook        | Planned | Named Releases |
+
+## Near-term sequence
+
+1. Named Releases
+2. Release Evidence
+3. Post-Deploy Smoke
+4. Supply-Chain Hardening
+5. Change Governance
+
+## Source of truth
+
+- Current deployment baseline:
+  [Engineering / Deployment](?path=/docs/engineering-deployment--docs)
+- Closed epic that seeded this roadmap:
+  [Epic: Release Process](?path=/docs/product-epics-release-process--docs)

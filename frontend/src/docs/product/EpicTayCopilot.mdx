@@ -4,8 +4,9 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 # Epic: Copilot V1 — Chat + Item Creation
 
-**Status:** V1 complete (frontend + backend + agents)
+**Status:** Complete
 **Priority:** Current
+**Progress note:** V1 shipped across frontend, backend, and agents.
 
 ## Context
 
@@ -144,6 +145,19 @@ Copilot: "Projekt 'Geburtstagsfeier planen' erstellt mit
 
 ---
 
+## Acceptance criteria
+
+- User can open/close Copilot from the `AppHeader` `chat_bubble` toggle on desktop and mobile.
+- Sending a user message renders a Copilot response in the same conversation thread.
+- Copilot suggestions render as detachable cards with **Accept**, **Dismiss**, and **Edit** actions.
+- Clicking **Accept** persists suggested items via existing mutations and each persisted item includes `CaptureSource.kind = "tay"`.
+- Clicking **Dismiss** never persists any item.
+- Editing a suggestion updates the payload used for persistence when the user later accepts it.
+- Chat surfaces backend/agent failure states for unavailable, unreachable, and timeout paths (503/502/504).
+- V1 constraints remain enforced: no item search/read, no external service access, and no streaming responses.
+
+---
+
 ## What's done
 
 ### Frontend
@@ -178,7 +192,18 @@ Copilot: "Projekt 'Geburtstagsfeier planen' erstellt mit
 - [x] `AGENTS_URL` config in backend Settings
 - [x] `npm run dev` starts all 5 services (backend, worker, agents, frontend, storybook)
 
-**Deferred to V2+:** Conversation history, user items in prompt context, streaming (SSE), model fallback, K8s agent manifests, CI pipeline jobs, DB persistence for conversations. See [Copilot V2+](?path=/docs/product-epics-copilot-v2---docs).
+**Deferred to V2+:** Conversation history, user items in prompt context, streaming (SSE), model fallback, K8s agent manifests, CI pipeline jobs, DB persistence for conversations. See [Copilot V2+](?path=/docs/product-epics-copilot-v2--docs).
+
+---
+
+## Definition of Done
+
+- [x] All acceptance criteria are covered by component behavior, integration wiring, and backend/agent responses.
+- [x] Frontend unit tests for chat components/hooks pass in CI mode.
+- [x] Backend chat route tests pass.
+- [x] Agents service tests pass.
+- [x] Storybook docs and component stories build successfully.
+- [x] Deferred V2+ scope is explicitly documented and linked.
 
 ---
 
@@ -233,9 +258,14 @@ Copilot: "Projekt 'Geburtstagsfeier planen' erstellt mit
 ## Verification
 
 ```bash
+# Frontend
 cd frontend && npx tsc -b --noEmit
 cd frontend && CI=1 npx vitest run --project=unit
 cd frontend && npx storybook build
 cd frontend && npx eslint src/components/chat/ src/hooks/use-chat* src/hooks/use-tay*
 cd frontend && npx prettier --check src/components/chat/ src/hooks/use-chat* src/hooks/use-tay*
+
+# Backend + agents
+cd backend && uv run python -m pytest tests/test_chat_routes.py
+cd agents && uv run python -m pytest tests/test_app.py
 ```
