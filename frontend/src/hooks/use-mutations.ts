@@ -289,10 +289,19 @@ export function useCaptureInbox() {
 export function useCaptureFile() {
   const qc = useQueryClient();
 
-  type CaptureFileVars = { file: File; jsonLd: Record<string, unknown> };
+  type CaptureFileOptions = {
+    onUploadSuccess?: () => void;
+    onUploadError?: () => void;
+  };
+
+  type CaptureFileVars = {
+    file: File;
+    jsonLd: Record<string, unknown>;
+    options?: CaptureFileOptions;
+  };
 
   const mutation = useMutation({
-    mutationFn: async ({ file, jsonLd }: CaptureFileVars) => {
+    mutationFn: async ({ file, jsonLd, options }: CaptureFileVars) => {
       // 1. Create the item (metadata-only)
       const itemRecord = await ItemsApi.create(jsonLd, "manual");
 
@@ -324,11 +333,14 @@ export function useCaptureFile() {
               },
             ],
           });
+          options?.onUploadSuccess?.();
         } catch {
           // PATCH failure tolerated — item + file exist, link can be retried
+          options?.onUploadError?.();
         }
       } catch {
         // Upload failure tolerated — item metadata is persisted
+        options?.onUploadError?.();
       }
 
       return itemRecord;
@@ -364,19 +376,19 @@ export function useCaptureFile() {
   });
 
   const mutate = useCallback(
-    (file: File) => {
+    (file: File, options?: CaptureFileOptions) => {
       const classification = classifyFile(file);
       const jsonLd = buildNewFileInboxJsonLd(classification, file.name);
-      mutation.mutate({ file, jsonLd });
+      mutation.mutate({ file, jsonLd, options });
     },
     [mutation],
   );
 
   const mutateAsync = useCallback(
-    async (file: File) => {
+    async (file: File, options?: CaptureFileOptions) => {
       const classification = classifyFile(file);
       const jsonLd = buildNewFileInboxJsonLd(classification, file.name);
-      return mutation.mutateAsync({ file, jsonLd });
+      return mutation.mutateAsync({ file, jsonLd, options });
     },
     [mutation],
   );

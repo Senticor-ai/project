@@ -6,7 +6,7 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 **Status:** Not started
 **Priority:** Current
-**Inspiration:** [Trello tour](https://trello.com/en/tour) for board-first team workflow
+**Design direction:** Board-first team workflow
 
 ## Context
 
@@ -18,7 +18,8 @@ project with teammates, collaborate on the same work items, and track progress v
 project with a clear flow from intake to completion.
 
 **Outcome:** A shared project workspace where registered users can collaborate in either list or
-kanban mode, create actions/events/references, and move work through a default delivery flow.
+kanban mode, manage action cards together, and track delivery state with a standards-based status model.
+The product model remains schema.org-aligned and portable to graph/triple-store representation later.
 
 ---
 
@@ -39,38 +40,110 @@ kanban mode, create actions/events/references, and move work through a default d
 - Owner can remove collaborators.
 - Collaborators can view and edit project content.
 
-### 2) List <-> Kanban view toggle per project
+### 1a) Inline project settings (project title -> more options)
+
+- Project settings are inline in the project workspace, not a separate screen for MVP.
+- Clicking the project name opens an inline "More options" section (same interaction style as item edit).
+- Inline settings include:
+  - add/remove collaborators
+  - project due date
+- Owner can edit all settings; members can view settings and edit only allowed fields.
+
+### 2) List to Kanban view toggle per project
 
 - A project can be viewed in either list mode (existing behavior) or kanban mode.
 - Toggle is available in project workspace header.
 - Preference persists per project and user.
 - Both views operate on the same underlying items (no duplicate data models).
 
-### 3) Board cards: actions, events, references
+### 2a) Deep links for project views
 
-- Users can add three card types directly from board columns:
-  - `Action`
-  - `Event`
-  - `Reference`
-- Quick-add supports minimal required fields; full editing remains in the item editor.
-- References support URL or file-linked context as available in existing model.
+- Project list and board views are addressable via stable URL state.
+- Opening a deep link restores:
+  - selected project
+  - selected view mode (`list` or `kanban`)
+  - active filters where present (for example tag filter)
+- Users can copy/paste URL links to share direct entry points with collaborators.
 
-### 4) Default workflow steps
+### 3) Action-only board cards
 
-Board uses fixed columns for MVP:
+- Every card shown in kanban is a schema.org `Action`.
+- Card UI supports quick inline edits for frequent fields (title, status, due date, assignee/collaborator, tags).
+- Quick-add supports minimal required fields; simple edits happen directly on the card.
+- Event and asset context is attached to actions through references (for example links to `Event` items or `DigitalDocument`/`CreativeWork` items).
+- Double-clicking a card opens an advanced edit panel for complex edits.
+- Advanced panel supports full description editing with markdown source + rendered preview (WYSIWYG-like editing flow for MVP).
 
-1. `new`
-2. `backlog`
-3. `in progress`
-4. `review`
-5. `done`
-6. `archive`
+### 3a) Shared project visual indicator
 
-Cards can be moved between steps via drag-and-drop and keyboard-accessible move actions.
+- Shared projects are visually marked in project lists and headers with a collaboration icon/badge.
+- Indicator is visible in both list and kanban views.
+- Tooltip/label clarifies that the project has multiple collaborators.
+
+### 3b) Assignee model (owner of action)
+
+- Quick edit supports assigning an action owner.
+- Owner picker source priority:
+  - users in the system directory
+  - contacts from the user's contact list (if available)
+  - free-text fallback (for external people, for example email/name not registered in system)
+- Data model supports both structured owner reference and free-text owner.
+
+### 3c) Due date UX
+
+- Due date is quick-set directly on cards.
+- Visual urgency indicators are visible in board and list:
+  - due today
+  - overdue
+- Sorting/filtering can prioritize urgent cards.
+
+### 3d) Tagging and filtering
+
+- Actions support freeform tags in quick edit.
+- Board and list views support filtering by tag.
+- Active filters are visible and easy to clear.
+
+### 3e) Comments and revision history
+
+- Any project member can add comments on an action.
+- Threaded comments are supported.
+- Board cards show a compact comment indicator/count when comments exist.
+- Action edits maintain revision history (what changed, who changed it, when).
+
+### 4) Default action statuses (MVP)
+
+Kanban columns map to schema.org `actionStatus` enum values:
+
+1. `Backlog` -> `PotentialActionStatus`
+2. `In Progress` -> `ActiveActionStatus`
+3. `Done` -> `CompletedActionStatus`
+4. `Blocked` -> `FailedActionStatus`
+
+Cards can be moved between statuses via drag-and-drop and keyboard-accessible move actions.
+
+Additional statuses and custom stage labels are out of MVP scope.
+
+### 4a) Dynamic-ready workflow architecture (no custom UI yet)
+
+- Store workflow policy as a project-level definition object, not hardcoded board columns.
+- Workflow definition contains:
+  - `canonicalStatuses`: the 4 supported `actionStatus` enum values
+  - `transitions`: allowed status-to-status edges
+  - `defaultStatus`, `doneStatuses`, `blockedStatuses`
+  - `columnLabels`: display labels (`Backlog`, `In Progress`, `Done`, `Blocked`)
+  - `policyMode`: `open` (MVP) or `restricted` (future)
+- Each board card persists schema.org `actionStatus` as canonical status.
+- Board columns render from workflow definition (`columnLabels` + mapped `canonicalStatuses`).
+- Transition validation always goes through one backend policy function:
+  - MVP: `policyMode = "open"` (allow transitions between the 4 default statuses)
+  - Future: `policyMode = "restricted"` (enforce transition graph + rules)
+- Future customization path:
+  - add optional custom stage definitions that map to a canonical `actionStatus`
+  - keep `actionStatus` stable for interoperability and reporting
 
 ---
 
-## Trello-Inspired Interaction Model (MVP)
+## Interaction Model (MVP)
 
 Borrow the following proven patterns:
 
@@ -92,20 +165,54 @@ Do not include in MVP:
 
 ### Permissions
 
-- `Owner`: manage collaborators, edit all project items, move/archive cards.
-- `Member`: edit project items, move cards across workflow steps.
+- `Owner`: manage collaborators, edit all project items, move cards across board states.
+- `Member`: edit project items, move cards across board states.
 - Non-members cannot access the project.
+- Collaboration membership semantics align to schema.org `member` on `Project` (implemented via
+  relational membership records in MVP).
 
 ### State model
 
-- Workflow state stored on each item as `app:workflowStep`.
-- Allowed MVP values: `new | backlog | in_progress | review | done | archive`.
-- Existing list view derives grouping/sorting from the same workflow step field.
+- Board items are `Action` entities only.
+- Canonical state field is schema.org `actionStatus`.
+- Allowed MVP values:
+  - `PotentialActionStatus` (Backlog)
+  - `ActiveActionStatus` (In Progress)
+  - `CompletedActionStatus` (Done)
+  - `FailedActionStatus` (Blocked)
+- Source-of-truth for movement is immutable transition events; current `actionStatus` is a
+  rebuildable projection for reads.
+- Existing list and kanban views derive grouping/sorting from projected `actionStatus`.
+- `Event` and `DigitalDocument`/`CreativeWork` items are linked context for actions, not standalone board cards in MVP.
+
+### Project settings UX
+
+- Clicking the project name expands inline settings in context.
+- Settings include collaborators and project due date.
+- Changes save in place and apply to both list and kanban views.
+
+### Routing and shareability
+
+- URL/query state carries project + view mode so board/list are deep-linkable.
+- Opening deep links restores view context and relevant filters.
+
+### Collaboration affordances
+
+- Shared projects show a visible collaboration marker in project chrome.
+- Actions expose assignee and comment indicators directly on cards.
+- Threaded discussion semantics align with schema.org `Comment` and parent-child comment
+  relationships.
+
+### Card edit modes
+
+- Single-click/expanded card: quick inline editing for common fields.
+- Double-click: open advanced edit panel for deep edits (full description markdown editing, references, and metadata).
 
 ### Multi-user consistency
 
 - Changes by one member are visible to other members on refresh.
 - Activity metadata records `updatedBy` and timestamp for auditability.
+- Comment and revision history preserve actor and timestamp metadata.
 
 ---
 
@@ -114,11 +221,21 @@ Do not include in MVP:
 - Project owner can add an existing registered user to a project by email.
 - Sharing with an unregistered email is rejected with actionable feedback.
 - Project header shows a working list/kanban toggle.
-- Kanban board shows the 6 default columns in the defined order.
-- Users can create `Action`, `Event`, and `Reference` cards from board UI.
+- Project list/board URLs are deep-linkable and restore project + view mode on load.
+- Clicking project name opens inline settings with collaborator management and due date.
+- Shared projects show a visible collaboration icon/badge.
+- Kanban board shows 4 default columns mapped to `actionStatus`: Backlog, In Progress, Done, Blocked.
+- Users can create `Action` cards from board UI.
+- Action cards can attach/link event and asset context (for example Event and DigitalDocument references).
+- Action owner can be set quickly from directory/contacts or free-text fallback.
+- Due date can be set quickly on cards and clearly indicates today/overdue states.
+- Freeform tags can be added quickly and filtered in list/kanban.
+- Cards show comment indicator/count; threaded comments are accessible from card/detail.
+- Action edits are revisioned with actor + timestamp.
+- Card quick-edit works inline and double-click opens advanced edit panel.
 - Cards can move between columns and persist after page reload.
+- Board and list views stay consistent via shared `actionStatus` source.
 - Both owner and member can collaborate on the same project without permission leakage.
-- `done` and `archive` are available as explicit final workflow states.
 
 ---
 
@@ -127,20 +244,158 @@ Do not include in MVP:
 ### Phase 1: Sharing foundations
 
 - Project member table + API + permission checks
-- Project settings UI for add/remove collaborator
+- Inline project settings UI (project-name click to open settings section)
+- Collaborator add/remove + project due date
+- Shared project visual marker in project list/header
+- Deep-link routing for project list/kanban views
 - Registered-user lookup and validation messaging
 
 ### Phase 2: Kanban read/write
 
 - Project view toggle (list/kanban)
-- Fixed board columns + item queries by `workflowStep`
+- Board columns rendered from workflow definition + item queries by projected `actionStatus`
 - Drag-and-drop plus keyboard move affordance
+- Backend transition validator with policy mode (`open` now, `restricted` later)
+- Append-only transition event writes + state projection updater
+- Assignee quick edit (directory + contact + free-text fallback)
+- Due date quick set + visual urgency indicators
+- Tag quick edit + tag filtering in board/list
 
 ### Phase 3: Card creation + polish
 
-- Quick-add for Action/Event/Reference in board
-- Card detail editing flow
+- Quick-add for `Action` in board
+- Inline card quick-edit behaviors
+- Advanced edit panel on double-click with full markdown description editing
+- Event/asset linking inside action detail
+- Threaded comments with card-level indicator
+- Revision history timeline in advanced action view
 - Empty states and onboarding hints
+
+---
+
+## Appendix A: Schema-Aligned Architecture and Setup
+
+### A1) Modeling Principles
+
+- Keep ontology and storage concerns separate.
+- Treat each board card as schema.org `Action`.
+- Represent movement between columns as immutable transition facts (events), not destructive status overwrites.
+- Keep schema.org semantics first; extend only where schema.org has no precise construct.
+- Design so relational storage can map cleanly to RDF/triple representation later.
+
+### A2) Conceptual Model (Ontology Layer)
+
+- `Project` with `member` relationships for collaboration access.
+- `Action` as the progressed unit shown on the board.
+- `actionStatus` as canonical lifecycle status.
+- `Comment` for user discussion, with threaded parent-child linkage.
+- `Event`, `DigitalDocument`, `CreativeWork` as referenced context linked to `Action`.
+- `BookmarkAction` can model saved personal view presets/deep links in future iterations.
+
+### A3) Practical Postgres Model (Backend)
+
+Core tables:
+
+1. `action` (stable identity + editable content)
+2. `action_transition_event` (append-only movement/audit log)
+3. `action_state_projection` (current state snapshot for fast reads)
+4. `workflow_state` and `workflow_transition` (workflow as data)
+5. `project_member` (collaboration access)
+6. `action_comment` (threaded comments)
+7. `action_revision` (content change history)
+
+Recommended fields (MVP-level):
+
+1. `action`
+   - `id`, `project_id`, `name`, `description`, `action_status`, `owner_user_id`,
+     `owner_text`, `due_at`, `tags`, `object_ref`, `attributes`, `created_at`, `created_by`
+2. `action_transition_event`
+   - `id`, `ts`, `action_id`, `actor_id`, `from_status`, `to_status`, `reason`, `payload`,
+     `correlation_id`
+3. `action_state_projection`
+   - `action_id`, `status`, `updated_at`, `last_event_id`
+4. `project_member`
+   - `project_id`, `user_id`, `role`, `added_at`, `added_by`
+5. `action_comment`
+   - `id`, `action_id`, `author_id`, `parent_comment_id`, `body`, `created_at`, `updated_at`
+6. `action_revision`
+   - `id`, `action_id`, `actor_id`, `diff`, `created_at`
+
+Notes:
+
+- `action_transition_event` is append-only and becomes the audit/provenance source.
+- `action_state_projection` is rebuildable from events.
+- No backward compatibility constraints are required (pre-release), so model can be introduced directly.
+
+### A4) API/Service Shape
+
+Command-side operations:
+
+1. `createAction`
+2. `updateActionFields` (quick edit and advanced edit)
+3. `transitionActionStatus` (validates workflow, appends event, updates projection)
+4. `addComment` / `replyComment`
+5. `addProjectMember` / `removeProjectMember`
+
+Query-side operations:
+
+1. `listProjectActions` (list/board view from projection)
+2. `getActionDetail` (references, comments, revisions)
+3. `listActionHistory` (transitions + revisions timeline)
+
+Concurrency:
+
+- Use optimistic concurrency for transitions (`expected_last_event_id` or equivalent).
+- Reject stale transitions with actionable UI feedback.
+
+### A5) Frontend Alignment
+
+- Board/list always render from projected `actionStatus`.
+- Move operation calls transition command API (never writes status directly without command path).
+- Quick edit on card: title, status move, assignee, due date, tags.
+- Advanced panel: full description markdown editing, references, threaded comments, revision timeline.
+- Project header holds inline settings and deep-linkable list/board routes.
+
+### A6) CLI/Agent Enablement
+
+Expose agent-safe commands/endpoints for:
+
+1. list projects and members
+2. list actions by status/tag/assignee/due
+3. create/update/transition actions
+4. add/read comments and revisions
+5. manage collaborators
+
+Operational requirements:
+
+- Include actor identity and correlation ID for each write.
+- Return both projection state and last event metadata for deterministic automation.
+
+### A7) Schema Compliance Boundary
+
+Use schema.org terms directly where available:
+
+1. `Project`, `member`
+2. `Action`, `actionStatus`
+3. `Comment`
+4. `Event`, `DigitalDocument`, `CreativeWork`
+5. `BookmarkAction` (optional saved-view capability)
+
+Extend with product namespace only for workflow internals not covered by schema.org:
+
+1. transition-event envelope fields
+2. workflow policy/guard metadata
+3. projection bookkeeping
+
+### A8) Initial Setup Sequence
+
+1. Add DB tables for `action_transition_event`, `action_state_projection`, `project_member`,
+   `action_comment`, `action_revision`, workflow policy tables.
+2. Implement transition command service + workflow validator.
+3. Implement projection updater + rebuild tool from event log.
+4. Wire list/board APIs to projection reads.
+5. Wire UI quick edit + advanced edit panel to command/query APIs.
+6. Add preflight checks for docs + Storybook indexing and collaboration flow tests.
 
 ---
 
@@ -149,5 +404,9 @@ Do not include in MVP:
 - [ ] Acceptance criteria implemented and tested for owner/member scenarios.
 - [ ] Permission boundaries verified on backend routes and frontend guards.
 - [ ] Accessibility checks pass for board navigation and card movement actions.
-- [ ] List and kanban remain consistent views of the same project items.
+- [ ] List and kanban remain consistent views of action items via `actionStatus`.
+- [ ] Workflow policy is data-driven and supports future restricted transitions.
+- [ ] Deep links restore project and view context reliably.
+- [ ] Due dates, tags, assignees, and comments are usable from quick edit on cards.
+- [ ] Threaded comments and revision history capture actor/time for collaboration auditability.
 - [ ] Product docs and export order include this epic.

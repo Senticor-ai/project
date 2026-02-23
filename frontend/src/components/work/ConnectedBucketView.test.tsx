@@ -407,8 +407,22 @@ describe("ConnectedBucketView", () => {
       const file2 = new File(["b"], "photo.png", { type: "image/png" });
       onFileDrop([file1, file2]);
       expect(mockCaptureFile.mutateAsync).toHaveBeenCalledTimes(2);
-      expect(mockCaptureFile.mutateAsync).toHaveBeenNthCalledWith(1, file1);
-      expect(mockCaptureFile.mutateAsync).toHaveBeenNthCalledWith(2, file2);
+      expect(mockCaptureFile.mutateAsync).toHaveBeenNthCalledWith(
+        1,
+        file1,
+        expect.objectContaining({
+          onUploadSuccess: expect.any(Function),
+          onUploadError: expect.any(Function),
+        }),
+      );
+      expect(mockCaptureFile.mutateAsync).toHaveBeenNthCalledWith(
+        2,
+        file2,
+        expect.objectContaining({
+          onUploadSuccess: expect.any(Function),
+          onUploadError: expect.any(Function),
+        }),
+      );
     });
 
     it("shows minimizable upload notice while background uploads are running", async () => {
@@ -437,7 +451,14 @@ describe("ConnectedBucketView", () => {
     });
 
     it("clears upload notice when background upload succeeds", async () => {
-      mockCaptureFile.mutateAsync.mockResolvedValue(undefined);
+      mockCaptureFile.mutateAsync.mockImplementation(
+        async (
+          _file: File,
+          opts?: { onUploadSuccess?: () => void; onUploadError?: () => void },
+        ) => {
+          opts?.onUploadSuccess?.();
+        },
+      );
       const onFileDrop = capturedProps.onFileDrop as (files: File[]) => void;
       const file = new File(["a"], "report.pdf", { type: "application/pdf" });
 
@@ -455,7 +476,14 @@ describe("ConnectedBucketView", () => {
     });
 
     it("keeps failed upload notice until dismissed", async () => {
-      mockCaptureFile.mutateAsync.mockRejectedValue(new Error("Upload failed"));
+      mockCaptureFile.mutateAsync.mockImplementation(
+        async (
+          _file: File,
+          opts?: { onUploadSuccess?: () => void; onUploadError?: () => void },
+        ) => {
+          opts?.onUploadError?.();
+        },
+      );
       const user = userEvent.setup();
       const onFileDrop = capturedProps.onFileDrop as (files: File[]) => void;
       const file = new File(["a"], "report.pdf", { type: "application/pdf" });

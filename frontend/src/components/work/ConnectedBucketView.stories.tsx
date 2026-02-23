@@ -49,6 +49,21 @@ type Story = StoryObj<typeof meta>;
 
 const WAIT = { timeout: 10000 };
 
+function dispatchFileEvent(
+  target: EventTarget,
+  type: "dragenter" | "drop",
+  files: File[] = [],
+) {
+  const event = new Event(type, { bubbles: true, cancelable: true });
+  Object.defineProperty(event, "dataTransfer", {
+    value: {
+      files,
+      types: ["Files"],
+    },
+  });
+  target.dispatchEvent(event);
+}
+
 // ---------------------------------------------------------------------------
 // Default — renders mixed bucket data
 // ---------------------------------------------------------------------------
@@ -392,6 +407,116 @@ export const InboxWithFileCapture: Story = {
         }, WAIT);
       },
     );
+  },
+};
+
+// ---------------------------------------------------------------------------
+// BackgroundUploadNoticeFlow — MSW-backed integration for upload status notice
+// ---------------------------------------------------------------------------
+
+let backgroundUploadAttempt = 0;
+
+export const BackgroundUploadNoticeFlow: Story = {
+  args: { activeBucket: "inbox", onBucketChange: fn() },
+  parameters: {
+    msw: {
+      handlers: [
+        http.put("*/files/upload/:uploadId", async () => {
+          backgroundUploadAttempt += 1;
+          if (backgroundUploadAttempt === 1) {
+            await new Promise((resolve) => setTimeout(resolve, 1200));
+            return HttpResponse.json({ received: 12345 });
+          }
+          return HttpResponse.json(
+            { detail: "Upload failed" },
+            { status: 500 },
+          );
+        }),
+      ],
+    },
+  },
+  beforeEach: () => {
+    backgroundUploadAttempt = 0;
+    seedMixedBuckets();
+  },
+  render: () => <ConnectedBucketViewDemo />,
+  play: async ({ canvas, canvasElement, userEvent, step }) => {
+    await step("Pending upload notice is shown", async () => {
+      await waitFor(() => {
+        expect(canvas.getByLabelText("Capture a thought")).toBeInTheDocument();
+      }, WAIT);
+
+      dispatchFileEvent(canvasElement.ownerDocument, "dragenter");
+
+      await waitFor(() => {
+        expect(canvas.getByTestId("file-drop-zone")).toBeInTheDocument();
+      }, WAIT);
+
+      const firstFile = new File(["a"], "pending-success.pdf", {
+        type: "application/pdf",
+      });
+      dispatchFileEvent(canvas.getByTestId("file-drop-zone"), "drop", [
+        firstFile,
+      ]);
+
+      await waitFor(() => {
+        expect(
+          canvas.getByText("Uploading 1 file in background"),
+        ).toBeInTheDocument();
+      }, WAIT);
+    });
+
+    await step("Notice can be minimized and restored", async () => {
+      await userEvent.click(
+        canvas.getByRole("button", { name: "Minimize upload status" }),
+      );
+      await waitFor(() => {
+        expect(
+          canvas.getByRole("button", { name: "Show upload status" }),
+        ).toBeInTheDocument();
+      }, WAIT);
+
+      await userEvent.click(
+        canvas.getByRole("button", { name: "Show upload status" }),
+      );
+      expect(
+        canvas.getByText("Uploading 1 file in background"),
+      ).toBeInTheDocument();
+    });
+
+    await step("Notice clears after successful upload", async () => {
+      await waitFor(() => {
+        expect(
+          canvas.queryByRole("status", { name: "Background uploads" }),
+        ).not.toBeInTheDocument();
+      }, WAIT);
+    });
+
+    await step("Failed upload is shown and dismissible", async () => {
+      dispatchFileEvent(canvasElement.ownerDocument, "dragenter");
+
+      await waitFor(() => {
+        expect(canvas.getByTestId("file-drop-zone")).toBeInTheDocument();
+      }, WAIT);
+
+      const secondFile = new File(["b"], "failing-upload.pdf", {
+        type: "application/pdf",
+      });
+      dispatchFileEvent(canvas.getByTestId("file-drop-zone"), "drop", [
+        secondFile,
+      ]);
+
+      await waitFor(() => {
+        expect(canvas.getByText("1 upload failed")).toBeInTheDocument();
+      }, WAIT);
+
+      await userEvent.click(canvas.getByRole("button", { name: "Dismiss" }));
+      await waitFor(() => {
+        expect(
+          canvas.queryByRole("status", { name: "Background uploads" }),
+        ).not.toBeInTheDocument();
+      }, WAIT);
+    });
   },
 };
 

@@ -225,8 +225,10 @@ export function ConnectedBucketView({
           { id: uploadId, fileName: file.name, status: "uploading" },
         ]);
         void captureFileMutation
-          .mutateAsync(file)
-          .then(() => clearUpload(uploadId))
+          .mutateAsync(file, {
+            onUploadSuccess: () => clearUpload(uploadId),
+            onUploadError: () => markUploadFailed(uploadId),
+          })
           .catch(() => markUploadFailed(uploadId));
       }
     },

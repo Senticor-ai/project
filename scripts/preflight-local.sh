@@ -51,6 +51,9 @@ npm run type-check
 echo "[preflight] building frontend (catches tsc -b + bundling issues)"
 npm run build
 
+echo "[preflight] smoke-testing Storybook indexing/build startup"
+npm run storybook -- --smoke-test
+
 echo "[preflight] syncing backend dependencies"
 cd "$ROOT_DIR/backend"
 uv sync --quiet --python 3.12 --all-groups --all-extras

@@ -13,6 +13,11 @@
 #   ansible-playbook infra/gcp-pubsub.yml -e gcp_project=procedere -e gcp_org_id=123456789012 \
 #     -e gcp_configure_managed_allowed_policy_members=true \
 #     -e gcp_managed_policy_scope=project
+#   # Optional: include production rollout (k8s secret patch + restarts) on senticor000
+#   ansible-playbook -i ../infrastructure/ansible/inventories/production.yml infra/gcp-pubsub.yml \
+#     -e gcp_project=senticor-project \
+#     -e gcp_rollout_enabled=true \
+#     -e gcp_rollout_oauth_client_secret_file=env-config/client_secret_*.json
 #
 # Re-run safely — all tasks are idempotent.
 
@@ -24,7 +29,7 @@
   vars:
     gcp_project: "{{ gcp_project }}"
     gcp_org_id: "{{ gcp_org_id | default('') }}"
-    gcp_account: "{{ gcp_account | default('') }}"
+    gcp_account_input: "{{ gcp_account | default('') }}"
     gcp_auto_auth_login_enabled: "{{ (gcp_auto_auth_login | default(false)) | bool }}"
     gcp_configure_managed_allowed_policy_members_enabled: "{{ (gcp_configure_managed_allowed_policy_members | default(false)) | bool }}"
     gcp_managed_policy_scope: "{{ gcp_managed_policy_scope | default('project') }}"
@@ -79,7 +84,7 @@
       ansible.builtin.command:
         cmd: >-
           gcloud auth login
-          {{ gcp_account if gcp_account | length > 0 else '' }}
+          {{ gcp_account_input if gcp_account_input | length > 0 else '' }}
           --update-adc
           --no-launch-browser
       register: gcloud_login_initial
@@ -94,7 +99,7 @@
         msg: >-
           `gcloud auth login --no-launch-browser` failed (rc={{ gcloud_login_initial.rc }}).
           In non-interactive Ansible execution you must complete auth manually in your shell:
-          `gcloud auth login {{ gcp_account if gcp_account | length > 0 else '' }} --update-adc`
+          `gcloud auth login {{ gcp_account_input if gcp_account_input | length > 0 else '' }} --update-adc`
           stderr: {{ gcloud_login_initial.stderr | default('') }}
       when:
         - gcloud_account_names | length == 0
@@ -124,36 +129,36 @@
     - name: Fail when requested gcp_account is not authenticated and auto-login disabled
       ansible.builtin.fail:
         msg: >-
-          Requested gcp_account={{ gcp_account }} is not authenticated.
+          Requested gcp_account={{ gcp_account_input }} is not authenticated.
           Authenticated accounts: {{ gcloud_account_names | join(', ') if gcloud_account_names else 'none' }}.
-          Run `gcloud auth login {{ gcp_account }} --update-adc`, or re-run with
+          Run `gcloud auth login {{ gcp_account_input }} --update-adc`, or re-run with
           -e gcp_auto_auth_login=true.
       when:
-        - gcp_account | length > 0
-        - gcp_account not in gcloud_account_names
+        - gcp_account_input | length > 0
+        - gcp_account_input not in gcloud_account_names
         - not gcp_auto_auth_login_enabled
 
     - name: Attempt gcloud login for requested account (non-interactive flow)
       ansible.builtin.command:
-        cmd: "gcloud auth login {{ gcp_account }} --update-adc --no-launch-browser"
+        cmd: "gcloud auth login {{ gcp_account_input }} --update-adc --no-launch-browser"
       register: gcloud_login_requested
       changed_when: true
       failed_when: false
       when:
-        - gcp_account | length > 0
-        - gcp_account not in gcloud_account_names
+        - gcp_account_input | length > 0
+        - gcp_account_input not in gcloud_account_names
         - gcp_auto_auth_login_enabled
 
     - name: Fail when requested-account login attempt failed
       ansible.builtin.fail:
         msg: >-
-          `gcloud auth login {{ gcp_account }} --no-launch-browser` failed (rc={{ gcloud_login_requested.rc }}).
+          `gcloud auth login {{ gcp_account_input }} --no-launch-browser` failed (rc={{ gcloud_login_requested.rc }}).
           In non-interactive Ansible execution you must complete auth manually in your shell:
-          `gcloud auth login {{ gcp_account }} --update-adc`
+          `gcloud auth login {{ gcp_account_input }} --update-adc`
           stderr: {{ gcloud_login_requested.stderr | default('') }}
       when:
-        - gcp_account | length > 0
-        - gcp_account not in gcloud_account_names
+        - gcp_account_input | length > 0
+        - gcp_account_input not in gcloud_account_names
         - gcp_auto_auth_login_enabled
         - gcloud_login_requested.rc != 0
 
@@ -163,8 +168,8 @@
       register: gcloud_auth_list_post_requested
       changed_when: false
       when:
-        - gcp_account | length > 0
-        - gcp_account not in gcloud_account_names
+        - gcp_account_input | length > 0
+        - gcp_account_input not in gcloud_account_names
         - gcp_auto_auth_login_enabled
         - gcloud_login_requested.rc == 0
 
@@ -174,8 +179,8 @@
         gcloud_account_names: "{{ (gcloud_auth_list_post_requested.stdout | from_json) | map(attribute='account') | list }}"
         gcloud_active_accounts: "{{ (gcloud_auth_list_post_requested.stdout | from_json) | selectattr('status', 'equalto', 'ACTIVE') | map(attribute='account') | list }}"
       when:
-        - gcp_account | length > 0
-        - gcp_account not in gcloud_account_names
+        - gcp_account_input | length > 0
+        - gcp_account_input not in gcloud_account_names
         - gcp_auto_auth_login_enabled
         - gcloud_login_requested.rc == 0
 
@@ -183,8 +188,8 @@
       ansible.builtin.set_fact:
         gcloud_selected_account: >-
           {{
-            gcp_account
-            if gcp_account | length > 0
+            gcp_account_input
+            if gcp_account_input | length > 0
             else (
               gcloud_active_accounts[0]
               if gcloud_active_accounts | length > 0
@@ -385,6 +390,23 @@
           - "Allowed principal sets: {{ managed_allowed_principal_sets | join(', ') }}"
       when: gcp_configure_managed_allowed_policy_members_enabled
 
+    # ── 0c. Ensure Pub/Sub API is enabled ────────────────────────────────────
+    - name: Check whether Pub/Sub API is enabled
+      ansible.builtin.command:
+        cmd: >-
+          gcloud services list --enabled
+          --project={{ gcp_project }}
+          --filter=name:pubsub.googleapis.com
+          --format=value(name)
+      register: pubsub_api_enabled_check
+      changed_when: false
+
+    - name: Enable Pub/Sub API
+      ansible.builtin.command:
+        cmd: "gcloud services enable pubsub.googleapis.com --project={{ gcp_project }}"
+      when: (pubsub_api_enabled_check.stdout | trim) != "pubsub.googleapis.com"
+      changed_when: true
+
     # ── 1. Pub/Sub topic ────────────────────────────────────────────────
     - name: Check if topic exists
       ansible.builtin.command:
@@ -570,6 +592,10 @@
         path: "{{ credentials_dest }}"
         mode: "0600"
 
+    - name: Expose generated credentials path for optional rollout play
+      ansible.builtin.set_fact:
+        gcp_pubsub_credentials_dest_fact: "{{ credentials_dest }}"
+
     # ── 7. Summary ──────────────────────────────────────────────────────
     - name: Print .env configuration
       ansible.builtin.debug:
@@ -580,3 +606,292 @@
           GMAIL_PUBSUB_TOPIC={{ full_topic }}
           GMAIL_PUBSUB_SUBSCRIPTION={{ subscription_name }}
           GMAIL_PUBSUB_CREDENTIALS_FILE=tmp/{{ gcp_project }}-pubsub-sa.json
+
+- name: Optional Gmail Pub/Sub production rollout on senticor000
+  hosts: "{{ gcp_rollout_hosts | default('senticor000') }}"
+  become: true
+  gather_facts: false
+
+  vars:
+    rollout_enabled: "{{ (gcp_rollout_enabled | default(false)) | bool }}"
+    rollout_kubeconfig: "{{ gcp_rollout_kubeconfig | default('/etc/rancher/k3s/k3s.yaml') }}"
+    rollout_namespace: "{{ gcp_rollout_namespace | default('project') }}"
+    rollout_pubsub_secret_name: "{{ gcp_rollout_pubsub_secret_name | default('pubsub-sa') }}"
+    rollout_pubsub_secret_key: "{{ gcp_rollout_pubsub_secret_key | default('pubsub-sa.json') }}"
+    rollout_app_secret_name: "{{ gcp_rollout_app_secret_name | default('app-secrets') }}"
+    rollout_flux_namespace: "{{ gcp_rollout_flux_namespace | default('flux-system') }}"
+    rollout_flux_source: "{{ gcp_rollout_flux_source | default('project') }}"
+    rollout_flux_kustomization: "{{ gcp_rollout_flux_kustomization | default('project') }}"
+    rollout_flux_reconcile: "{{ (gcp_rollout_flux_reconcile | default(true)) | bool }}"
+    rollout_deployments: "{{ gcp_rollout_deployments | default(['backend', 'worker', 'watch-worker']) }}"
+    rollout_oauth_client_secret_file: "{{ gcp_rollout_oauth_client_secret_file | default('') }}"
+    rollout_state_secret: "{{ gcp_rollout_gmail_state_secret | default('') }}"
+    rollout_encryption_key: "{{ gcp_rollout_encryption_key | default('') }}"
+    rollout_pubsub_credentials_file: "{{ gcp_rollout_pubsub_credentials_file | default(hostvars['localhost'].gcp_pubsub_credentials_dest_fact | default('')) }}"
+    rollout_remote_tmp_dir: /tmp/project-gmail-rollout
+
+  environment:
+    KUBECONFIG: "{{ rollout_kubeconfig }}"
+
+  tasks:
+    - name: Validate rollout OAuth credentials file argument is set
+      ansible.builtin.assert:
+        that:
+          - rollout_oauth_client_secret_file | length > 0
+        fail_msg: >-
+          Set gcp_rollout_oauth_client_secret_file=/absolute/path/client_secret*.json
+          when using -e gcp_rollout_enabled=true.
+      run_once: true
+      when: rollout_enabled
+
+    - name: Check rollout OAuth credentials file exists locally
+      ansible.builtin.stat:
+        path: "{{ rollout_oauth_client_secret_file }}"
+      delegate_to: localhost
+      become: false
+      run_once: true
+      register: rollout_oauth_file
+      when: rollout_enabled
+
+    - name: Validate rollout OAuth credentials file exists
+      ansible.builtin.assert:
+        that:
+          - rollout_oauth_file.stat.exists
+        fail_msg: "Missing file: {{ rollout_oauth_client_secret_file }}"
+      run_once: true
+      when: rollout_enabled
+
+    - name: Extract Gmail OAuth credentials from client secret file
+      ansible.builtin.shell: |
+        set -euo pipefail
+        python3 - <<'PY' "{{ rollout_oauth_client_secret_file }}"
+        import json
+        import sys
+
+        path = sys.argv[1]
+        with open(path, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+
+        root = "web" if "web" in data else "installed" if "installed" in data else None
+        if root is None:
+            raise SystemExit("Expected top-level key 'web' or 'installed' in OAuth client JSON")
+
+        client_id = (data[root].get("client_id") or "").strip()
+        client_secret = (data[root].get("client_secret") or "").strip()
+
+        if not client_id or not client_secret:
+            raise SystemExit("OAuth client JSON is missing client_id or client_secret")
+
+        print(json.dumps({"client_id": client_id, "client_secret": client_secret}))
+        PY
+      args:
+        executable: /bin/bash
+      delegate_to: localhost
+      become: false
+      run_once: true
+      register: rollout_oauth_values
+      changed_when: false
+      no_log: true
+      when: rollout_enabled
+
+    - name: Store extracted OAuth values for rollout
+      ansible.builtin.set_fact:
+        gcp_rollout_client_id_fact: "{{ (rollout_oauth_values.stdout | from_json).client_id }}"
+        gcp_rollout_client_secret_fact: "{{ (rollout_oauth_values.stdout | from_json).client_secret }}"
+      delegate_to: localhost
+      delegate_facts: true
+      become: false
+      run_once: true
+      no_log: true
+      when: rollout_enabled
+
+    - name: Validate Pub/Sub credentials file path is set for rollout
+      ansible.builtin.assert:
+        that:
+          - rollout_pubsub_credentials_file | length > 0
+        fail_msg: >-
+          Could not determine Pub/Sub service-account key file.
+          Set gcp_rollout_pubsub_credentials_file=/absolute/path/<project>-pubsub-sa.json
+          when using -e gcp_rollout_enabled=true.
+      run_once: true
+      when: rollout_enabled
+
+    - name: Check rollout Pub/Sub credentials file exists locally
+      ansible.builtin.stat:
+        path: "{{ rollout_pubsub_credentials_file }}"
+      delegate_to: localhost
+      become: false
+      run_once: true
+      register: rollout_pubsub_file
+      when: rollout_enabled
+
+    - name: Validate rollout Pub/Sub credentials file exists
+      ansible.builtin.assert:
+        that:
+          - rollout_pubsub_file.stat.exists
+        fail_msg: "Missing file: {{ rollout_pubsub_credentials_file }}"
+      run_once: true
+      when: rollout_enabled
+
+    - name: Check target app-secrets exists
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - -n
+          - "{{ rollout_namespace }}"
+          - get
+          - secret
+          - "{{ rollout_app_secret_name }}"
+          - -o
+          - name
+      register: rollout_app_secret_check
+      changed_when: false
+      failed_when: rollout_app_secret_check.rc != 0
+      when: rollout_enabled
+
+    - name: Build base app-secrets patch map
+      ansible.builtin.set_fact:
+        rollout_app_secret_patch_map:
+          GMAIL_CLIENT_ID: "{{ hostvars['localhost'].gcp_rollout_client_id_fact }}"
+          GMAIL_CLIENT_SECRET: "{{ hostvars['localhost'].gcp_rollout_client_secret_fact }}"
+      no_log: true
+      when: rollout_enabled
+
+    - name: Add optional GMAIL_STATE_SECRET to app-secrets patch
+      ansible.builtin.set_fact:
+        rollout_app_secret_patch_map: "{{ rollout_app_secret_patch_map | combine({'GMAIL_STATE_SECRET': rollout_state_secret}) }}"
+      no_log: true
+      when:
+        - rollout_enabled
+        - rollout_state_secret | length > 0
+
+    - name: Add optional ENCRYPTION_KEY to app-secrets patch
+      ansible.builtin.set_fact:
+        rollout_app_secret_patch_map: "{{ rollout_app_secret_patch_map | combine({'ENCRYPTION_KEY': rollout_encryption_key}) }}"
+      no_log: true
+      when:
+        - rollout_enabled
+        - rollout_encryption_key | length > 0
+
+    - name: Apply production rollout changes
+      when: rollout_enabled
+      block:
+        - name: Ensure remote temp directory exists
+          ansible.builtin.file:
+            path: "{{ rollout_remote_tmp_dir }}"
+            state: directory
+            mode: "0700"
+
+        - name: Copy Pub/Sub credentials file to remote host
+          ansible.builtin.copy:
+            src: "{{ rollout_pubsub_credentials_file }}"
+            dest: "{{ rollout_remote_tmp_dir }}/{{ rollout_pubsub_secret_key }}"
+            mode: "0600"
+          no_log: true
+
+        - name: Apply or update pubsub-sa secret
+          ansible.builtin.shell: |
+            set -euo pipefail
+            kubectl -n "{{ rollout_namespace }}" create secret generic "{{ rollout_pubsub_secret_name }}" \
+              --from-file="{{ rollout_pubsub_secret_key }}={{ rollout_remote_tmp_dir }}/{{ rollout_pubsub_secret_key }}" \
+              --dry-run=client -o yaml | kubectl apply -f -
+          args:
+            executable: /bin/bash
+          register: rollout_pubsub_secret_apply
+          changed_when: "'created' in rollout_pubsub_secret_apply.stdout or 'configured' in rollout_pubsub_secret_apply.stdout"
+
+        - name: Patch app-secrets with Gmail OAuth values
+          ansible.builtin.command:
+            argv:
+              - kubectl
+              - -n
+              - "{{ rollout_namespace }}"
+              - patch
+              - secret
+              - "{{ rollout_app_secret_name }}"
+              - --type=merge
+              - -p
+              - "{{ {'stringData': rollout_app_secret_patch_map} | to_json }}"
+          changed_when: true
+          no_log: true
+
+        - name: Reconcile Flux source
+          ansible.builtin.command:
+            argv:
+              - flux
+              - reconcile
+              - source
+              - git
+              - "{{ rollout_flux_source }}"
+              - -n
+              - "{{ rollout_flux_namespace }}"
+          changed_when: true
+          when: rollout_flux_reconcile
+
+        - name: Reconcile Flux kustomization with source
+          ansible.builtin.command:
+            argv:
+              - flux
+              - reconcile
+              - kustomization
+              - "{{ rollout_flux_kustomization }}"
+              - -n
+              - "{{ rollout_flux_namespace }}"
+              - --with-source
+          changed_when: true
+          when: rollout_flux_reconcile
+
+        - name: Restart rollout deployments
+          ansible.builtin.command:
+            argv:
+              - kubectl
+              - -n
+              - "{{ rollout_namespace }}"
+              - rollout
+              - restart
+              - "deployment/{{ item }}"
+          loop: "{{ rollout_deployments }}"
+          changed_when: true
+
+        - name: Wait for rollout deployments
+          ansible.builtin.command:
+            argv:
+              - kubectl
+              - -n
+              - "{{ rollout_namespace }}"
+              - rollout
+              - status
+              - "deployment/{{ item }}"
+              - --timeout=360s
+          loop: "{{ rollout_deployments }}"
+          changed_when: false
+
+        - name: Confirm watch-worker has available replicas
+          ansible.builtin.shell: |
+            set -euo pipefail
+            replicas="$(kubectl -n "{{ rollout_namespace }}" get deployment/watch-worker -o jsonpath='{.status.availableReplicas}')"
+            if [ -z "$replicas" ] || [ "$replicas" = "0" ]; then
+              echo "watch-worker has no available replicas" >&2
+              exit 1
+            fi
+            printf '%s' "$replicas"
+          args:
+            executable: /bin/bash
+          register: rollout_watch_worker_replicas
+          changed_when: false
+
+      always:
+        - name: Clean up remote rollout temp directory
+          ansible.builtin.file:
+            path: "{{ rollout_remote_tmp_dir }}"
+            state: absent
+
+    - name: Rollout summary
+      ansible.builtin.debug:
+        msg: >-
+          Updated {{ rollout_namespace }}/{{ rollout_pubsub_secret_name }} and
+          patched {{ rollout_namespace }}/{{ rollout_app_secret_name }} with Gmail OAuth values.
+          Flux reconcile={{ rollout_flux_reconcile }}.
+          Restarted {{ rollout_deployments | join(', ') }}.
+          watch-worker replicas={{ rollout_watch_worker_replicas.stdout | default('n/a') | trim }}.
+      when: rollout_enabled
