@@ -28,7 +28,7 @@ concurrency:
 jobs:
   e2e-smoke:
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.suite == 'smoke')
-    runs-on: [self-hosted, linux]
+    runs-on: senticor000-github-runner
     steps:
       - uses: actions/checkout@v4
 
@@ -65,7 +65,7 @@ jobs:
 
   e2e-fullstack:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.suite == 'fullstack'
-    runs-on: [self-hosted, linux]
+    runs-on: senticor000-github-runner
     services:
       postgres:
         image: postgres:16
