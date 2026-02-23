@@ -1,5 +1,10 @@
 import { useCallback } from "react";
-import type { ChatClientContext, StreamEvent } from "@/model/chat-types";
+import type {
+  ChatClientContext,
+  ConversationMessageResponse,
+  ConversationSummary,
+  StreamEvent,
+} from "@/model/chat-types";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -89,3 +94,37 @@ export function useTayApi() {
 
   return { sendMessageStreaming };
 }
+
+// ---------------------------------------------------------------------------
+// Conversation management API (non-hook, used by components)
+// ---------------------------------------------------------------------------
+
+export const ChatApi = {
+  async listConversations(): Promise<ConversationSummary[]> {
+    const res = await fetch(`${API_BASE}/chat/conversations`, {
+      credentials: "include",
+    });
+    if (!res.ok) throw new Error(`Failed to list conversations: ${res.status}`);
+    return res.json() as Promise<ConversationSummary[]>;
+  },
+
+  async getConversationMessages(
+    conversationId: string,
+  ): Promise<ConversationMessageResponse[]> {
+    const res = await fetch(
+      `${API_BASE}/chat/conversations/${conversationId}/messages`,
+      { credentials: "include" },
+    );
+    if (!res.ok) throw new Error(`Failed to get messages: ${res.status}`);
+    return res.json() as Promise<ConversationMessageResponse[]>;
+  },
+
+  async archiveConversation(conversationId: string): Promise<void> {
+    const res = await fetch(
+      `${API_BASE}/chat/conversations/${conversationId}/archive`,
+      { method: "PATCH", credentials: "include" },
+    );
+    if (!res.ok)
+      throw new Error(`Failed to archive conversation: ${res.status}`);
+  },
+};

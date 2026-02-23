@@ -127,6 +127,17 @@ async function request<T>(
       }
     }
 
+    if (response.status === 429) {
+      const retryAfter = response.headers.get("Retry-After");
+      throw new ApiError({
+        message: "Too many requests. Please wait a moment and try again.",
+        status: 429,
+        details: {
+          retryAfter: retryAfter ? parseInt(retryAfter, 10) : 30,
+        },
+      });
+    }
+
     const details = await parseJson(response);
     throw new ApiError({
       message: details?.detail ?? "Request failed",
@@ -136,6 +147,95 @@ async function request<T>(
   }
 
   return (await parseJson(response)) as T;
+}
+
+export type ApiResponse<T> = {
+  data: T;
+  headers: Headers;
+};
+
+/**
+ * Same as request<T>() but also returns the raw response headers.
+ * Use this when you need access to ETag or other response headers.
+ */
+async function requestWithHeaders<T>(
+  path: string,
+  init?: RequestInit,
+  _isRetry = false,
+): Promise<ApiResponse<T>> {
+  const headers = new Headers(init?.headers ?? {});
+  const method = (init?.method ?? "GET").toUpperCase();
+  const hasBody = typeof init?.body !== "undefined";
+  const isFormData =
+    typeof FormData !== "undefined" && init?.body instanceof FormData;
+  if (hasBody && !isFormData && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  if (!headers.has(REQUEST_ID_HEADER)) {
+    headers.set(REQUEST_ID_HEADER, createRequestId());
+  }
+  if (currentUserId && !headers.has(USER_ID_HEADER)) {
+    headers.set(USER_ID_HEADER, currentUserId);
+  }
+  if (csrfToken && !SAFE_METHODS.has(method) && !headers.has(CSRF_HEADER)) {
+    headers.set(CSRF_HEADER, csrfToken);
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      credentials: "include",
+      cache: "no-cache",
+      headers,
+    });
+  } catch {
+    throw new ApiError({
+      message: "Server is not reachable. Please try again later.",
+      status: 0,
+    });
+  }
+
+  if (!response.ok) {
+    if (response.status === 401 && !_isRetry && !path.startsWith("/auth/")) {
+      try {
+        if (!refreshPromise) {
+          refreshPromise = AuthApi.refresh();
+        }
+        await refreshPromise;
+        return requestWithHeaders<T>(path, init, true);
+      } catch {
+        onSessionExpired?.();
+        throw new ApiError({
+          message: "Session expired",
+          status: 401,
+        });
+      } finally {
+        refreshPromise = null;
+      }
+    }
+
+    if (response.status === 429) {
+      const retryAfter = response.headers.get("Retry-After");
+      throw new ApiError({
+        message: "Too many requests. Please wait a moment and try again.",
+        status: 429,
+        details: {
+          retryAfter: retryAfter ? parseInt(retryAfter, 10) : 30,
+        },
+      });
+    }
+
+    const details = await parseJson(response);
+    throw new ApiError({
+      message: details?.detail ?? "Request failed",
+      status: response.status,
+      details,
+    });
+  }
+
+  const data = (await parseJson(response)) as T;
+  return { data, headers: response.headers };
 }
 
 export type AuthUser = {
@@ -623,10 +723,12 @@ export const ItemsApi = {
     source?: string,
     idempotencyKey?: string,
     nameSource?: string,
-  ) => {
+    etag?: string,
+  ): Promise<ApiResponse<ItemRecord>> => {
     const headers: Record<string, string> = {};
     if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
-    return request<ItemRecord>(`/items/${itemId}`, {
+    if (etag) headers["If-Match"] = etag;
+    return requestWithHeaders<ItemRecord>(`/items/${itemId}`, {
       method: "PATCH",
       body: JSON.stringify({
         item,

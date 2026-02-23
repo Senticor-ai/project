@@ -1,8 +1,11 @@
+import { useState, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
 import { ChatMessageList } from "./ChatMessageList";
 import { ChatInput } from "./ChatInput";
-import type { ChatMessage } from "@/model/chat-types";
+import { ConversationList } from "./ConversationList";
+import { ChatApi } from "@/hooks/use-tay-api";
+import type { ChatMessage, ConversationSummary } from "@/model/chat-types";
 
 export interface TayChatPanelProps {
   isOpen: boolean;
@@ -13,6 +16,11 @@ export interface TayChatPanelProps {
   onAcceptSuggestion: (messageId: string) => void;
   onDismissSuggestion: (messageId: string) => void;
   onItemClick?: (canonicalId: string) => void;
+  onNewConversation?: () => void;
+  onLoadConversation?: (
+    conversationId: string,
+    messages: ChatMessage[],
+  ) => void;
   agentName?: string;
   className?: string;
 }
@@ -26,9 +34,71 @@ export function TayChatPanel({
   onAcceptSuggestion,
   onDismissSuggestion,
   onItemClick,
+  onNewConversation,
+  onLoadConversation,
   agentName = "Copilot",
   className,
 }: TayChatPanelProps) {
+  const [showHistory, setShowHistory] = useState(false);
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+
+  // Load conversations when history view is opened
+  useEffect(() => {
+    if (!showHistory || !isOpen) return;
+    let cancelled = false;
+    ChatApi.listConversations()
+      .then((data) => {
+        if (!cancelled) setConversations(data);
+      })
+      .catch(() => {
+        // Silently fail — empty list is fine
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [showHistory, isOpen]);
+
+  const handleSelectConversation = useCallback(
+    async (conversationId: string) => {
+      if (!onLoadConversation) return;
+      try {
+        const msgs = await ChatApi.getConversationMessages(conversationId);
+        // Convert backend messages to ChatMessage format
+        const chatMessages: ChatMessage[] = msgs.map((m) => ({
+          id: m.messageId,
+          role: m.role === "user" ? ("user" as const) : ("tay" as const),
+          kind: "text" as const,
+          content: m.content,
+          timestamp: m.createdAt,
+        }));
+        onLoadConversation(conversationId, chatMessages);
+        setShowHistory(false);
+      } catch {
+        // Failed to load — stay on history view
+      }
+    },
+    [onLoadConversation],
+  );
+
+  const handleArchiveConversation = useCallback(
+    async (conversationId: string) => {
+      try {
+        await ChatApi.archiveConversation(conversationId);
+        setConversations((prev) =>
+          prev.filter((c) => c.conversationId !== conversationId),
+        );
+      } catch {
+        // Failed to archive — do nothing
+      }
+    },
+    [],
+  );
+
+  const handleNewConversation = useCallback(() => {
+    onNewConversation?.();
+    setShowHistory(false);
+  }, [onNewConversation]);
+
   if (!isOpen) return null;
 
   return (
@@ -48,29 +118,58 @@ export function TayChatPanel({
           </div>
           <span className="text-sm font-semibold">{agentName}</span>
         </div>
-        <button
-          onClick={onClose}
-          aria-label="Chat minimieren"
-          className="flex h-8 w-8 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-paper-100"
-        >
-          <Icon name="remove" size={18} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setShowHistory((v) => !v)}
+            aria-label={showHistory ? "Chat anzeigen" : "Verlauf anzeigen"}
+            aria-pressed={showHistory}
+            className={cn(
+              "flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-paper-100",
+              showHistory ? "text-blueprint-600" : "text-text-muted",
+            )}
+          >
+            <Icon name="history" size={18} />
+          </button>
+          <button
+            onClick={onClose}
+            aria-label="Chat schließen"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-paper-100"
+          >
+            <Icon name="close" size={18} />
+          </button>
+        </div>
       </div>
 
-      {/* Messages */}
-      <ChatMessageList
-        messages={messages}
-        onAcceptSuggestion={onAcceptSuggestion}
-        onDismissSuggestion={onDismissSuggestion}
-        onItemClick={onItemClick}
-        agentName={agentName}
-        className="flex-1 p-4"
-      />
+      {/* Content */}
+      {showHistory ? (
+        <ConversationList
+          conversations={conversations}
+          onSelect={handleSelectConversation}
+          onArchive={handleArchiveConversation}
+          onNewConversation={handleNewConversation}
+        />
+      ) : (
+        <>
+          {/* Messages */}
+          <ChatMessageList
+            messages={messages}
+            onAcceptSuggestion={onAcceptSuggestion}
+            onDismissSuggestion={onDismissSuggestion}
+            onItemClick={onItemClick}
+            agentName={agentName}
+            className="flex-1 p-4"
+          />
 
-      {/* Input */}
-      <div className="border-t border-paper-200 p-4">
-        <ChatInput onSend={onSend} disabled={isLoading} agentName={agentName} />
-      </div>
+          {/* Input */}
+          <div className="border-t border-paper-200 p-4">
+            <ChatInput
+              onSend={onSend}
+              disabled={isLoading}
+              agentName={agentName}
+            />
+          </div>
+        </>
+      )}
     </aside>
   );
 }

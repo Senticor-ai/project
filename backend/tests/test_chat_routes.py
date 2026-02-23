@@ -13,7 +13,7 @@ from unittest.mock import MagicMock
 
 import httpx
 
-from app.chat.queries import get_conversation_messages
+from app.chat.queries import get_conversation_messages, get_or_create_conversation, save_message
 from app.config import settings
 
 _DUMMY_REQUEST = httpx.Request("POST", "http://localhost:8002/chat/completions")
@@ -343,3 +343,120 @@ class TestExecuteTool:
 
         response = auth_client.post("/chat/execute-tool", json=_EXECUTE_REQUEST)
         assert response.status_code == 504
+
+
+# ---------------------------------------------------------------------------
+# Conversation management
+# ---------------------------------------------------------------------------
+
+
+class TestListConversations:
+    def test_returns_401_without_auth(self, client):
+        response = client.get("/chat/conversations")
+        assert response.status_code == 401
+
+    def test_returns_empty_list_initially(self, auth_client):
+        response = auth_client.get("/chat/conversations")
+        assert response.status_code == 200
+        assert response.json() == []
+
+    def test_returns_conversations_after_chat(self, auth_client, monkeypatch):
+        _patch_settings(monkeypatch, agents_url="http://localhost:8002")
+
+        events = [
+            {"type": "text_delta", "content": "Hallo"},
+            {"type": "done", "text": "Hallo"},
+        ]
+        monkeypatch.setattr("app.chat.routes.httpx.stream", _make_stream_response(events))
+
+        auth_client.post(
+            "/chat/completions",
+            json={"message": "Test", "conversationId": "conv-list-1"},
+        )
+
+        response = auth_client.get("/chat/conversations")
+        assert response.status_code == 200
+        conversations = response.json()
+        assert len(conversations) >= 1
+
+        conv = next(c for c in conversations if c["externalId"] == "conv-list-1")
+        assert conv["agentBackend"] == "haystack"
+        assert "conversationId" in conv
+
+
+class TestGetConversationMessages:
+    def test_returns_401_without_auth(self, client):
+        response = client.get("/chat/conversations/fake-id/messages")
+        assert response.status_code == 401
+
+    def test_returns_messages_for_conversation(self, auth_client, monkeypatch):
+        _patch_settings(monkeypatch, agents_url="http://localhost:8002")
+
+        events = [
+            {"type": "text_delta", "content": "Antwort"},
+            {"type": "done", "text": "Antwort"},
+        ]
+        monkeypatch.setattr("app.chat.routes.httpx.stream", _make_stream_response(events))
+
+        # Create a conversation via chat
+        auth_client.post(
+            "/chat/completions",
+            json={"message": "Frage", "conversationId": "conv-msgs-1"},
+        )
+
+        # Get conversation ID from list
+        response = auth_client.get("/chat/conversations")
+        conversations = response.json()
+        conv = next(c for c in conversations if c["externalId"] == "conv-msgs-1")
+
+        # Fetch messages
+        response = auth_client.get(f"/chat/conversations/{conv['conversationId']}/messages")
+        assert response.status_code == 200
+        messages = response.json()
+        assert len(messages) == 2
+        assert messages[0]["role"] == "user"
+        assert messages[0]["content"] == "Frage"
+        assert messages[1]["role"] == "assistant"
+        assert messages[1]["content"] == "Antwort"
+
+
+class TestArchiveConversation:
+    def test_returns_401_without_auth(self, client):
+        response = client.patch("/chat/conversations/fake-id/archive")
+        assert response.status_code == 401
+
+    def test_returns_404_for_nonexistent_conversation(self, auth_client):
+        response = auth_client.patch(
+            "/chat/conversations/00000000-0000-0000-0000-000000000000/archive"
+        )
+        assert response.status_code == 404
+
+    def test_archives_conversation(self, auth_client, monkeypatch):
+        _patch_settings(monkeypatch, agents_url="http://localhost:8002")
+
+        events = [
+            {"type": "text_delta", "content": "ok"},
+            {"type": "done", "text": "ok"},
+        ]
+        monkeypatch.setattr("app.chat.routes.httpx.stream", _make_stream_response(events))
+
+        # Create a conversation
+        auth_client.post(
+            "/chat/completions",
+            json={"message": "Test", "conversationId": "conv-archive-1"},
+        )
+
+        # Get conversation ID
+        response = auth_client.get("/chat/conversations")
+        conversations = response.json()
+        conv = next(c for c in conversations if c["externalId"] == "conv-archive-1")
+
+        # Archive it
+        response = auth_client.patch(f"/chat/conversations/{conv['conversationId']}/archive")
+        assert response.status_code == 204
+
+        # Should no longer appear in list
+        response = auth_client.get("/chat/conversations")
+        conversations = response.json()
+        archived = [c for c in conversations if c["externalId"] == "conv-archive-1"]
+        assert len(archived) == 0

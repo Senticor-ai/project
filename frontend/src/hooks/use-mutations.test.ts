@@ -3,7 +3,7 @@ import { renderHook, act, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
 import { ItemsApi } from "@/lib/api-client";
-import type { ItemRecord } from "@/lib/api-client";
+import type { ItemRecord, ApiResponse } from "@/lib/api-client";
 import {
   useCaptureInbox,
   useCaptureFile,
@@ -34,6 +34,12 @@ vi.mock("@/lib/api-client", () => ({
   },
 }));
 
+vi.mock("@/lib/etag-store", () => ({
+  getEtag: vi.fn(() => undefined),
+  setEtag: vi.fn(),
+  clearEtag: vi.fn(),
+}));
+
 vi.mock("@/lib/file-upload", () => ({
   uploadFile: vi.fn(),
 }));
@@ -54,6 +60,10 @@ function makeRecord(overrides: Partial<ItemRecord>): ItemRecord {
     updated_at: overrides.updated_at ?? "2026-01-01T00:00:00Z",
     item: overrides.item ?? {},
   };
+}
+
+function apiResponse(record: ItemRecord): ApiResponse<ItemRecord> {
+  return { data: record, headers: new Headers({ ETag: '"test-etag"' }) };
 }
 
 const ACTION_RECORD = makeRecord({
@@ -183,7 +193,7 @@ describe("useCaptureFile", () => {
 
   it("classifies a PDF file as DigitalDocument", async () => {
     mocked.create.mockResolvedValue(makeRecord({ item_id: "srv-1", item: {} }));
-    mocked.update.mockResolvedValue(makeRecord({ item: {} }));
+    mocked.update.mockResolvedValue(apiResponse(makeRecord({ item: {} })));
 
     const { result } = renderHook(() => useCaptureFile(), {
       wrapper: createWrapper(),
@@ -217,7 +227,7 @@ describe("useCaptureFile", () => {
 
   it("classifies an .eml file as EmailMessage", async () => {
     mocked.create.mockResolvedValue(makeRecord({ item_id: "srv-1", item: {} }));
-    mocked.update.mockResolvedValue(makeRecord({ item: {} }));
+    mocked.update.mockResolvedValue(apiResponse(makeRecord({ item: {} })));
 
     const { result } = renderHook(() => useCaptureFile(), {
       wrapper: createWrapper(),
@@ -242,7 +252,7 @@ describe("useCaptureFile", () => {
 
   it("classifies a .vcf file as DigitalDocument with extractable entities", async () => {
     mocked.create.mockResolvedValue(makeRecord({ item_id: "srv-1", item: {} }));
-    mocked.update.mockResolvedValue(makeRecord({ item: {} }));
+    mocked.update.mockResolvedValue(apiResponse(makeRecord({ item: {} })));
 
     const { result } = renderHook(() => useCaptureFile(), {
       wrapper: createWrapper(),
@@ -271,7 +281,7 @@ describe("useCaptureFile", () => {
         resolveApi = resolve;
       }),
     );
-    mocked.update.mockResolvedValue(makeRecord({ item: {} }));
+    mocked.update.mockResolvedValue(apiResponse(makeRecord({ item: {} })));
 
     const qc = new QueryClient({
       defaultOptions: {
@@ -341,7 +351,7 @@ describe("useCaptureFile", () => {
       },
     });
     mocked.create.mockResolvedValue(createdRecord);
-    mocked.update.mockResolvedValue(patchedRecord);
+    mocked.update.mockResolvedValue(apiResponse(patchedRecord));
 
     const { result } = renderHook(() => useCaptureFile(), {
       wrapper: createWrapper(),
@@ -432,7 +442,7 @@ describe("useCaptureFile", () => {
         });
       },
     );
-    mocked.update.mockResolvedValue(makeRecord({ item: {} }));
+    mocked.update.mockResolvedValue(apiResponse(makeRecord({ item: {} })));
 
     const qc = new QueryClient({
       defaultOptions: {
@@ -556,7 +566,7 @@ describe("useAddReference", () => {
 
 describe("useCompleteAction", () => {
   it("sets endTime when completing an action", async () => {
-    mocked.update.mockResolvedValue(ACTION_RECORD);
+    mocked.update.mockResolvedValue(apiResponse(ACTION_RECORD));
 
     const { result } = renderHook(() => useCompleteAction(), {
       wrapper: createWrapper([ACTION_RECORD]),
@@ -572,7 +582,7 @@ describe("useCompleteAction", () => {
   });
 
   it("clears endTime when uncompleting", async () => {
-    mocked.update.mockResolvedValue(COMPLETED_RECORD);
+    mocked.update.mockResolvedValue(apiResponse(COMPLETED_RECORD));
 
     const { result } = renderHook(() => useCompleteAction(), {
       wrapper: createWrapper([COMPLETED_RECORD]),
@@ -603,7 +613,7 @@ describe("useCompleteAction", () => {
 
 describe("useToggleFocus", () => {
   it("toggles isFocused property", async () => {
-    mocked.update.mockResolvedValue(ACTION_RECORD);
+    mocked.update.mockResolvedValue(apiResponse(ACTION_RECORD));
 
     const { result } = renderHook(() => useToggleFocus(), {
       wrapper: createWrapper([ACTION_RECORD]),
@@ -625,7 +635,7 @@ describe("useToggleFocus", () => {
 
 describe("useMoveAction", () => {
   it("updates bucket property", async () => {
-    mocked.update.mockResolvedValue(ACTION_RECORD);
+    mocked.update.mockResolvedValue(apiResponse(ACTION_RECORD));
 
     const { result } = renderHook(() => useMoveAction(), {
       wrapper: createWrapper([ACTION_RECORD]),
@@ -647,7 +657,7 @@ describe("useMoveAction", () => {
   });
 
   it("does not promote @type when moving inbox Action to action bucket", async () => {
-    mocked.update.mockResolvedValue(ACTION_RECORD);
+    mocked.update.mockResolvedValue(apiResponse(ACTION_RECORD));
 
     const { result } = renderHook(() => useMoveAction(), {
       wrapper: createWrapper([INBOX_RECORD]),
@@ -702,7 +712,7 @@ describe("useMoveAction", () => {
       item: { "@type": "DigitalDocument", "@id": "urn:app:reference:ref1" },
     });
     mocked.create.mockResolvedValue(refRecord);
-    mocked.update.mockResolvedValue(digitalDocRecord);
+    mocked.update.mockResolvedValue(apiResponse(digitalDocRecord));
 
     const { result } = renderHook(() => useMoveAction(), {
       wrapper: createWrapper([digitalDocRecord]),
@@ -734,7 +744,7 @@ describe("useMoveAction", () => {
   });
 
   it("promotes @type to CreativeWork when moving inbox item to reference", async () => {
-    mocked.update.mockResolvedValue(REFERENCE_RECORD);
+    mocked.update.mockResolvedValue(apiResponse(REFERENCE_RECORD));
 
     const { result } = renderHook(() => useMoveAction(), {
       wrapper: createWrapper([INBOX_RECORD]),
@@ -753,7 +763,7 @@ describe("useMoveAction", () => {
   });
 
   it("includes projectRefs when moving to reference with projectId", async () => {
-    mocked.update.mockResolvedValue(REFERENCE_RECORD);
+    mocked.update.mockResolvedValue(apiResponse(REFERENCE_RECORD));
 
     const { result } = renderHook(() => useMoveAction(), {
       wrapper: createWrapper([INBOX_RECORD]),
@@ -814,7 +824,7 @@ describe("useMoveAction", () => {
       item: { "@type": "DigitalDocument", "@id": "urn:app:reference:ref2" },
     });
     mocked.create.mockResolvedValue(refRecord);
-    mocked.update.mockResolvedValue(digitalDocRecord);
+    mocked.update.mockResolvedValue(apiResponse(digitalDocRecord));
 
     const { result } = renderHook(() => useMoveAction(), {
       wrapper: createWrapper([digitalDocRecord]),
@@ -857,7 +867,7 @@ describe("useMoveAction", () => {
 
 describe("useUpdateItem", () => {
   it("sends arbitrary patch to ItemsApi.update", async () => {
-    mocked.update.mockResolvedValue(ACTION_RECORD);
+    mocked.update.mockResolvedValue(apiResponse(ACTION_RECORD));
 
     const { result } = renderHook(() => useUpdateItem(), {
       wrapper: createWrapper([ACTION_RECORD]),
@@ -989,7 +999,7 @@ describe("useAddProjectAction", () => {
 
 describe("completed cache fallback", () => {
   it("useCompleteAction finds record in completed cache", async () => {
-    mocked.update.mockResolvedValue(COMPLETED_RECORD);
+    mocked.update.mockResolvedValue(apiResponse(COMPLETED_RECORD));
 
     const { result } = renderHook(() => useCompleteAction(), {
       wrapper: createWrapper([], [COMPLETED_RECORD]),
@@ -1004,7 +1014,7 @@ describe("completed cache fallback", () => {
   });
 
   it("useToggleFocus finds record in completed cache", async () => {
-    mocked.update.mockResolvedValue(COMPLETED_RECORD);
+    mocked.update.mockResolvedValue(apiResponse(COMPLETED_RECORD));
 
     const { result } = renderHook(() => useToggleFocus(), {
       wrapper: createWrapper([], [COMPLETED_RECORD]),
@@ -1037,7 +1047,7 @@ describe("useToggleFocus edge cases", () => {
         ],
       },
     });
-    mocked.update.mockResolvedValue(focusedRecord);
+    mocked.update.mockResolvedValue(apiResponse(focusedRecord));
 
     const { result } = renderHook(() => useToggleFocus(), {
       wrapper: createWrapper([focusedRecord]),
@@ -1064,7 +1074,7 @@ describe("useToggleFocus edge cases", () => {
         additionalProperty: [pv("app:bucket", "next")],
       },
     });
-    mocked.update.mockResolvedValue(noFocusPropRecord);
+    mocked.update.mockResolvedValue(apiResponse(noFocusPropRecord));
 
     const { result } = renderHook(() => useToggleFocus(), {
       wrapper: createWrapper([noFocusPropRecord]),
@@ -1410,7 +1420,7 @@ describe("onError rollback (remaining hooks)", () => {
 
 describe("useTriageItem non-archive", () => {
   it("updates bucket via triage patch for non-archive target", async () => {
-    mocked.update.mockResolvedValue(ACTION_RECORD);
+    mocked.update.mockResolvedValue(apiResponse(ACTION_RECORD));
 
     const { result } = renderHook(() => useTriageItem(), {
       wrapper: createWrapper([ACTION_RECORD]),
@@ -1428,8 +1438,9 @@ describe("useTriageItem non-archive", () => {
     );
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(mocked.update).toHaveBeenCalledWith(
-      "tid-action-1",
+    const [updateItemId, updatePatch] = mocked.update.mock.calls[0]!;
+    expect(updateItemId).toBe("tid-action-1");
+    expect(updatePatch).toEqual(
       expect.objectContaining({
         additionalProperty: expect.arrayContaining([
           expect.objectContaining({
@@ -1509,10 +1520,12 @@ describe("useTriageItem split-on-triage", () => {
     });
     mocked.create.mockResolvedValue(refRecord);
     mocked.update.mockResolvedValue(
-      makeRecord({
-        item_id: "tid-doc-1",
-        item: { "@type": "ReadAction" },
-      }),
+      apiResponse(
+        makeRecord({
+          item_id: "tid-doc-1",
+          item: { "@type": "ReadAction" },
+        }),
+      ),
     );
 
     const { result } = renderHook(() => useTriageItem(), {
@@ -1564,10 +1577,12 @@ describe("useTriageItem split-on-triage", () => {
 
   it("does NOT split when triaging DigitalDocument to reference", async () => {
     mocked.update.mockResolvedValue(
-      makeRecord({
-        item_id: "tid-doc-1",
-        item: { "@type": "CreativeWork" },
-      }),
+      apiResponse(
+        makeRecord({
+          item_id: "tid-doc-1",
+          item: { "@type": "CreativeWork" },
+        }),
+      ),
     );
 
     const { result } = renderHook(() => useTriageItem(), {
@@ -1599,10 +1614,12 @@ describe("useTriageItem split-on-triage", () => {
 
   it("does NOT split EmailMessage items", async () => {
     mocked.update.mockResolvedValue(
-      makeRecord({
-        item_id: "tid-email-1",
-        item: { "@type": "Action" },
-      }),
+      apiResponse(
+        makeRecord({
+          item_id: "tid-email-1",
+          item: { "@type": "Action" },
+        }),
+      ),
     );
 
     const { result } = renderHook(() => useTriageItem(), {
@@ -1628,7 +1645,7 @@ describe("useTriageItem split-on-triage", () => {
   });
 
   it("does NOT split a regular Action item", async () => {
-    mocked.update.mockResolvedValue(ACTION_RECORD);
+    mocked.update.mockResolvedValue(apiResponse(ACTION_RECORD));
 
     const inboxAction = makeRecord({
       item_id: "tid-action-inbox",

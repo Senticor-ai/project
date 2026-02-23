@@ -171,3 +171,24 @@ export type StreamEvent =
   | { type: "items_changed" }
   | { type: "done"; text: string }
   | { type: "error"; detail: string };
+
+// ---------------------------------------------------------------------------
+// Conversation Management Types
+// ---------------------------------------------------------------------------
+
+export interface ConversationSummary {
+  conversationId: string;
+  externalId: string;
+  title: string | null;
+  agentBackend: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ConversationMessageResponse {
+  messageId: string;
+  role: string;
+  content: string;
+  toolCalls?: Record<string, unknown>[] | null;
+  createdAt: string;
+}

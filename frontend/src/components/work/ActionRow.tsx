@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
@@ -127,9 +127,16 @@ export function ActionRow({
   const [showMore, setShowMore] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [showCalendarPicker, setShowCalendarPicker] = useState(false);
+  const dateInputRef = useRef<HTMLInputElement>(null);
   const [prevExpanded, setPrevExpanded] = useState(isExpanded);
   // Track the latest projectId from the ItemEditor so triage buttons can use it
   const editorProjectRef = useRef<CanonicalId | undefined>(thing.projectIds[0]);
+
+  useEffect(() => {
+    if (showCalendarPicker) {
+      dateInputRef.current?.focus();
+    }
+  }, [showCalendarPicker]);
 
   // Reset editing / picker state when row collapses (derived state pattern)
   if (prevExpanded !== isExpanded) {
@@ -228,7 +235,7 @@ export function ActionRow({
               : `Complete ${displayName}`
           }
           className={cn(
-            "shrink-0",
+            "inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center",
             isCompleted ? "text-text-muted" : "text-text-muted hover:text-text",
           )}
         >
@@ -245,7 +252,7 @@ export function ActionRow({
             thing.isFocused ? `Unfocus ${displayName}` : `Focus ${displayName}`
           }
           className={cn(
-            "shrink-0",
+            "inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center",
             thing.isFocused
               ? "text-app-focus"
               : "text-text-muted hover:text-app-focus",
@@ -488,8 +495,8 @@ export function ActionRow({
                       }
                     }}
                     className={cn(
-                      "inline-flex items-center gap-1 rounded-[var(--radius-md)]",
-                      "border border-border px-2 py-1 text-xs font-medium",
+                      "inline-flex min-h-11 items-center gap-1 rounded-[var(--radius-md)]",
+                      "border border-border px-3 py-2 text-xs font-medium",
                       "transition-colors duration-[var(--duration-fast)]",
                       "hover:bg-paper-100",
                     )}
@@ -502,8 +509,8 @@ export function ActionRow({
                 <button
                   onClick={() => onArchive(thing.id)}
                   className={cn(
-                    "inline-flex items-center gap-1 rounded-[var(--radius-md)]",
-                    "border border-border px-2 py-1 text-xs font-medium text-text-muted",
+                    "inline-flex min-h-11 items-center gap-1 rounded-[var(--radius-md)]",
+                    "border border-border px-3 py-2 text-xs font-medium text-text-muted",
                     "transition-colors duration-[var(--duration-fast)]",
                     "hover:bg-paper-100",
                   )}
@@ -519,7 +526,7 @@ export function ActionRow({
                 <div className="mb-3 flex items-center gap-2">
                   <input
                     type="date"
-                    autoFocus
+                    ref={dateInputRef}
                     aria-label="Schedule date"
                     onChange={(e) => {
                       if (e.target.value) {

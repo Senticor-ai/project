@@ -6,6 +6,7 @@ import type {
   OrgResponse,
 } from "@/lib/api-client";
 import type { CanonicalId } from "@/model/canonical-id";
+import type { ConversationSummary } from "@/model/chat-types";
 
 // ---------------------------------------------------------------------------
 // In-memory store — shared between handlers and story setup
@@ -15,10 +16,12 @@ export const store = {
   items: new Map<string, ItemRecord>(),
   emailConnections: new Map<string, EmailConnectionResponse>(),
   orgs: new Map<string, OrgResponse>(),
+  conversations: new Map<string, ConversationSummary>(),
   clear() {
     this.items.clear();
     this.emailConnections.clear();
     this.orgs.clear();
+    this.conversations.clear();
   },
   seed(records: ItemRecord[]) {
     this.items.clear();
@@ -27,6 +30,10 @@ export const store = {
   seedOrgs(orgs: OrgResponse[]) {
     this.orgs.clear();
     for (const o of orgs) this.orgs.set(o.id, o);
+  },
+  seedConversations(conversations: ConversationSummary[]) {
+    this.conversations.clear();
+    for (const c of conversations) this.conversations.set(c.conversationId, c);
   },
 };
 

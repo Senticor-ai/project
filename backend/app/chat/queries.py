@@ -67,6 +67,48 @@ def save_message(
     return row
 
 
+def list_conversations(
+    org_id: str,
+    user_id: str,
+    agent_backend: str = "haystack",
+    limit: int = 50,
+) -> list[dict]:
+    """List active (non-archived) conversations for a user, newest first."""
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT conversation_id, org_id, user_id, external_id,
+                       agent_backend, title, created_at, updated_at
+                FROM conversations
+                WHERE org_id = %s AND user_id = %s AND agent_backend = %s
+                      AND archived_at IS NULL
+                ORDER BY updated_at DESC
+                LIMIT %s
+                """,
+                (org_id, user_id, agent_backend, limit),
+            )
+            rows = cur.fetchall()
+    return rows
+
+
+def archive_conversation(conversation_id: str, org_id: str) -> bool:
+    """Soft-delete a conversation by setting archived_at. Returns True if a row was updated."""
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE conversations
+                SET archived_at = now()
+                WHERE conversation_id = %s AND org_id = %s AND archived_at IS NULL
+                """,
+                (conversation_id, org_id),
+            )
+            updated = cur.rowcount > 0
+        conn.commit()
+    return updated
+
+
 def get_conversation_messages(conversation_id: str, limit: int = 50) -> list[dict]:
     """Fetch last N messages for a conversation, ordered chronologically.
 

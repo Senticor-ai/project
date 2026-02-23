@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-query";
 import { ItemsApi } from "@/lib/api-client";
 import type { ItemRecord } from "@/lib/api-client";
+import { getEtag, setEtag } from "@/lib/etag-store";
 import { uploadFile } from "@/lib/file-upload";
 import {
   buildNewInboxJsonLd,
@@ -149,6 +150,31 @@ function getBucketFromRecord(record: ItemRecord): string | undefined {
   return props?.find((p) => p.propertyID === "app:bucket")?.value as
     | string
     | undefined;
+}
+
+/**
+ * Call ItemsApi.update with the stored ETag (if any) for optimistic concurrency,
+ * then store the new ETag from the response.
+ */
+async function updateWithEtag(
+  itemId: string,
+  patch: Record<string, unknown>,
+  source?: string,
+  idempotencyKey?: string,
+  nameSource?: string,
+): Promise<ItemRecord> {
+  const etag = getEtag(itemId);
+  const result = await ItemsApi.update(
+    itemId,
+    patch,
+    source,
+    idempotencyKey,
+    nameSource,
+    etag,
+  );
+  const newEtag = result.headers.get("ETag");
+  if (newEtag) setEtag(itemId, newEtag);
+  return result.data;
 }
 
 /**
@@ -437,11 +463,11 @@ export function useTriageItem() {
           result,
           refRecord.canonical_id as CanonicalId,
         );
-        return ItemsApi.update(itemId, patch);
+        return updateWithEtag(itemId, patch);
       }
 
       const patch = buildTriagePatch(item, result);
-      return ItemsApi.update(itemId, patch);
+      return updateWithEtag(itemId, patch);
     },
     onMutate: async ({ item, result }) => {
       const itemId = findItemId(qc, item.id);
@@ -528,7 +554,7 @@ export function useCompleteAction() {
       if (!record) throw new Error(`Item not found: ${canonicalId}`);
 
       const isCompleted = !!record.item.endTime;
-      return ItemsApi.update(record.item_id, {
+      return updateWithEtag(record.item_id, {
         endTime: isCompleted ? null : new Date().toISOString(),
       });
     },
@@ -590,7 +616,7 @@ export function useToggleFocus() {
         | undefined;
       const currentFocused =
         props?.find((p) => p.propertyID === "app:isFocused")?.value ?? false;
-      return ItemsApi.update(record.item_id, {
+      return updateWithEtag(record.item_id, {
         additionalProperty: [
           {
             "@type": "PropertyValue",
@@ -693,7 +719,7 @@ export function useMoveAction() {
           triageResult,
           refRecord.canonical_id as CanonicalId,
         );
-        return ItemsApi.update(itemId, patch);
+        return updateWithEtag(itemId, patch);
       }
 
       const needsPromotion =
@@ -724,7 +750,7 @@ export function useMoveAction() {
       if (needsPromotion) {
         patch["@type"] = targetTypeForBucket(bucket);
       }
-      return ItemsApi.update(itemId, patch);
+      return updateWithEtag(itemId, patch);
     },
     onMutate: async ({ canonicalId, bucket, projectId }) => {
       const itemId = findItemId(qc, canonicalId);
@@ -815,7 +841,7 @@ export function useUpdateItem() {
       const itemId = findItemId(qc, canonicalId);
       if (!itemId) throw new Error(`Item not found: ${canonicalId}`);
 
-      return ItemsApi.update(itemId, patch, source, undefined, nameSource);
+      return updateWithEtag(itemId, patch, source, undefined, nameSource);
     },
     onMutate: async ({ canonicalId, patch }) => {
       const prev = await snapshotActive(qc);

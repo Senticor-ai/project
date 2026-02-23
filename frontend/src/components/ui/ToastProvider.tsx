@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import type { ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ToastContext } from "@/lib/toast-context";
-import type { Toast, ToastType } from "@/lib/toast-context";
+import type { Toast, ToastType, ToastAction } from "@/lib/toast-context";
 import { ToastContainer } from "./ToastContainer";
 
 const AUTO_DISMISS_MS = 5_000;
@@ -42,11 +42,26 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const toast = useCallback(
-    (message: string, type: ToastType = "error") => {
+    (
+      message: string,
+      type: ToastType = "error",
+      options?: { action?: ToastAction; persistent?: boolean },
+    ) => {
       const id = crypto.randomUUID();
-      setToasts((prev) => [...prev, { id, message, type }]);
-      const timer = setTimeout(() => dismiss(id), AUTO_DISMISS_MS);
-      timers.current.set(id, timer);
+      setToasts((prev) => [
+        ...prev,
+        {
+          id,
+          message,
+          type,
+          action: options?.action,
+          persistent: options?.persistent,
+        },
+      ]);
+      if (!options?.persistent) {
+        const timer = setTimeout(() => dismiss(id), AUTO_DISMISS_MS);
+        timers.current.set(id, timer);
+      }
     },
     [dismiss],
   );

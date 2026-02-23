@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 import type {
   ChatMessage,
   UserChatMessage,
@@ -18,12 +18,14 @@ function generateId(): string {
   return `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+function newConversationId(): string {
+  return `conv-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
 export function useChatState() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const conversationIdRef = useRef(
-    `conv-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-  );
+  const [conversationId, setConversationId] = useState(newConversationId);
   const { sendMessageStreaming } = useTayApi();
   const { executeSuggestion, onItemsChanged } = useTayActions();
 
@@ -177,7 +179,7 @@ export function useChatState() {
           }
         };
 
-        await sendMessageStreaming(text, conversationIdRef.current, onEvent);
+        await sendMessageStreaming(text, conversationId, onEvent);
 
         // If no events arrived at all, remove thinking indicator
         if (!streamingMsgId) {
@@ -199,7 +201,7 @@ export function useChatState() {
         setIsLoading(false);
       }
     },
-    [sendMessageStreaming, onItemsChanged],
+    [sendMessageStreaming, onItemsChanged, conversationId],
   );
 
   const acceptSuggestion = useCallback(
@@ -223,7 +225,7 @@ export function useChatState() {
       try {
         const createdItems = await executeSuggestion(
           suggestionMsg.suggestion,
-          conversationIdRef.current,
+          conversationId,
         );
 
         // Add confirmation message
@@ -248,7 +250,7 @@ export function useChatState() {
         );
       }
     },
-    [messages, executeSuggestion],
+    [messages, executeSuggestion, conversationId],
   );
 
   const dismissSuggestion = useCallback((messageId: string) => {
@@ -261,13 +263,28 @@ export function useChatState() {
     );
   }, []);
 
+  const startNewConversation = useCallback(() => {
+    setMessages([]);
+    setConversationId(newConversationId());
+  }, []);
+
+  const loadConversation = useCallback(
+    (id: string, restoredMessages: ChatMessage[]) => {
+      setConversationId(id);
+      setMessages(restoredMessages);
+    },
+    [],
+  );
+
   return {
     messages,
     isLoading,
-    conversationId: conversationIdRef.current,
+    conversationId,
     sendMessage,
     acceptSuggestion,
     dismissSuggestion,
+    startNewConversation,
+    loadConversation,
   };
 }
 

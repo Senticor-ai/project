@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect, useCallback, useId } from "react";
 import type { NameProvenance } from "@/model/types";
 import { cn } from "@/lib/utils";
+import { Icon } from "@/components/ui/Icon";
 
 interface InlineEditableTitleProps {
   variant?: "inline";
@@ -152,19 +153,31 @@ function InlineEditableTitle({
   }
 
   return (
-    <button
-      type="button"
-      onClick={onToggleEdit}
-      onDoubleClick={onDoubleClick}
-      aria-expanded={ariaExpanded}
-      className={cn(
-        "flex-1 whitespace-pre-wrap text-left text-sm text-text",
-        completed ? "font-normal text-text-muted line-through" : "font-medium",
-        className,
-      )}
-    >
-      {displayTitle}
-    </button>
+    <div className="group flex flex-1 items-center">
+      <button
+        type="button"
+        onClick={onToggleEdit}
+        onDoubleClick={onDoubleClick}
+        aria-expanded={ariaExpanded}
+        className={cn(
+          "flex-1 whitespace-pre-wrap text-left text-sm text-text",
+          completed
+            ? "font-normal text-text-muted line-through"
+            : "font-medium",
+          className,
+        )}
+      >
+        {displayTitle}
+      </button>
+      <button
+        type="button"
+        onClick={onToggleEdit}
+        aria-label={`Edit title: ${displayTitle}`}
+        className="ml-1 inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center text-text-subtle opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
+      >
+        <Icon name="edit" size={16} />
+      </button>
+    </div>
   );
 }
 

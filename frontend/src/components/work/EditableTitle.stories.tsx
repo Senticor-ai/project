@@ -116,6 +116,33 @@ export const EscapeCancels: Story = {
 };
 
 // ---------------------------------------------------------------------------
+// Mobile viewport — touch edit affordance
+// ---------------------------------------------------------------------------
+
+export const MobileTouchEdit: Story = {
+  globals: { viewport: { value: "iphone14", isRotated: false } },
+  args: {
+    title: "Buy groceries",
+    isEditing: false,
+    onSave: fn(),
+    onToggleEdit: fn(),
+    completed: false,
+  },
+  play: async ({ canvas, args }) => {
+    const inlineArgs = args as { onToggleEdit: ReturnType<typeof fn> };
+    // Edit icon button should be visible on mobile viewport
+    const editIcon = canvas.getByLabelText(/Edit title: Buy groceries/);
+    expect(editIcon).toBeVisible();
+    // Verify the title text is also visible
+    const title = canvas.getByRole("button", { name: "Buy groceries" });
+    expect(title).toBeVisible();
+    // Clicking the edit icon triggers onToggleEdit
+    await editIcon.click();
+    expect(inlineArgs.onToggleEdit).toHaveBeenCalled();
+  },
+};
+
+// ---------------------------------------------------------------------------
 // Split title mode (rename provenance epic)
 // ---------------------------------------------------------------------------
 

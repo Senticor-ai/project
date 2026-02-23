@@ -7,5 +7,6 @@ resources:
   - worker.yaml
   - push-worker.yaml
   - watch-worker.yaml
+  - agents.yaml
   - frontend.yaml
   - storybook.yaml

@@ -700,3 +700,50 @@ export const LoadError: Story = {
     });
   },
 };
+
+// ---------------------------------------------------------------------------
+// ConflictToast — PATCH returns 412 Precondition Failed (write conflict)
+// ---------------------------------------------------------------------------
+
+export const ConflictToast: Story = {
+  args: { activeBucket: "next", onBucketChange: fn() },
+  parameters: {
+    msw: {
+      handlers: [
+        http.patch("*/items/*", () => {
+          return HttpResponse.json(
+            {
+              detail: {
+                code: "PRECONDITION_FAILED",
+                message: "Resource has been modified since last read",
+              },
+            },
+            { status: 412 },
+          );
+        }),
+      ],
+    },
+  },
+  render: () => <ConnectedBucketViewDemo initialBucket={"next" as Bucket} />,
+  play: async ({ canvas, step }) => {
+    await step("Wait for items to load", async () => {
+      await waitFor(() => {
+        expect(canvas.getAllByRole("listitem").length).toBeGreaterThan(0);
+      }, WAIT);
+    });
+
+    await step("Click focus star to trigger 412 conflict", async () => {
+      const stars = canvas.getAllByLabelText(/Toggle focus/i);
+      if (stars.length > 0) {
+        await stars[0]!.click();
+      }
+    });
+
+    await step("Verify error toast appears", async () => {
+      await waitFor(() => {
+        const alert = within(document.body).getByRole("alert");
+        expect(alert).toBeInTheDocument();
+      }, WAIT);
+    });
+  },
+};

@@ -196,3 +196,13 @@ export const WithoutProjects: Story = {
     counts: { inbox: 4, next: 12 },
   },
 };
+
+/** Mobile viewport — verify touch target sizes. */
+export const MobileTouchTargets: Story = {
+  globals: { viewport: { value: "iphone14", isRotated: false } },
+  args: {
+    activeBucket: "inbox",
+    onSelect: fn(),
+    counts: { inbox: 4, next: 12, focus: 3 },
+  },
+};

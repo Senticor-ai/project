@@ -50,10 +50,21 @@ export function ToastContainer({ toasts, onDismiss }: ToastContainerProps) {
             >
               <Icon name={cfg.icon} size={18} className={cfg.iconClass} />
               <span className="flex-1 text-sm text-text">{t.message}</span>
+              {t.action && (
+                <button
+                  onClick={() => {
+                    t.action!.onClick();
+                    onDismiss(t.id);
+                  }}
+                  className="shrink-0 rounded px-2 py-1 text-sm font-medium text-status-info hover:bg-surface-hover"
+                >
+                  {t.action.label}
+                </button>
+              )}
               <button
                 onClick={() => onDismiss(t.id)}
                 aria-label="Dismiss"
-                className="shrink-0 text-text-subtle hover:text-text"
+                className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center text-text-subtle hover:text-text"
               >
                 <Icon name="close" size={16} />
               </button>

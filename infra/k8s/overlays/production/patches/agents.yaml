@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agents
+spec:
+  template:
+    spec:
+      imagePullSecrets:
+        - name: stackit-registry
+      containers:
+        - name: agents
+          imagePullPolicy: Always
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi

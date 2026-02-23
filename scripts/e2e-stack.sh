@@ -84,8 +84,9 @@ PG_PASSWORD="${POSTGRES_PASSWORD:-changeme}"
 PG_HOST="${POSTGRES_HOST:-localhost}"
 PG_PORT="${POSTGRES_PORT:-5432}"
 
-# Derive E2E database name from PROJECT_PREFIX (set in .env)
-E2E_DB="${PROJECT_PREFIX:-project}_e2e"
+# Use POSTGRES_DB from .env.e2e if set, otherwise derive from PROJECT_PREFIX.
+# Hyphens in PROJECT_PREFIX are replaced with underscores (invalid in PG identifiers).
+E2E_DB="${POSTGRES_DB:-${PROJECT_PREFIX//-/_}_e2e}"
 
 # ── Helper: run psql (local binary or docker exec) ──────────────────
 DOCKER_COMPOSE_FILE="${ROOT_DIR}/infra/docker-compose.yml"
@@ -97,6 +98,10 @@ detect_psql() {
     PSQL_CMD="local"
   elif docker compose --env-file "$DOCKER_ENV_FILE" -f "$DOCKER_COMPOSE_FILE" ps --status running postgres 2>/dev/null | grep -q postgres; then
     PSQL_CMD="docker"
+  elif POSTGRES_CONTAINER=$(docker ps --filter "ancestor=postgres:16" --filter "publish=5432" --format '{{.Names}}' 2>/dev/null | head -1) && [ -n "$POSTGRES_CONTAINER" ]; then
+    # Shared postgres container running under a different compose project (e.g. backend team's checkout)
+    PSQL_CMD="docker-direct"
+    echo "[e2e] Found shared postgres container: $POSTGRES_CONTAINER"
   else
     echo "[e2e] ERROR: No psql binary found and postgres container is not running."
     echo "[e2e] Install psql or start postgres: docker compose -f infra/docker-compose.yml up -d"
@@ -109,6 +114,9 @@ run_psql() {
   local db="$1"; shift
   if [ "$PSQL_CMD" = "local" ]; then
     PGPASSWORD="$PG_PASSWORD" psql -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$db" "$@"
+  elif [ "$PSQL_CMD" = "docker-direct" ]; then
+    docker exec -i -e PGPASSWORD="$PG_PASSWORD" "$POSTGRES_CONTAINER" \
+      psql -U "$PG_USER" -d "$db" "$@"
   else
     docker compose --env-file "$DOCKER_ENV_FILE" -f "$DOCKER_COMPOSE_FILE" exec -T \
       -e PGPASSWORD="$PG_PASSWORD" \
@@ -120,8 +128,12 @@ run_psql() {
 # privileges (CREATEDB, etc.), bypassing host-level pg_hba restrictions.
 run_psql_admin() {
   local db="$1"; shift
-  docker compose --env-file "$DOCKER_ENV_FILE" -f "$DOCKER_COMPOSE_FILE" exec -T \
-    postgres psql -U "$PG_USER" -d "$db" "$@"
+  if [ "$PSQL_CMD" = "docker-direct" ]; then
+    docker exec -i "$POSTGRES_CONTAINER" psql -U "$PG_USER" -d "$db" "$@"
+  else
+    docker compose --env-file "$DOCKER_ENV_FILE" -f "$DOCKER_COMPOSE_FILE" exec -T \
+      postgres psql -U "$PG_USER" -d "$db" "$@"
+  fi
 }
 
 # ── Cleanup on exit ──────────────────────────────────────────────────
@@ -154,7 +166,7 @@ cleanup() {
 
   if [ "$CLEAN_DB" = true ]; then
     echo "[e2e] Dropping database $E2E_DB..."
-    run_psql_admin postgres -c "DROP DATABASE IF EXISTS $E2E_DB;" 2>/dev/null || true
+    run_psql_admin postgres -c "DROP DATABASE IF EXISTS \"$E2E_DB\";" 2>/dev/null || true
     echo "[e2e] Removing storage-e2e/..."
     rm -rf "$ROOT_DIR/storage-e2e"
   fi
@@ -180,7 +192,7 @@ fi
 echo "[e2e] Ensuring database '$E2E_DB' exists..."
 DB_EXISTS=$(run_psql_admin postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '$E2E_DB'" 2>/dev/null || echo "")
 if [ "$DB_EXISTS" != "1" ]; then
-  run_psql_admin postgres -c "CREATE DATABASE $E2E_DB OWNER $PG_USER;"
+  run_psql_admin postgres -c "CREATE DATABASE \"$E2E_DB\" OWNER $PG_USER;"
   echo "[e2e] Database created."
 else
   echo "[e2e] Database already exists."

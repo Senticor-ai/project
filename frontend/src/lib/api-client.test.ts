@@ -167,6 +167,27 @@ describe("request()", () => {
     const result = await ItemsApi.get("t-1");
     expect(result).toBeNull();
   });
+
+  it("throws ApiError with 429 status and retryAfter on rate limit", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response("", {
+        status: 429,
+        headers: { "Retry-After": "60" },
+      }),
+    );
+    const err = await ItemsApi.list().catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).status).toBe(429);
+    expect((err as ApiError).details).toEqual({ retryAfter: 60 });
+  });
+
+  it("defaults retryAfter to 30 when Retry-After header is missing", async () => {
+    fetchSpy.mockResolvedValueOnce(new Response("", { status: 429 }));
+    const err = await ItemsApi.list().catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).status).toBe(429);
+    expect((err as ApiError).details).toEqual({ retryAfter: 30 });
+  });
 });
 
 // ---------------------------------------------------------------------------

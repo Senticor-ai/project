@@ -555,6 +555,47 @@ const chatHandlers = [
 ];
 
 // ---------------------------------------------------------------------------
+// Conversation management handlers
+// ---------------------------------------------------------------------------
+
+const conversationHandlers = [
+  http.get(`${API}/chat/conversations`, () => {
+    const conversations = Array.from(store.conversations.values());
+    conversations.sort(
+      (a, b) =>
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+    );
+    return HttpResponse.json(conversations);
+  }),
+
+  http.get(`${API}/chat/conversations/:conversationId/messages`, () => {
+    // Return a simple history for any requested conversation
+    return HttpResponse.json([
+      {
+        messageId: "msg-1",
+        role: "user",
+        content: "Hallo Copilot",
+        createdAt: new Date().toISOString(),
+      },
+      {
+        messageId: "msg-2",
+        role: "assistant",
+        content: "Hallo! Wie kann ich dir helfen?",
+        createdAt: new Date().toISOString(),
+      },
+    ]);
+  }),
+
+  http.patch(
+    `${API}/chat/conversations/:conversationId/archive`,
+    ({ params }) => {
+      const id = params.conversationId as string;
+      store.conversations.delete(id);
+      return new HttpResponse(null, { status: 204 });
+    },
+  ),
+];
+
 // ---------------------------------------------------------------------------
 // Organizations handlers
 // ---------------------------------------------------------------------------
@@ -584,5 +625,6 @@ export const handlers = [
   ...authHandlers,
   ...emailHandlers,
   ...chatHandlers,
+  ...conversationHandlers,
   ...orgsHandlers,
 ];

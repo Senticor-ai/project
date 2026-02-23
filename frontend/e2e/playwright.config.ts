@@ -19,6 +19,11 @@ export default defineConfig({
   },
   projects: [
     {
+      name: "mobile-chrome",
+      use: { ...devices["Pixel 7"] },
+      testMatch: "**/touch-targets.spec.ts",
+    },
+    {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
       testIgnore: [

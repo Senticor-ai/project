@@ -52,7 +52,7 @@ function BucketNavItem({
       ref={setNodeRef}
       onClick={onSelect}
       className={cn(
-        "flex w-full items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm",
+        "flex w-full min-h-11 items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm",
         "transition-colors duration-[var(--duration-fast)]",
         isActive
           ? "bg-blueprint-50 font-medium text-blueprint-700"
@@ -96,7 +96,7 @@ function ProjectNavItem({
       ref={setNodeRef}
       onClick={() => onSelect?.(project.id)}
       className={cn(
-        "flex w-full items-center gap-2 rounded-[var(--radius-md)] py-1.5 pl-8 pr-3 text-xs",
+        "flex w-full min-h-11 items-center gap-2 rounded-[var(--radius-md)] py-1.5 pl-8 pr-3 text-xs",
         "text-text-muted transition-colors duration-[var(--duration-fast)]",
         "hover:bg-paper-100 hover:text-text",
         isOver && "ring-2 ring-blueprint-300 bg-blueprint-50/50",

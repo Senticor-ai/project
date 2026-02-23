@@ -22,7 +22,13 @@ from ..container.manager import ensure_running, write_token_file
 from ..delegation import create_delegated_token
 from ..deps import get_current_org, get_current_user
 from ..routes.agent_settings import get_user_agent_backend
-from .queries import get_conversation_messages, get_or_create_conversation, save_message
+from .queries import (
+    archive_conversation,
+    get_conversation_messages,
+    get_or_create_conversation,
+    list_conversations,
+    save_message,
+)
 from .sse_translator import SseToNdjsonTranslator
 
 logger = logging.getLogger(__name__)
@@ -78,6 +84,23 @@ class CreatedItemRefResponse(BaseModel):
 
 class ExecuteToolResponse(BaseModel):
     createdItems: list[CreatedItemRefResponse]
+
+
+class ConversationSummaryResponse(BaseModel):
+    conversationId: str
+    externalId: str
+    title: str | None
+    agentBackend: str
+    createdAt: str
+    updatedAt: str
+
+
+class ConversationMessageResponse(BaseModel):
+    messageId: str
+    role: str
+    content: str
+    toolCalls: list[dict] | None = None
+    createdAt: str
 
 
 # ---------------------------------------------------------------------------
@@ -387,3 +410,68 @@ def execute_tool_endpoint(
         ) from exc
 
     return resp.json()
+
+
+# ---------------------------------------------------------------------------
+# Conversation management
+# ---------------------------------------------------------------------------
+
+
+@router.get("/conversations", response_model=list[ConversationSummaryResponse])
+def list_conversations_endpoint(
+    current_user: dict = Depends(get_current_user),  # noqa: B008
+    current_org: dict = Depends(get_current_org),  # noqa: B008
+):
+    """List active conversations for the current user."""
+    user_id = str(current_user["id"])
+    org_id = current_org["org_id"]
+    agent_backend = get_user_agent_backend(user_id)
+
+    rows = list_conversations(org_id=org_id, user_id=user_id, agent_backend=agent_backend)
+    return [
+        ConversationSummaryResponse(
+            conversationId=str(r["conversation_id"]),
+            externalId=r["external_id"],
+            title=r.get("title"),
+            agentBackend=r["agent_backend"],
+            createdAt=r["created_at"].isoformat(),
+            updatedAt=r["updated_at"].isoformat(),
+        )
+        for r in rows
+    ]
+
+
+@router.get(
+    "/conversations/{conversation_id}/messages",
+    response_model=list[ConversationMessageResponse],
+)
+def get_conversation_messages_endpoint(
+    conversation_id: str,
+    current_user: dict = Depends(get_current_user),  # noqa: B008
+    current_org: dict = Depends(get_current_org),  # noqa: B008
+):
+    """Get messages for a specific conversation."""
+    messages = get_conversation_messages(conversation_id)
+    return [
+        ConversationMessageResponse(
+            messageId=str(m["message_id"]),
+            role=m["role"],
+            content=m["content"],
+            toolCalls=m.get("tool_calls"),
+            createdAt=m["created_at"].isoformat(),
+        )
+        for m in messages
+    ]
+
+
+@router.patch("/conversations/{conversation_id}/archive", status_code=204)
+def archive_conversation_endpoint(
+    conversation_id: str,
+    current_user: dict = Depends(get_current_user),  # noqa: B008
+    current_org: dict = Depends(get_current_org),  # noqa: B008
+):
+    """Archive (soft-delete) a conversation."""
+    org_id = current_org["org_id"]
+    updated = archive_conversation(conversation_id, org_id)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Conversation not found")

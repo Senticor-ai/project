@@ -774,6 +774,11 @@ def update_item(
         alias="Idempotency-Key",
         description="Idempotency key for safe retries.",
     ),
+    if_match: str | None = Header(
+        default=None,
+        alias="If-Match",
+        description="ETag from a previous response for optimistic concurrency.",
+    ),
     current_org=Depends(get_current_org),
     current_user=Depends(get_current_user),
 ):
@@ -813,6 +818,17 @@ def update_item(
 
     if existing is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
+
+    if if_match and existing["content_hash"]:
+        current_etag = _build_etag([existing["content_hash"]])
+        if if_match.strip('"') != current_etag.strip('"'):
+            raise HTTPException(
+                status_code=status.HTTP_412_PRECONDITION_FAILED,
+                detail={
+                    "code": "PRECONDITION_FAILED",
+                    "message": "Resource has been modified since last read",
+                },
+            )
 
     patch_payload = payload.item.model_dump(mode="json", by_alias=True, exclude_unset=True)
 

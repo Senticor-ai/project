@@ -6,6 +6,17 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 **Status:** Not started
 **Priority:** Future
+**Depends on:** None (self-contained phases)
+**See also:** [Routing](?path=/docs/engineering-routing--docs), [Tay Copilot V1](?path=/docs/product-epics-tay-copilot-v1--docs) (offline affects streaming chat)
+
+### Platform scope
+
+| Platform | Supported | Notes |
+| --- | --- | --- |
+| Chrome desktop (Linux, macOS, Windows) | Yes | Primary target — full PWA install + service worker + Background Sync |
+| Android (Chrome) | Yes | Install prompt, Background Sync, IndexedDB — full feature set |
+| iOS / Safari | **No — explicit non-goal** | No Background Sync API, aggressive service worker eviction (~2 weeks inactivity), no native install prompt, unreliable IndexedDB quota. Supporting iOS would require fallback paths for every offline feature; the cost/benefit ratio is not justified at this stage. |
+| Firefox / Edge desktop | Best-effort | Service worker + IndexedDB work; install UX varies. Not actively tested. |
 
 ## Context
 
@@ -56,6 +67,14 @@ TanStack Query's offline-first mode (configured in `main.tsx`) already covers th
 
 ## Phase 1: Touch & Mobile Audit
 
+### Acceptance criteria
+
+- Every interactive element renders at minimum 44x44 CSS px on `pointer: coarse` devices
+- `EditableTitle` is editable via long-press or a visible edit icon on touch devices (double-click remains as desktop shortcut)
+- Adjacent tap targets have at least 8px spacing
+- No input field is obscured when the Android virtual keyboard opens
+- All touch fixes are verified in Storybook mobile viewport stories
+
 ### 1a. RED — Touch target audit
 
 Verify all interactive elements meet the 44x44 CSS pixel minimum (Apple HIG / WCAG 2.5.8).
@@ -72,11 +91,22 @@ Verify all interactive elements meet the 44x44 CSS pixel minimum (Apple HIG / WC
 | `AppMenu` dropdown items            | Menu items need touch-safe hit targets       |
 | `Tabs` component                    | Tab headers need adequate tap area           |
 
+**Test cases** (`frontend/e2e/tests/touch-targets.spec.ts`):
+
+- `it("BucketNav buttons have min 44x44 bounding box")`
+- `it("ActionRow checkbox has min 44x44 bounding box")`
+- `it("ActionRow focus toggle has min 44x44 bounding box")`
+- `it("ObjectCard action buttons have min 44x44 bounding box")`
+- `it("EditableTitle has a visible edit affordance on touch devices")`
+- `it("InboxTriage bucket buttons have min 44x44 bounding box")`
+- `it("AppMenu dropdown items have min 44x44 bounding box")`
+- `it("Tabs component headers have min 44x44 bounding box")`
+- `it("adjacent tap targets have at least 8px spacing")`
+
 **Test approach:**
 
-- Chrome DevTools device mode with touch simulation
-- Storybook mobile viewport stories for each component
-- Automated check: Playwright `boundingBox()` assertions for min 44x44
+- Playwright mobile emulation (`--device='Pixel 7'`) with `boundingBox()` assertions
+- Chrome DevTools device mode for manual exploratory testing
 
 ### 1b. GREEN — Fix undersized targets and hover-only interactions
 
@@ -106,12 +136,51 @@ Verify all interactive elements meet the 44x44 CSS pixel minimum (Apple HIG / WC
 ```bash
 cd frontend && CI=1 npx vitest run --project=unit
 cd frontend && npx tsc -b --noEmit
+cd frontend && npm run test:e2e -- --grep "touch-targets"
 # Manual: Chrome DevTools → Toggle Device Toolbar → test each component
 ```
+
+### 1e. Stories
+
+| Story | Viewport | What it proves |
+| --- | --- | --- |
+| `EditableTitle` — touch edit affordance | 390x844 (mobile) | Edit icon visible, tap activates edit mode |
+| `BucketNav` — narrow sidebar | 390x844 | All nav buttons meet 44x44 minimum |
+| `ActionRow` — touch controls | 390x844 | Checkbox and focus toggle are tap-friendly |
+| `InboxTriage` — mobile triage | 390x844 | Bucket buttons are adequately spaced |
+| `InboxCapture` — virtual keyboard | 390x844 | Input remains visible when keyboard opens |
 
 ---
 
 ## Phase 2: Write Conflict Prevention
+
+### Acceptance criteria
+
+- `PATCH /items/{id}` with a stale `If-Match` ETag returns 412 Precondition Failed
+- `PATCH /items/{id}` without `If-Match` succeeds (backward compatible)
+- Frontend sends `If-Match` on every update using the cached ETag
+- On 412, the frontend invalidates the query cache and shows a conflict toast
+- Response `ETag` header is present on every `PATCH` success response
+
+### API response contract
+
+**412 Precondition Failed:**
+
+```json
+{
+  "code": "PRECONDITION_FAILED",
+  "message": "Resource has been modified since last read"
+}
+```
+
+**200 OK (success):** Response includes `ETag` header matching the updated item's content hash.
+
+### i18n keys
+
+| Key | en | de |
+| --- | --- | --- |
+| `conflict.itemModified.title` | Conflict | Konflikt |
+| `conflict.itemModified.description` | This item was modified elsewhere. Reloading latest version. | Dieser Eintrag wurde anderweitig geändert. Aktuelle Version wird geladen. |
 
 ### 2a. RED — Tests for If-Match precondition
 
@@ -169,9 +238,67 @@ cd frontend && CI=1 npx vitest run --project=unit
 cd frontend && npx tsc -b --noEmit
 ```
 
+### 2e. Stories
+
+| Story | What it proves |
+| --- | --- |
+| `ItemEditor` — conflict toast | MSW returns 412 on save → toast appears, cache refreshes, editor shows updated content |
+
+MSW handler override for the story:
+
+```typescript
+parameters: {
+  msw: {
+    handlers: [
+      http.patch("*/items/*", () =>
+        HttpResponse.json(
+          { code: "PRECONDITION_FAILED", message: "Resource has been modified since last read" },
+          { status: 412 },
+        ),
+      ),
+    ],
+  },
+},
+```
+
 ---
 
 ## Phase 3: Reverse Proxy Rate Limiting
+
+### Acceptance criteria
+
+- Write endpoints return 429 Too Many Requests after 100 requests/minute per IP
+- Auth endpoints return 429 after 10 failed attempts/minute per IP
+- 429 response includes `Retry-After` header (seconds)
+- Frontend shows a rate-limit toast and respects `Retry-After` before retrying
+- Rate limit events are visible in Loki dashboards via nginx log parsing
+
+### API response contract
+
+**429 Too Many Requests:**
+
+```
+HTTP/1.1 429 Too Many Requests
+Retry-After: 30
+Content-Type: text/html
+
+<html><body><h1>429 Too Many Requests</h1></body></html>
+```
+
+### Frontend 429 handling
+
+`frontend/src/lib/api-client.ts` — global fetch wrapper:
+
+- On 429, parse `Retry-After` header (integer seconds)
+- Show info toast: "Zu viele Anfragen — bitte warte kurz" / "Too many requests — please wait"
+- TanStack Query's built-in retry will back off; do not manually retry
+
+### i18n keys
+
+| Key | en | de |
+| --- | --- | --- |
+| `error.rateLimited.title` | Too many requests | Zu viele Anfragen |
+| `error.rateLimited.description` | Please wait a moment before trying again. | Bitte warte einen Moment, bevor du es erneut versuchst. |
 
 ### 3a. RED — Integration test for rate limiting
 
@@ -235,6 +362,51 @@ hey -n 200 -c 10 -m POST http://localhost/items ...
 ---
 
 ## Phase 4: PWA Infrastructure
+
+### Acceptance criteria
+
+- Lighthouse PWA audit passes on Chrome desktop and Android Chrome
+- App installs via Chrome's "Install app" prompt (desktop) and Android install banner
+- Offline app shell loads when network is down (cached HTML + JS + CSS)
+- Static assets are served from cache on repeat visits (CacheFirst)
+- API sync endpoint falls back to cached response when offline (NetworkFirst)
+- Service worker update shows a non-blocking "Update available" toast with a "Reload" action
+- IndexedDB persists the React Query cache across page reloads (tab close survives)
+- Queued mutations replay via Background Sync when connectivity returns (Android Chrome only)
+
+### Service worker update strategy
+
+When a new service worker is detected (`onNeedRefresh` from `vite-plugin-pwa`):
+
+1. Show a non-blocking info toast: "Eine neue Version ist verfügbar" / "A new version is available"
+2. Toast includes a "Neu laden" / "Reload" button
+3. Clicking "Reload" calls `registration.waiting.postMessage({ type: 'SKIP_WAITING' })` + `window.location.reload()`
+4. If the user ignores the toast, the new version activates on the next full page load
+5. In-progress mutations are **not** interrupted — the reload waits for the TanStack Query mutation queue to drain
+
+**No auto-reload.** Users may have unsaved form state; always let them choose when to update.
+
+### i18n keys
+
+| Key | en | de |
+| --- | --- | --- |
+| `pwa.updateAvailable.title` | Update available | Aktualisierung verfügbar |
+| `pwa.updateAvailable.description` | A new version is available. | Eine neue Version ist verfügbar. |
+| `pwa.updateAvailable.reload` | Reload | Neu laden |
+| `pwa.installPrompt.title` | Install app | App installieren |
+| `pwa.installPrompt.description` | Install for offline access and a native experience. | Für Offline-Zugriff und ein natives Erlebnis installieren. |
+
+### Error handling & degradation
+
+| Scenario | Behavior | Fallback |
+| --- | --- | --- |
+| Service worker registration fails (e.g. private browsing) | Log warning to console | App works as normal SPA — no caching, no install prompt |
+| IndexedDB unavailable or quota exceeded | Log warning, skip cache persistence | TanStack Query in-memory cache still works; data lost on reload |
+| Background Sync not available (Firefox desktop) | Mutations stay in TanStack Query's in-memory queue | Auto-retry when `navigator.onLine` fires; lost on tab close |
+| `manifest.json` fails to load | No install prompt shown | App works normally in browser tab |
+| Cached API response is stale after long offline period | NetworkFirst returns stale cache, then sync corrects on reconnect | Cursor-based sync endpoint reconciles full state |
+
+**Principle:** Every PWA feature degrades gracefully to the existing SPA behavior. No feature gate or conditional code path — the service worker and IndexedDB are additive layers.
 
 ### 4a. RED — PWA installability checks
 
@@ -312,6 +484,23 @@ plugins: [
 - API sync endpoint: **NetworkFirst** — try network, fall back to cache
 - HTML shell: **StaleWhileRevalidate** — serve cached, update in background
 
+**Update prompt registration** (`frontend/src/lib/pwa-update.ts`):
+
+```typescript
+import { useRegisterSW } from "virtual:pwa-register/react";
+
+export function usePwaUpdate() {
+  const {
+    needRefresh: [needRefresh],
+    updateServiceWorker,
+  } = useRegisterSW();
+
+  // Show toast when needRefresh becomes true
+  // Call updateServiceWorker(true) when user clicks "Reload"
+  return { needRefresh, updateServiceWorker };
+}
+```
+
 ### 4d. GREEN — IndexedDB persistence (future)
 
 When offline persistence becomes a priority:
@@ -337,10 +526,19 @@ When the service worker is in place:
 ```bash
 cd frontend && npx tsc -b --noEmit
 cd frontend && npm run build
-# Lighthouse audit on built app
+# Lighthouse audit on built app (Chrome desktop)
 npx lighthouse http://localhost:4173 --only-categories=pwa --output=json
 # Manual: Chrome → Install app → disable network → verify offline shell
+# Manual: Android Chrome → verify install banner → airplane mode → verify offline shell
 ```
+
+### 4g. Stories
+
+| Story | What it proves |
+| --- | --- |
+| `AppShell` — update available toast | `usePwaUpdate` mock returns `needRefresh: true` → toast with "Reload" action appears |
+| `AppShell` — offline with cached data | MSW simulates network failure → items render from cache, `OfflineBanner` visible |
+| `AppShell` — install prompt | `beforeinstallprompt` event mock → install banner/button appears |
 
 ---
 
@@ -348,45 +546,109 @@ npx lighthouse http://localhost:4173 --only-categories=pwa --output=json
 
 **Phase 1 (Touch audit):**
 
-- `frontend/src/components/work/EditableTitle.tsx` — add touch edit affordance
-- Various components — add `min-h-11 min-w-11` to small targets
+| File | Change |
+| --- | --- |
+| `frontend/e2e/tests/touch-targets.spec.ts` | New — Playwright touch target assertions |
+| `frontend/src/components/work/EditableTitle.tsx` | Add touch edit affordance (icon + long-press) |
+| Various components | Add `min-h-11 min-w-11` to small interactive targets |
+| Component `.stories.tsx` files | Add mobile viewport story variants |
 
 **Phase 2 (Conflict prevention):**
 
-- `backend/tests/test_conflict_detection.py` — new test file
-- `backend/app/routes/items.py` — add `If-Match` precondition check
-- `frontend/src/lib/api-client.ts` — pass ETag on updates
-- `frontend/src/hooks/use-mutations.ts` — handle 412 responses
+| File | Change |
+| --- | --- |
+| `backend/tests/test_conflict_detection.py` | New — 412 precondition tests |
+| `backend/app/routes/items.py` | Add `If-Match` precondition check to PATCH |
+| `frontend/src/lib/api-client.ts` | Send `If-Match` header on updates, handle 412 |
+| `frontend/src/hooks/use-mutations.ts` | Pass ETag from cache, handle 412 with toast |
+| `frontend/src/i18n/messages.en.ts` | Add `conflict.*` keys |
+| `frontend/src/i18n/messages.de.ts` | Add `conflict.*` keys |
 
 **Phase 3 (Rate limiting):**
 
-- `deploy/nginx/rate-limit.conf` — new nginx config
-- `deploy/alloy/config.alloy` — log parsing pipeline
+| File | Change |
+| --- | --- |
+| `deploy/nginx/rate-limit.conf` | New — nginx rate limit zones |
+| `deploy/alloy/config.alloy` | Log parsing pipeline for rate limit events |
+| `frontend/src/lib/api-client.ts` | Handle 429 response + `Retry-After` header |
+| `frontend/src/i18n/messages.en.ts` | Add `error.rateLimited.*` keys |
+| `frontend/src/i18n/messages.de.ts` | Add `error.rateLimited.*` keys |
 
 **Phase 4 (PWA):**
 
-- `frontend/public/manifest.json` — new web app manifest
-- `frontend/public/icons/` — PWA icons (192, 512, maskable)
-- `frontend/index.html` — manifest link + theme-color meta
-- `frontend/vite.config.ts` — add vite-plugin-pwa
-- `frontend/src/lib/offline-storage.ts` — IndexedDB adapter (future)
+| File | Change |
+| --- | --- |
+| `frontend/public/manifest.json` | New — web app manifest |
+| `frontend/public/icons/` | New — PWA icons (192, 512, maskable) |
+| `frontend/index.html` | Add manifest link + theme-color meta |
+| `frontend/vite.config.ts` | Add `vite-plugin-pwa` plugin config |
+| `frontend/src/lib/pwa-update.ts` | New — `usePwaUpdate` hook (update toast trigger) |
+| `frontend/src/lib/offline-storage.ts` | New — IndexedDB `persistQueryClient` adapter |
+| `frontend/src/lib/sync-manager.ts` | New — Background Sync registration |
+| `frontend/src/i18n/messages.en.ts` | Add `pwa.*` keys |
+| `frontend/src/i18n/messages.de.ts` | Add `pwa.*` keys |
 
 ---
 
 ## Verification checklist
 
-- [ ] All interactive elements meet 44x44px minimum on touch devices
-- [ ] EditableTitle has touch-friendly edit affordance
-- [ ] Mobile keyboard does not obscure input fields
-- [ ] `If-Match` on PATCH returns 412 when stale
-- [ ] Frontend handles 412 with cache invalidation + toast
-- [ ] nginx rate limiting returns 429 after threshold
+**Phase 1 — Touch & mobile:**
+
+- [ ] All interactive elements meet 44x44px minimum on `pointer: coarse` devices
+- [ ] `EditableTitle` has touch-friendly edit affordance (icon visible on touch)
+- [ ] Adjacent tap targets have at least 8px spacing
+- [ ] Android virtual keyboard does not obscure input fields
+- [ ] Playwright touch target tests pass (`touch-targets.spec.ts`)
+- [ ] Mobile viewport Storybook stories render correctly
+
+**Phase 2 — Conflict prevention:**
+
+- [ ] `PATCH /items/{id}` with stale `If-Match` returns 412
+- [ ] `PATCH /items/{id}` without `If-Match` succeeds (backward compat)
+- [ ] Frontend sends `If-Match` on every update
+- [ ] 412 response triggers cache invalidation + conflict toast
+- [ ] i18n keys added to both `messages.en.ts` and `messages.de.ts`
+
+**Phase 3 — Rate limiting:**
+
+- [ ] nginx returns 429 after 100 write requests/minute
+- [ ] Auth endpoints return 429 after 10 failed attempts/minute
+- [ ] 429 response includes `Retry-After` header
+- [ ] Frontend shows rate-limit toast on 429
 - [ ] Rate limit events visible in Loki dashboards
-- [ ] `manifest.json` present with correct metadata and icons
-- [ ] Service worker caches static assets and API responses
-- [ ] Lighthouse PWA audit passes
-- [ ] App installs on mobile browsers
-- [ ] Offline shell loads when disconnected
+
+**Phase 4 — PWA:**
+
+- [ ] Lighthouse PWA audit passes (Chrome desktop)
+- [ ] App installs via Chrome desktop install prompt
+- [ ] App installs via Android Chrome install banner
+- [ ] Offline app shell loads when disconnected
+- [ ] Static assets served from service worker cache on repeat visits
+- [ ] API sync endpoint falls back to cache when offline
+- [ ] "Update available" toast appears when new service worker is detected
+- [ ] "Reload" action in toast activates new service worker
+- [ ] IndexedDB persists query cache across page reload
+- [ ] Background Sync replays queued mutations on reconnect (Android Chrome)
+- [ ] Service worker registration failure degrades gracefully (no crash, no broken UI)
+
+**Cross-cutting:**
+
 - [ ] All backend tests pass (`pytest`)
 - [ ] All frontend tests pass (`vitest run`)
 - [ ] TypeScript clean (`tsc -b --noEmit`)
+- [ ] ESLint clean
+- [ ] Prettier clean
+
+---
+
+## Deferred scope (not in this epic)
+
+The following are explicitly out of scope and tracked separately:
+
+| Item | Why deferred | Tracked in |
+| --- | --- | --- |
+| iOS / Safari PWA support | No Background Sync, aggressive SW eviction, unreliable IndexedDB — see Platform Scope table above | Future epic if user demand warrants |
+| Push notifications | Requires notification permission UX, backend push infrastructure, and VAPID keys — orthogonal to offline-first | Future epic |
+| Periodic Background Sync | Chrome-only, requires "sufficient engagement" heuristic — premature until basic Background Sync is validated | Future Phase 4 extension |
+| Offline file/attachment access | Files are large binary blobs; caching strategy differs from JSON API data — separate design needed | Future epic (depends on [Org Knowledge](?path=/docs/product-epics-org-knowledge--docs)) |
+| Multi-tab conflict resolution | Current ETag approach handles single-tab conflicts; cross-tab coordination (BroadcastChannel) is a separate concern | Future epic |

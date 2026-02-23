@@ -191,7 +191,7 @@ def raise_if_invalid(
 
     message = str(issues[0].get("message") or default_message)
     raise HTTPException(
-        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         detail={
             "message": message,
             "issues": issues,

@@ -1,11 +1,14 @@
 import { StrictMode, lazy, Suspense } from "react";
 import { createRoot } from "react-dom/client";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { ApiError } from "./lib/api-client";
+import { createIdbPersister } from "./lib/offline-storage";
 import { AuthProvider } from "./lib/auth-context";
 import { ToastProvider } from "./components/ui/ToastProvider";
 import "./index.css";
 import App from "./App.tsx";
+import { PwaUpdateNotifier } from "./components/shell/PwaUpdateNotifier";
 
 const ReactQueryDevtools = import.meta.env.DEV
   ? lazy(() =>
@@ -33,11 +36,18 @@ const queryClient = new QueryClient({
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={{
+        persister: createIdbPersister(),
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      }}
+    >
       <ToastProvider>
         <AuthProvider>
           <App />
         </AuthProvider>
+        <PwaUpdateNotifier />
       </ToastProvider>
       {import.meta.env.DEV && (
         <Suspense fallback={null}>
@@ -47,6 +57,6 @@ createRoot(document.getElementById("root")!).render(
           />
         </Suspense>
       )}
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
   </StrictMode>,
 );

@@ -149,4 +149,43 @@ describe("TayChatPanel", () => {
       screen.getByRole("textbox", { name: "Nachricht an Copilot" }),
     ).toBeDisabled();
   });
+
+  it("renders history toggle button", () => {
+    render(
+      <TayChatPanel
+        isOpen
+        onClose={vi.fn()}
+        messages={[]}
+        isLoading={false}
+        onSend={vi.fn()}
+        onAcceptSuggestion={vi.fn()}
+        onDismissSuggestion={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Verlauf anzeigen" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows conversation list when history button clicked", async () => {
+    const user = userEvent.setup();
+    render(
+      <TayChatPanel
+        isOpen
+        onClose={vi.fn()}
+        messages={[]}
+        isLoading={false}
+        onSend={vi.fn()}
+        onAcceptSuggestion={vi.fn()}
+        onDismissSuggestion={vi.fn()}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Verlauf anzeigen" }));
+    // Should show the conversation list empty state
+    expect(screen.getByText("Keine bisherigen Gespräche")).toBeInTheDocument();
+    // Input should be hidden
+    expect(
+      screen.queryByRole("textbox", { name: "Nachricht an Copilot" }),
+    ).not.toBeInTheDocument();
+  });
 });

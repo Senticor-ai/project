@@ -162,7 +162,7 @@ export function AppMenu({ sections, className }: AppMenuProps) {
         aria-expanded={isOpen}
         onClick={() => setIsOpen((prev) => !prev)}
         className={cn(
-          "rounded-[var(--radius-md)] p-2 transition-colors duration-[var(--duration-fast)]",
+          "inline-flex min-h-11 min-w-11 items-center justify-center rounded-[var(--radius-md)] p-2 transition-colors duration-[var(--duration-fast)]",
           isOpen
             ? "bg-paper-100 text-text"
             : "text-text-muted hover:bg-paper-100 hover:text-text",
@@ -214,7 +214,7 @@ export function AppMenu({ sections, className }: AppMenuProps) {
                   tabIndex={-1}
                   onClick={() => handleItemClick(item)}
                   className={cn(
-                    "flex w-full items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm",
+                    "flex w-full min-h-11 items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm",
                     "transition-colors duration-[var(--duration-fast)]",
                     item.active
                       ? "bg-blueprint-50 font-medium text-blueprint-700"

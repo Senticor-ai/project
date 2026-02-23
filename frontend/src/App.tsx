@@ -374,6 +374,8 @@ function AuthenticatedApp({
         onSend={chat.sendMessage}
         onAcceptSuggestion={chat.acceptSuggestion}
         onDismissSuggestion={chat.dismissSuggestion}
+        onNewConversation={chat.startNewConversation}
+        onLoadConversation={chat.loadConversation}
         agentName={
           agentSettingsData?.agentBackend === "openclaw"
             ? "OpenClaw"

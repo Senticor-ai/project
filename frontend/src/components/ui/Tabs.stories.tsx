@@ -112,3 +112,13 @@ export const Interactive: Story = {
     });
   },
 };
+
+/** Mobile viewport — verify touch target sizes. */
+export const MobileTouchTargets: StoryObj<typeof meta> = {
+  globals: { viewport: { value: "iphone14", isRotated: false } },
+  args: {
+    tabs: sampleTabs,
+    activeTab: "import-export",
+    onSelect: () => {},
+  },
+};

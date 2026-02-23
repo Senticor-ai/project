@@ -555,3 +555,17 @@ export const SelectedHighlight: Story = {
     await expect(row).not.toBeNull();
   },
 };
+
+/** Mobile viewport — touch-friendly controls. */
+export const MobileTouchControls: StoryObj<typeof meta> = {
+  globals: { viewport: { value: "iphone14", isRotated: false } },
+  args: {
+    thing: createActionItem({ name: "Mobile touch test", bucket: "next" }),
+    isExpanded: false,
+    onComplete: fn(),
+    onToggleFocus: fn(),
+    onMove: fn(),
+    onArchive: fn(),
+    onToggleExpand: fn(),
+  },
+};

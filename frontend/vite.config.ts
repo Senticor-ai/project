@@ -2,6 +2,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import { VitePWA } from "vite-plugin-pwa";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -40,7 +41,28 @@ const storybookProject =
 
 export default defineConfig({
   envDir: path.resolve(dirname, ".."),
-  plugins: [react(), tailwindcss()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    VitePWA({
+      registerType: "autoUpdate",
+      manifest: false, // using our own public/manifest.json
+      workbox: {
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MiB (icon font is ~4MB)
+        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+        runtimeCaching: [
+          {
+            urlPattern: /\/api\/items\/sync/,
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "items-sync",
+              expiration: { maxEntries: 50, maxAgeSeconds: 86400 },
+            },
+          },
+        ],
+      },
+    }),
+  ],
   resolve: {
     alias: {
       "@": path.resolve(dirname, "./src"),
