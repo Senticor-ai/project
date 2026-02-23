@@ -39,6 +39,7 @@ __pycache__/
 .env
 .env.*
 !.env.example
+env-config/
 
 # Local storage
 storage/
@@ -59,3 +60,5 @@ frontend/coverage/
 
 # Exported documentation
 exports/
+
+

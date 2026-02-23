@@ -162,8 +162,15 @@ def _item_name(record: dict[str, Any]) -> str:
 
 def _created_items_from_cli_payload(payload: dict[str, Any]) -> list[CreatedItemRef]:
     if payload.get("ok") is False:
-        error = payload.get("error") if isinstance(payload.get("error"), dict) else {}
-        message = error.get("message") if isinstance(error.get("message"), str) else "CLI failed"
+        raw_error = payload.get("error")
+        error: dict[str, Any]
+        if isinstance(raw_error, dict):
+            error = raw_error
+        else:
+            error = {}
+
+        raw_message = error.get("message")
+        message = raw_message if isinstance(raw_message, str) else "CLI failed"
         raise RuntimeError(message)
 
     data = payload.get("data", {})
@@ -177,7 +184,11 @@ def _created_items_from_cli_payload(payload: dict[str, Any]) -> list[CreatedItem
             continue
         seen.add(canonical_id)
         item_jsonld = record.get("item")
-        item_type = _item_type_from_jsonld(item_jsonld) if isinstance(item_jsonld, dict) else "reference"
+        item_type = (
+            _item_type_from_jsonld(item_jsonld)
+            if isinstance(item_jsonld, dict)
+            else "reference"
+        )
         out.append(
             CreatedItemRef(
                 canonical_id=canonical_id,

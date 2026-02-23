@@ -159,6 +159,28 @@ def test_inbox_cannot_triage_to_completed(auth_client):
     assert response.status_code == 422
 
 
+def test_inbox_patch_without_bucket_change_is_allowed(auth_client):
+    item = {
+        "@id": f"urn:app:action:{uuid.uuid4()}",
+        "@type": "Action",
+        "_schemaVersion": 2,
+        "name": "Inbox task",
+        "additionalProperty": [
+            {"@type": "PropertyValue", "propertyID": "app:bucket", "value": "inbox"},
+            {"@type": "PropertyValue", "propertyID": "app:rawCapture", "value": "Inbox task"},
+        ],
+    }
+    response = auth_client.post("/items", json={"item": item, "source": "manual"})
+    assert response.status_code == 201
+    item_id = response.json()["item_id"]
+
+    response = auth_client.patch(
+        f"/items/{item_id}",
+        json={"item": {"name": "Inbox task updated"}},
+    )
+    assert response.status_code == 200
+    assert response.json()["item"]["name"] == "Inbox task updated"
+
 # ---------------------------------------------------------------------------
 # Rename provenance
 # ---------------------------------------------------------------------------

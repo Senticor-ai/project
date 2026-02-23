@@ -8,6 +8,8 @@
 #
 # Usage:
 #   ansible-playbook infra/gcp-pubsub.yml -e gcp_project=procedere
+#   ansible-playbook infra/gcp-pubsub.yml -e gcp_project=procedere -e gcp_account=you@example.com
+#   ansible-playbook infra/gcp-pubsub.yml -e gcp_project=procedere -e gcp_auto_auth_login=true
 #
 # Re-run safely — all tasks are idempotent.
 
@@ -18,6 +20,8 @@
 
   vars:
     gcp_project: "{{ gcp_project }}"
+    gcp_account: "{{ gcp_account | default('') }}"
+    gcp_auto_auth_login: "{{ gcp_auto_auth_login | default(false) | bool }}"
     topic_name: gmail-push
     subscription_name: gmail-push-sub
     service_account_name: gmail-push-sub
@@ -29,6 +33,226 @@
     full_sub: "projects/{{ gcp_project }}/subscriptions/{{ subscription_name }}"
 
   tasks:
+    # ── 0. gcloud auth preflight ──────────────────────────────────────────────
+    - name: Assert gcp_project variable is provided
+      ansible.builtin.assert:
+        that:
+          - gcp_project | length > 0
+        fail_msg: "Set gcp_project, e.g. -e gcp_project=senticor-project"
+
+    - name: Check gcloud CLI is available
+      ansible.builtin.command:
+        cmd: "gcloud --version"
+      changed_when: false
+
+    - name: Read authenticated gcloud accounts
+      ansible.builtin.command:
+        cmd: "gcloud auth list --format=json"
+      register: gcloud_auth_list
+      changed_when: false
+
+    - name: Parse gcloud auth state
+      ansible.builtin.set_fact:
+        gcloud_accounts: "{{ (gcloud_auth_list.stdout | from_json) }}"
+        gcloud_account_names: "{{ (gcloud_auth_list.stdout | from_json) | map(attribute='account') | list }}"
+        gcloud_active_accounts: "{{ (gcloud_auth_list.stdout | from_json) | selectattr('status', 'equalto', 'ACTIVE') | map(attribute='account') | list }}"
+
+    - name: Fail when no authenticated account and auto-login disabled
+      ansible.builtin.fail:
+        msg: >-
+          No authenticated gcloud account found.
+          Run `gcloud auth login --update-adc` manually, or re-run with
+          -e gcp_auto_auth_login=true to let this playbook try interactive login.
+      when:
+        - gcloud_account_names | length == 0
+        - not gcp_auto_auth_login
+
+    - name: Attempt interactive gcloud login when no account exists
+      ansible.builtin.command:
+        cmd: >-
+          gcloud auth login
+          {{ gcp_account if gcp_account | length > 0 else '' }}
+          --update-adc
+      register: gcloud_login_initial
+      changed_when: true
+      failed_when: false
+      when:
+        - gcloud_account_names | length == 0
+        - gcp_auto_auth_login
+
+    - name: Fail when interactive login attempt failed
+      ansible.builtin.fail:
+        msg: >-
+          `gcloud auth login` failed (rc={{ gcloud_login_initial.rc }}).
+          stderr: {{ gcloud_login_initial.stderr | default('') }}
+      when:
+        - gcloud_account_names | length == 0
+        - gcp_auto_auth_login
+        - gcloud_login_initial.rc != 0
+
+    - name: Refresh authenticated gcloud accounts after initial login
+      ansible.builtin.command:
+        cmd: "gcloud auth list --format=json"
+      register: gcloud_auth_list_post_login
+      changed_when: false
+      when:
+        - gcloud_account_names | length == 0
+        - gcp_auto_auth_login
+        - gcloud_login_initial.rc == 0
+
+    - name: Update account facts after initial login
+      ansible.builtin.set_fact:
+        gcloud_accounts: "{{ (gcloud_auth_list_post_login.stdout | from_json) }}"
+        gcloud_account_names: "{{ (gcloud_auth_list_post_login.stdout | from_json) | map(attribute='account') | list }}"
+        gcloud_active_accounts: "{{ (gcloud_auth_list_post_login.stdout | from_json) | selectattr('status', 'equalto', 'ACTIVE') | map(attribute='account') | list }}"
+      when:
+        - gcloud_account_names | length == 0
+        - gcp_auto_auth_login
+        - gcloud_login_initial.rc == 0
+
+    - name: Fail when requested gcp_account is not authenticated and auto-login disabled
+      ansible.builtin.fail:
+        msg: >-
+          Requested gcp_account={{ gcp_account }} is not authenticated.
+          Authenticated accounts: {{ gcloud_account_names | join(', ') if gcloud_account_names else 'none' }}.
+          Run `gcloud auth login {{ gcp_account }} --update-adc`, or re-run with
+          -e gcp_auto_auth_login=true.
+      when:
+        - gcp_account | length > 0
+        - gcp_account not in gcloud_account_names
+        - not gcp_auto_auth_login
+
+    - name: Attempt interactive gcloud login for requested account
+      ansible.builtin.command:
+        cmd: "gcloud auth login {{ gcp_account }} --update-adc"
+      register: gcloud_login_requested
+      changed_when: true
+      failed_when: false
+      when:
+        - gcp_account | length > 0
+        - gcp_account not in gcloud_account_names
+        - gcp_auto_auth_login
+
+    - name: Fail when requested-account login attempt failed
+      ansible.builtin.fail:
+        msg: >-
+          `gcloud auth login {{ gcp_account }}` failed (rc={{ gcloud_login_requested.rc }}).
+          stderr: {{ gcloud_login_requested.stderr | default('') }}
+      when:
+        - gcp_account | length > 0
+        - gcp_account not in gcloud_account_names
+        - gcp_auto_auth_login
+        - gcloud_login_requested.rc != 0
+
+    - name: Refresh authenticated gcloud accounts after requested-account login
+      ansible.builtin.command:
+        cmd: "gcloud auth list --format=json"
+      register: gcloud_auth_list_post_requested
+      changed_when: false
+      when:
+        - gcp_account | length > 0
+        - gcp_account not in gcloud_account_names
+        - gcp_auto_auth_login
+        - gcloud_login_requested.rc == 0
+
+    - name: Update account facts after requested-account login
+      ansible.builtin.set_fact:
+        gcloud_accounts: "{{ (gcloud_auth_list_post_requested.stdout | from_json) }}"
+        gcloud_account_names: "{{ (gcloud_auth_list_post_requested.stdout | from_json) | map(attribute='account') | list }}"
+        gcloud_active_accounts: "{{ (gcloud_auth_list_post_requested.stdout | from_json) | selectattr('status', 'equalto', 'ACTIVE') | map(attribute='account') | list }}"
+      when:
+        - gcp_account | length > 0
+        - gcp_account not in gcloud_account_names
+        - gcp_auto_auth_login
+        - gcloud_login_requested.rc == 0
+
+    - name: Select gcloud account for this run
+      ansible.builtin.set_fact:
+        gcloud_selected_account: >-
+          {{
+            gcp_account
+            if gcp_account | length > 0
+            else (
+              gcloud_active_accounts[0]
+              if gcloud_active_accounts | length > 0
+              else (
+                gcloud_account_names[0]
+                if gcloud_account_names | length > 0
+                else ''
+              )
+            )
+          }}
+
+    - name: Fail when no usable gcloud account is available
+      ansible.builtin.fail:
+        msg: "No usable gcloud account found after auth preflight."
+      when: gcloud_selected_account | length == 0
+
+    - name: Set active gcloud account for this run
+      ansible.builtin.command:
+        cmd: "gcloud config set account {{ gcloud_selected_account }}"
+      changed_when: false
+
+    - name: Validate selected account can mint access token
+      ansible.builtin.command:
+        cmd: "gcloud auth print-access-token --account={{ gcloud_selected_account }} --quiet"
+      register: gcloud_token_check
+      changed_when: false
+      failed_when: false
+
+    - name: Attempt reauthentication when token check fails
+      ansible.builtin.command:
+        cmd: "gcloud auth login {{ gcloud_selected_account }} --update-adc"
+      register: gcloud_reauth
+      changed_when: true
+      failed_when: false
+      when:
+        - gcloud_token_check.rc != 0
+        - gcp_auto_auth_login
+
+    - name: Re-check token after reauthentication attempt
+      ansible.builtin.command:
+        cmd: "gcloud auth print-access-token --account={{ gcloud_selected_account }} --quiet"
+      register: gcloud_token_check_after
+      changed_when: false
+      failed_when: false
+      when:
+        - gcloud_token_check.rc != 0
+        - gcp_auto_auth_login
+        - gcloud_reauth.rc == 0
+
+    - name: Fail when token check fails and auto-login is disabled
+      ansible.builtin.fail:
+        msg: >-
+          Active account {{ gcloud_selected_account }} cannot refresh auth token.
+          Run `gcloud auth login {{ gcloud_selected_account }} --update-adc` and re-run,
+          or use -e gcp_auto_auth_login=true.
+      when:
+        - gcloud_token_check.rc != 0
+        - not gcp_auto_auth_login
+
+    - name: Fail when token check still fails after reauthentication attempt
+      ansible.builtin.fail:
+        msg: >-
+          Account {{ gcloud_selected_account }} still cannot mint an access token
+          after `gcloud auth login` (rc={{ gcloud_reauth.rc | default('n/a') }}).
+          stderr: {{ gcloud_reauth.stderr | default(gcloud_token_check.stderr | default('')) }}
+      when:
+        - gcloud_token_check.rc != 0
+        - gcp_auto_auth_login
+        - gcloud_reauth.rc != 0 or gcloud_token_check_after.rc != 0
+
+    - name: Set gcloud project for this run
+      ansible.builtin.command:
+        cmd: "gcloud config set project {{ gcp_project }}"
+      changed_when: false
+
+    - name: Auth preflight summary
+      ansible.builtin.debug:
+        msg:
+          - "Using gcloud account: {{ gcloud_selected_account }}"
+          - "Using gcloud project: {{ gcp_project }}"
+
     # ── 1. Pub/Sub topic ────────────────────────────────────────────────
     - name: Check if topic exists
       ansible.builtin.command:

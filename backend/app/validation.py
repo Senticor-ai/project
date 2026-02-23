@@ -163,7 +163,12 @@ def validate_item_update(existing_item: dict, next_item: dict) -> list[dict[str,
             }
         )
 
-    if source_bucket == "inbox" and target_bucket and target_bucket not in INBOX_TRIAGE_TARGETS:
+    if (
+        source_bucket == "inbox"
+        and target_bucket
+        and target_bucket != source_bucket
+        and target_bucket not in INBOX_TRIAGE_TARGETS
+    ):
         issues.append(
             {
                 "source": "cel",
@@ -177,7 +182,10 @@ def validate_item_update(existing_item: dict, next_item: dict) -> list[dict[str,
     return issues
 
 
-def raise_if_invalid(issues: list[dict[str, object]], default_message: str = "Validation failed") -> None:
+def raise_if_invalid(
+    issues: list[dict[str, object]],
+    default_message: str = "Validation failed",
+) -> None:
     if not issues:
         return
 
