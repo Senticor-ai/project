@@ -2,15 +2,15 @@ import { useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ChatApi } from "@/lib/api-client";
 import { ITEMS_QUERY_KEY } from "./use-items";
-import type { TaySuggestion, CreatedItemRef } from "@/model/chat-types";
+import type { CopilotSuggestion, CreatedItemRef } from "@/model/chat-types";
 import type { CanonicalId } from "@/model/canonical-id";
 
-export function useTayActions() {
+export function useCopilotActions() {
   const queryClient = useQueryClient();
 
   const executeSuggestion = useCallback(
     async (
-      suggestion: TaySuggestion,
+      suggestion: CopilotSuggestion,
       conversationId: string,
     ): Promise<CreatedItemRef[]> => {
       const toolArguments =

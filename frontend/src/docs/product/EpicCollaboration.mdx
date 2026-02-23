@@ -236,7 +236,7 @@ Do not include in MVP:
 - [x] Action edits are revisioned with actor + timestamp.
 - [ ] Card quick-edit works inline and double-click opens advanced edit panel.
 - [ ] Cards can move between columns and persist after page reload.
-- [ ] Board and list views stay consistent via shared `actionStatus` source.
+- [ ] Board and list views scopilot consistent via shared `actionStatus` source.
 - [x] Both owner and member can collaborate on the same project without permission leakage.
 - [ ] Collaboration commands are available via `senticor-copilot` and `@project/core` SDK wrappers.
 - [ ] Copilot can complete the collaboration workflow using only `copilot_cli` (`argv[]`, `--json`, non-interactive).
@@ -465,7 +465,7 @@ Extend with product namespace only for workflow internals not covered by schema.
 ### A8) Initial Setup Sequence
 
 - [x] Add DB tables for `action_transition_event`, `action_state_projection`, `project_member`,
-  `action_comment`, `action_revision`, workflow policy tables.
+      `action_comment`, `action_revision`, workflow policy tables.
 - [x] Implement transition command service + workflow validator.
 - [ ] Implement projection updater + rebuild tool from event log.
 - [x] Wire list/board APIs to projection reads.

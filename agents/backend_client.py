@@ -132,7 +132,7 @@ class BackendClient:
             bucket_counts[bucket] = bucket_counts.get(bucket, 0) + 1
             if bucket not in items_by_bucket:
                 items_by_bucket[bucket] = []
-            # Cap 20 items per bucket to stay within LLM token budget
+            # Cap 20 items per bucket to scopilot within LLM token budget
             if len(items_by_bucket[bucket]) < 20:
                 items_by_bucket[bucket].append(
                     {

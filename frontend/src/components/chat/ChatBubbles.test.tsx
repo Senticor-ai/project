@@ -2,9 +2,9 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import {
   UserMessageBubble,
-  TayMessageBubble,
-  TayThinkingIndicator,
-  TayConfirmation,
+  CopilotMessageBubble,
+  CopilotThinkingIndicator,
+  CopilotConfirmation,
 } from "./ChatBubbles";
 
 describe("UserMessageBubble", () => {
@@ -20,26 +20,28 @@ describe("UserMessageBubble", () => {
   });
 });
 
-describe("TayMessageBubble", () => {
-  it("renders tay message text", () => {
-    render(<TayMessageBubble content="Hallo! Wie kann ich helfen?" />);
+describe("CopilotMessageBubble", () => {
+  it("renders copilot message text", () => {
+    render(<CopilotMessageBubble content="Hallo! Wie kann ich helfen?" />);
     expect(screen.getByText("Hallo! Wie kann ich helfen?")).toBeInTheDocument();
   });
 
   it("renders the chat_bubble avatar", () => {
-    render(<TayMessageBubble content="Test" />);
+    render(<CopilotMessageBubble content="Test" />);
     expect(screen.getByText("chat_bubble")).toBeInTheDocument();
   });
 
   it("renders bold markdown as strong tags", () => {
-    render(<TayMessageBubble content="Das ist **wichtig** hier" />);
+    render(<CopilotMessageBubble content="Das ist **wichtig** hier" />);
     const strong = screen.getByText("wichtig");
     expect(strong.tagName).toBe("STRONG");
   });
 
   it("renders numbered list from markdown", () => {
     render(
-      <TayMessageBubble content={"1. Erster Schritt\n2. Zweiter Schritt"} />,
+      <CopilotMessageBubble
+        content={"1. Erster Schritt\n2. Zweiter Schritt"}
+      />,
     );
     expect(screen.getByText("Erster Schritt")).toBeInTheDocument();
     expect(screen.getByText("Zweiter Schritt")).toBeInTheDocument();
@@ -48,27 +50,29 @@ describe("TayMessageBubble", () => {
   });
 });
 
-describe("TayThinkingIndicator", () => {
+describe("CopilotThinkingIndicator", () => {
   it("renders the chat_bubble avatar", () => {
-    render(<TayThinkingIndicator />);
+    render(<CopilotThinkingIndicator />);
     expect(screen.getByText("chat_bubble")).toBeInTheDocument();
   });
 
   it("has a thinking aria label", () => {
-    render(<TayThinkingIndicator />);
+    render(<CopilotThinkingIndicator />);
     expect(screen.getByLabelText("Copilot denkt nach...")).toBeInTheDocument();
   });
 });
 
-describe("TayConfirmation", () => {
+describe("CopilotConfirmation", () => {
   it("renders confirmation text", () => {
-    render(<TayConfirmation content="Projekt erstellt" createdItems={[]} />);
+    render(
+      <CopilotConfirmation content="Projekt erstellt" createdItems={[]} />,
+    );
     expect(screen.getByText("Projekt erstellt")).toBeInTheDocument();
   });
 
   it("renders created item chips", () => {
     render(
-      <TayConfirmation
+      <CopilotConfirmation
         content="Done"
         createdItems={[
           {
@@ -89,13 +93,13 @@ describe("TayConfirmation", () => {
   });
 
   it("renders check_circle icon", () => {
-    render(<TayConfirmation content="Done" createdItems={[]} />);
+    render(<CopilotConfirmation content="Done" createdItems={[]} />);
     expect(screen.getByText("check_circle")).toBeInTheDocument();
   });
 
   it("renders type-specific icons for items", () => {
     render(
-      <TayConfirmation
+      <CopilotConfirmation
         content="Done"
         createdItems={[
           {

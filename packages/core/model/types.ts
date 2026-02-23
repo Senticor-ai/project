@@ -24,7 +24,7 @@ export type CaptureSource =
   | { kind: "import"; source: string }
   | { kind: "file"; fileName: string; mimeType: string }
   | { kind: "url"; url: string }
-  | { kind: "tay"; conversationId: string };
+  | { kind: "copilot"; conversationId: string };
 
 // ---------------------------------------------------------------------------
 // Provenance (append-only, no-delete policy)

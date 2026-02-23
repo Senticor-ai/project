@@ -21,7 +21,7 @@ test.describe("Full Cycle", () => {
     await expect(ws.bucketCount("Inbox")).toHaveText("3");
 
     // 2. Triage all three
-    // "Buy groceries" was captured first and auto-expanded; it stays expanded
+    // "Buy groceries" was captured first and auto-expanded; it scopilots expanded
     // even as newer items are added. After triaging it, auto-advance picks the
     // newest remaining item (sorted[0] in descending-by-createdAt sort).
     //

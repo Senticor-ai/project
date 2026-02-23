@@ -403,7 +403,7 @@ When a new service worker is detected (`onNeedRefresh` from `vite-plugin-pwa`):
 | --------------------------------------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------- |
 | Service worker registration fails (e.g. private browsing) | Log warning to console                                            | App works as normal SPA — no caching, no install prompt         |
 | IndexedDB unavailable or quota exceeded                   | Log warning, skip cache persistence                               | TanStack Query in-memory cache still works; data lost on reload |
-| Background Sync not available (Firefox desktop)           | Mutations stay in TanStack Query's in-memory queue                | Auto-retry when `navigator.onLine` fires; lost on tab close     |
+| Background Sync not available (Firefox desktop)           | Mutations scopilot in TanStack Query's in-memory queue            | Auto-retry when `navigator.onLine` fires; lost on tab close     |
 | `manifest.json` fails to load                             | No install prompt shown                                           | App works normally in browser tab                               |
 | Cached API response is stale after long offline period    | NetworkFirst returns stale cache, then sync corrects on reconnect | Cursor-based sync endpoint reconciles full state                |
 

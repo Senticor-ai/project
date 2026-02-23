@@ -10,11 +10,11 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 ## Context
 
-A single user input like _"Ich muss fuer die Geburtstagsfeier Aepfel kaufen und auf die Einkaufsliste fuer meinen Mann schreiben"_ contains multiple schema.org entities: a `BuyAction`, a `CreateAction` (shopping list), a `Project`/`Event` (birthday party), and an implicit delegation. The UX stays simple (todos), but the backend data model should support richer schema.org types and relationship properties so that items can be decomposed or reassigned as users clarify them.
+A single user input like _"Ich muss fuer die Geburtstagsfeier Aepfel kaufen und auf die Einkaufsliste fuer meinen Mann schreiben"_ contains multiple schema.org entities: a `BuyAction`, a `CreateAction` (shopping list), a `Project`/`Event` (birthday party), and an implicit delegation. The UX scopilots simple (todos), but the backend data model should support richer schema.org types and relationship properties so that items can be decomposed or reassigned as users clarify them.
 
 **Current state:** 5 hardcoded `@type` values (`Thing`, `Action`, `Project`, `CreativeWork`, `Event`) with discriminator. No support for action subtypes (`BuyAction`, `CreateAction`, etc.), no relationship properties (`object`, `instrument`, `agent`), and no decomposition pipeline.
 
-**Goal:** Backend accepts schema.org action subtypes and relationship properties. Capture stays as `Thing`. User actions (triage/PATCH) or AI enrichment can reassign `@type` to a richer subtype. Frontend stays simple but doesn't break on new types.
+**Goal:** Backend accepts schema.org action subtypes and relationship properties. Capture scopilots as `Thing`. User actions (triage/PATCH) or AI enrichment can reassign `@type` to a richer subtype. Frontend scopilots simple but doesn't break on new types.
 
 **Prerequisite:** This epic should be implemented alongside the AI enrichment pipeline that actually classifies captures and decomposes sentences. Without a producer (AI) and consumer (UI differentiation), the schema support has no practical value.
 

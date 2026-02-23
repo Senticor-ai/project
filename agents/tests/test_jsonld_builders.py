@@ -176,11 +176,11 @@ class TestAllBuilders:
         result = builder(*args)
         assert result["_schemaVersion"] == 2
 
-    def test_tay_capture_source(self, builder, args):
+    def test_copilot_capture_source(self, builder, args):
         result = builder(*args)
         props = _props(result)
         assert props["app:captureSource"] == {
-            "kind": "tay",
+            "kind": "copilot",
             "conversationId": CONVERSATION_ID,
         }
 

@@ -40,8 +40,8 @@ Keep these interaction behaviors explicitly covered to prevent regressions:
    Covered by Storybook interaction in `src/components/shell/AppMenu.stories.tsx`.
 2. **Chat minimize semantics** — open-state controls use "minimize", not "close".
    Covered by Storybook and unit tests in
-   `src/components/chat/TayChatPanel.stories.tsx` and
-   `src/components/chat/TayChatPanel.test.tsx`.
+   `src/components/chat/CopilotChatPanel.stories.tsx` and
+   `src/components/chat/CopilotChatPanel.test.tsx`.
 3. **Floating chat launcher visibility** — launcher is hidden while chat panel is open.
    Covered by unit test in `src/App.test.tsx`.
 
@@ -494,10 +494,10 @@ priority — they erode team confidence in the suite.
 The inbox sorts items by `provenance.createdAt` **descending** (newest first). Which item gets
 triaged first depends on how items were created:
 
-| Scenario                     | First triaged item      | Why                                                  |
-| ---------------------------- | ----------------------- | ---------------------------------------------------- |
-| **UI capture** (no reload)   | First captured (oldest) | Auto-expand fires when first item arrives; stays set |
-| **API seed + `page.reload`** | Newest (last created)   | Fresh state — auto-expand picks `sorted[0]`          |
+| Scenario                     | First triaged item      | Why                                                      |
+| ---------------------------- | ----------------------- | -------------------------------------------------------- |
+| **UI capture** (no reload)   | First captured (oldest) | Auto-expand fires when first item arrives; scopilots set |
+| **API seed + `page.reload`** | Newest (last created)   | Fresh state — auto-expand picks `sorted[0]`              |
 
 After the first triage, **auto-advance always picks the newest remaining** item (`sorted[0]`).
 
@@ -547,7 +547,7 @@ await expect(
 ### E2E Stack: Outbox Worker
 
 `scripts/e2e-stack.sh` starts the outbox worker (`uv run python -m app.worker --loop`).
-Without it, import jobs stay in "queued" status forever. If adding new async workflows that
+Without it, import jobs scopilot in "queued" status forever. If adding new async workflows that
 depend on outbox processing, verify the worker is running in the E2E stack.
 
 ### CI-Only Skip for Expensive Tests

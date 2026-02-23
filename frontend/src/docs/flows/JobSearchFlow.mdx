@@ -135,7 +135,7 @@ T-->>U: "Stärken: Cloud Platform experience, AI Adoption..."
 2. Copilot writes a **new tailored markdown CV** using `create_reference` with:
    - `description`: the full markdown content
    - `projectId`: linked to the application project
-3. The original CV stays untouched — each tailored version is a new reference
+3. The original CV scopilots untouched — each tailored version is a new reference
 4. User reviews the rendered markdown in the reference bucket
 5. User can edit the markdown directly (click edit icon in the reference row)
 
@@ -262,7 +262,7 @@ Each tailored markdown is a separate reference. Each rendered PDF is another ref
 graph TD
   IC["InboxCapture<br/><i>drag & drop files</i>"]
   IT["InboxTriage<br/><i>assign to project</i>"]
-  TCP["TayChatPanel<br/><i>conversation</i>"]
+  TCP["CopilotChatPanel<br/><i>conversation</i>"]
 
 subgraph "Agent Tools (inline)"
 LPI["list_project_items"]
@@ -275,7 +275,7 @@ RCV["render_cv<br/><i>PDF from markdown</i>"]
 end
 
 MV["MarkdownViewer<br/><i>review & edit</i>"]
-TSC["TaySuggestionCard<br/><i>review & accept</i>"]
+TSC["CopilotSuggestionCard<br/><i>review & accept</i>"]
 TE["Tool Executor<br/><i>agents/tool_executor.py</i>"]
 DR["Document Renderer<br/><i>Markdown → WeasyPrint</i>"]
 FS["File Storage"]
@@ -322,13 +322,13 @@ style REF fill:#f5f5f5,stroke:#999
 | **Fonts**           | `backend/app/templates/cv/fonts/`               | Inter + Source Sans 3 (woff2, self-hosted)                                  |
 | **Renderer**        | `backend/app/document_renderer.py`              | `render_markdown_to_pdf()` + `render_cv_to_pdf()`                           |
 | **Endpoint**        | `backend/app/routes/files.py`                   | `POST /files/render-pdf` (accepts `markdown` or `cv`)                       |
-| **Agent tools**     | `agents/tay.py`                                 | `render_cv`, `create_reference`, `read_item_content`, `list_project_items`  |
+| **Agent tools**     | `agents/copilot.py`                             | `render_cv`, `create_reference`, `read_item_content`, `list_project_items`  |
 | **Tool executor**   | `agents/tool_executor.py`                       | `_exec_render_cv` — reads markdown source → renders PDF → creates reference |
 | **Frontend types**  | `frontend/src/model/chat-types.ts`              | `RenderCvSuggestion` (with `sourceItemId`)                                  |
 | **Markdown viewer** | `frontend/src/components/ui/MarkdownViewer.tsx` | Renders markdown content in reference view                                  |
 | **Reference row**   | `frontend/src/components/work/ReferenceRow.tsx` | View/edit toggle for markdown references                                    |
-| **Frontend hook**   | `frontend/src/hooks/use-tay-actions.ts`         | Dispatches `render_cv` to backend                                           |
-| **System prompt**   | `agents/prompts/de/tay_system.j2`               | Two-step CV flow instructions for Copilot                                   |
+| **Frontend hook**   | `frontend/src/hooks/use-copilot-actions.ts`     | Dispatches `render_cv` to backend                                           |
+| **System prompt**   | `agents/prompts/de/copilot_system.j2`           | Two-step CV flow instructions for Copilot                                   |
 
 ---
 

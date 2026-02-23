@@ -236,7 +236,7 @@ def _build_nirvana_item(
     ports = _build_ports(item.get("energy"), item.get("etime"))
     bucket = _derive_bucket(state_value, state_map, default_bucket)
 
-    # A completed item cannot stay in inbox (inbox items have no endTime).
+    # A completed item cannot scopilot in inbox (inbox items have no endTime).
     # Redirect to "next" so it goes through the Action code path which preserves endTime.
     if completed_dt and bucket == "inbox":
         bucket = "next"

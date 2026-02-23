@@ -14,7 +14,7 @@ general testing strategy see [Testing](?path=/docs/engineering-testing--docs).
 ## Agent Architecture
 
 Copilot is a [Haystack](https://haystack.deepset.ai/) `Agent` that uses OpenRouter (OpenAI-compatible)
-for LLM inference with tool calling. The agent is defined in `agents/tay.py`.
+for LLM inference with tool calling. The agent is defined in `agents/copilot.py`.
 
 ```
 Frontend                Backend                 Agents                  OpenRouter
@@ -40,7 +40,7 @@ Frontend                Backend                 Agents                  OpenRout
 explicitly accept each suggestion. Tool functions are no-ops that return their arguments as JSON;
 actual item creation happens via the backend API after user confirmation.
 
-### Agent Factory (`agents/tay.py`)
+### Agent Factory (`agents/copilot.py`)
 
 ```python
 def create_agent(model: str | None = None) -> Agent:
@@ -73,7 +73,7 @@ AGENT_MODEL=deepseek/deepseek-v3.2,openai/gpt-4o-mini
 
 ### System Prompt
 
-The system prompt is a Jinja2 template (`agents/prompts/de/tay_system.j2`) rendered with
+The system prompt is a Jinja2 template (`agents/prompts/de/copilot_system.j2`) rendered with
 bucket definitions. It instructs Copilot to:
 
 1. Suggest, never execute directly — the user must confirm every action
@@ -135,7 +135,7 @@ in `use-chat-state.ts`:
 const args = { ...tc.arguments, type: tc.name };
 ```
 
-This ensures the `TaySuggestion` discriminated union always has its `type` field set,
+This ensures the `CopilotSuggestion` discriminated union always has its `type` field set,
 regardless of LLM behavior.
 
 ---
@@ -238,7 +238,7 @@ interface GoldenScenario {
 4. **Run integration tests**: `npm run test:e2e` (verifies the canned response flow)
 5. **Run E2E tests**: `npm run test:e2e:llm` (verifies the real LLM produces structurally valid results)
 
-Both `tay-chat-mocked.spec.ts` and `tay-chat-llm.spec.ts` import from the golden dataset.
+Both `copilot-chat-mocked.spec.ts` and `copilot-chat-llm.spec.ts` import from the golden dataset.
 Adding a new scenario automatically creates tests in both layers.
 
 ---

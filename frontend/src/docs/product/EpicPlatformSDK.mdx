@@ -86,11 +86,11 @@ the core package. No more maintaining two implementations.
 ### Current State: 3 Tool Calls + Python Dispatch
 
 ```txt
-agents/tay.py      → 3 tool definitions (create_project_with_actions, create_action, create_reference)
+agents/copilot.py      → 3 tool definitions (create_project_with_actions, create_action, create_reference)
 tool_executor.py   → dispatch switch + execution logic
 jsonld_builders.py → Python JSON-LD builders (duplicates item-serializer.ts)
 backend_client.py  → Python API client (duplicates api-client.ts)
-tay_system.j2      → documents each tool individually
+copilot_system.j2      → documents each tool individually
 ```
 
 Adding a new tool still requires cross-file Python changes and prompt updates.
@@ -124,7 +124,7 @@ Copilot gets a single tool in its Haystack tool schema:
 }
 ```
 
-The Python Haystack orchestrator (`agents/tay.py`) stays — it handles LLM interaction, conversation
+The Python Haystack orchestrator (`agents/copilot.py`) scopilots — it handles LLM interaction, conversation
 history, and streaming. Only the tool executor changes: instead of dispatching to Python functions,
 it calls the TypeScript CLI via subprocess.
 
@@ -409,7 +409,7 @@ ready, the need just isn't there yet.
 
 ### Phase 1: Baseline + Extract & CLI (enables Copilot)
 
-1. Verify current agent flow is green (`agents/tests/test_tay.py`, `agents/tests/test_tool_executor.py`, `agents/tests/test_jsonld_builders.py`, `agents/tests/test_backend_client.py`)
+1. Verify current agent flow is green (`agents/tests/test_copilot.py`, `agents/tests/test_tool_executor.py`, `agents/tests/test_jsonld_builders.py`, `agents/tests/test_backend_client.py`)
 2. Add parity tests that lock tool-call schema, JSON output contracts (`copilot.v1`), and exit codes
 3. Create `packages/core/` with TypeScript project
 4. Move `item-serializer.ts` and `api-client.ts` to core, re-export from frontend
@@ -467,11 +467,11 @@ ready, the need just isn't there yet.
 | Core     | NEW: `packages/core/validation/cel/`   | CEL rule definitions                                             |
 | Frontend | `frontend/src/lib/item-serializer.ts`  | Re-export from `@project/core`                                   |
 | Frontend | `frontend/src/lib/api-client.ts`       | Re-export from `@project/core`                                   |
-| Agents   | `agents/tay.py`                        | Replace 3 tools with single `copilot_cli` tool (legacy filename) |
+| Agents   | `agents/copilot.py`                    | Replace 3 tools with single `copilot_cli` tool (legacy filename) |
 | Agents   | `agents/tool_executor.py`              | Replace per-tool dispatch with TS CLI subprocess execution       |
 | Agents   | `agents/jsonld_builders.py`            | Deprecated (replaced by core serializers)                        |
 | Agents   | `agents/backend_client.py`             | Deprecated (replaced by core client)                             |
-| Agents   | `agents/prompts/de/tay_system.j2`      | CLI command documentation                                        |
+| Agents   | `agents/prompts/de/copilot_system.j2`  | CLI command documentation                                        |
 | Monorepo | `package.json`                         | Workspace config for `packages/core`                             |
 | Monorepo | `tsconfig.json`                        | Project reference to `packages/core`                             |
 

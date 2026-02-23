@@ -533,7 +533,7 @@ export function downloadExport(options: {
 }
 
 // ---------------------------------------------------------------------------
-// Chat API (Tay Copilot)
+// Chat API (Copilot Copilot)
 // ---------------------------------------------------------------------------
 
 export type ExecuteToolRequest = {

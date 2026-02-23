@@ -26,14 +26,14 @@ class DelegatedTokenClaims(BaseModel):
     sub: str  # User UUID
     org: str  # Org UUID
     scope: str  # e.g. "items:write"
-    actor_sub: str  # e.g. "tay"
+    actor_sub: str  # e.g. "copilot"
     jti: str  # Token ID
 
 
 def create_delegated_token(
     user_id: str,
     org_id: str,
-    actor: str = "tay",
+    actor: str = "copilot",
     scope: str = "items:write",
     ttl_seconds: int | None = None,
 ) -> str:

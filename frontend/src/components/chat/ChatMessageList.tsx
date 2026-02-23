@@ -3,11 +3,11 @@ import { cn } from "@/lib/utils";
 import type { ChatMessage } from "@/model/chat-types";
 import {
   UserMessageBubble,
-  TayMessageBubble,
-  TayThinkingIndicator,
-  TayConfirmation,
+  CopilotMessageBubble,
+  CopilotThinkingIndicator,
+  CopilotConfirmation,
 } from "./ChatBubbles";
-import { TaySuggestionCard } from "./TaySuggestionCard";
+import { CopilotSuggestionCard } from "./CopilotSuggestionCard";
 import { Icon } from "@/components/ui/Icon";
 
 export interface ChatMessageListProps {
@@ -92,15 +92,15 @@ function ChatMessageRenderer({
       return message.role === "user" ? (
         <UserMessageBubble content={message.content} />
       ) : (
-        <TayMessageBubble content={message.content} />
+        <CopilotMessageBubble content={message.content} />
       );
 
     case "thinking":
-      return <TayThinkingIndicator agentName={agentName} />;
+      return <CopilotThinkingIndicator agentName={agentName} />;
 
     case "suggestion":
       return (
-        <TaySuggestionCard
+        <CopilotSuggestionCard
           suggestion={message.suggestion}
           status={message.status}
           onAccept={() => onAcceptSuggestion?.(message.id)}
@@ -110,7 +110,7 @@ function ChatMessageRenderer({
 
     case "confirmation":
       return (
-        <TayConfirmation
+        <CopilotConfirmation
           content={message.content}
           createdItems={message.createdItems}
           onItemClick={onItemClick}

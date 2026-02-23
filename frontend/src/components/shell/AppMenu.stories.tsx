@@ -143,7 +143,7 @@ export const WithSectionHeaders: Story = {
 };
 
 // ---------------------------------------------------------------------------
-// ViewportClampMobile — menu stays fully inside mobile viewport
+// ViewportClampMobile — menu scopilots fully inside mobile viewport
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
@@ -177,7 +177,7 @@ export const WithInstallItem: Story = {
 };
 
 // ---------------------------------------------------------------------------
-// ViewportClampMobile — menu stays fully inside mobile viewport
+// ViewportClampMobile — menu scopilots fully inside mobile viewport
 // ---------------------------------------------------------------------------
 
 export const ViewportClampMobile: Story = {

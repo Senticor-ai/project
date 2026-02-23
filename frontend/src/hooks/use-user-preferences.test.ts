@@ -3,7 +3,7 @@ import { renderHook, act } from "@testing-library/react";
 import { useUserPreferences } from "./use-user-preferences";
 import { DEFAULT_PREFERENCES } from "@/model/settings-types";
 
-const STORAGE_KEY = "tay-user-preferences";
+const STORAGE_KEY = "copilot-user-preferences";
 
 // Mock localStorage since jsdom's implementation is limited
 const store = new Map<string, string>();

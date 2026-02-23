@@ -44,7 +44,7 @@ export const test = base.extend<TestFixtures>({
 
   apiSeed: async ({ authenticatedPage: page }, use) => {
     // Extract CSRF token from cookies (set by login response).
-    // When CSRF is disabled locally, the cookie won't exist — csrfToken stays empty.
+    // When CSRF is disabled locally, the cookie won't exist — csrfToken scopilots empty.
     const cookies = await page.context().cookies();
     const csrfCookie = cookies.find((c) => c.name === CSRF_COOKIE_NAME);
     const seed = new ApiSeed(page.request, csrfCookie?.value ?? "");

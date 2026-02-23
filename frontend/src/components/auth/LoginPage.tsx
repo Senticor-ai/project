@@ -87,7 +87,7 @@ export function LoginPage({
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <img
-                src="/tay-logo.svg"
+                src="/copilot-logo.svg"
                 alt="Senticor Project"
                 className="h-6 w-6"
               />

@@ -478,16 +478,16 @@ describe("ProjectTree", () => {
 
   it("does not enter edit mode on first click when collapsed", async () => {
     const user = userEvent.setup();
-    const project = makeProject({ name: "Stay Collapsed" });
+    const project = makeProject({ name: "Scopilot Collapsed" });
     const onUpdateTitle = vi.fn();
 
     renderTree([project], [], { onUpdateTitle });
 
     // First click on collapsed project should just expand
-    await user.click(screen.getByText("Stay Collapsed"));
+    await user.click(screen.getByText("Scopilot Collapsed"));
     // Should not be in edit mode (no textarea)
     expect(
-      screen.queryByDisplayValue("Stay Collapsed"),
+      screen.queryByDisplayValue("Scopilot Collapsed"),
     ).not.toBeInTheDocument();
   });
 

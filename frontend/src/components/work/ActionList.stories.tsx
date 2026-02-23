@@ -663,7 +663,7 @@ export const ProjectPickerAutoMove: Story = {
       );
     });
 
-    await step("Selected items disappeared, unrelated stays", async () => {
+    await step("Selected items disappeared, unrelated scopilots", async () => {
       await waitFor(() => {
         expect(canvas.queryByText("Tax receipt A")).not.toBeInTheDocument();
         expect(canvas.queryByText("Tax receipt B")).not.toBeInTheDocument();

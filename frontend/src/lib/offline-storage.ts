@@ -5,7 +5,7 @@ import type {
 } from "@tanstack/react-query-persist-client";
 import type { QueryClient } from "@tanstack/react-query";
 
-export const IDB_KEY = "tay-query-cache";
+export const IDB_KEY = "copilot-query-cache";
 
 /**
  * Creates an IDB-backed persister for TanStack Query.

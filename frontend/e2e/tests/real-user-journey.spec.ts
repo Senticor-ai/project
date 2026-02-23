@@ -16,7 +16,7 @@ import { WorkspacePage } from "../pages/workspace.page";
 test.describe("Real User Journey", () => {
   test.setTimeout(120_000);
 
-  test("register → capture → triage → chat with Tay → project", async ({
+  test("register → capture → triage → chat with Copilot → project", async ({
     page,
   }) => {
     const uniqueId = crypto.randomUUID().replace(/-/g, "").slice(0, 12);
@@ -78,7 +78,7 @@ test.describe("Real User Journey", () => {
       timeout: 10_000,
     });
 
-    // ── 5. Chat with Tay — ask to create a project ─────────────────────
+    // ── 5. Chat with Copilot — ask to create a project ─────────────────────
     await page.getByRole("button", { name: /Chat mit Copilot/ }).click();
     await expect(
       page.getByRole("complementary", { name: "Copilot Chat" }),

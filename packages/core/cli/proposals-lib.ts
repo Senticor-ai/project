@@ -1,4 +1,4 @@
-import type { ItemRecord, TayApi } from "../client/api.js";
+import type { ItemRecord, CopilotApi } from "../client/api.js";
 import { buildBucketPatch, buildCreateItemJsonLd } from "../serializers/jsonld.js";
 import { throwIfInvalid, validateCreateItem, validateTriageTransition } from "../validation/index.js";
 import type { ProposalState } from "./state.js";
@@ -40,7 +40,7 @@ export function isTriagePayload(payload: unknown): payload is TriageProposalPayl
   );
 }
 
-async function findItemByIdentifier(api: TayApi, identifier: string): Promise<ItemRecord> {
+async function findItemByIdentifier(api: CopilotApi, identifier: string): Promise<ItemRecord> {
   try {
     return await api.getItem(identifier);
   } catch {
@@ -66,7 +66,7 @@ async function findItemByIdentifier(api: TayApi, identifier: string): Promise<It
   }
 }
 
-export async function executeProposal(api: TayApi, proposal: ProposalState): Promise<unknown> {
+export async function executeProposal(api: CopilotApi, proposal: ProposalState): Promise<unknown> {
   if (proposal.operation === "items.create") {
     if (!isCreatePayload(proposal.payload)) {
       throw new Error("Invalid create proposal payload");
@@ -110,11 +110,11 @@ export async function executeProposal(api: TayApi, proposal: ProposalState): Pro
   throw new Error(`Unsupported proposal operation: ${proposal.operation}`);
 }
 
-export async function resolveItem(api: TayApi, identifier: string): Promise<ItemRecord> {
+export async function resolveItem(api: CopilotApi, identifier: string): Promise<ItemRecord> {
   return findItemByIdentifier(api, identifier);
 }
 
-async function resolveCreateOrgId(api: TayApi): Promise<string> {
+async function resolveCreateOrgId(api: CopilotApi): Promise<string> {
   const fromSession = api.http.getSession().user?.default_org_id;
   if (fromSession) {
     return fromSession;

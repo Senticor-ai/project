@@ -65,10 +65,7 @@
           "title": "Value"
         }
       },
-      "required": [
-        "propertyID",
-        "value"
-      ],
+      "required": ["propertyID", "value"],
       "title": "PropertyValueModel",
       "type": "object"
     }
@@ -174,10 +171,7 @@
       "description": "Provider-specific source metadata preserved during imports."
     }
   },
-  "required": [
-    "@id",
-    "@type"
-  ],
+  "required": ["@id", "@type"],
   "title": "ProjectItemJsonLd",
   "type": "object"
 }

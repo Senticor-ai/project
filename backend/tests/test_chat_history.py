@@ -37,13 +37,13 @@ class TestSaveAndFetchMessages:
         org_id, user_id = auth_context
         conv = get_or_create_conversation(org_id, user_id, "conv-msgs")
 
-        save_message(conv["conversation_id"], "user", "Hallo Tay")
+        save_message(conv["conversation_id"], "user", "Hallo Copilot")
         save_message(conv["conversation_id"], "assistant", "Hallo! Wie kann ich helfen?")
 
         msgs = get_conversation_messages(conv["conversation_id"])
         assert len(msgs) == 2
         assert msgs[0]["role"] == "user"
-        assert msgs[0]["content"] == "Hallo Tay"
+        assert msgs[0]["content"] == "Hallo Copilot"
         assert msgs[1]["role"] == "assistant"
         assert msgs[1]["content"] == "Hallo! Wie kann ich helfen?"
 

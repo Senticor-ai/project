@@ -4,9 +4,9 @@ import { ChatMessageList } from "./ChatMessageList";
 import type {
   ChatMessage,
   UserChatMessage,
-  TayTextMessage,
-  TayThinkingMessage,
-  TayConfirmationMessage,
+  CopilotTextMessage,
+  CopilotThinkingMessage,
+  CopilotConfirmationMessage,
 } from "@/model/chat-types";
 import type { CanonicalId } from "@/model/canonical-id";
 
@@ -20,29 +20,29 @@ function userMsg(content: string, id = "u1"): UserChatMessage {
   };
 }
 
-function tayMsg(content: string, id = "t1"): TayTextMessage {
+function copilotMsg(content: string, id = "t1"): CopilotTextMessage {
   return {
     id,
-    role: "tay",
+    role: "copilot",
     kind: "text",
     content,
     timestamp: new Date().toISOString(),
   };
 }
 
-function thinkingMsg(id = "th1"): TayThinkingMessage {
+function thinkingMsg(id = "th1"): CopilotThinkingMessage {
   return {
     id,
-    role: "tay",
+    role: "copilot",
     kind: "thinking",
     timestamp: new Date().toISOString(),
   };
 }
 
-function confirmMsg(id = "c1"): TayConfirmationMessage {
+function confirmMsg(id = "c1"): CopilotConfirmationMessage {
   return {
     id,
-    role: "tay",
+    role: "copilot",
     kind: "confirmation",
     content: "Projekt erstellt",
     createdItems: [
@@ -70,8 +70,8 @@ describe("ChatMessageList", () => {
     expect(screen.getByText("Hello")).toBeInTheDocument();
   });
 
-  it("renders tay text messages with avatar", () => {
-    const messages: ChatMessage[] = [tayMsg("Hallo!")];
+  it("renders copilot text messages with avatar", () => {
+    const messages: ChatMessage[] = [copilotMsg("Hallo!")];
     render(<ChatMessageList messages={messages} />);
     expect(screen.getByText("Hallo!")).toBeInTheDocument();
     expect(screen.getByText("chat_bubble")).toBeInTheDocument();
@@ -93,7 +93,7 @@ describe("ChatMessageList", () => {
   it("renders multiple messages in order", () => {
     const messages: ChatMessage[] = [
       userMsg("Hi", "u1"),
-      tayMsg("Hallo!", "t1"),
+      copilotMsg("Hallo!", "t1"),
       userMsg("Was kannst du?", "u2"),
     ];
     render(<ChatMessageList messages={messages} />);
@@ -107,7 +107,7 @@ describe("ChatMessageList", () => {
     const messages: ChatMessage[] = [
       {
         id: "s1",
-        role: "tay",
+        role: "copilot",
         kind: "suggestion",
         status: "pending",
         suggestion: {

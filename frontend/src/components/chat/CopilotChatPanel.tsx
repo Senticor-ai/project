@@ -4,10 +4,10 @@ import { Icon } from "@/components/ui/Icon";
 import { ChatMessageList } from "./ChatMessageList";
 import { ChatInput } from "./ChatInput";
 import { ConversationList } from "./ConversationList";
-import { ChatApi } from "@/hooks/use-tay-api";
+import { ChatApi } from "@/hooks/use-copilot-api";
 import type { ChatMessage, ConversationSummary } from "@/model/chat-types";
 
-export interface TayChatPanelProps {
+export interface CopilotChatPanelProps {
   isOpen: boolean;
   onClose: () => void;
   messages: ChatMessage[];
@@ -25,7 +25,7 @@ export interface TayChatPanelProps {
   className?: string;
 }
 
-export function TayChatPanel({
+export function CopilotChatPanel({
   isOpen,
   onClose,
   messages,
@@ -38,7 +38,7 @@ export function TayChatPanel({
   onLoadConversation,
   agentName = "Copilot",
   className,
-}: TayChatPanelProps) {
+}: CopilotChatPanelProps) {
   const [showHistory, setShowHistory] = useState(false);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
 
@@ -66,7 +66,7 @@ export function TayChatPanel({
         // Convert backend messages to ChatMessage format
         const chatMessages: ChatMessage[] = msgs.map((m) => ({
           id: m.messageId,
-          role: m.role === "user" ? ("user" as const) : ("tay" as const),
+          role: m.role === "user" ? ("user" as const) : ("copilot" as const),
           kind: "text" as const,
           content: m.content,
           timestamp: m.createdAt,
@@ -74,7 +74,7 @@ export function TayChatPanel({
         onLoadConversation(conversationId, chatMessages);
         setShowHistory(false);
       } catch {
-        // Failed to load — stay on history view
+        // Failed to load — scopilot on history view
       }
     },
     [onLoadConversation],

@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
-import { TaySuggestionCard } from "./TaySuggestionCard";
+import { CopilotSuggestionCard } from "./CopilotSuggestionCard";
 import type {
   CreateProjectWithActionsSuggestion,
   CreateActionSuggestion,
@@ -27,14 +27,14 @@ const projectSuggestion: CreateProjectWithActionsSuggestion = {
 
 const meta = {
   title: "Chat/CopilotSuggestionCard",
-  component: TaySuggestionCard,
+  component: CopilotSuggestionCard,
   args: {
     suggestion: projectSuggestion,
     status: "pending",
     onAccept: fn(),
     onDismiss: fn(),
   },
-} satisfies Meta<typeof TaySuggestionCard>;
+} satisfies Meta<typeof CopilotSuggestionCard>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;

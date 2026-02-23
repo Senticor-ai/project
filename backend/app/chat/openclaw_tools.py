@@ -1,6 +1,6 @@
 """OpenAI function-calling tool definitions for the OpenClaw path.
 
-These are the same 3 tools from agents/tay.py (create_project_with_actions,
+These are the same 3 tools from agents/copilot.py (create_project_with_actions,
 create_action, create_reference) expressed in OpenAI function-calling format.
 They are sent in the /v1/chat/completions request body so the LLM generates
 structured tool_calls, which the backend then auto-executes.

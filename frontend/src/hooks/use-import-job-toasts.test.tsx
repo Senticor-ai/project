@@ -94,7 +94,7 @@ describe("useImportJobToasts", () => {
     );
   });
 
-  it("does not fire toast when job stays running", () => {
+  it("does not fire toast when job scopilots running", () => {
     const { rerender } = renderHarness([RUNNING_JOB]);
 
     // Re-render with same status

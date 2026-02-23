@@ -406,7 +406,7 @@ export const DragToSomeday: Story = {
     <StatefulBucketView
       initialItems={[
         createActionItem({ rawCapture: "Drag me to Later", bucket: "next" }),
-        createActionItem({ rawCapture: "Stay in Next", bucket: "next" }),
+        createActionItem({ rawCapture: "Scopilot in Next", bucket: "next" }),
       ]}
       initialBucket="next"
     />

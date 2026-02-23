@@ -1,12 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, expect } from "storybook/test";
-import { TayChatPanel } from "./TayChatPanel";
+import { CopilotChatPanel } from "./CopilotChatPanel";
 import type { ChatMessage } from "@/model/chat-types";
 import type { CanonicalId } from "@/model/canonical-id";
 
 const meta = {
   title: "Chat/CopilotChatPanel",
-  component: TayChatPanel,
+  component: CopilotChatPanel,
   args: {
     isOpen: true,
     onClose: fn(),
@@ -24,7 +24,7 @@ const meta = {
       </div>
     ),
   ],
-} satisfies Meta<typeof TayChatPanel>;
+} satisfies Meta<typeof CopilotChatPanel>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
@@ -47,7 +47,7 @@ export const WithConversation: Story = {
       },
       {
         id: "t1",
-        role: "tay",
+        role: "copilot",
         kind: "text",
         content:
           "Hallo! Ich bin Copilot, dein Assistent. Wie kann ich dir helfen?",
@@ -70,7 +70,7 @@ export const Loading: Story = {
       },
       {
         id: "th1",
-        role: "tay",
+        role: "copilot",
         kind: "thinking",
         timestamp: "2024-01-01T10:00:01Z",
       },
@@ -90,14 +90,14 @@ export const WithSuggestion: Story = {
       },
       {
         id: "t1",
-        role: "tay",
+        role: "copilot",
         kind: "text",
         content: "Klingt nach einem Projekt! Hier ist mein Vorschlag:",
         timestamp: "2024-01-01T10:00:01Z",
       },
       {
         id: "s1",
-        role: "tay",
+        role: "copilot",
         kind: "suggestion",
         status: "pending",
         suggestion: {
@@ -141,14 +141,14 @@ export const BirthdayScenarioComplete: Story = {
       },
       {
         id: "t1",
-        role: "tay",
+        role: "copilot",
         kind: "text",
         content: "Klingt nach einem Projekt! Hier ist mein Vorschlag:",
         timestamp: "2024-01-01T10:00:01Z",
       },
       {
         id: "s1",
-        role: "tay",
+        role: "copilot",
         kind: "suggestion",
         status: "accepted",
         suggestion: {
@@ -167,7 +167,7 @@ export const BirthdayScenarioComplete: Story = {
       },
       {
         id: "c1",
-        role: "tay",
+        role: "copilot",
         kind: "confirmation",
         content: "Projekt 'Geburtstagsfeier planen' erstellt mit 3 Aktionen.",
         createdItems: [
@@ -209,7 +209,7 @@ export const ErrorState: Story = {
       },
       {
         id: "e1",
-        role: "tay",
+        role: "copilot",
         kind: "error",
         content: "Es ist ein Fehler aufgetreten. Bitte versuche es erneut.",
         timestamp: "2024-01-01T10:00:01Z",
