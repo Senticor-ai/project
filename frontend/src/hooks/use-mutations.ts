@@ -630,13 +630,6 @@ export function useCompleteAction() {
   const qc = useQueryClient();
   const savedRecords = useRef(new Map<string, ItemRecord>());
 
-  useEffect(
-    () => () => {
-      savedRecords.current.clear();
-    },
-    [],
-  );
-
   return useMutation({
     mutationFn: async (canonicalId: CanonicalId) => {
       const record =
@@ -694,13 +687,6 @@ export function useCompleteAction() {
 export function useToggleFocus() {
   const qc = useQueryClient();
   const savedRecords = useRef(new Map<string, ItemRecord>());
-
-  useEffect(
-    () => () => {
-      savedRecords.current.clear();
-    },
-    [],
-  );
 
   return useMutation({
     mutationFn: async (canonicalId: CanonicalId) => {

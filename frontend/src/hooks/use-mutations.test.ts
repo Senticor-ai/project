@@ -640,6 +640,29 @@ describe("useCompleteAction", () => {
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(result.current.error?.message).toMatch(/not found/i);
   });
+
+  it("preserves completion intent even if hook unmounts mid-flight", async () => {
+    let resolveUpdate!: (value: ApiResponse<ItemRecord>) => void;
+    mocked.update.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveUpdate = resolve;
+        }),
+    );
+
+    const { result, unmount } = renderHook(() => useCompleteAction(), {
+      wrapper: createWrapper([ACTION_RECORD]),
+    });
+
+    act(() => result.current.mutate("urn:app:action:1" as CanonicalId));
+    unmount();
+
+    await waitFor(() => expect(mocked.update).toHaveBeenCalledTimes(1));
+    const [, patch] = mocked.update.mock.calls[0]!;
+    expect(typeof patch.endTime).toBe("string");
+
+    resolveUpdate(apiResponse(ACTION_RECORD));
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -661,6 +684,31 @@ describe("useToggleFocus", () => {
     expect(patch.additionalProperty).toEqual([
       { "@type": "PropertyValue", propertyID: "app:isFocused", value: true },
     ]);
+  });
+
+  it("preserves toggle intent even if hook unmounts mid-flight", async () => {
+    let resolveUpdate!: (value: ApiResponse<ItemRecord>) => void;
+    mocked.update.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveUpdate = resolve;
+        }),
+    );
+
+    const { result, unmount } = renderHook(() => useToggleFocus(), {
+      wrapper: createWrapper([ACTION_RECORD]),
+    });
+
+    act(() => result.current.mutate("urn:app:action:1" as CanonicalId));
+    unmount();
+
+    await waitFor(() => expect(mocked.update).toHaveBeenCalledTimes(1));
+    const [, patch] = mocked.update.mock.calls[0]!;
+    expect(patch.additionalProperty).toEqual([
+      { "@type": "PropertyValue", propertyID: "app:isFocused", value: true },
+    ]);
+
+    resolveUpdate(apiResponse(ACTION_RECORD));
   });
 });
 
