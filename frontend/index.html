@@ -6,6 +6,56 @@
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
     <meta name="theme-color" content="#0f172a" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: oklch(0.99 0.002 90);
+      }
+
+      #startup-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: oklch(0.99 0.002 90);
+        pointer-events: none;
+        opacity: 1;
+        transition: opacity 180ms ease-out;
+      }
+
+      #startup-splash[data-hidden="true"] {
+        opacity: 0;
+      }
+
+      #startup-splash-spinner {
+        width: 32px;
+        height: 32px;
+        border-radius: 9999px;
+        border: 2px solid oklch(0.93 0.035 240);
+        border-top-color: oklch(0.48 0.16 232);
+        animation: startup-spin 0.9s linear infinite;
+      }
+
+      @keyframes startup-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #startup-splash {
+          transition: none;
+        }
+
+        #startup-splash-spinner {
+          animation: none;
+        }
+      }
+    </style>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -16,6 +66,9 @@
     <title>Senticor Project</title>
   </head>
   <body>
+    <div id="startup-splash" role="status" aria-label="Loading app">
+      <div id="startup-splash-spinner" aria-hidden="true"></div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

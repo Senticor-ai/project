@@ -34,6 +34,7 @@ const queryClient = new QueryClient({
 
 const STARTUP_ASSET_TIMEOUT_MS = 2_500;
 const STARTUP_FADE_MS = 180;
+const STARTUP_SPLASH_ID = "startup-splash";
 type BootstrapPhase = "loading" | "fading" | "ready";
 
 function supportsFontLoadingApi() {
@@ -49,18 +50,6 @@ function prefersReducedMotion() {
     typeof window !== "undefined" &&
     typeof window.matchMedia === "function" &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  );
-}
-
-function StartupSplash() {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-surface">
-      <div
-        role="status"
-        aria-label="Loading app"
-        className="h-8 w-8 animate-spin rounded-full border-2 border-blueprint-200 border-t-blueprint-600"
-      />
-    </div>
   );
 }
 
@@ -89,6 +78,17 @@ function waitForStartupAssets() {
   );
 
   return Promise.race([loadCriticalFonts, timeout]);
+}
+
+function hideDocumentStartupSplash() {
+  if (typeof document === "undefined") return;
+  const splash = document.getElementById(STARTUP_SPLASH_ID);
+  if (!splash) return;
+
+  splash.setAttribute("data-hidden", "true");
+  window.setTimeout(() => {
+    splash.remove();
+  }, STARTUP_FADE_MS + 80);
 }
 
 function AppProviders() {
@@ -155,9 +155,12 @@ export function AppBootstrap() {
     return () => window.cancelAnimationFrame(frameId);
   }, [phase]);
 
-  if (phase === "loading") {
-    return <StartupSplash />;
-  }
+  useEffect(() => {
+    if (phase !== "ready") return;
+    hideDocumentStartupSplash();
+  }, [phase]);
+
+  if (phase === "loading") return null;
 
   return (
     <div
