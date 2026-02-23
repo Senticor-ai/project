@@ -1,23 +1,30 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-MAIN_REF="origin/main"
+TARGET_BRANCH="${GITHUB_BASE_REF:-main}"
+MAIN_REF="origin/${TARGET_BRANCH}"
+diff_range=""
 
 if ! git rev-parse --verify "$MAIN_REF" >/dev/null 2>&1; then
-  git fetch origin main --depth=1 >/dev/null 2>&1 || true
+  git fetch origin "$TARGET_BRANCH" --depth=1 >/dev/null 2>&1 || true
 fi
 
-if [ -n "${CI_MERGE_REQUEST_TARGET_BRANCH_SHA:-}" ]; then
-  base="$CI_MERGE_REQUEST_TARGET_BRANCH_SHA"
+if [ -n "${CI_MERGE_REQUEST_TARGET_BRANCH_SHA:-}" ] && git rev-parse --verify "${CI_MERGE_REQUEST_TARGET_BRANCH_SHA}^{commit}" >/dev/null 2>&1; then
+  diff_range="${CI_MERGE_REQUEST_TARGET_BRANCH_SHA}...HEAD"
 elif git rev-parse --verify "$MAIN_REF" >/dev/null 2>&1; then
-  base="$(git merge-base HEAD "$MAIN_REF")"
+  if base="$(git merge-base HEAD "$MAIN_REF" 2>/dev/null)"; then
+    diff_range="${base}...HEAD"
+  else
+    echo "WARN: could not compute merge-base with ${MAIN_REF}; falling back to direct branch diff."
+    diff_range="${MAIN_REF}..HEAD"
+  fi
 elif git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
-  base="HEAD~1"
+  diff_range="HEAD~1...HEAD"
 else
-  base="HEAD"
+  diff_range="HEAD...HEAD"
 fi
 
-changed_files="$(git diff --name-only "$base"...HEAD)"
+changed_files="$(git diff --name-only "$diff_range")"
 
 if [ -z "$changed_files" ]; then
   echo "alembic policy check: no changed files"
