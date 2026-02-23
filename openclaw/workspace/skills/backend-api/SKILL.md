@@ -17,17 +17,17 @@ Der aktuelle Token liegt in `/runtime/token`. Verwende ihn so in jedem Request:
 Authorization: Bearer $(cat /runtime/token)
 ```
 
-Die Backend-URL liegt in der Umgebungsvariable `TAY_BACKEND_URL`.
+Die Backend-URL liegt in der Umgebungsvariable `COPILOT_BACKEND_URL`.
 Weitere Umgebungsvariablen:
-- `TAY_FRONTEND_URL` — Frontend-URL (z.B. fuer Kontext)
-- `TAY_STORYBOOK_URL` — Storybook mit Produkt-, Design- und Engineering-Dokumentation
+- `COPILOT_FRONTEND_URL` — Frontend-URL (z.B. fuer Kontext)
+- `COPILOT_STORYBOOK_URL` — Storybook mit Produkt-, Design- und Engineering-Dokumentation
 
 ## Umgebung erkennen
 
 Pruefe deine Umgebungsvariablen:
 
 ```bash
-exec echo "Backend: $TAY_BACKEND_URL | Frontend: $TAY_FRONTEND_URL | Storybook: $TAY_STORYBOOK_URL"
+exec echo "Backend: $COPILOT_BACKEND_URL | Frontend: $COPILOT_FRONTEND_URL | Storybook: $COPILOT_STORYBOOK_URL"
 ```
 
 ## API-Dokumentation entdecken
@@ -35,7 +35,7 @@ exec echo "Backend: $TAY_BACKEND_URL | Frontend: $TAY_FRONTEND_URL | Storybook: 
 Die vollstaendige OpenAPI-Spezifikation ist verfuegbar unter:
 
 ```bash
-exec curl -s "$TAY_BACKEND_URL/openapi.json" | head -c 5000
+exec curl -s "$COPILOT_BACKEND_URL/openapi.json" | head -c 5000
 ```
 
 Verwende sie, um alle verfuegbaren Endpoints, Parameter und Modelle zu entdecken.
@@ -46,7 +46,7 @@ Wichtige Pfade: `/items`, `/items/sync`, `/items/{item_id}`, `/files`, `/search`
 Das Storybook enthaelt die gesamte Produkt-, Design- und Engineering-Dokumentation:
 
 ```bash
-exec curl -s "$TAY_STORYBOOK_URL/index.json" | head -c 3000
+exec curl -s "$COPILOT_STORYBOOK_URL/index.json" | head -c 3000
 ```
 
 Dort findest du Informationen zu:
@@ -58,7 +58,7 @@ Dort findest du Informationen zu:
 ## Items lesen
 
 ```bash
-exec curl -s "$TAY_BACKEND_URL/items?limit=200" \
+exec curl -s "$COPILOT_BACKEND_URL/items?limit=200" \
   -H "Authorization: Bearer $(cat /runtime/token)"
 ```
 
@@ -69,14 +69,14 @@ Den Bucket findest du in `item.additionalProperty` unter `propertyID: "app:bucke
 Einzelnes Item:
 
 ```bash
-exec curl -s "$TAY_BACKEND_URL/items/<item_id>" \
+exec curl -s "$COPILOT_BACKEND_URL/items/<item_id>" \
   -H "Authorization: Bearer $(cat /runtime/token)"
 ```
 
 ## Item aktualisieren (Bucket aendern, umbenennen)
 
 ```bash
-exec curl -s -X PATCH "$TAY_BACKEND_URL/items/<item_id>" \
+exec curl -s -X PATCH "$COPILOT_BACKEND_URL/items/<item_id>" \
   -H "Authorization: Bearer $(cat /runtime/token)" \
   -H "Content-Type: application/json" \
   -H "X-Agent: openclaw" \
@@ -95,7 +95,7 @@ Gueltige Buckets: `inbox`, `next`, `waiting`, `calendar`, `someday`, `reference`
 Name aendern:
 
 ```bash
-exec curl -s -X PATCH "$TAY_BACKEND_URL/items/<item_id>" \
+exec curl -s -X PATCH "$COPILOT_BACKEND_URL/items/<item_id>" \
   -H "Authorization: Bearer $(cat /runtime/token)" \
   -H "Content-Type: application/json" \
   -H "X-Agent: openclaw" \
@@ -128,7 +128,7 @@ Verwende `$(cat /proc/sys/kernel/random/uuid)` fuer UUIDs.
 ## Aktion erstellen
 
 ```bash
-exec curl -s -X POST "$TAY_BACKEND_URL/items" \
+exec curl -s -X POST "$COPILOT_BACKEND_URL/items" \
   -H "Authorization: Bearer $(cat /runtime/token)" \
   -H "Content-Type: application/json" \
   -H "X-Agent: openclaw" \
@@ -152,7 +152,7 @@ Gueltige Buckets: `inbox`, `next`, `waiting`, `calendar`, `someday`
 ## Referenz erstellen
 
 ```bash
-exec curl -s -X POST "$TAY_BACKEND_URL/items" \
+exec curl -s -X POST "$COPILOT_BACKEND_URL/items" \
   -H "Authorization: Bearer $(cat /runtime/token)" \
   -H "Content-Type: application/json" \
   -H "X-Agent: openclaw" \
@@ -177,7 +177,7 @@ Erstelle zuerst das Projekt, dann die Aktionen mit `app:projectRefs`:
 
 ```bash
 # 1. Projekt erstellen
-exec curl -s -X POST "$TAY_BACKEND_URL/items" \
+exec curl -s -X POST "$COPILOT_BACKEND_URL/items" \
   -H "Authorization: Bearer $(cat /runtime/token)" \
   -H "Content-Type: application/json" \
   -H "X-Agent: openclaw" \
@@ -197,7 +197,7 @@ exec curl -s -X POST "$TAY_BACKEND_URL/items" \
   }'
 
 # 2. canonical_id aus der Antwort notieren, dann Aktionen erstellen:
-exec curl -s -X POST "$TAY_BACKEND_URL/items" \
+exec curl -s -X POST "$COPILOT_BACKEND_URL/items" \
   -H "Authorization: Bearer $(cat /runtime/token)" \
   -H "Content-Type: application/json" \
   -H "X-Agent: openclaw" \

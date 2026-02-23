@@ -49,7 +49,7 @@ When a user disconnects their Gmail account (Settings > Email > "Verbindung tren
 
 1. Gmail Watch is stopped (Pub/Sub notifications cease)
 2. Connection is soft-deleted: `is_active = false`, tokens wiped, `archived_at` set
-3. **Existing synced items are preserved** — they scopilot in their current buckets
+3. **Existing synced items are preserved** — they stay in their current buckets
 4. The `email_sync_state` (history checkpoint) is preserved
 
 When reconnecting the same email address:

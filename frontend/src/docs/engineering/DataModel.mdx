@@ -6,7 +6,7 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 The core data model lives in `frontend/src/model/` and uses **schema.org as the primary ontology**.
 App-specific concepts that have no schema.org equivalent use `additionalProperty`
-([PropertyValue](https://schema.org/PropertyValue)) to scopilot within the schema.org vocabulary.
+([PropertyValue](https://schema.org/PropertyValue)) to stay within the schema.org vocabulary.
 
 **Deep dives:**
 
@@ -638,7 +638,7 @@ getDisplayName(item) → item.name ?? item.rawCapture ?? "Untitled"
 ### Lifecycle
 
 1. **Capture**: user types "buy bananas" → `rawCapture = "buy bananas"`, `name` is unset
-2. **Triage**: inbox → action — `rawCapture` preserved, `name` scopilots unset
+2. **Triage**: inbox → action — `rawCapture` preserved, `name` stays unset
 3. **Rename**: user explicitly sets title → `name = "Weekly Groceries"`, `rawCapture` preserved
 4. **Display**: `name` if set, otherwise `rawCapture`, otherwise `"Untitled"`
 

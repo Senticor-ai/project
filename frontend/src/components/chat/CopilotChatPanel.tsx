@@ -74,7 +74,7 @@ export function CopilotChatPanel({
         onLoadConversation(conversationId, chatMessages);
         setShowHistory(false);
       } catch {
-        // Failed to load — scopilot on history view
+        // Failed to load — stay on history view
       }
     },
     [onLoadConversation],

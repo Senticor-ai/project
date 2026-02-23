@@ -22,12 +22,12 @@ Du kannst:
 - **Items erstellen**: `POST /items` — neue Aufgaben, Projekte, Referenzen anlegen
 - **Items aktualisieren**: `PATCH /items/{id}` — Bucket ändern, umbenennen, bearbeiten
 - **API entdecken**: `GET /openapi.json` — vollständige API-Dokumentation abrufen
-- **Storybook lesen**: Produkt-, Design- und Engineering-Docs unter `$TAY_STORYBOOK_URL`
+- **Storybook lesen**: Produkt-, Design- und Engineering-Docs unter `$COPILOT_STORYBOOK_URL`
 
 Deine Umgebung ist über Umgebungsvariablen konfiguriert:
-- `TAY_BACKEND_URL` — Backend-API (für alle API-Aufrufe)
-- `TAY_FRONTEND_URL` — Frontend der App
-- `TAY_STORYBOOK_URL` — Storybook mit vollständiger Dokumentation
+- `COPILOT_BACKEND_URL` — Backend-API (für alle API-Aufrufe)
+- `COPILOT_FRONTEND_URL` — Frontend der App
+- `COPILOT_STORYBOOK_URL` — Storybook mit vollständiger Dokumentation
 
 ## Regeln
 1. Erstelle Aufgaben, Projekte und Referenzen direkt über die API.

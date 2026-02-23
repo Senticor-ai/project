@@ -413,9 +413,9 @@ discover its surrounding services. URLs are automatically rewritten from localho
 
 | Variable                 | Example (inside container)         | Description                                                    |
 | ------------------------ | ---------------------------------- | -------------------------------------------------------------- |
-| `TAY_BACKEND_URL`        | `http://host.docker.internal:8000` | Backend REST API (for all curl calls)                          |
-| `TAY_FRONTEND_URL`       | `http://host.docker.internal:5173` | Frontend URL (context)                                         |
-| `TAY_STORYBOOK_URL`      | `http://host.docker.internal:6006` | Storybook with product, design, and engineering docs           |
+| `COPILOT_BACKEND_URL`    | `http://host.docker.internal:8000` | Backend REST API (for all curl calls)                          |
+| `COPILOT_FRONTEND_URL`   | `http://host.docker.internal:5173` | Frontend URL (context)                                         |
+| `COPILOT_STORYBOOK_URL`  | `http://host.docker.internal:6006` | Storybook with product, design, and engineering docs           |
 | `OPENCLAW_CONFIG_PATH`   | `/openclaw.json`                   | OpenClaw configuration file path                               |
 | `OPENCLAW_GATEWAY_TOKEN` | _(generated)_                      | Gateway auth token for the container API                       |
 | Provider API key         | _(decrypted from DB)_              | `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, or `ANTHROPIC_API_KEY` |
@@ -432,9 +432,9 @@ The corresponding backend settings:
 
 OpenClaw can discover its environment and capabilities at runtime:
 
-- **API endpoints**: `curl $TAY_BACKEND_URL/openapi.json` — full OpenAPI spec (~112 KB, unauthenticated)
-- **Product documentation**: `curl $TAY_STORYBOOK_URL/index.json` — Storybook story index
-- **Environment check**: `echo $TAY_BACKEND_URL $TAY_FRONTEND_URL $TAY_STORYBOOK_URL`
+- **API endpoints**: `curl $COPILOT_BACKEND_URL/openapi.json` — full OpenAPI spec (~112 KB, unauthenticated)
+- **Product documentation**: `curl $COPILOT_STORYBOOK_URL/index.json` — Storybook story index
+- **Environment check**: `echo $COPILOT_BACKEND_URL $COPILOT_FRONTEND_URL $COPILOT_STORYBOOK_URL`
 
 This is documented in the agent's SKILL.md (`openclaw/workspace/skills/backend-api/SKILL.md`)
 which the LLM reads at startup. Instead of hardcoding every API endpoint, the agent learns
