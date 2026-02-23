@@ -14,6 +14,7 @@ import { useImportJobToasts } from "./hooks/use-import-job-toasts";
 import { useIsMobile } from "./hooks/use-is-mobile";
 import { useAllItems, useProjects, useReferences } from "./hooks/use-items";
 import {
+  EMAIL_CONNECTIONS_QUERY_KEY,
   useEmailConnections,
   useTriggerEmailSync,
   useDisconnectEmail,
@@ -131,6 +132,17 @@ function AuthenticatedApp({
   const disconnectEmail = useDisconnectEmail();
   const updateEmailConnection = useUpdateEmailConnection();
 
+  const handleGmailConnected = useCallback(() => {
+    void queryClient.invalidateQueries({
+      queryKey: EMAIL_CONNECTIONS_QUERY_KEY,
+    });
+    void queryClient.refetchQueries({
+      queryKey: EMAIL_CONNECTIONS_QUERY_KEY,
+      type: "active",
+    });
+    navigate("settings", "email");
+  }, [queryClient, navigate]);
+
   // Organizations
   const orgsQuery = useOrganizations();
   const createOrg = useCreateOrganization();
@@ -161,56 +173,101 @@ function AuthenticatedApp({
   ]);
 
   const handleConnectGmail = useCallback(async () => {
+    const w = 500;
+    const h = 600;
+    const left = window.screenX + (window.outerWidth - w) / 2;
+    const top = window.screenY + (window.outerHeight - h) / 2;
+    const popupFeatures = `width=${w},height=${h},left=${left},top=${top}`;
+    const returnUrl = `${window.location.origin}/settings/email`;
+
+    const popup = window.open("", "gmail-oauth", popupFeatures);
     try {
-      const { url } = await EmailApi.getGmailAuthUrl();
-      const w = 500;
-      const h = 600;
-      const left = window.screenX + (window.outerWidth - w) / 2;
-      const top = window.screenY + (window.outerHeight - h) / 2;
-      window.open(
-        url,
-        "gmail-oauth",
-        `width=${w},height=${h},left=${left},top=${top}`,
-      );
+      const { url } = await EmailApi.getGmailAuthUrl(returnUrl);
+
+      // If popup was blocked, fall back to full-page redirect.
+      if (!popup) {
+        window.location.assign(url);
+        return;
+      }
+
+      popup.document.title = "Connecting…";
+      popup.location.replace(url);
+
+      // Fallback: ensure parent refreshes shortly after popup closes.
+      const pollId = window.setInterval(() => {
+        if (!popup.closed) return;
+        window.clearInterval(pollId);
+        void queryClient.invalidateQueries({
+          queryKey: EMAIL_CONNECTIONS_QUERY_KEY,
+        });
+      }, 500);
+      window.setTimeout(() => window.clearInterval(pollId), 5 * 60_000);
     } catch (err) {
+      if (popup && !popup.closed) popup.close();
       console.error("Failed to get Gmail auth URL", err);
     }
-  }, []);
+  }, [queryClient]);
 
-  // Detect ?gmail=connected — signal parent via localStorage and close popup,
-  // or navigate directly if this is a full-page redirect (no popup).
-  // localStorage "storage" events only fire in *other* tabs/windows on the
-  // same origin, which is exactly what we need for popup→parent signalling.
+  // Detect ?gmail=connected for full-page fallback after OAuth callback.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("gmail") === "connected") {
-      // Signal the parent window via localStorage (works even after
-      // cross-origin redirects through Google which null out window.opener)
-      localStorage.setItem("gmail-connected", String(Date.now()));
-      window.close();
-      // If window.close() is ignored (full-page redirect, not a popup),
-      // fall back to in-page navigation.
-      navigate("settings", "email");
-      params.delete("gmail");
-      const clean =
-        window.location.pathname +
-        (params.size > 0 ? `?${params.toString()}` : "");
-      window.history.replaceState({}, "", clean);
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- run once on mount
+    if (params.get("gmail") !== "connected") return;
 
-  // Listen for localStorage signal from the OAuth popup
+    const connectedAt = String(Date.now());
+    try {
+      localStorage.setItem("gmail-connected", connectedAt);
+    } catch {
+      // ignore
+    }
+    try {
+      if (window.opener && !window.opener.closed) {
+        window.opener.postMessage(
+          { type: "gmail-connected", connectedAt },
+          window.location.origin,
+        );
+      }
+    } catch {
+      // ignore
+    }
+    window.close();
+    handleGmailConnected();
+
+    params.delete("gmail");
+    const clean =
+      window.location.pathname +
+      (params.size > 0 ? `?${params.toString()}` : "");
+    window.history.replaceState({}, "", clean);
+  }, [handleGmailConnected]);
+
+  // Listen for localStorage signal from the OAuth popup.
   useEffect(() => {
     function handleStorage(event: StorageEvent) {
-      if (event.key === "gmail-connected") {
+      if (event.key === "gmail-connected" && event.newValue) {
         localStorage.removeItem("gmail-connected");
-        queryClient.invalidateQueries({ queryKey: ["email-connections"] });
-        navigate("settings", "email");
+        handleGmailConnected();
       }
     }
     window.addEventListener("storage", handleStorage);
     return () => window.removeEventListener("storage", handleStorage);
-  }, [queryClient, navigate]);
+  }, [handleGmailConnected]);
+
+  // Preferred signal path from popup callback page.
+  useEffect(() => {
+    function handleMessage(event: MessageEvent) {
+      if (event.origin !== window.location.origin) return;
+      if (
+        typeof event.data === "object" &&
+        event.data &&
+        "type" in event.data &&
+        event.data.type === "gmail-connected"
+      ) {
+        localStorage.removeItem("gmail-connected");
+        handleGmailConnected();
+      }
+    }
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [handleGmailConnected]);
 
   const handleFlush = useCallback(async () => {
     const result = await DevApi.flush();

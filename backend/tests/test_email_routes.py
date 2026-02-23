@@ -7,6 +7,7 @@ the full test database with email_connections table.
 
 import dataclasses
 import uuid
+from urllib.parse import parse_qs, urlparse
 
 from app.config import settings
 
@@ -54,6 +55,56 @@ class TestGmailCallback:
             follow_redirects=False,
         )
         assert response.status_code == 400
+
+    def test_success_redirects_and_creates_connection(self, auth_client, monkeypatch):
+        _patch_settings(
+            monkeypatch,
+            gmail_client_id="test-client-id",
+            gmail_client_secret="test-secret",
+            gmail_state_secret="test-state-secret-32chars-minimum!",
+            frontend_base_url="https://frontend.test",
+        )
+
+        monkeypatch.setattr(
+            "app.email.routes.exchange_gmail_code",
+            lambda _code: {
+                "access_token": "access-token",
+                "refresh_token": "refresh-token",
+                "expires_in": 3600,
+            },
+        )
+        monkeypatch.setattr(
+            "app.email.routes.get_gmail_user_email",
+            lambda _access_token: "multi-account@example.com",
+        )
+        monkeypatch.setattr("app.email.routes.register_watch", lambda *_args: None)
+
+        class DummyCrypto:
+            def encrypt(self, value: str) -> str:
+                return f"enc:{value}"
+
+        monkeypatch.setattr("app.email.routes.CryptoService", DummyCrypto)
+
+        auth_url_res = auth_client.get(
+            "/email/oauth/gmail/authorize",
+            params={"return_url": "https://frontend.test/settings/email"},
+        )
+        assert auth_url_res.status_code == 200
+        oauth_url = auth_url_res.json()["url"]
+        state = parse_qs(urlparse(oauth_url).query)["state"][0]
+
+        callback_res = auth_client.get(
+            "/email/oauth/gmail/callback",
+            params={"code": "fake-code", "state": state},
+            follow_redirects=False,
+        )
+        assert callback_res.status_code == 303
+        assert callback_res.headers["location"] == "https://frontend.test/settings/email?gmail=connected"
+
+        list_res = auth_client.get("/email/connections")
+        assert list_res.status_code == 200
+        emails = [c["email_address"] for c in list_res.json()]
+        assert "multi-account@example.com" in emails
 
 
 class TestListConnections:

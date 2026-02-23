@@ -1,7 +1,14 @@
 import type { Bucket } from "@/model/types";
 
 export type AppView = "workspace" | "settings";
-export type SettingsTab = "import-export" | "labels" | "preferences";
+export type SettingsTab =
+  | "import-export"
+  | "email"
+  | "labels"
+  | "organizations"
+  | "preferences"
+  | "agent-setup"
+  | "developer";
 
 export interface LocationState {
   view: AppView;
@@ -21,8 +28,12 @@ const VALID_BUCKETS = new Set<string>([
 
 const VALID_SETTINGS_TABS = new Set<string>([
   "import-export",
+  "email",
   "labels",
+  "organizations",
   "preferences",
+  "agent-setup",
+  "developer",
 ]);
 
 const DEFAULT_BUCKET = "inbox";

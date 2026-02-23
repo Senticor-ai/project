@@ -20,7 +20,7 @@ def _cleanup_test_connections():
         with conn.cursor() as cur:
             cur.execute(
                 "UPDATE email_connections SET is_active = false "
-                "WHERE email_address = 'test@gmail.com'"
+                "WHERE email_address LIKE 'test%@gmail.com'"
             )
         conn.commit()
 
@@ -29,6 +29,7 @@ def _create_email_connection(
     org_id: str,
     user_id: str,
     *,
+    email_address: str = "test@gmail.com",
     sync_interval_minutes: int = 15,
     last_sync_at: datetime | None = None,
     is_active: bool = True,
@@ -50,8 +51,8 @@ def _create_email_connection(
                     conn_id,
                     org_id,
                     user_id,
-                    "test@gmail.com",
-                    "Gmail (test@gmail.com)",
+                    email_address,
+                    f"Gmail ({email_address})",
                     "fake-encrypted-access",
                     "fake-encrypted-refresh",
                     datetime(2026, 12, 31, tzinfo=UTC),
@@ -186,6 +187,57 @@ class TestEnqueueDueSyncs:
         assert row["event_type"] == "email_sync_job"
         assert row["payload"]["org_id"] == org_id
         assert row["payload"]["user_id"] == user_id
+
+    def test_enqueues_multiple_due_connections(self, auth_client):
+        """All due active connections are enqueued, each with its own connection_id."""
+        _deactivate_all_connections()
+        _drain_outbox()
+        org_id = auth_client.headers["X-Org-Id"]
+        me = auth_client.get("/auth/me")
+        user_id = me.json()["id"]
+
+        due_one = _create_email_connection(
+            org_id,
+            user_id,
+            email_address="test+one@gmail.com",
+            sync_interval_minutes=15,
+            last_sync_at=datetime.now(UTC) - timedelta(minutes=20),
+        )
+        due_two = _create_email_connection(
+            org_id,
+            user_id,
+            email_address="test+two@gmail.com",
+            sync_interval_minutes=15,
+            last_sync_at=datetime.now(UTC) - timedelta(minutes=90),
+        )
+        _create_email_connection(
+            org_id,
+            user_id,
+            email_address="test+fresh@gmail.com",
+            sync_interval_minutes=15,
+            last_sync_at=datetime.now(UTC) - timedelta(minutes=5),
+        )
+
+        count = enqueue_due_syncs()
+        assert count == 2
+
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT payload
+                    FROM outbox_events
+                    WHERE event_type = 'email_sync_job'
+                      AND processed_at IS NULL
+                    ORDER BY created_at DESC
+                    LIMIT 3
+                    """
+                )
+                rows = cur.fetchall()
+
+        connection_ids = {row["payload"]["connection_id"] for row in rows}
+        assert due_one in connection_ids
+        assert due_two in connection_ids
 
     def test_skips_not_due_connections(self, auth_client):
         """Connections synced recently are not enqueued."""

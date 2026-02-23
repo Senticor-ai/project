@@ -463,8 +463,12 @@ export type EmailConnectionUpdateRequest = {
 };
 
 export const EmailApi = {
-  getGmailAuthUrl: () =>
-    request<{ url: string }>("/email/oauth/gmail/authorize"),
+  getGmailAuthUrl: (returnUrl?: string) => {
+    const qs = returnUrl
+      ? `?return_url=${encodeURIComponent(returnUrl)}`
+      : "";
+    return request<{ url: string }>(`/email/oauth/gmail/authorize${qs}`);
+  },
 
   listConnections: () =>
     request<EmailConnectionResponse[]>("/email/connections"),

@@ -13,7 +13,7 @@ from typing import Annotated, Any
 import httpx
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import HTMLResponse
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 
 from app.config import settings
@@ -137,13 +137,6 @@ def _format_google_error(exc: httpx.HTTPStatusError) -> str:
     return detail
 
 
-def _js_string(s: str) -> str:
-    """Escape a Python string for safe embedding in a JS string literal."""
-    import json
-
-    return json.dumps(s)
-
-
 def _row_to_response(row: dict) -> EmailConnectionResponse:
     watch_exp = row.get("watch_expiration")
     watch_active = watch_exp is not None and watch_exp > datetime.now(UTC)
@@ -190,8 +183,8 @@ def gmail_authorize(
 @router.get(
     "/oauth/gmail/callback",
     summary="Gmail OAuth callback",
-    response_class=HTMLResponse,
-    responses={200: {"description": "Self-closing popup page after successful authorization"}},
+    response_class=RedirectResponse,
+    responses={303: {"description": "Redirect back to frontend after successful authorization"}},
 )
 def gmail_callback(
     code: str,
@@ -319,23 +312,9 @@ def gmail_callback(
     except Exception:
         logger.warning("Failed to register watch for %s", connection_id, exc_info=True)
 
-    # Return a self-closing HTML page that signals the parent window via
-    # localStorage and closes the popup.  Falls back to a redirect if the
-    # popup was blocked and this is a full-page navigation.
+    # Redirect to frontend; the app handles popup close + parent refresh signal.
     fallback_url = return_url + ("&" if "?" in return_url else "?") + "gmail=connected"
-    return HTMLResponse(
-        f"""<!DOCTYPE html>
-<html><head><title>Connecting…</title></head>
-<body>
-<p>Gmail connected. You can close this window.</p>
-<script>
-  try {{ localStorage.setItem("gmail-connected", String(Date.now())); }} catch(_) {{}}
-  window.close();
-  // If window.close() was blocked (full-page redirect, not a popup), redirect.
-  window.location.href = {_js_string(fallback_url)};
-</script>
-</body></html>"""
-    )
+    return RedirectResponse(url=fallback_url, status_code=303)
 
 
 # ---------------------------------------------------------------------------

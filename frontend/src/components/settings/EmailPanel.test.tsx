@@ -46,6 +46,34 @@ describe("EmailPanel", () => {
     expect(screen.getByText("beamte@gmail.com")).toBeInTheDocument();
   });
 
+  it("renders multiple active connections and syncs the selected one", async () => {
+    const user = userEvent.setup();
+    const onSync = vi.fn();
+    const secondConnection: EmailConnectionResponse = {
+      ...mockConnection,
+      connection_id: "conn-2",
+      email_address: "wolfgang@ihloff.de",
+      display_name: "Wolfgang Ihloff",
+    };
+
+    render(
+      <EmailPanel
+        connections={[mockConnection, secondConnection]}
+        onSync={onSync}
+      />,
+    );
+
+    expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
+    expect(screen.getByText("Wolfgang Ihloff")).toBeInTheDocument();
+
+    const syncButtons = screen.getAllByRole("button", {
+      name: /jetzt synchronisieren/i,
+    });
+    await user.click(syncButtons[1]!);
+
+    expect(onSync).toHaveBeenCalledWith("conn-2");
+  });
+
   it("hides inactive connections", () => {
     const inactive = { ...mockConnection, is_active: false };
     render(<EmailPanel connections={[inactive]} />);

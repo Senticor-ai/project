@@ -17,7 +17,8 @@ export function useLocationState(): UseLocationStateReturn {
     // Fix up the URL synchronously during init if it was incomplete
     const canonical = buildPath(parsed.view, parsed.sub);
     if (window.location.pathname !== canonical) {
-      window.history.replaceState({}, "", canonical);
+      const suffix = `${window.location.search}${window.location.hash}`;
+      window.history.replaceState({}, "", `${canonical}${suffix}`);
     }
     return parsed;
   });
