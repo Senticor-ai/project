@@ -11,12 +11,12 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 ### Platform scope
 
-| Platform | Supported | Notes |
-| --- | --- | --- |
-| Chrome desktop (Linux, macOS, Windows) | Yes | Primary target — full PWA install + service worker + Background Sync |
-| Android (Chrome) | Yes | Install prompt, Background Sync, IndexedDB — full feature set |
-| iOS / Safari | **No — explicit non-goal** | No Background Sync API, aggressive service worker eviction (~2 weeks inactivity), no native install prompt, unreliable IndexedDB quota. Supporting iOS would require fallback paths for every offline feature; the cost/benefit ratio is not justified at this stage. |
-| Firefox / Edge desktop | Best-effort | Service worker + IndexedDB work; install UX varies. Not actively tested. |
+| Platform                               | Supported                  | Notes                                                                                                                                                                                                                                                                 |
+| -------------------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Chrome desktop (Linux, macOS, Windows) | Yes                        | Primary target — full PWA install + service worker + Background Sync                                                                                                                                                                                                  |
+| Android (Chrome)                       | Yes                        | Install prompt, Background Sync, IndexedDB — full feature set                                                                                                                                                                                                         |
+| iOS / Safari                           | **No — explicit non-goal** | No Background Sync API, aggressive service worker eviction (~2 weeks inactivity), no native install prompt, unreliable IndexedDB quota. Supporting iOS would require fallback paths for every offline feature; the cost/benefit ratio is not justified at this stage. |
+| Firefox / Edge desktop                 | Best-effort                | Service worker + IndexedDB work; install UX varies. Not actively tested.                                                                                                                                                                                              |
 
 ## Context
 
@@ -142,13 +142,13 @@ cd frontend && npm run test:e2e -- --grep "touch-targets"
 
 ### 1e. Stories
 
-| Story | Viewport | What it proves |
-| --- | --- | --- |
+| Story                                   | Viewport         | What it proves                             |
+| --------------------------------------- | ---------------- | ------------------------------------------ |
 | `EditableTitle` — touch edit affordance | 390x844 (mobile) | Edit icon visible, tap activates edit mode |
-| `BucketNav` — narrow sidebar | 390x844 | All nav buttons meet 44x44 minimum |
-| `ActionRow` — touch controls | 390x844 | Checkbox and focus toggle are tap-friendly |
-| `InboxTriage` — mobile triage | 390x844 | Bucket buttons are adequately spaced |
-| `InboxCapture` — virtual keyboard | 390x844 | Input remains visible when keyboard opens |
+| `BucketNav` — narrow sidebar            | 390x844          | All nav buttons meet 44x44 minimum         |
+| `ActionRow` — touch controls            | 390x844          | Checkbox and focus toggle are tap-friendly |
+| `InboxTriage` — mobile triage           | 390x844          | Bucket buttons are adequately spaced       |
+| `InboxCapture` — virtual keyboard       | 390x844          | Input remains visible when keyboard opens  |
 
 ---
 
@@ -177,9 +177,9 @@ cd frontend && npm run test:e2e -- --grep "touch-targets"
 
 ### i18n keys
 
-| Key | en | de |
-| --- | --- | --- |
-| `conflict.itemModified.title` | Conflict | Konflikt |
+| Key                                 | en                                                          | de                                                                        |
+| ----------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `conflict.itemModified.title`       | Conflict                                                    | Konflikt                                                                  |
 | `conflict.itemModified.description` | This item was modified elsewhere. Reloading latest version. | Dieser Eintrag wurde anderweitig geändert. Aktuelle Version wird geladen. |
 
 ### 2a. RED — Tests for If-Match precondition
@@ -240,8 +240,8 @@ cd frontend && npx tsc -b --noEmit
 
 ### 2e. Stories
 
-| Story | What it proves |
-| --- | --- |
+| Story                         | What it proves                                                                         |
+| ----------------------------- | -------------------------------------------------------------------------------------- |
 | `ItemEditor` — conflict toast | MSW returns 412 on save → toast appears, cache refreshes, editor shows updated content |
 
 MSW handler override for the story:
@@ -295,9 +295,9 @@ Content-Type: text/html
 
 ### i18n keys
 
-| Key | en | de |
-| --- | --- | --- |
-| `error.rateLimited.title` | Too many requests | Zu viele Anfragen |
+| Key                             | en                                        | de                                                      |
+| ------------------------------- | ----------------------------------------- | ------------------------------------------------------- |
+| `error.rateLimited.title`       | Too many requests                         | Zu viele Anfragen                                       |
 | `error.rateLimited.description` | Please wait a moment before trying again. | Bitte warte einen Moment, bevor du es erneut versuchst. |
 
 ### 3a. RED — Integration test for rate limiting
@@ -388,23 +388,23 @@ When a new service worker is detected (`onNeedRefresh` from `vite-plugin-pwa`):
 
 ### i18n keys
 
-| Key | en | de |
-| --- | --- | --- |
-| `pwa.updateAvailable.title` | Update available | Aktualisierung verfügbar |
-| `pwa.updateAvailable.description` | A new version is available. | Eine neue Version ist verfügbar. |
-| `pwa.updateAvailable.reload` | Reload | Neu laden |
-| `pwa.installPrompt.title` | Install app | App installieren |
-| `pwa.installPrompt.description` | Install for offline access and a native experience. | Für Offline-Zugriff und ein natives Erlebnis installieren. |
+| Key                               | en                                                  | de                                                         |
+| --------------------------------- | --------------------------------------------------- | ---------------------------------------------------------- |
+| `pwa.updateAvailable.title`       | Update available                                    | Aktualisierung verfügbar                                   |
+| `pwa.updateAvailable.description` | A new version is available.                         | Eine neue Version ist verfügbar.                           |
+| `pwa.updateAvailable.reload`      | Reload                                              | Neu laden                                                  |
+| `pwa.installPrompt.title`         | Install app                                         | App installieren                                           |
+| `pwa.installPrompt.description`   | Install for offline access and a native experience. | Für Offline-Zugriff und ein natives Erlebnis installieren. |
 
 ### Error handling & degradation
 
-| Scenario | Behavior | Fallback |
-| --- | --- | --- |
-| Service worker registration fails (e.g. private browsing) | Log warning to console | App works as normal SPA — no caching, no install prompt |
-| IndexedDB unavailable or quota exceeded | Log warning, skip cache persistence | TanStack Query in-memory cache still works; data lost on reload |
-| Background Sync not available (Firefox desktop) | Mutations stay in TanStack Query's in-memory queue | Auto-retry when `navigator.onLine` fires; lost on tab close |
-| `manifest.json` fails to load | No install prompt shown | App works normally in browser tab |
-| Cached API response is stale after long offline period | NetworkFirst returns stale cache, then sync corrects on reconnect | Cursor-based sync endpoint reconciles full state |
+| Scenario                                                  | Behavior                                                          | Fallback                                                        |
+| --------------------------------------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------- |
+| Service worker registration fails (e.g. private browsing) | Log warning to console                                            | App works as normal SPA — no caching, no install prompt         |
+| IndexedDB unavailable or quota exceeded                   | Log warning, skip cache persistence                               | TanStack Query in-memory cache still works; data lost on reload |
+| Background Sync not available (Firefox desktop)           | Mutations stay in TanStack Query's in-memory queue                | Auto-retry when `navigator.onLine` fires; lost on tab close     |
+| `manifest.json` fails to load                             | No install prompt shown                                           | App works normally in browser tab                               |
+| Cached API response is stale after long offline period    | NetworkFirst returns stale cache, then sync corrects on reconnect | Cursor-based sync endpoint reconciles full state                |
 
 **Principle:** Every PWA feature degrades gracefully to the existing SPA behavior. No feature gate or conditional code path — the service worker and IndexedDB are additive layers.
 
@@ -534,11 +534,11 @@ npx lighthouse http://localhost:4173 --only-categories=pwa --output=json
 
 ### 4g. Stories
 
-| Story | What it proves |
-| --- | --- |
-| `AppShell` — update available toast | `usePwaUpdate` mock returns `needRefresh: true` → toast with "Reload" action appears |
-| `AppShell` — offline with cached data | MSW simulates network failure → items render from cache, `OfflineBanner` visible |
-| `AppShell` — install prompt | `beforeinstallprompt` event mock → install banner/button appears |
+| Story                                 | What it proves                                                                       |
+| ------------------------------------- | ------------------------------------------------------------------------------------ |
+| `AppShell` — update available toast   | `usePwaUpdate` mock returns `needRefresh: true` → toast with "Reload" action appears |
+| `AppShell` — offline with cached data | MSW simulates network failure → items render from cache, `OfflineBanner` visible     |
+| `AppShell` — install prompt           | `beforeinstallprompt` event mock → install banner/button appears                     |
 
 ---
 
@@ -546,47 +546,47 @@ npx lighthouse http://localhost:4173 --only-categories=pwa --output=json
 
 **Phase 1 (Touch audit):**
 
-| File | Change |
-| --- | --- |
-| `frontend/e2e/tests/touch-targets.spec.ts` | New — Playwright touch target assertions |
-| `frontend/src/components/work/EditableTitle.tsx` | Add touch edit affordance (icon + long-press) |
-| Various components | Add `min-h-11 min-w-11` to small interactive targets |
-| Component `.stories.tsx` files | Add mobile viewport story variants |
+| File                                             | Change                                               |
+| ------------------------------------------------ | ---------------------------------------------------- |
+| `frontend/e2e/tests/touch-targets.spec.ts`       | New — Playwright touch target assertions             |
+| `frontend/src/components/work/EditableTitle.tsx` | Add touch edit affordance (icon + long-press)        |
+| Various components                               | Add `min-h-11 min-w-11` to small interactive targets |
+| Component `.stories.tsx` files                   | Add mobile viewport story variants                   |
 
 **Phase 2 (Conflict prevention):**
 
-| File | Change |
-| --- | --- |
-| `backend/tests/test_conflict_detection.py` | New — 412 precondition tests |
-| `backend/app/routes/items.py` | Add `If-Match` precondition check to PATCH |
-| `frontend/src/lib/api-client.ts` | Send `If-Match` header on updates, handle 412 |
-| `frontend/src/hooks/use-mutations.ts` | Pass ETag from cache, handle 412 with toast |
-| `frontend/src/i18n/messages.en.ts` | Add `conflict.*` keys |
-| `frontend/src/i18n/messages.de.ts` | Add `conflict.*` keys |
+| File                                       | Change                                        |
+| ------------------------------------------ | --------------------------------------------- |
+| `backend/tests/test_conflict_detection.py` | New — 412 precondition tests                  |
+| `backend/app/routes/items.py`              | Add `If-Match` precondition check to PATCH    |
+| `frontend/src/lib/api-client.ts`           | Send `If-Match` header on updates, handle 412 |
+| `frontend/src/hooks/use-mutations.ts`      | Pass ETag from cache, handle 412 with toast   |
+| `frontend/src/i18n/messages.en.ts`         | Add `conflict.*` keys                         |
+| `frontend/src/i18n/messages.de.ts`         | Add `conflict.*` keys                         |
 
 **Phase 3 (Rate limiting):**
 
-| File | Change |
-| --- | --- |
-| `deploy/nginx/rate-limit.conf` | New — nginx rate limit zones |
-| `deploy/alloy/config.alloy` | Log parsing pipeline for rate limit events |
-| `frontend/src/lib/api-client.ts` | Handle 429 response + `Retry-After` header |
-| `frontend/src/i18n/messages.en.ts` | Add `error.rateLimited.*` keys |
-| `frontend/src/i18n/messages.de.ts` | Add `error.rateLimited.*` keys |
+| File                               | Change                                     |
+| ---------------------------------- | ------------------------------------------ |
+| `deploy/nginx/rate-limit.conf`     | New — nginx rate limit zones               |
+| `deploy/alloy/config.alloy`        | Log parsing pipeline for rate limit events |
+| `frontend/src/lib/api-client.ts`   | Handle 429 response + `Retry-After` header |
+| `frontend/src/i18n/messages.en.ts` | Add `error.rateLimited.*` keys             |
+| `frontend/src/i18n/messages.de.ts` | Add `error.rateLimited.*` keys             |
 
 **Phase 4 (PWA):**
 
-| File | Change |
-| --- | --- |
-| `frontend/public/manifest.json` | New — web app manifest |
-| `frontend/public/icons/` | New — PWA icons (192, 512, maskable) |
-| `frontend/index.html` | Add manifest link + theme-color meta |
-| `frontend/vite.config.ts` | Add `vite-plugin-pwa` plugin config |
-| `frontend/src/lib/pwa-update.ts` | New — `usePwaUpdate` hook (update toast trigger) |
-| `frontend/src/lib/offline-storage.ts` | New — IndexedDB `persistQueryClient` adapter |
-| `frontend/src/lib/sync-manager.ts` | New — Background Sync registration |
-| `frontend/src/i18n/messages.en.ts` | Add `pwa.*` keys |
-| `frontend/src/i18n/messages.de.ts` | Add `pwa.*` keys |
+| File                                  | Change                                           |
+| ------------------------------------- | ------------------------------------------------ |
+| `frontend/public/manifest.json`       | New — web app manifest                           |
+| `frontend/public/icons/`              | New — PWA icons (192, 512, maskable)             |
+| `frontend/index.html`                 | Add manifest link + theme-color meta             |
+| `frontend/vite.config.ts`             | Add `vite-plugin-pwa` plugin config              |
+| `frontend/src/lib/pwa-update.ts`      | New — `usePwaUpdate` hook (update toast trigger) |
+| `frontend/src/lib/offline-storage.ts` | New — IndexedDB `persistQueryClient` adapter     |
+| `frontend/src/lib/sync-manager.ts`    | New — Background Sync registration               |
+| `frontend/src/i18n/messages.en.ts`    | Add `pwa.*` keys                                 |
+| `frontend/src/i18n/messages.de.ts`    | Add `pwa.*` keys                                 |
 
 ---
 
@@ -645,10 +645,10 @@ npx lighthouse http://localhost:4173 --only-categories=pwa --output=json
 
 The following are explicitly out of scope and tracked separately:
 
-| Item | Why deferred | Tracked in |
-| --- | --- | --- |
-| iOS / Safari PWA support | No Background Sync, aggressive SW eviction, unreliable IndexedDB — see Platform Scope table above | Future epic if user demand warrants |
-| Push notifications | Requires notification permission UX, backend push infrastructure, and VAPID keys — orthogonal to offline-first | Future epic |
-| Periodic Background Sync | Chrome-only, requires "sufficient engagement" heuristic — premature until basic Background Sync is validated | Future Phase 4 extension |
-| Offline file/attachment access | Files are large binary blobs; caching strategy differs from JSON API data — separate design needed | Future epic (depends on [Org Knowledge](?path=/docs/product-epics-org-knowledge--docs)) |
-| Multi-tab conflict resolution | Current ETag approach handles single-tab conflicts; cross-tab coordination (BroadcastChannel) is a separate concern | Future epic |
+| Item                           | Why deferred                                                                                                        | Tracked in                                                                              |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| iOS / Safari PWA support       | No Background Sync, aggressive SW eviction, unreliable IndexedDB — see Platform Scope table above                   | Future epic if user demand warrants                                                     |
+| Push notifications             | Requires notification permission UX, backend push infrastructure, and VAPID keys — orthogonal to offline-first      | Future epic                                                                             |
+| Periodic Background Sync       | Chrome-only, requires "sufficient engagement" heuristic — premature until basic Background Sync is validated        | Future Phase 4 extension                                                                |
+| Offline file/attachment access | Files are large binary blobs; caching strategy differs from JSON API data — separate design needed                  | Future epic (depends on [Org Knowledge](?path=/docs/product-epics-org-knowledge--docs)) |
+| Multi-tab conflict resolution  | Current ETag approach handles single-tab conflicts; cross-tab coordination (BroadcastChannel) is a separate concern | Future epic                                                                             |

@@ -4,268 +4,40 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 # Epic: Copilot V1 — Chat + Item Creation
 
-**Status:** Complete
-**Priority:** Current
-**Progress note:** V1 shipped across frontend, backend, and agents.
-
-## Context
-
-Copilot is the AI assistant embedded in Senticor Project ([Product Vision](?path=/docs/product-vision--docs#copilot--the-ai-assistant)). Until now, Copilot existed only as a documented concept. This epic delivers V1: a conversational side panel where users chat with Copilot and Copilot can create items on the user's behalf — but **only after explicit approval**.
-
-**Design goal:** Copilot suggests, the user decides. Suggestions appear as detachable preview cards in the chat. No data is committed until the user clicks Accept. This implements Paperclip principle #5: _AI is a contributor, not an authority_.
-
----
-
-## Personality & Constraints
-
-| Attribute         | Value                                                            |
-| ----------------- | ---------------------------------------------------------------- |
-| Avatar            | `chat_bubble` Material Symbol                                    |
-| Primary language  | German (matching UI language policy)                             |
-| Tone              | Helpful, concise, respectful of user authority                   |
-| Interaction model | Suggestions as detachable attachments — never auto-applied       |
-| Provenance        | Items created via Copilot carry `CaptureSource: { kind: "tay" }` |
-
----
-
-## V1 Scope
-
-### What Copilot can do
-
-1. **Chat** — free-form text conversation
-2. **Create a project with actions** — suggest a project name, desired outcome, and a list of actions. Optionally include a DigitalDocument (e.g. invitation template).
-3. **Create a single action** — suggest an action for any bucket, optionally linked to an existing project.
-4. **Create a reference** — suggest a reference material (document, URL, note).
-
-### What Copilot cannot do (V1)
-
-- Search or read existing items
-- Move, rename, or archive items
-- Access external services (email, calendar)
-- Stream responses (V1 uses complete responses)
-
----
-
-## UI: Side Panel
-
-The chat lives in a **right side panel** — the first implementation of the planned [Sheet / Side Panel](?path=/docs/design-paperclip-principles--docs) widget.
-
-| Viewport | Behavior                                                         |
-| -------- | ---------------------------------------------------------------- |
-| Desktop  | ~400px panel slides in from the right edge, overlaying workspace |
-| Mobile   | Full-screen overlay with back button                             |
-
-**Toggle:** `chat_bubble` icon button in `AppHeader`, between the logo and the hamburger menu.
-
-**State:** `isChatOpen: boolean` in `AuthenticatedApp`. No routing changes — chat is ephemeral UI state.
-
----
-
-## Message Types
-
-| Type                     | Alignment | Visual                                        |
-| ------------------------ | --------- | --------------------------------------------- |
-| **User text**            | Right     | Solid paper-100 bubble                        |
-| **Copilot text**         | Left      | `chat_bubble` avatar + paper surface          |
-| **Copilot thinking**     | Left      | Animated dots with avatar                     |
-| **Copilot suggestion**   | Left      | ObjectCard-style with Accept / Dismiss / Edit |
-| **Copilot confirmation** | Left      | Success badge + clickable item chips          |
-| **Copilot error**        | Left      | Error styling                                 |
-
----
-
-## Tool Definitions (V1)
-
-### `create_project_with_actions`
-
-```json
-{
-  "project": { "name": "string", "desiredOutcome": "string" },
-  "actions": [
-    { "name": "string", "bucket": "next|inbox|waiting|calendar|someday" }
-  ],
-  "documents": [{ "name": "string", "description": "string?" }]
-}
-```
-
-### `create_action`
-
-```json
-{
-  "name": "string",
-  "bucket": "next|inbox|waiting|calendar|someday",
-  "projectId": "CanonicalId?"
-}
-```
-
-### `create_reference`
-
-```json
-{
-  "name": "string",
-  "description": "string?",
-  "url": "string?"
-}
-```
-
-All tools map to existing mutation hooks in `use-mutations.ts`: `useCreateProject`, `useAddProjectAction`, `useCaptureInbox`.
-
----
-
-## Example Scenario
-
-```
-User: "Ich hab bald Geburtstag und muss einiges organisieren"
-
-Copilot: "Klingt nach einem Projekt! Hier ist ein Vorschlag:"
-
-┌──────────────────────────────────────────────┐
-│ ✦ Projekt: Geburtstagsfeier planen           │
-│   Ergebnis: Erfolgreiche Geburtstagsfeier    │
-│                                              │
-│   Aktionen:                                  │
-│   ☐ Gästeliste erstellen                     │
-│   ☐ Einladungen versenden                    │
-│   ☐ Location buchen                          │
-│   ☐ Essen & Getränke organisieren            │
-│   ☐ Dekoration besorgen                      │
-│                                              │
-│   Dokument:                                  │
-│   📄 Einladungsvorlage                       │
-│                                              │
-│   [✓ Übernehmen]  [✗ Verwerfen]  [✎ Ändern] │
-└──────────────────────────────────────────────┘
-
-User clicks [Übernehmen]:
-
-Copilot: "Projekt 'Geburtstagsfeier planen' erstellt mit
-      5 Aktionen und 1 Dokument."
-      [📋 Geburtstagsfeier planen →]
-```
-
----
-
-## Acceptance criteria
-
-- User can open/close Copilot from the `AppHeader` `chat_bubble` toggle on desktop and mobile.
-- Sending a user message renders a Copilot response in the same conversation thread.
-- Copilot suggestions render as detachable cards with **Accept**, **Dismiss**, and **Edit** actions.
-- Clicking **Accept** persists suggested items via existing mutations and each persisted item includes `CaptureSource.kind = "tay"`.
-- Clicking **Dismiss** never persists any item.
-- Editing a suggestion updates the payload used for persistence when the user later accepts it.
-- Chat surfaces backend/agent failure states for unavailable, unreachable, and timeout paths (503/502/504).
-- V1 constraints remain enforced: no item search/read, no external service access, and no streaming responses.
-
----
-
-## What's done
-
-### Frontend
-
-- [x] Types: `chat-types.ts` with message variants and tool definitions
-- [x] Types: `CaptureSource` `tay` variant in `types.ts`
-- [x] Component: `ChatInput` (wraps `AutoGrowTextarea`)
-- [x] Component: `UserMessageBubble` + `TayMessageBubble`
-- [x] Component: `TayThinkingIndicator`
-- [x] Component: `ChatMessageList` (auto-scroll)
-- [x] Component: `TaySuggestionCard` (accept/dismiss/edit lifecycle)
-- [x] Component: `TayConfirmation` (item chips)
-- [x] Component: `TayChatPanel` (side panel shell)
-- [x] Component: `TayChatToggle` (header button)
-- [x] Hook: `useChatState` (local conversation state)
-- [x] Hook: `useTayApi` (MSW-mocked chat endpoint)
-- [x] Hook: `useTayActions` (orchestrates item creation via existing mutations)
-- [x] MSW: chat handlers and fixtures
-- [x] Integration: `AppHeader` toggle + `App.tsx` panel rendering
-- [x] Stories: all components with interactive play functions
-- [x] Tests: unit tests for all components and hooks
-- [x] Docs: `TayChatFlow.mdx`, `DetachableAttachments.mdx`
-
-### Backend + Agents
-
-- [x] `POST /chat/completions` — backend proxy to agents service (7 tests)
-- [x] Agents service (`agents/`) — separate FastAPI on port 8002 (4 tests)
-- [x] Haystack Agent with OpenRouter via `OpenAIChatGenerator`
-- [x] 3 no-op tool definitions (`create_project_with_actions`, `create_action`, `create_reference`)
-- [x] German system prompt with bucket guidance
-- [x] Graceful error handling (503 no agents, 502 unreachable, 504 timeout)
-- [x] `AGENTS_URL` config in backend Settings
-- [x] `npm run dev` starts all 5 services (backend, worker, agents, frontend, storybook)
-
-**Deferred to V2+:** Conversation history, user items in prompt context, streaming (SSE), model fallback, K8s agent manifests, CI pipeline jobs, DB persistence for conversations. See [Copilot V2+](?path=/docs/product-epics-copilot-v2--docs).
-
----
-
-## Definition of Done
-
-- [x] All acceptance criteria are covered by component behavior, integration wiring, and backend/agent responses.
-- [x] Frontend unit tests for chat components/hooks pass in CI mode.
-- [x] Backend chat route tests pass.
-- [x] Agents service tests pass.
-- [x] Storybook docs and component stories build successfully.
-- [x] Deferred V2+ scope is explicitly documented and linked.
-
----
-
-## Files
-
-### Frontend (new)
-
-| File                                         | Purpose                           |
-| -------------------------------------------- | --------------------------------- |
-| `src/model/chat-types.ts`                    | Message and tool type definitions |
-| `src/hooks/use-chat-state.ts`                | Conversation state management     |
-| `src/hooks/use-tay-api.ts`                   | Chat API abstraction              |
-| `src/hooks/use-tay-actions.ts`               | Item creation orchestrator        |
-| `src/components/chat/ChatInput.tsx`          | Text input with send              |
-| `src/components/chat/ChatMessageList.tsx`    | Scrollable message list           |
-| `src/components/chat/TayChatPanel.tsx`       | Side panel container              |
-| `src/components/chat/TaySuggestionCard.tsx`  | Suggestion preview card           |
-| Each component: `.stories.tsx` + `.test.tsx` | Stories and tests                 |
-
-### Frontend (modified)
-
-| File                                 | Change                            |
-| ------------------------------------ | --------------------------------- |
-| `src/model/types.ts`                 | Add `CaptureSource` `tay` variant |
-| `src/components/shell/AppHeader.tsx` | Add chat toggle button            |
-| `src/App.tsx`                        | Add panel state and rendering     |
-| `src/test/msw/handlers.ts`           | Add chat handlers                 |
-| `src/test/msw/fixtures.ts`           | Add chat fixtures                 |
-
-### Agents service (new — `agents/`)
-
-| File                       | Purpose                                           |
-| -------------------------- | ------------------------------------------------- |
-| `agents/pyproject.toml`    | Dependencies: haystack-ai, fastapi, uvicorn       |
-| `agents/app.py`            | FastAPI app with `/chat/completions` + `/health`  |
-| `agents/tay.py`            | Haystack Agent, system prompt, 3 tool definitions |
-| `agents/tests/test_app.py` | 4 tests (health, text, tool calls, error)         |
-
-### Backend (new/modified)
-
-| File                                | Purpose                                       |
-| ----------------------------------- | --------------------------------------------- |
-| `backend/app/chat/__init__.py`      | Package init                                  |
-| `backend/app/chat/routes.py`        | Proxy endpoint to agents service              |
-| `backend/tests/test_chat_routes.py` | 7 tests (auth, 503, 422, proxy, timeout, 502) |
-| `backend/app/config.py`             | Added `agents_url: str \| None`               |
-| `backend/app/main.py`               | Registered chat router                        |
-| `scripts/start_agents.sh`           | Dev startup script for agents                 |
-
----
-
-## Verification
-
-```bash
-# Frontend
-cd frontend && npx tsc -b --noEmit
-cd frontend && CI=1 npx vitest run --project=unit
-cd frontend && npx storybook build
-cd frontend && npx eslint src/components/chat/ src/hooks/use-chat* src/hooks/use-tay*
-cd frontend && npx prettier --check src/components/chat/ src/hooks/use-chat* src/hooks/use-tay*
-
-# Backend + agents
-cd backend && uv run python -m pytest tests/test_chat_routes.py
-cd agents && uv run python -m pytest tests/test_app.py
-```
+**Status:** Closed
+**Closed on:** February 23, 2026
+
+## Decision
+
+This epic is closed — V1 shipped across frontend, backend, and agents services.
+
+Design and engineering knowledge is now maintained in permanent documentation:
+
+- [Design / Copilot UX](?path=/docs/design-copilot-ux--docs) — personality, chat panel layout, message types
+- [Design / Detachable Attachments](?path=/docs/design-detachable-attachments--docs) — suggestion card lifecycle and visual treatment
+- [Engineering / Agents Service](?path=/docs/engineering-agents-service--docs) — tool execution, dual-agent architecture, request flows
+
+## What shipped
+
+- Conversational side panel (desktop ~400px right panel, mobile full-screen overlay)
+- `chat_bubble` toggle in `AppHeader`
+- Three tools: `create_project_with_actions`, `create_action`, `create_reference`
+- Detachable attachment pattern: suggestions as preview cards with Accept / Dismiss / Edit
+- German system prompt with bucket guidance
+- Copilot personality: helpful, concise, respectful of user authority
+- Provenance: items carry `CaptureSource: { kind: "tay" }`
+- Graceful error handling (503 no agents, 502 unreachable, 504 timeout)
+- MSW mocking for frontend development
+- Full test coverage (unit + integration)
+
+## What moved to V2+
+
+All deferred items were delivered in [Copilot V2+](?path=/docs/product-epics-copilot-v2--docs):
+
+- Conversation history / multi-turn context
+- User items in prompt context
+- Streaming (NDJSON)
+- Model fallback
+- K8s deployment manifest for agents
+- CI pipeline jobs for agents
+- DB persistence for conversations

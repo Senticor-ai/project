@@ -39,6 +39,7 @@ import { TayChatPanel } from "./components/chat/TayChatPanel";
 import { useChatState } from "./hooks/use-chat-state";
 import { AppHeader } from "./components/shell/AppHeader";
 import type { MobileBucketNav } from "./components/shell/AppHeader";
+import { usePwaInstall } from "./hooks/use-pwa-install";
 import { ErrorBoundary } from "./components/shell/ErrorBoundary";
 import { Icon } from "./components/ui/Icon";
 import { OfflineBanner } from "./components/ui/OfflineBanner";
@@ -123,6 +124,7 @@ function AuthenticatedApp({
   } = useImportJobs();
   useImportJobToasts(importJobs);
   const isMobile = useIsMobile();
+  const { canInstall, promptInstall } = usePwaInstall();
   const { data: allItems = [] } = useAllItems();
   const { data: projects = [] } = useProjects();
   const { data: refs = [] } = useReferences();
@@ -314,6 +316,8 @@ function AuthenticatedApp({
           isChatOpen={isChatOpen}
           mobileBucketNav={mobileBucketNav}
           appVersion="0.1.0"
+          canInstall={canInstall}
+          onInstall={promptInstall}
           className="sticky top-2 z-30 mb-6 w-fit rounded-[var(--radius-lg)] border border-paper-200 bg-surface/95 px-2 py-1 shadow-sm backdrop-blur"
         />
 
@@ -387,6 +391,8 @@ function AuthenticatedApp({
               isContainerActionPending={
                 stopContainer.isPending || restartContainer.isPending
               }
+              canInstall={canInstall}
+              onInstall={promptInstall}
             />
           </Suspense>
         )}

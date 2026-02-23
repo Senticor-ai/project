@@ -72,7 +72,7 @@ The package runs in three environments:
 | Environment              | Runtime            | Entry point                                            |
 | ------------------------ | ------------------ | ------------------------------------------------------ |
 | **Frontend** (React app) | Browser            | `import { fromJsonLd, toJsonLd } from "@project/core"` |
-| **Copilot** (agent tool) | Node.js subprocess | `npx senticor-copilot items list --bucket=reference`                |
+| **Copilot** (agent tool) | Node.js subprocess | `npx senticor-copilot items list --bucket=reference`   |
 | **3rd party**            | Browser or Node.js | `npm install @project/core`                            |
 
 The frontend's `src/lib/item-serializer.ts` and `src/lib/api-client.ts` become thin re-exports from
@@ -193,21 +193,21 @@ Errors:
 
 #### Exit Codes
 
-| Exit code | Meaning                          |
-| --------- | -------------------------------- |
-| `0`       | Success                          |
-| `2`       | Usage/argument error             |
-| `3`       | Authentication/authorization     |
-| `4`       | Validation failed                |
-| `5`       | Not found                        |
-| `10`      | Conflict/precondition failed     |
-| `20`      | Transient backend/network error  |
+| Exit code | Meaning                         |
+| --------- | ------------------------------- |
+| `0`       | Success                         |
+| `2`       | Usage/argument error            |
+| `3`       | Authentication/authorization    |
+| `4`       | Validation failed               |
+| `5`       | Not found                       |
+| `10`      | Conflict/precondition failed    |
+| `20`      | Transient backend/network error |
 
 ### Read vs Write Commands
 
-| Type                         | Behavior                                                         | Examples                                                                                                  |
-| ---------------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| **Read** (inline)            | Executes immediately, returns data to Copilot                    | `items list --bucket=reference --json`, `orgs get nueva-tierra --docs --json`                           |
+| Type                         | Behavior                                                         | Examples                                                                                                                                                                                                            |
+| ---------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Read** (inline)            | Executes immediately, returns data to Copilot                    | `items list --bucket=reference --json`, `orgs get nueva-tierra --docs --json`                                                                                                                                       |
 | **Write** (proposal + apply) | Step 1 returns proposal JSON. Step 2 executes only after confirm | `projects create --name="Senticor Project" --description="Use Senticor to build Senticor" --propose --json`, `items create --type=Action --name="File taxes" --bucket=next --project=<project_id> --propose --json` |
 
 In direct CLI usage, write commands support a two-step "propose, user confirms, apply" flow that
@@ -450,29 +450,29 @@ ready, the need just isn't there yet.
 
 ## Files to Modify/Create
 
-| Layer    | File                                   | Change                                                     |
-| -------- | -------------------------------------- | ---------------------------------------------------------- |
-| Core     | NEW: `packages/core/package.json`      | Package setup, TypeScript config                           |
-| Core     | NEW: `packages/core/cli/index.ts`      | CLI entry point                                            |
-| Core     | NEW: `packages/core/cli/items.ts`      | Items subcommands                                          |
-| Core     | NEW: `packages/core/cli/orgs.ts`       | Orgs list/get subcommands                                  |
-| Core     | NEW: `packages/core/cli/projects.ts`   | Projects subcommands                                       |
-| Core     | NEW: `packages/core/cli/auth.ts`       | Auth commands (`login`, `status`)                         |
-| Core     | NEW: `packages/core/cli/proposals.ts`  | Proposal/apply workflow commands                           |
-| Core     | NEW: `packages/core/cli/output.ts`     | Stable `copilot.v1` JSON envelope + error mapping             |
-| Core     | `packages/core/serializers/`           | Extracted from `item-serializer.ts`                        |
-| Core     | `packages/core/client/`                | Extracted from `api-client.ts`                             |
-| Core     | NEW: `packages/core/validation/shacl/` | SHACL shape definitions (`.ttl`)                           |
-| Core     | NEW: `packages/core/validation/cel/`   | CEL rule definitions                                       |
-| Frontend | `frontend/src/lib/item-serializer.ts`  | Re-export from `@project/core`                             |
-| Frontend | `frontend/src/lib/api-client.ts`       | Re-export from `@project/core`                             |
+| Layer    | File                                   | Change                                                           |
+| -------- | -------------------------------------- | ---------------------------------------------------------------- |
+| Core     | NEW: `packages/core/package.json`      | Package setup, TypeScript config                                 |
+| Core     | NEW: `packages/core/cli/index.ts`      | CLI entry point                                                  |
+| Core     | NEW: `packages/core/cli/items.ts`      | Items subcommands                                                |
+| Core     | NEW: `packages/core/cli/orgs.ts`       | Orgs list/get subcommands                                        |
+| Core     | NEW: `packages/core/cli/projects.ts`   | Projects subcommands                                             |
+| Core     | NEW: `packages/core/cli/auth.ts`       | Auth commands (`login`, `status`)                                |
+| Core     | NEW: `packages/core/cli/proposals.ts`  | Proposal/apply workflow commands                                 |
+| Core     | NEW: `packages/core/cli/output.ts`     | Stable `copilot.v1` JSON envelope + error mapping                |
+| Core     | `packages/core/serializers/`           | Extracted from `item-serializer.ts`                              |
+| Core     | `packages/core/client/`                | Extracted from `api-client.ts`                                   |
+| Core     | NEW: `packages/core/validation/shacl/` | SHACL shape definitions (`.ttl`)                                 |
+| Core     | NEW: `packages/core/validation/cel/`   | CEL rule definitions                                             |
+| Frontend | `frontend/src/lib/item-serializer.ts`  | Re-export from `@project/core`                                   |
+| Frontend | `frontend/src/lib/api-client.ts`       | Re-export from `@project/core`                                   |
 | Agents   | `agents/tay.py`                        | Replace 3 tools with single `copilot_cli` tool (legacy filename) |
-| Agents   | `agents/tool_executor.py`              | Replace per-tool dispatch with TS CLI subprocess execution |
-| Agents   | `agents/jsonld_builders.py`            | Deprecated (replaced by core serializers)                  |
-| Agents   | `agents/backend_client.py`             | Deprecated (replaced by core client)                       |
-| Agents   | `agents/prompts/de/tay_system.j2`      | CLI command documentation                                  |
-| Monorepo | `package.json`                         | Workspace config for `packages/core`                       |
-| Monorepo | `tsconfig.json`                        | Project reference to `packages/core`                       |
+| Agents   | `agents/tool_executor.py`              | Replace per-tool dispatch with TS CLI subprocess execution       |
+| Agents   | `agents/jsonld_builders.py`            | Deprecated (replaced by core serializers)                        |
+| Agents   | `agents/backend_client.py`             | Deprecated (replaced by core client)                             |
+| Agents   | `agents/prompts/de/tay_system.j2`      | CLI command documentation                                        |
+| Monorepo | `package.json`                         | Workspace config for `packages/core`                             |
+| Monorepo | `tsconfig.json`                        | Project reference to `packages/core`                             |
 
 ---
 

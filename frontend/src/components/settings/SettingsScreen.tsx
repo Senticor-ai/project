@@ -73,6 +73,8 @@ export interface SettingsScreenProps {
   onAgentRestartContainer?: () => void;
   agentSaving?: boolean;
   isContainerActionPending?: boolean;
+  canInstall?: boolean;
+  onInstall?: () => void;
   className?: string;
 }
 
@@ -107,6 +109,8 @@ export function SettingsScreen({
   onAgentRestartContainer,
   agentSaving,
   isContainerActionPending,
+  canInstall,
+  onInstall,
   className,
 }: SettingsScreenProps) {
   const [internalTab, setInternalTab] = useState<SettingsTab>(initialTab);
@@ -208,7 +212,13 @@ export function SettingsScreen({
               isContainerActionPending={isContainerActionPending}
             />
           )}
-          {activeTab === "developer" && <DeveloperPanel onFlush={onFlush} />}
+          {activeTab === "developer" && (
+            <DeveloperPanel
+              onFlush={onFlush}
+              canInstall={canInstall}
+              onInstall={onInstall}
+            />
+          )}
         </div>
       </main>
     </div>

@@ -1,7 +1,37 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { createElement, type ReactNode } from "react";
 import { SettingsScreen } from "./SettingsScreen";
+
+vi.mock("@/hooks/use-pwa-storage-stats", () => ({
+  usePwaStorageStats: vi.fn(() => ({
+    originUsage: null,
+    originQuota: null,
+    cachedQueryCount: null,
+    queryCacheSize: null,
+    cacheNames: [],
+    serviceWorkerActive: false,
+    loading: true,
+    refresh: vi.fn(),
+  })),
+}));
+
+vi.mock("@/lib/offline-storage", () => ({
+  clearAllLocalCaches: vi.fn().mockResolvedValue({
+    queriesCleared: 0,
+    cachesCleared: [],
+  }),
+}));
+
+function createWrapper() {
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return ({ children }: { children: ReactNode }) =>
+    createElement(QueryClientProvider, { client: qc }, children);
+}
 
 describe("SettingsScreen", () => {
   it("renders with Import / Export tab active by default", () => {
@@ -62,7 +92,7 @@ describe("SettingsScreen", () => {
 
   it("switches to Developer tab when clicked", async () => {
     const user = userEvent.setup();
-    render(<SettingsScreen />);
+    render(<SettingsScreen />, { wrapper: createWrapper() });
     await user.click(screen.getByText("Developer"));
 
     const devTab = screen.getByText("Developer").closest("button")!;
@@ -72,7 +102,9 @@ describe("SettingsScreen", () => {
   it("works in controlled mode with activeTab and onTabChange", async () => {
     const onTabChange = vi.fn();
     const user = userEvent.setup();
-    render(<SettingsScreen activeTab="labels" onTabChange={onTabChange} />);
+    render(<SettingsScreen activeTab="labels" onTabChange={onTabChange} />, {
+      wrapper: createWrapper(),
+    });
 
     expect(screen.getByText("Context Labels")).toBeInTheDocument();
 

@@ -1,0 +1,105 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Design/Copilot UX" />
+
+# Copilot UX
+
+Design specification for the Copilot chat experience. For the suggestion card pattern, see
+[Detachable Attachments](?path=/docs/design-detachable-attachments--docs). For engineering details,
+see [Agents Service](?path=/docs/engineering-agents-service--docs).
+
+---
+
+## Personality & Constraints
+
+| Attribute         | Value                                                            |
+| ----------------- | ---------------------------------------------------------------- |
+| Avatar            | `chat_bubble` Material Symbol                                    |
+| Primary language  | German (matching UI language policy)                             |
+| Tone              | Helpful, concise, respectful of user authority                   |
+| Interaction model | Suggestions as detachable attachments — never auto-applied       |
+| Provenance        | Items created via Copilot carry `CaptureSource: { kind: "tay" }` |
+
+Copilot implements Paperclip principle #5: _AI is a contributor, not an authority_. It suggests,
+the user decides. No data is committed until the user clicks Accept.
+
+---
+
+## Chat Side Panel
+
+The chat lives in a **right side panel** — the first implementation of the
+[Sheet / Side Panel](?path=/docs/design-paperclip-principles--docs) widget.
+
+| Viewport | Behavior                                                         |
+| -------- | ---------------------------------------------------------------- |
+| Desktop  | ~400px panel slides in from the right edge, overlaying workspace |
+| Mobile   | Full-screen overlay with back button                             |
+
+**Toggle:** `chat_bubble` icon button in `AppHeader`, between the logo and the hamburger menu.
+
+**State:** `isChatOpen: boolean` in `AuthenticatedApp`. No routing changes — chat is ephemeral UI state.
+
+**Conversation list:** History toggle button in the panel header opens `ConversationList` — resume, archive, or start a new conversation.
+
+---
+
+## Message Types
+
+| Type                     | Alignment | Visual                                        |
+| ------------------------ | --------- | --------------------------------------------- |
+| **User text**            | Right     | Solid paper-100 bubble                        |
+| **Copilot text**         | Left      | `chat_bubble` avatar + paper surface          |
+| **Copilot thinking**     | Left      | Animated dots with avatar                     |
+| **Copilot suggestion**   | Left      | ObjectCard-style with Accept / Dismiss / Edit |
+| **Copilot confirmation** | Left      | Success badge + clickable item chips          |
+| **Copilot error**        | Left      | Error styling                                 |
+
+During streaming, Copilot text messages render incrementally with an `isStreaming` flag — partial
+tokens appear as they arrive. The thinking indicator shows while waiting for the first token.
+
+---
+
+## Copilot Capabilities
+
+| Capability                    | Description                                       |
+| ----------------------------- | ------------------------------------------------- |
+| Free-form text chat           | Conversational dialogue in German                 |
+| Create a project with actions | Suggest project name, outcome, actions, documents |
+| Create a single action        | Suggest action for any bucket                     |
+| Create a reference            | Suggest reference material (document, URL, note)  |
+| Read workspace overview       | See projects and item counts per bucket           |
+| Read item content             | Fetch item data + extracted file text             |
+| List project items            | List all items in a specific project              |
+
+---
+
+## Example Scenario
+
+```
+User: "Ich hab bald Geburtstag und muss einiges organisieren"
+
+Copilot: "Klingt nach einem Projekt! Hier ist ein Vorschlag:"
+
+┌──────────────────────────────────────────────┐
+│ ✦ Projekt: Geburtstagsfeier planen           │
+│   Ergebnis: Erfolgreiche Geburtstagsfeier    │
+│                                              │
+│   Aktionen:                                  │
+│   ☐ Gästeliste erstellen                     │
+│   ☐ Einladungen versenden                    │
+│   ☐ Location buchen                          │
+│   ☐ Essen & Getränke organisieren            │
+│   ☐ Dekoration besorgen                      │
+│                                              │
+│   Dokument:                                  │
+│   📄 Einladungsvorlage                       │
+│                                              │
+│   [✓ Übernehmen]  [✗ Verwerfen]  [✎ Ändern] │
+└──────────────────────────────────────────────┘
+
+User clicks [Übernehmen]:
+
+Copilot: "Projekt 'Geburtstagsfeier planen' erstellt mit
+      5 Aktionen und 1 Dokument."
+      [📋 Geburtstagsfeier planen →]
+```

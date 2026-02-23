@@ -201,6 +201,101 @@ Each builder produces JSON-LD matching the frontend's `item-serializer.ts` forma
 
 ---
 
+## Read Tools (User Context)
+
+Copilot can see the user's workspace via read tools that call the backend API using a delegated JWT:
+
+| Tool                      | Description                           | Backend endpoint           |
+| ------------------------- | ------------------------------------- | -------------------------- |
+| `list_workspace_overview` | Projects and item counts per bucket   | `GET /items/overview`      |
+| `read_item_content`       | Fetch item data + extracted file text | `GET /items/:id`           |
+| `list_project_items`      | List all items in a specific project  | `GET /items?projectId=:id` |
+
+**Privacy boundary**: All read calls use a delegated JWT scoped to the current user's organization.
+The agent cannot see items from other orgs.
+
+---
+
+## Conversation Management
+
+Conversations are persisted in PostgreSQL so users can resume or review past chats.
+
+### Database Schema
+
+**`conversations` table:**
+
+| Column          | Type        | Description                                  |
+| --------------- | ----------- | -------------------------------------------- |
+| `id`            | `int`       | Primary key                                  |
+| `org_id`        | `uuid`      | Organization context                         |
+| `user_id`       | `uuid`      | Owner                                        |
+| `external_id`   | `uuid`      | Client-facing ID (used in API and frontend)  |
+| `agent_backend` | `text`      | `'haystack'` or `'openclaw'` (isolation key) |
+| `title`         | `text`      | Conversation title (nullable)                |
+| `created_at`    | `timestamp` | Creation time                                |
+| `updated_at`    | `timestamp` | Last message time                            |
+| `archived_at`   | `timestamp` | Soft-delete timestamp (no-delete policy)     |
+
+**`chat_messages` table:**
+
+| Column            | Type        | Description                            |
+| ----------------- | ----------- | -------------------------------------- |
+| `id`              | `int`       | Primary key                            |
+| `conversation_id` | `int`       | FK to `conversations`                  |
+| `role`            | `text`      | `'user'`, `'assistant'`, or `'system'` |
+| `content`         | `text`      | Message text                           |
+| `tool_calls`      | `jsonb`     | Tool call payloads (nullable)          |
+| `created_at`      | `timestamp` | Message time                           |
+
+### API Endpoints
+
+| Method  | Path                               | Description                          |
+| ------- | ---------------------------------- | ------------------------------------ |
+| `GET`   | `/chat/conversations`              | List active conversations for user   |
+| `GET`   | `/chat/conversations/:id/messages` | Get messages for a conversation      |
+| `PATCH` | `/chat/conversations/:id/archive`  | Soft-delete (archive) a conversation |
+
+### Multi-turn Context
+
+Each completion request includes the last 50 messages from the active conversation
+(`get_conversation_messages`). The frontend sends a `conversationId` per session;
+the backend uses `get_or_create_conversation` to persist the conversation record.
+
+### Frontend
+
+- `conversationId` tracked per session in `useChatState`
+- `ConversationList` component: list, resume, archive, and start new conversations
+- History toggle button in `TayChatPanel` header
+
+---
+
+## Streaming Protocol (NDJSON)
+
+Tokens stream as they arrive for a responsive feel. The backend proxies NDJSON from the agents
+service to the frontend.
+
+### Event Types
+
+Each line is a JSON object with a `type` field:
+
+| Event Type      | Payload                     | Description                        |
+| --------------- | --------------------------- | ---------------------------------- |
+| `text_delta`    | `{ text: string }`          | Incremental assistant content      |
+| `tool_calls`    | `{ toolCalls: ToolCall[] }` | Tool call suggestions from the LLM |
+| `auto_executed` | `{ toolName, result }`      | Read tool executed automatically   |
+| `done`          | `{}`                        | Stream complete, finalize message  |
+
+### Frontend Parsing
+
+`readNdjsonStream` in `useTayApi` reads the `ReadableStream`, splits on newlines,
+and dispatches events to `useChatState`. `TayMessageBubble` renders incrementally
+via `isStreaming` flag — partial tokens appear as they arrive.
+
+Tool call JSON is assembled from partial events and only executed after valid completion
+(the `done` event).
+
+---
+
 ## Backend Proxy (`backend/app/chat/routes.py`)
 
 The backend proxies all chat requests to the agents service. Both endpoints require

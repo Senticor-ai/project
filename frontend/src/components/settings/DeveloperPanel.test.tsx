@@ -4,6 +4,30 @@ import { describe, expect, it, vi } from "vitest";
 import { DeveloperPanel } from "./DeveloperPanel";
 import type { PwaStorageStats } from "./DeveloperPanel";
 
+vi.mock("@tanstack/react-query", () => ({
+  useQueryClient: vi.fn(() => ({ clear: vi.fn() })),
+}));
+
+vi.mock("@/hooks/use-pwa-storage-stats", () => ({
+  usePwaStorageStats: vi.fn(() => ({
+    originUsage: null,
+    originQuota: null,
+    cachedQueryCount: null,
+    queryCacheSize: null,
+    cacheNames: [],
+    serviceWorkerActive: false,
+    loading: true,
+    refresh: vi.fn(),
+  })),
+}));
+
+vi.mock("@/lib/offline-storage", () => ({
+  clearAllLocalCaches: vi.fn().mockResolvedValue({
+    queriesCleared: 0,
+    cachesCleared: [],
+  }),
+}));
+
 const LOADED_STATS: PwaStorageStats = {
   originUsage: 4_500_000,
   originQuota: 2_147_483_648,
@@ -103,6 +127,47 @@ describe("DeveloperPanel", () => {
     expect(
       screen.queryByLabelText(/type flush to confirm/i),
     ).not.toBeInTheDocument();
+  });
+
+  it("Done button after flush resets to idle", async () => {
+    const user = userEvent.setup();
+    const onFlush = vi.fn().mockResolvedValue({
+      ok: true,
+      deleted: { items: 1 },
+    });
+    render(<DeveloperPanel onFlush={onFlush} />);
+
+    await user.click(screen.getByRole("button", { name: /flush all data/i }));
+    await user.type(screen.getByLabelText(/type flush to confirm/i), "FLUSH");
+    await user.click(screen.getByRole("button", { name: /confirm flush/i }));
+
+    expect(await screen.findByText(/items: 1/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /done/i }));
+
+    // Back to idle — flush button should be visible again
+    expect(
+      screen.getByRole("button", { name: /flush all data/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("Try again button after flush error resets to idle", async () => {
+    const user = userEvent.setup();
+    const onFlush = vi.fn().mockRejectedValue(new Error("Network error"));
+    render(<DeveloperPanel onFlush={onFlush} />);
+
+    await user.click(screen.getByRole("button", { name: /flush all data/i }));
+    await user.type(screen.getByLabelText(/type flush to confirm/i), "FLUSH");
+    await user.click(screen.getByRole("button", { name: /confirm flush/i }));
+
+    expect(await screen.findByText(/network error/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /try again/i }));
+
+    // Back to idle — flush button should be visible again
+    expect(
+      screen.getByRole("button", { name: /flush all data/i }),
+    ).toBeInTheDocument();
   });
 });
 
@@ -217,5 +282,85 @@ describe("DeveloperPanel — Local Storage", () => {
     await user.click(screen.getByRole("button", { name: /cancel/i }));
 
     expect(screen.queryByText(/are you sure/i)).not.toBeInTheDocument();
+  });
+
+  it("Done button after clear success resets to idle", async () => {
+    const user = userEvent.setup();
+    const onClear = vi.fn().mockResolvedValue(undefined);
+    render(
+      <DeveloperPanel
+        storageStats={LOADED_STATS}
+        onClearLocalCache={onClear}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: /clear local cache/i }),
+    );
+    await user.click(screen.getByRole("button", { name: /confirm/i }));
+
+    expect(await screen.findByText(/cleared/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /done/i }));
+
+    // Back to idle — clear button should be visible again
+    expect(
+      screen.getByRole("button", { name: /clear local cache/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("Try again button after clear error resets to idle", async () => {
+    const user = userEvent.setup();
+    const onClear = vi.fn().mockRejectedValue(new Error("Clear failed"));
+    render(
+      <DeveloperPanel
+        storageStats={LOADED_STATS}
+        onClearLocalCache={onClear}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: /clear local cache/i }),
+    );
+    await user.click(screen.getByRole("button", { name: /confirm/i }));
+
+    expect(await screen.findByText(/clear failed/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /try again/i }));
+
+    // Back to idle — clear button should be visible again
+    expect(
+      screen.getByRole("button", { name: /clear local cache/i }),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("DeveloperPanel — PWA Install", () => {
+  it("shows Install App button when canInstall is true", () => {
+    render(<DeveloperPanel canInstall onInstall={vi.fn()} />);
+
+    expect(screen.getByText("PWA Install")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /install app/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("fires onInstall when Install App button is clicked", async () => {
+    const user = userEvent.setup();
+    const onInstall = vi.fn();
+    render(<DeveloperPanel canInstall onInstall={onInstall} />);
+
+    await user.click(screen.getByRole("button", { name: /install app/i }));
+    expect(onInstall).toHaveBeenCalledOnce();
+  });
+
+  it("shows already-installed message when canInstall is false", () => {
+    render(<DeveloperPanel canInstall={false} />);
+
+    expect(screen.getByText("PWA Install")).toBeInTheDocument();
+    expect(screen.getByText(/already installed/i)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /install app/i }),
+    ).not.toBeInTheDocument();
   });
 });

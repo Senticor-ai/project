@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, waitFor } from "@testing-library/react";
+import { renderHook, waitFor, act } from "@testing-library/react";
 
 vi.mock("idb-keyval", () => ({
   get: vi.fn(),
@@ -128,6 +128,51 @@ describe("usePwaStorageStats", () => {
     });
 
     expect(result.current.cachedQueryCount).toBe(50);
+  });
+
+  it("refresh() re-reads stats and sets loading while doing so", async () => {
+    Object.defineProperty(navigator, "storage", {
+      value: undefined,
+      configurable: true,
+    });
+    Object.defineProperty(globalThis, "caches", {
+      value: undefined,
+      configurable: true,
+    });
+    Object.defineProperty(navigator, "serviceWorker", {
+      value: undefined,
+      configurable: true,
+    });
+    mocked.get.mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => usePwaStorageStats());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    // After initial load, cachedQueryCount is null
+    expect(result.current.cachedQueryCount).toBeNull();
+
+    // Set up new mock data for refresh
+    mocked.get.mockResolvedValue({
+      clientState: {
+        queries: [{ queryKey: ["refreshed"] }],
+        mutations: [],
+      },
+    });
+
+    // Call refresh inside act to flush state updates
+    act(() => {
+      result.current.refresh();
+    });
+
+    // Wait for refresh to complete with new data
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(result.current.cachedQueryCount).toBe(1);
   });
 
   it("handles IDB read failure gracefully", async () => {

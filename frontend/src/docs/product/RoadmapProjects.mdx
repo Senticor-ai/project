@@ -6,7 +6,29 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 Delivery-oriented roadmap items that are not part of active epics.
 
-## Current projects
+## Copilot V3
+
+Deferred from [Copilot V2+](?path=/docs/product-epics-copilot-v2--docs) (closed).
+
+| Project             | Problem solved                                                                    | Scope                                                              | Status  | Depends on          |
+| ------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ------- | ------------------- |
+| Context Budget      | No token counting or summarization — long conversations may exceed context window | Token counting per message, summarization of older turns           | Planned | None                |
+| RAG / Embeddings    | Large workspaces can't fit in prompt context; need semantic retrieval             | Vector store (Qdrant), embedding pipeline, retrieval in agent loop | Planned | None                |
+| Conversation Titles | Conversations have no auto-generated titles, harder to find in history            | Auto-summarize first message as title, editable by user            | Planned | None                |
+| Conversation Search | No way to search across past conversations                                        | Full-text search over conversation content                         | Planned | Conversation Titles |
+
+### Near-term sequence
+
+1. Context Budget
+2. RAG / Embeddings
+3. Conversation Titles
+4. Conversation Search
+
+---
+
+## Release & Deployment
+
+Seeded from [Epic: Release Process](?path=/docs/product-epics-release-process--docs) (closed).
 
 | Project                | Problem solved                                                             | Scope                                                        | Status  | Depends on     |
 | ---------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------ | ------- | -------------- |
@@ -16,7 +38,7 @@ Delivery-oriented roadmap items that are not part of active epics.
 | Supply-Chain Hardening | No SBOM/signature assets for release images                                | SBOM generation + image signing process                      | Planned | Named Releases |
 | Change Governance      | Changelog and commit hygiene are ad-hoc                                    | Changelog automation, commit policy, rollback runbook        | Planned | Named Releases |
 
-## Near-term sequence
+### Near-term sequence
 
 1. Named Releases
 2. Release Evidence
@@ -24,9 +46,14 @@ Delivery-oriented roadmap items that are not part of active epics.
 4. Supply-Chain Hardening
 5. Change Governance
 
+---
+
 ## Source of truth
 
 - Current deployment baseline:
   [Engineering / Deployment](?path=/docs/engineering-deployment--docs)
-- Closed epic that seeded this roadmap:
+- Closed epic that seeded release projects:
   [Epic: Release Process](?path=/docs/product-epics-release-process--docs)
+- Closed epics that seeded Copilot V3 projects:
+  [Epic: Copilot V1](?path=/docs/product-epics-copilot-v1--docs),
+  [Epic: Copilot V2+](?path=/docs/product-epics-copilot-v2--docs)

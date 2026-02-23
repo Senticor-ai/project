@@ -1,7 +1,10 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { formatBytes } from "@/lib/format";
 import { Icon } from "@/components/ui/Icon";
+import { usePwaStorageStats } from "@/hooks/use-pwa-storage-stats";
+import { clearAllLocalCaches } from "@/lib/offline-storage";
 import type { FlushResponse } from "@/lib/api-client";
 
 export interface PwaStorageStats {
@@ -18,6 +21,8 @@ export interface DeveloperPanelProps {
   onFlush?: () => Promise<FlushResponse>;
   storageStats?: PwaStorageStats;
   onClearLocalCache?: () => Promise<void>;
+  canInstall?: boolean;
+  onInstall?: () => void;
   className?: string;
 }
 
@@ -48,10 +53,24 @@ function StatRow({ label, value }: { label: string; value: string | null }) {
 
 export function DeveloperPanel({
   onFlush,
-  storageStats,
-  onClearLocalCache,
+  storageStats: storageStatsProp,
+  onClearLocalCache: onClearLocalCacheProp,
+  canInstall,
+  onInstall,
   className,
 }: DeveloperPanelProps) {
+  const hookStats = usePwaStorageStats();
+  const queryClient = useQueryClient();
+
+  const storageStats = storageStatsProp ?? hookStats;
+
+  const defaultClearCache = useCallback(async () => {
+    await clearAllLocalCaches(queryClient);
+    hookStats.refresh();
+  }, [queryClient, hookStats]);
+
+  const onClearLocalCache = onClearLocalCacheProp ?? defaultClearCache;
+
   const [flushState, setFlushState] = useState<FlushState>({ step: "idle" });
   const [confirmText, setConfirmText] = useState("");
   const [clearState, setClearState] = useState<ClearState>({ step: "idle" });
@@ -86,6 +105,51 @@ export function DeveloperPanel({
 
   return (
     <div className={cn("space-y-6", className)}>
+      {/* PWA Install section */}
+      {canInstall !== undefined && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-medium text-text-primary">
+            <span className="flex items-center gap-1">
+              <Icon
+                name="install_mobile"
+                size={14}
+                className="text-status-info"
+              />
+              PWA Install
+            </span>
+          </h2>
+          {canInstall && onInstall ? (
+            <div className="rounded-[var(--radius-lg)] border border-border p-4">
+              <div className="flex items-start gap-3">
+                <Icon
+                  name="smartphone"
+                  size={24}
+                  className="text-text-subtle"
+                />
+                <div className="flex-1 space-y-2">
+                  <p className="text-xs text-text-subtle">
+                    Install this app to your device for quick access and offline
+                    support.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={onInstall}
+                    className="rounded-[var(--radius-md)] bg-blueprint-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blueprint-700"
+                  >
+                    Install App
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs text-text-subtle">
+              App is already installed or install is not available in this
+              browser.
+            </p>
+          )}
+        </section>
+      )}
+
       {/* Local Storage section */}
       <section className="space-y-3">
         <h2 className="text-sm font-medium text-text-primary">
@@ -99,136 +163,132 @@ export function DeveloperPanel({
           data from the server.
         </p>
 
-        {storageStats && (
-          <div className="divide-y divide-border rounded-[var(--radius-lg)] border border-border px-3">
-            <StatRow
-              label="Origin storage"
-              value={
-                storageStats.loading || storageStats.originUsage == null
-                  ? null
-                  : storageStats.originQuota != null
-                    ? `${formatBytes(storageStats.originUsage)} / ${formatBytes(storageStats.originQuota)}`
-                    : formatBytes(storageStats.originUsage)
-              }
-            />
-            <StatRow
-              label="Query cache"
-              value={
-                storageStats.loading || storageStats.cachedQueryCount == null
-                  ? null
-                  : storageStats.queryCacheSize != null
-                    ? `${storageStats.cachedQueryCount} queries (${formatBytes(storageStats.queryCacheSize)})`
-                    : `${storageStats.cachedQueryCount} queries`
-              }
-            />
-            <StatRow
-              label="Service worker"
-              value={
-                storageStats.loading
-                  ? null
-                  : storageStats.serviceWorkerActive
-                    ? "Active"
-                    : "Not registered"
-              }
-            />
-            <StatRow
-              label="Runtime caches"
-              value={
-                storageStats.loading
-                  ? null
-                  : storageStats.cacheNames.length > 0
-                    ? storageStats.cacheNames.join(", ")
-                    : "None"
-              }
-            />
-          </div>
-        )}
+        <div className="divide-y divide-border rounded-[var(--radius-lg)] border border-border px-3">
+          <StatRow
+            label="Origin storage"
+            value={
+              storageStats.loading || storageStats.originUsage == null
+                ? null
+                : storageStats.originQuota != null
+                  ? `${formatBytes(storageStats.originUsage)} / ${formatBytes(storageStats.originQuota)}`
+                  : formatBytes(storageStats.originUsage)
+            }
+          />
+          <StatRow
+            label="Query cache"
+            value={
+              storageStats.loading || storageStats.cachedQueryCount == null
+                ? null
+                : storageStats.queryCacheSize != null
+                  ? `${storageStats.cachedQueryCount} queries (${formatBytes(storageStats.queryCacheSize)})`
+                  : `${storageStats.cachedQueryCount} queries`
+            }
+          />
+          <StatRow
+            label="Service worker"
+            value={
+              storageStats.loading
+                ? null
+                : storageStats.serviceWorkerActive
+                  ? "Active"
+                  : "Not registered"
+            }
+          />
+          <StatRow
+            label="Runtime caches"
+            value={
+              storageStats.loading
+                ? null
+                : storageStats.cacheNames.length > 0
+                  ? storageStats.cacheNames.join(", ")
+                  : "None"
+            }
+          />
+        </div>
 
-        {onClearLocalCache && (
-          <div className="rounded-[var(--radius-lg)] border-2 border-dashed border-border/40 p-4">
-            <div className="flex items-start gap-3">
-              <Icon name="cached" size={24} className="text-text-subtle" />
-              <div className="flex-1 space-y-2">
-                <span className="text-sm font-medium text-text-primary">
+        <div className="rounded-[var(--radius-lg)] border-2 border-dashed border-border/40 p-4">
+          <div className="flex items-start gap-3">
+            <Icon name="cached" size={24} className="text-text-subtle" />
+            <div className="flex-1 space-y-2">
+              <span className="text-sm font-medium text-text-primary">
+                Clear Local Cache
+              </span>
+              <p className="text-xs text-text-subtle">
+                Removes the offline query cache, runtime caches, and resets
+                in-memory state. Your server data is not affected.
+              </p>
+
+              {clearState.step === "idle" && (
+                <button
+                  type="button"
+                  onClick={() => setClearState({ step: "confirming" })}
+                  className="rounded-[var(--radius-md)] border border-border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-paper-100"
+                >
                   Clear Local Cache
-                </span>
-                <p className="text-xs text-text-subtle">
-                  Removes the offline query cache, runtime caches, and resets
-                  in-memory state. Your server data is not affected.
-                </p>
+                </button>
+              )}
 
-                {clearState.step === "idle" && (
+              {clearState.step === "confirming" && (
+                <div className="space-y-2">
+                  <p className="text-xs text-text-subtle">
+                    Are you sure? The app will re-fetch all data from the
+                    server.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={handleClear}
+                      className="rounded-[var(--radius-md)] bg-text-primary px-3 py-1.5 text-xs font-medium text-white transition-colors hover:opacity-90"
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setClearState({ step: "idle" })}
+                      className="rounded-[var(--radius-md)] border border-border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-paper-100"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {clearState.step === "clearing" && (
+                <p className="text-xs text-text-subtle">Clearing cache...</p>
+              )}
+
+              {clearState.step === "done" && (
+                <div className="space-y-1 rounded-[var(--radius-md)] bg-status-success/10 p-3">
+                  <p className="text-xs font-medium text-status-success">
+                    Local cache cleared successfully.
+                  </p>
                   <button
                     type="button"
-                    onClick={() => setClearState({ step: "confirming" })}
-                    className="rounded-[var(--radius-md)] border border-border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-paper-100"
+                    onClick={() => setClearState({ step: "idle" })}
+                    className="mt-2 rounded-[var(--radius-md)] border border-border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-paper-100"
                   >
-                    Clear Local Cache
+                    Done
                   </button>
-                )}
+                </div>
+              )}
 
-                {clearState.step === "confirming" && (
-                  <div className="space-y-2">
-                    <p className="text-xs text-text-subtle">
-                      Are you sure? The app will re-fetch all data from the
-                      server.
-                    </p>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={handleClear}
-                        className="rounded-[var(--radius-md)] bg-text-primary px-3 py-1.5 text-xs font-medium text-white transition-colors hover:opacity-90"
-                      >
-                        Confirm
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setClearState({ step: "idle" })}
-                        className="rounded-[var(--radius-md)] border border-border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-paper-100"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {clearState.step === "clearing" && (
-                  <p className="text-xs text-text-subtle">Clearing cache...</p>
-                )}
-
-                {clearState.step === "done" && (
-                  <div className="space-y-1 rounded-[var(--radius-md)] bg-status-success/10 p-3">
-                    <p className="text-xs font-medium text-status-success">
-                      Local cache cleared successfully.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => setClearState({ step: "idle" })}
-                      className="mt-2 rounded-[var(--radius-md)] border border-border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-paper-100"
-                    >
-                      Done
-                    </button>
-                  </div>
-                )}
-
-                {clearState.step === "error" && (
-                  <div className="space-y-1 rounded-[var(--radius-md)] bg-status-error/10 p-3">
-                    <p className="text-xs font-medium text-status-error">
-                      {clearState.message}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => setClearState({ step: "idle" })}
-                      className="mt-2 rounded-[var(--radius-md)] border border-border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-paper-100"
-                    >
-                      Try again
-                    </button>
-                  </div>
-                )}
-              </div>
+              {clearState.step === "error" && (
+                <div className="space-y-1 rounded-[var(--radius-md)] bg-status-error/10 p-3">
+                  <p className="text-xs font-medium text-status-error">
+                    {clearState.message}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setClearState({ step: "idle" })}
+                    className="mt-2 rounded-[var(--radius-md)] border border-border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-paper-100"
+                  >
+                    Try again
+                  </button>
+                </div>
+              )}
             </div>
           </div>
-        )}
+        </div>
       </section>
 
       {/* Danger Zone section */}
