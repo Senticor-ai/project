@@ -43,8 +43,10 @@ class CreatedItemRef:
 
 async def _create_item(jsonld: dict, auth: AuthContext) -> dict:
     """POST /items using the backend's own URL (self-call via HTTP)."""
-    # Use localhost since we're inside the same backend process/container
-    base_url = "http://localhost:8000"
+    import os
+
+    port = os.getenv("PORT", "8000")
+    base_url = f"http://localhost:{port}"
 
     headers: dict[str, str] = {
         "Authorization": f"Bearer {auth.token}",

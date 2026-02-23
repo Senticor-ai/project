@@ -654,12 +654,10 @@ export const ItemsApi = {
     source?: string,
     idempotencyKey?: string,
     nameSource?: string,
-    ifMatchEtag?: string,
   ) => {
     const headers: Record<string, string> = {};
     if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
-    if (ifMatchEtag) headers["If-Match"] = ifMatchEtag;
-    return requestWithResponse<ItemRecord>(`/items/${itemId}`, {
+    return request<ItemRecord>(`/items/${itemId}`, {
       method: "PATCH",
       body: JSON.stringify({
         item,

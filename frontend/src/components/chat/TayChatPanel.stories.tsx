@@ -231,7 +231,7 @@ export const MinimizeAction: Story = {
 
     await step("Click minimize button", async () => {
       await userEvent.click(
-        canvas.getByRole("button", { name: "Chat minimieren" }),
+        canvas.getByRole("button", { name: "Chat schließen" }),
       );
       expect(args.onClose).toHaveBeenCalled();
     });

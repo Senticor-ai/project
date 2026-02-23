@@ -30,6 +30,8 @@ from .queries import (
     save_message,
 )
 from .sse_translator import SseToNdjsonTranslator
+from .tool_executor import AuthContext as ToolAuthContext
+from .tool_executor import execute_tool as local_execute_tool
 
 logger = logging.getLogger(__name__)
 
@@ -368,23 +370,52 @@ def chat_completions(
 
 
 @router.post("/execute-tool", response_model=ExecuteToolResponse)
-def execute_tool_endpoint(
+async def execute_tool_endpoint(
     req: ExecuteToolRequest,
     current_user: dict = Depends(get_current_user),  # noqa: B008
     current_org: dict = Depends(get_current_org),  # noqa: B008
 ):
-    """Forward approved tool call to agents service for execution.
+    """Execute an approved tool call.
 
-    Used by the Haystack path (approval flow). OpenClaw uses native skills
-    (exec + curl) and does not need this endpoint.
+    Semantic tool names (create_project_with_actions, create_action,
+    create_reference) are handled locally using the backend's own item
+    creation API.  The low-level ``copilot_cli`` tool is forwarded to the
+    agents service for CLI execution.
     """
     user_id = str(current_user["id"])
     org_id = current_org["org_id"]
 
+    delegated_token = create_delegated_token(user_id=user_id, org_id=org_id)
+
+    # Semantic tool names are handled locally — no agents service needed
+    tool_name = req.toolCall.name
+    if tool_name in ("create_project_with_actions", "create_action", "create_reference"):
+        auth_ctx = ToolAuthContext(token=delegated_token, org_id=org_id)
+        try:
+            created = await local_execute_tool(
+                tool_name=tool_name,
+                arguments=req.toolCall.arguments,
+                conversation_id=req.conversationId,
+                auth=auth_ctx,
+            )
+        except Exception as exc:
+            logger.exception("Tool execution error")
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+        return ExecuteToolResponse(
+            createdItems=[
+                CreatedItemRefResponse(
+                    canonicalId=ref.canonical_id,
+                    name=ref.name,
+                    type=ref.item_type,
+                )
+                for ref in created
+            ]
+        )
+
+    # Low-level copilot_cli: forward to agents service
     if not settings.agents_url:
         raise HTTPException(status_code=503, detail="Agents service not available")
-
-    delegated_token = create_delegated_token(user_id=user_id, org_id=org_id)
 
     try:
         resp = httpx.post(

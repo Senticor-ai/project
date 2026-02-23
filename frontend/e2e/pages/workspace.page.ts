@@ -23,7 +23,21 @@ export class WorkspacePage {
   // ----- Navigation -----
 
   async navigateTo(bucket: string) {
-    await this.bucketNav.getByRole("button", { name: bucket }).click();
+    // Desktop (>=768px): sidebar BucketNav is visible (md:block)
+    // Mobile (<768px): sidebar is hidden, navigate via AppMenu
+    const viewport = this.page.viewportSize();
+    const isMobile = (viewport?.width ?? 1280) < 768;
+
+    if (isMobile) {
+      await this.menuTrigger.click();
+      await this.page
+        .getByRole("menuitem", { name: new RegExp(bucket) })
+        .click();
+    } else {
+      await this.bucketNav
+        .getByRole("button", { name: bucket })
+        .click();
+    }
   }
 
   activeBucket(): Locator {

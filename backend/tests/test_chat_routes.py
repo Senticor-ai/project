@@ -255,7 +255,17 @@ class TestChatCompletions:
 # Execute tool proxy
 # ---------------------------------------------------------------------------
 
-_EXECUTE_REQUEST = {
+# Request with copilot_cli tool (forwarded to agents service)
+_CLI_EXECUTE_REQUEST = {
+    "toolCall": {
+        "name": "copilot_cli",
+        "arguments": {"argv": ["items", "create", "--type", "Action", "--name", "Einkaufen"]},
+    },
+    "conversationId": "conv-42",
+}
+
+# Request with semantic tool name (handled locally by backend)
+_SEMANTIC_EXECUTE_REQUEST = {
     "toolCall": {"name": "create_action", "arguments": {"name": "Einkaufen", "bucket": "next"}},
     "conversationId": "conv-42",
 }
@@ -265,15 +275,15 @@ _DUMMY_EXECUTE_REQUEST = httpx.Request("POST", "http://localhost:8002/execute-to
 
 class TestExecuteTool:
     def test_returns_401_without_auth(self, client):
-        response = client.post("/chat/execute-tool", json=_EXECUTE_REQUEST)
+        response = client.post("/chat/execute-tool", json=_CLI_EXECUTE_REQUEST)
         assert response.status_code == 401
 
-    def test_returns_503_when_agents_not_configured(self, auth_client, monkeypatch):
+    def test_returns_503_when_agents_not_configured_for_cli_tools(self, auth_client, monkeypatch):
         _patch_settings(monkeypatch, agents_url=None)
-        response = auth_client.post("/chat/execute-tool", json=_EXECUTE_REQUEST)
+        response = auth_client.post("/chat/execute-tool", json=_CLI_EXECUTE_REQUEST)
         assert response.status_code == 503
 
-    def test_proxies_response(self, auth_client, monkeypatch):
+    def test_proxies_cli_tool_to_agents(self, auth_client, monkeypatch):
         _patch_settings(monkeypatch, agents_url="http://localhost:8002")
 
         mock_response = httpx.Response(
@@ -287,13 +297,13 @@ class TestExecuteTool:
         )
         monkeypatch.setattr("app.chat.routes.httpx.post", lambda *a, **kw: mock_response)
 
-        response = auth_client.post("/chat/execute-tool", json=_EXECUTE_REQUEST)
+        response = auth_client.post("/chat/execute-tool", json=_CLI_EXECUTE_REQUEST)
         assert response.status_code == 200
         body = response.json()
         assert len(body["createdItems"]) == 1
         assert body["createdItems"][0]["canonicalId"] == "urn:app:action:a1"
 
-    def test_forwards_auth_context(self, auth_client, monkeypatch):
+    def test_forwards_auth_context_for_cli_tool(self, auth_client, monkeypatch):
         _patch_settings(monkeypatch, agents_url="http://localhost:8002")
 
         captured_kwargs: dict = {}
@@ -308,7 +318,7 @@ class TestExecuteTool:
 
         monkeypatch.setattr("app.chat.routes.httpx.post", capture_post)
 
-        auth_client.post("/chat/execute-tool", json=_EXECUTE_REQUEST)
+        auth_client.post("/chat/execute-tool", json=_CLI_EXECUTE_REQUEST)
 
         payload = captured_kwargs["json"]
         assert "auth" in payload
@@ -330,7 +340,7 @@ class TestExecuteTool:
 
         monkeypatch.setattr("app.chat.routes.httpx.post", _raise)
 
-        response = auth_client.post("/chat/execute-tool", json=_EXECUTE_REQUEST)
+        response = auth_client.post("/chat/execute-tool", json=_CLI_EXECUTE_REQUEST)
         assert response.status_code == 502
 
     def test_returns_504_when_agents_timeout(self, auth_client, monkeypatch):
@@ -341,8 +351,54 @@ class TestExecuteTool:
 
         monkeypatch.setattr("app.chat.routes.httpx.post", _raise)
 
-        response = auth_client.post("/chat/execute-tool", json=_EXECUTE_REQUEST)
+        response = auth_client.post("/chat/execute-tool", json=_CLI_EXECUTE_REQUEST)
         assert response.status_code == 504
+
+    def test_semantic_tool_handled_locally(self, auth_client, monkeypatch):
+        """Semantic tool names (create_action, etc.) are handled by the backend
+        without forwarding to the agents service."""
+        from unittest.mock import AsyncMock
+
+        from app.chat.tool_executor import CreatedItemRef
+
+        mock_execute = AsyncMock(
+            return_value=[
+                CreatedItemRef(
+                    canonical_id="urn:app:action:local1",
+                    name="Einkaufen",
+                    item_type="action",
+                )
+            ]
+        )
+        monkeypatch.setattr("app.chat.routes.local_execute_tool", mock_execute, raising=False)
+
+        response = auth_client.post("/chat/execute-tool", json=_SEMANTIC_EXECUTE_REQUEST)
+        assert response.status_code == 200
+        body = response.json()
+        assert len(body["createdItems"]) == 1
+        assert body["createdItems"][0]["canonicalId"] == "urn:app:action:local1"
+
+    def test_semantic_tool_works_without_agents_url(self, auth_client, monkeypatch):
+        """Semantic tools don't need agents service — they should work even
+        when AGENTS_URL is not configured."""
+        from unittest.mock import AsyncMock
+
+        from app.chat.tool_executor import CreatedItemRef
+
+        _patch_settings(monkeypatch, agents_url=None)
+        mock_execute = AsyncMock(
+            return_value=[
+                CreatedItemRef(
+                    canonical_id="urn:app:action:local2",
+                    name="Einkaufen",
+                    item_type="action",
+                )
+            ]
+        )
+        monkeypatch.setattr("app.chat.routes.local_execute_tool", mock_execute, raising=False)
+
+        response = auth_client.post("/chat/execute-tool", json=_SEMANTIC_EXECUTE_REQUEST)
+        assert response.status_code == 200
 
 
 # ---------------------------------------------------------------------------

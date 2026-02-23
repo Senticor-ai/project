@@ -47,9 +47,11 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       manifest: false, // using our own public/manifest.json
+      devOptions: { enabled: true, type: "module" },
       workbox: {
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MiB (icon font is ~4MB)
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+        globIgnores: ["**/storybook-*"],
         runtimeCaching: [
           {
             urlPattern: /\/api\/items\/sync/,

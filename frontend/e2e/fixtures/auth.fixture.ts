@@ -15,6 +15,14 @@ export const test = base.extend<TestFixtures>({
     const username = `e2e${uniqueId}`;
     const password = "Testpass1!";
 
+    // Clear IndexedDB on every navigation (including reload) to prevent
+    // PersistQueryClientProvider from restoring stale TanStack Query cache.
+    // Without this, items created via apiSeed (direct API) are invisible
+    // because the cached empty result is still considered "fresh" (staleTime=30s).
+    await page.addInitScript(() => {
+      indexedDB.deleteDatabase("keyval-store");
+    });
+
     // Register + login via API through the Vite proxy (shares cookie jar)
     await page.request.post("/api/auth/register", {
       data: { email, username, password },
@@ -23,9 +31,11 @@ export const test = base.extend<TestFixtures>({
       data: { email, password },
     });
 
-    // Navigate to the app — should land on workspace (not login page)
+    // Navigate to the app — should land on workspace (not login page).
+    // Wait for the logo button which is visible on both desktop and mobile.
+    // The sidebar nav[aria-label="Buckets"] is hidden below md breakpoint.
     await page.goto("/");
-    await page.waitForSelector('nav[aria-label="Buckets"]', {
+    await page.waitForSelector('button[aria-label="Go to Inbox"]', {
       timeout: 10_000,
     });
 

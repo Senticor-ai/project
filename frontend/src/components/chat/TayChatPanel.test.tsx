@@ -53,7 +53,7 @@ describe("TayChatPanel", () => {
       />,
     );
     expect(
-      screen.getByRole("button", { name: "Chat minimieren" }),
+      screen.getByRole("button", { name: "Chat schließen" }),
     ).toBeInTheDocument();
   });
 
@@ -71,7 +71,7 @@ describe("TayChatPanel", () => {
         onDismissSuggestion={vi.fn()}
       />,
     );
-    await user.click(screen.getByRole("button", { name: "Chat minimieren" }));
+    await user.click(screen.getByRole("button", { name: "Chat schließen" }));
     expect(onClose).toHaveBeenCalledOnce();
   });
 

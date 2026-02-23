@@ -89,7 +89,7 @@ test.describe("Copilot Chat (mocked)", () => {
       // 6. Close chat panel
       await page
         .getByRole("complementary", { name: "Copilot Chat" })
-        .getByRole("button", { name: "Chat schließen" })
+        .getByRole("button", { name: "Chat minimieren" })
         .click();
 
       // 7. Verify workspace state per golden assertions (exact text match)

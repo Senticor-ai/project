@@ -8,6 +8,8 @@ async function assertMinSize(
   locator: import("@playwright/test").Locator,
   label: string,
 ) {
+  // Wait for at least one element before calling .all() (which doesn't auto-wait)
+  await locator.first().waitFor({ timeout: 5_000 });
   const elements = await locator.all();
   expect(elements.length, `expected at least one ${label}`).toBeGreaterThan(0);
   for (const el of elements) {
@@ -29,10 +31,23 @@ test.describe("Touch targets (44x44 minimum)", () => {
     authenticatedPage: page,
   }) => {
     const ws = new WorkspacePage(page);
-    await assertMinSize(
-      ws.bucketNav.getByRole("button"),
-      "BucketNav button",
-    );
+    const viewport = page.viewportSize();
+    const isMobile = (viewport?.width ?? 1280) < 768;
+
+    if (isMobile) {
+      // Mobile: sidebar is hidden, test AppMenu bucket items instead
+      await ws.menuTrigger.click();
+      await assertMinSize(
+        page.getByRole("menuitem"),
+        "AppMenu bucket item",
+      );
+    } else {
+      // Desktop: sidebar BucketNav is visible
+      await assertMinSize(
+        ws.bucketNav.getByRole("button"),
+        "BucketNav button",
+      );
+    }
   });
 
   test("ActionRow checkbox has min 44x44 bounding box", async ({
@@ -48,6 +63,7 @@ test.describe("Touch targets (44x44 minimum)", () => {
     // Actually, checkbox shows in all views. Let's triage first.
     await ws.navigateTo("Inbox");
     await ws.triageButton("Next").click();
+    await expect(page.getByText("Touch target test item")).not.toBeVisible();
     await ws.navigateTo("Next");
     const checkbox = ws.completeCheckbox("Touch target test item");
     await expect(checkbox).toBeVisible();
@@ -63,6 +79,7 @@ test.describe("Touch targets (44x44 minimum)", () => {
     const ws = new WorkspacePage(page);
     await ws.navigateTo("Inbox");
     await ws.triageButton("Next").click();
+    await expect(page.getByText("Focus target test")).not.toBeVisible();
     await ws.navigateTo("Next");
     const star = ws.focusStar("Focus target test");
     await expect(star).toBeVisible();
@@ -78,6 +95,7 @@ test.describe("Touch targets (44x44 minimum)", () => {
     const ws = new WorkspacePage(page);
     await ws.navigateTo("Inbox");
     await ws.triageButton("Next").click();
+    await expect(page.getByText("Editable title test")).not.toBeVisible();
     await ws.navigateTo("Next");
     // On touch devices, an edit icon should be visible
     const editButton = page.getByLabel(/Edit title:.*Editable title test/);
@@ -142,6 +160,7 @@ test.describe("Touch targets (44x44 minimum)", () => {
     const ws = new WorkspacePage(page);
     await ws.navigateTo("Inbox");
     await ws.triageButton("Next").click();
+    await expect(page.getByText("Spacing test item")).not.toBeVisible();
     await ws.navigateTo("Next");
 
     // Check spacing between checkbox and focus star in ActionRow
