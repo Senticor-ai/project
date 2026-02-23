@@ -23,7 +23,7 @@ data:
   OTEL_EXPORTER_OTLP_PROTOCOL: "http/protobuf"
   OTEL_RESOURCE_ATTRIBUTES: "service.namespace=project,deployment.environment=production"
   # Gmail Watch + Pub/Sub (non-secret config — SA JSON mounted from pubsub-sa secret)
-  GMAIL_PUBSUB_PROJECT_ID: "procedere"
-  GMAIL_PUBSUB_TOPIC: "projects/procedere/topics/gmail-push"
+  GMAIL_PUBSUB_PROJECT_ID: "senticor-project"
+  GMAIL_PUBSUB_TOPIC: "projects/senticor-project/topics/gmail-push"
   GMAIL_PUBSUB_SUBSCRIPTION: "gmail-push-sub"
   GMAIL_PUBSUB_CREDENTIALS_FILE: "/etc/gcp/pubsub-sa.json"

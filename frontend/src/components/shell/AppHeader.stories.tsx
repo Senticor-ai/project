@@ -102,13 +102,13 @@ export const ChatToggleActive: Story = {
   },
   play: async ({ canvas, userEvent, step, args }) => {
     await step("Verify active state", async () => {
-      const btn = canvas.getByRole("button", { name: "Chat schließen" });
+      const btn = canvas.getByRole("button", { name: "Chat minimieren" });
       await expect(btn).toBeInTheDocument();
       await expect(btn).toHaveAttribute("aria-pressed", "true");
     });
 
     await step("Click calls onToggleChat", async () => {
-      const btn = canvas.getByRole("button", { name: "Chat schließen" });
+      const btn = canvas.getByRole("button", { name: "Chat minimieren" });
       await userEvent.click(btn);
       await expect(args.onToggleChat).toHaveBeenCalled();
     });

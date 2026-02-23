@@ -217,3 +217,23 @@ export const ErrorState: Story = {
     ] satisfies ChatMessage[],
   },
 };
+
+export const MinimizeAction: Story = {
+  args: {
+    onClose: fn(),
+  },
+  play: async ({ canvas, userEvent, step, args }) => {
+    await step("Panel is visible", async () => {
+      expect(
+        canvas.getByRole("complementary", { name: "Copilot Chat" }),
+      ).toBeInTheDocument();
+    });
+
+    await step("Click minimize button", async () => {
+      await userEvent.click(
+        canvas.getByRole("button", { name: "Chat minimieren" }),
+      );
+      expect(args.onClose).toHaveBeenCalled();
+    });
+  },
+};

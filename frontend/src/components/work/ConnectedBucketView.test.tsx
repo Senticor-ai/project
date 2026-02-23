@@ -376,6 +376,30 @@ describe("ConnectedBucketView", () => {
       });
     });
 
+    it("onArchiveProject updates project status to archived", () => {
+      const onArchiveProject = capturedProps.onArchiveProject as (
+        id: CanonicalId,
+      ) => void;
+      onArchiveProject("urn:app:project:test-1" as CanonicalId);
+      expect(mockUpdate.mutate).toHaveBeenCalledWith({
+        canonicalId: "urn:app:project:test-1",
+        patch: {
+          additionalProperty: [
+            {
+              "@type": "PropertyValue",
+              propertyID: "app:projectStatus",
+              value: "archived",
+            },
+            {
+              "@type": "PropertyValue",
+              propertyID: "app:isFocused",
+              value: false,
+            },
+          ],
+        },
+      });
+    });
+
     it("onFileDrop calls captureFile mutation for each file", () => {
       const onFileDrop = capturedProps.onFileDrop as (files: File[]) => void;
       const file1 = new File(["a"], "report.pdf", { type: "application/pdf" });

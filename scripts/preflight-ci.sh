@@ -4,8 +4,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-echo "[preflight] checking docs drift"
-bash "$ROOT_DIR/scripts/check-doc-drift.sh"
+if [[ "${PREFLIGHT_CI_STRICT_BACKEND:-0}" == "1" ]]; then
+  echo "[preflight] running local gate with backend integration"
+  bash "$ROOT_DIR/scripts/preflight-local.sh" --with-backend-integration
+else
+  echo "[preflight] running local gate"
+  bash "$ROOT_DIR/scripts/preflight-local.sh"
+fi
 
 echo "[preflight] running frontend storybook tests"
 cd "$ROOT_DIR/frontend"

@@ -41,11 +41,12 @@ function findItemId(
   canonicalId: CanonicalId,
 ): string | undefined {
   const active = qc.getQueryData<ItemRecord[]>(ACTIVE_KEY);
-  const match = active?.find((r) => r.canonical_id === canonicalId);
+  const match = active?.find((r) => recordMatchesCanonicalId(r, canonicalId));
   if (match) return match.item_id;
 
   const completed = qc.getQueryData<ItemRecord[]>(COMPLETED_KEY);
-  return completed?.find((r) => r.canonical_id === canonicalId)?.item_id;
+  return completed?.find((r) => recordMatchesCanonicalId(r, canonicalId))
+    ?.item_id;
 }
 
 function findRecord(
@@ -53,11 +54,11 @@ function findRecord(
   canonicalId: CanonicalId,
 ): ItemRecord | undefined {
   const active = qc.getQueryData<ItemRecord[]>(ACTIVE_KEY);
-  const match = active?.find((r) => r.canonical_id === canonicalId);
+  const match = active?.find((r) => recordMatchesCanonicalId(r, canonicalId));
   if (match) return match;
 
   const completed = qc.getQueryData<ItemRecord[]>(COMPLETED_KEY);
-  return completed?.find((r) => r.canonical_id === canonicalId);
+  return completed?.find((r) => recordMatchesCanonicalId(r, canonicalId));
 }
 
 /**
@@ -84,6 +85,20 @@ function needsTypePromotion(
 
 type AdditionalProp = { "@type": string; propertyID: string; value: unknown };
 
+function recordJsonLdId(record: ItemRecord): string | undefined {
+  const jsonLdId = record.item?.["@id"];
+  return typeof jsonLdId === "string" ? jsonLdId : undefined;
+}
+
+function recordMatchesCanonicalId(
+  record: ItemRecord,
+  canonicalId: CanonicalId,
+): boolean {
+  return (
+    record.canonical_id === canonicalId || recordJsonLdId(record) === canonicalId
+  );
+}
+
 /** Cancel in-flight queries and snapshot the active cache for rollback. */
 async function snapshotActive(qc: QueryClient) {
   await qc.cancelQueries({ queryKey: ACTIVE_KEY });
@@ -103,7 +118,7 @@ async function snapshotBoth(qc: QueryClient) {
 /** Remove a record from the completed cache by canonical ID. */
 function removeFromCompleted(qc: QueryClient, canonicalId: CanonicalId) {
   qc.setQueryData<ItemRecord[]>(COMPLETED_KEY, (old) =>
-    old?.filter((r) => r.canonical_id !== canonicalId),
+    old?.filter((r) => !recordMatchesCanonicalId(r, canonicalId)),
   );
 }
 
@@ -119,7 +134,7 @@ function addToCache(
 /** Remove a record from the active cache by canonical ID. */
 function removeFromCache(qc: QueryClient, canonicalId: CanonicalId) {
   qc.setQueryData<ItemRecord[]>(ACTIVE_KEY, (old) =>
-    old?.filter((r) => r.canonical_id !== canonicalId),
+    old?.filter((r) => !recordMatchesCanonicalId(r, canonicalId)),
   );
 }
 
@@ -161,7 +176,7 @@ function promoteTypeInCache(
 ) {
   qc.setQueryData<ItemRecord[]>(ACTIVE_KEY, (old) =>
     old?.map((r) =>
-      r.canonical_id === canonicalId
+      recordMatchesCanonicalId(r, canonicalId)
         ? { ...r, item: { ...r.item, "@type": targetType } }
         : r,
     ),
@@ -176,7 +191,7 @@ function updateBucketInCache(
 ) {
   qc.setQueryData<ItemRecord[]>(ACTIVE_KEY, (old) =>
     old?.map((r) =>
-      r.canonical_id === canonicalId
+      recordMatchesCanonicalId(r, canonicalId)
         ? {
             ...r,
             item: {
@@ -580,7 +595,7 @@ export function useToggleFocus() {
       const prev = await snapshotActive(qc);
       qc.setQueryData<ItemRecord[]>(ACTIVE_KEY, (old) =>
         old?.map((r) =>
-          r.canonical_id === canonicalId
+          recordMatchesCanonicalId(r, canonicalId)
             ? {
                 ...r,
                 item: {
@@ -794,7 +809,7 @@ export function useUpdateItem() {
       const prev = await snapshotActive(qc);
       qc.setQueryData<ItemRecord[]>(ACTIVE_KEY, (old) =>
         old?.map((r) => {
-          if (r.canonical_id !== canonicalId) return r;
+          if (!recordMatchesCanonicalId(r, canonicalId)) return r;
           const merged = { ...r.item, ...patch };
           // Merge additionalProperty by propertyID (matching backend _deep_merge)
           if (Array.isArray(patch.additionalProperty)) {

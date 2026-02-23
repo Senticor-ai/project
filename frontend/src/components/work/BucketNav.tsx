@@ -19,6 +19,7 @@ const droppableBuckets = new Set<string>([
 export interface BucketNavProps {
   activeBucket: Bucket;
   onSelect: (bucket: Bucket) => void;
+  onSelectProject?: (projectId: Project["id"]) => void;
   counts?: Partial<Record<Bucket, number>>;
   projects?: Pick<Project, "id" | "name" | "isFocused" | "status">[];
   className?: string;
@@ -80,8 +81,10 @@ function BucketNavItem({
 
 function ProjectNavItem({
   project,
+  onSelect,
 }: {
   project: Pick<Project, "id" | "name">;
+  onSelect?: (projectId: Project["id"]) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: `project-${project.id}`,
@@ -91,6 +94,7 @@ function ProjectNavItem({
   return (
     <button
       ref={setNodeRef}
+      onClick={() => onSelect?.(project.id)}
       className={cn(
         "flex w-full items-center gap-2 rounded-[var(--radius-md)] py-1.5 pl-8 pr-3 text-xs",
         "text-text-muted transition-colors duration-[var(--duration-fast)]",
@@ -108,6 +112,7 @@ function ProjectNavItem({
 export function BucketNav({
   activeBucket,
   onSelect,
+  onSelectProject,
   counts = {},
   projects = [],
   className,
@@ -171,7 +176,17 @@ export function BucketNav({
                 className="overflow-hidden"
               >
                 {visibleProjects.map((p) => (
-                  <ProjectNavItem key={p.id} project={p} />
+                  <ProjectNavItem
+                    key={p.id}
+                    project={p}
+                    onSelect={(projectId) => {
+                      if (onSelectProject) {
+                        onSelectProject(projectId);
+                        return;
+                      }
+                      onSelect("project");
+                    }}
+                  />
                 ))}
               </motion.div>
             </AnimatePresence>

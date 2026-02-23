@@ -25,9 +25,12 @@ export interface ProjectTreeProps {
   projects: Project[];
   actions: ActionItem[];
   references?: ReferenceMaterial[];
+  expandProjectId?: CanonicalId | null;
+  expandProjectRequest?: number;
   onCompleteAction: (id: CanonicalId) => void;
   onToggleFocus: (id: CanonicalId) => void;
   onAddAction: (projectId: CanonicalId, title: string) => void;
+  onArchiveProject?: (id: CanonicalId) => void;
   onCreateProject?: (name: string, desiredOutcome: string) => void;
   onUpdateTitle?: (id: CanonicalId, newTitle: string) => void;
   onEditProject?: (
@@ -42,9 +45,12 @@ export function ProjectTree({
   projects,
   actions,
   references = [],
+  expandProjectId,
+  expandProjectRequest,
   onCompleteAction,
   onToggleFocus,
   onAddAction,
+  onArchiveProject,
   onCreateProject,
   onUpdateTitle,
   onEditProject,
@@ -54,6 +60,22 @@ export function ProjectTree({
   const [expandedId, setExpandedId] = useState<CanonicalId | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [prevExpandProjectId, setPrevExpandProjectId] = useState<
+    CanonicalId | null | undefined
+  >(undefined);
+  const [prevExpandProjectRequest, setPrevExpandProjectRequest] =
+    useState<number | undefined>(undefined);
+
+  // One-way sync for external "expand this project now" requests.
+  if (
+    expandProjectId &&
+    (prevExpandProjectId !== expandProjectId ||
+      prevExpandProjectRequest !== expandProjectRequest)
+  ) {
+    setPrevExpandProjectId(expandProjectId);
+    setPrevExpandProjectRequest(expandProjectRequest);
+    setExpandedId(expandProjectId);
+  }
 
   const activeProjects = projects.filter((p) => p.status === "active");
   const nonActiveProjects = projects.filter((p) => p.status !== "active");
@@ -142,6 +164,7 @@ export function ProjectTree({
               onCompleteAction={onCompleteAction}
               onToggleFocus={onToggleFocus}
               onAddAction={(title) => onAddAction(project.id, title)}
+              onArchiveProject={onArchiveProject}
               onUpdateTitle={onUpdateTitle}
               onEditProject={onEditProject}
               organizations={organizations}
@@ -176,6 +199,7 @@ export function ProjectTree({
               onCompleteAction={onCompleteAction}
               onToggleFocus={onToggleFocus}
               onAddAction={(title) => onAddAction(project.id, title)}
+              onArchiveProject={onArchiveProject}
               onUpdateTitle={onUpdateTitle}
               statusBadge
             />
@@ -212,6 +236,7 @@ interface ProjectRowProps {
   onCompleteAction: (id: CanonicalId) => void;
   onToggleFocus: (id: CanonicalId) => void;
   onAddAction: (title: string) => void;
+  onArchiveProject?: (id: CanonicalId) => void;
   onUpdateTitle?: (id: CanonicalId, newTitle: string) => void;
   onEditProject?: (
     id: CanonicalId,
@@ -231,6 +256,7 @@ function ProjectRow({
   onCompleteAction,
   onToggleFocus,
   onAddAction,
+  onArchiveProject,
   onUpdateTitle,
   onEditProject,
   organizations = [],
@@ -252,15 +278,24 @@ function ProjectRow({
   const handleTitleClick = () => {
     if (isEditingName) {
       setIsEditingName(false);
-    } else {
-      onToggleExpand();
+      return;
     }
+    if (isExpanded && onUpdateTitle) {
+      setIsEditingName(true);
+      return;
+    }
+    onToggleExpand();
   };
 
   const handleTitleDoubleClick = () => {
     if (!isEditingName && isExpanded && onUpdateTitle) {
       setIsEditingName(true);
     }
+  };
+
+  const handleStartRename = () => {
+    if (!onUpdateTitle) return;
+    setIsEditingName(true);
   };
 
   return (
@@ -321,6 +356,30 @@ function ProjectRow({
           >
             <Icon name="warning" size={16} />
           </span>
+        )}
+
+        {/* Archive */}
+        {onArchiveProject && (
+          <button
+            type="button"
+            onClick={() => onArchiveProject(project.id)}
+            aria-label={`Archive ${project.name ?? "Untitled"}`}
+            className="shrink-0 rounded-[var(--radius-sm)] p-1 text-text-subtle hover:text-status-error"
+          >
+            <Icon name="archive" size={14} />
+          </button>
+        )}
+
+        {/* Rename */}
+        {onUpdateTitle && (
+          <button
+            type="button"
+            onClick={handleStartRename}
+            aria-label={`Rename ${project.name ?? "Untitled"}`}
+            className="shrink-0 rounded-[var(--radius-sm)] p-1 text-text-subtle hover:text-blueprint-500"
+          >
+            <Icon name="edit" size={14} />
+          </button>
         )}
 
         {/* Star toggle */}
@@ -551,7 +610,7 @@ function CreateProjectForm({ onSubmit, onCancel }: CreateProjectFormProps) {
   const handleSubmit = useCallback(() => {
     const trimmedName = name.trim();
     const trimmedOutcome = desiredOutcome.trim();
-    if (!trimmedName || !trimmedOutcome) return;
+    if (!trimmedName) return;
     onSubmit(trimmedName, trimmedOutcome);
   }, [name, desiredOutcome, onSubmit]);
 
@@ -562,11 +621,7 @@ function CreateProjectForm({ onSubmit, onCancel }: CreateProjectFormProps) {
         value={name}
         onChange={(e) => setName(e.currentTarget.value)}
         submitOnEnter
-        onSubmit={() => {
-          // If name is filled but outcome is empty, don't submit yet
-          if (!desiredOutcome.trim()) return;
-          handleSubmit();
-        }}
+        onSubmit={handleSubmit}
         placeholder="Project name..."
         aria-label="Project name"
         className="w-full bg-transparent text-sm font-medium text-text outline-none placeholder:text-text-subtle"
@@ -576,7 +631,7 @@ function CreateProjectForm({ onSubmit, onCancel }: CreateProjectFormProps) {
         onChange={(e) => setDesiredOutcome(e.currentTarget.value)}
         submitOnEnter
         onSubmit={handleSubmit}
-        placeholder="Desired outcome..."
+        placeholder="Desired outcome (optional)..."
         aria-label="Desired outcome"
         className="w-full bg-transparent text-xs text-text-muted outline-none placeholder:text-text-subtle"
       />
@@ -591,7 +646,7 @@ function CreateProjectForm({ onSubmit, onCancel }: CreateProjectFormProps) {
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={!name.trim() || !desiredOutcome.trim()}
+          disabled={!name.trim()}
           className="rounded-[var(--radius-md)] bg-blueprint-500 px-2 py-1 text-xs text-white disabled:opacity-40"
         >
           Create

@@ -10,6 +10,9 @@
 #   ansible-playbook infra/gcp-pubsub.yml -e gcp_project=procedere
 #   ansible-playbook infra/gcp-pubsub.yml -e gcp_project=procedere -e gcp_account=you@example.com
 #   ansible-playbook infra/gcp-pubsub.yml -e gcp_project=procedere -e gcp_auto_auth_login=true
+#   ansible-playbook infra/gcp-pubsub.yml -e gcp_project=procedere -e gcp_org_id=123456789012 \
+#     -e gcp_configure_managed_allowed_policy_members=true \
+#     -e gcp_managed_policy_scope=project
 #
 # Re-run safely — all tasks are idempotent.
 
@@ -20,8 +23,13 @@
 
   vars:
     gcp_project: "{{ gcp_project }}"
+    gcp_org_id: "{{ gcp_org_id | default('') }}"
     gcp_account: "{{ gcp_account | default('') }}"
-    gcp_auto_auth_login: "{{ gcp_auto_auth_login | default(false) | bool }}"
+    gcp_auto_auth_login_enabled: "{{ (gcp_auto_auth_login | default(false)) | bool }}"
+    gcp_configure_managed_allowed_policy_members_enabled: "{{ (gcp_configure_managed_allowed_policy_members | default(false)) | bool }}"
+    gcp_managed_policy_scope: "{{ gcp_managed_policy_scope | default('project') }}"
+    gcp_allowed_member_subjects_extra_list: "{{ gcp_allowed_member_subjects_extra | default([]) }}"
+    gcp_allowed_principal_sets_extra_list: "{{ gcp_allowed_principal_sets_extra | default([]) }}"
     topic_name: gmail-push
     subscription_name: gmail-push-sub
     service_account_name: gmail-push-sub
@@ -65,29 +73,32 @@
           -e gcp_auto_auth_login=true to let this playbook try interactive login.
       when:
         - gcloud_account_names | length == 0
-        - not gcp_auto_auth_login
+        - not gcp_auto_auth_login_enabled
 
-    - name: Attempt interactive gcloud login when no account exists
+    - name: Attempt gcloud login when no account exists (non-interactive flow)
       ansible.builtin.command:
         cmd: >-
           gcloud auth login
           {{ gcp_account if gcp_account | length > 0 else '' }}
           --update-adc
+          --no-launch-browser
       register: gcloud_login_initial
       changed_when: true
       failed_when: false
       when:
         - gcloud_account_names | length == 0
-        - gcp_auto_auth_login
+        - gcp_auto_auth_login_enabled
 
     - name: Fail when interactive login attempt failed
       ansible.builtin.fail:
         msg: >-
-          `gcloud auth login` failed (rc={{ gcloud_login_initial.rc }}).
+          `gcloud auth login --no-launch-browser` failed (rc={{ gcloud_login_initial.rc }}).
+          In non-interactive Ansible execution you must complete auth manually in your shell:
+          `gcloud auth login {{ gcp_account if gcp_account | length > 0 else '' }} --update-adc`
           stderr: {{ gcloud_login_initial.stderr | default('') }}
       when:
         - gcloud_account_names | length == 0
-        - gcp_auto_auth_login
+        - gcp_auto_auth_login_enabled
         - gcloud_login_initial.rc != 0
 
     - name: Refresh authenticated gcloud accounts after initial login
@@ -97,7 +108,7 @@
       changed_when: false
       when:
         - gcloud_account_names | length == 0
-        - gcp_auto_auth_login
+        - gcp_auto_auth_login_enabled
         - gcloud_login_initial.rc == 0
 
     - name: Update account facts after initial login
@@ -107,7 +118,7 @@
         gcloud_active_accounts: "{{ (gcloud_auth_list_post_login.stdout | from_json) | selectattr('status', 'equalto', 'ACTIVE') | map(attribute='account') | list }}"
       when:
         - gcloud_account_names | length == 0
-        - gcp_auto_auth_login
+        - gcp_auto_auth_login_enabled
         - gcloud_login_initial.rc == 0
 
     - name: Fail when requested gcp_account is not authenticated and auto-login disabled
@@ -120,28 +131,30 @@
       when:
         - gcp_account | length > 0
         - gcp_account not in gcloud_account_names
-        - not gcp_auto_auth_login
+        - not gcp_auto_auth_login_enabled
 
-    - name: Attempt interactive gcloud login for requested account
+    - name: Attempt gcloud login for requested account (non-interactive flow)
       ansible.builtin.command:
-        cmd: "gcloud auth login {{ gcp_account }} --update-adc"
+        cmd: "gcloud auth login {{ gcp_account }} --update-adc --no-launch-browser"
       register: gcloud_login_requested
       changed_when: true
       failed_when: false
       when:
         - gcp_account | length > 0
         - gcp_account not in gcloud_account_names
-        - gcp_auto_auth_login
+        - gcp_auto_auth_login_enabled
 
     - name: Fail when requested-account login attempt failed
       ansible.builtin.fail:
         msg: >-
-          `gcloud auth login {{ gcp_account }}` failed (rc={{ gcloud_login_requested.rc }}).
+          `gcloud auth login {{ gcp_account }} --no-launch-browser` failed (rc={{ gcloud_login_requested.rc }}).
+          In non-interactive Ansible execution you must complete auth manually in your shell:
+          `gcloud auth login {{ gcp_account }} --update-adc`
           stderr: {{ gcloud_login_requested.stderr | default('') }}
       when:
         - gcp_account | length > 0
         - gcp_account not in gcloud_account_names
-        - gcp_auto_auth_login
+        - gcp_auto_auth_login_enabled
         - gcloud_login_requested.rc != 0
 
     - name: Refresh authenticated gcloud accounts after requested-account login
@@ -152,7 +165,7 @@
       when:
         - gcp_account | length > 0
         - gcp_account not in gcloud_account_names
-        - gcp_auto_auth_login
+        - gcp_auto_auth_login_enabled
         - gcloud_login_requested.rc == 0
 
     - name: Update account facts after requested-account login
@@ -163,7 +176,7 @@
       when:
         - gcp_account | length > 0
         - gcp_account not in gcloud_account_names
-        - gcp_auto_auth_login
+        - gcp_auto_auth_login_enabled
         - gcloud_login_requested.rc == 0
 
     - name: Select gcloud account for this run
@@ -200,15 +213,15 @@
       changed_when: false
       failed_when: false
 
-    - name: Attempt reauthentication when token check fails
+    - name: Attempt reauthentication when token check fails (non-interactive flow)
       ansible.builtin.command:
-        cmd: "gcloud auth login {{ gcloud_selected_account }} --update-adc"
+        cmd: "gcloud auth login {{ gcloud_selected_account }} --update-adc --no-launch-browser"
       register: gcloud_reauth
       changed_when: true
       failed_when: false
       when:
         - gcloud_token_check.rc != 0
-        - gcp_auto_auth_login
+        - gcp_auto_auth_login_enabled
 
     - name: Re-check token after reauthentication attempt
       ansible.builtin.command:
@@ -218,7 +231,7 @@
       failed_when: false
       when:
         - gcloud_token_check.rc != 0
-        - gcp_auto_auth_login
+        - gcp_auto_auth_login_enabled
         - gcloud_reauth.rc == 0
 
     - name: Fail when token check fails and auto-login is disabled
@@ -229,17 +242,19 @@
           or use -e gcp_auto_auth_login=true.
       when:
         - gcloud_token_check.rc != 0
-        - not gcp_auto_auth_login
+        - not gcp_auto_auth_login_enabled
 
     - name: Fail when token check still fails after reauthentication attempt
       ansible.builtin.fail:
         msg: >-
           Account {{ gcloud_selected_account }} still cannot mint an access token
-          after `gcloud auth login` (rc={{ gcloud_reauth.rc | default('n/a') }}).
+          after `gcloud auth login --no-launch-browser` (rc={{ gcloud_reauth.rc | default('n/a') }}).
+          Run this manually in your shell, then re-run the playbook:
+          `gcloud auth login {{ gcloud_selected_account }} --update-adc`
           stderr: {{ gcloud_reauth.stderr | default(gcloud_token_check.stderr | default('')) }}
       when:
         - gcloud_token_check.rc != 0
-        - gcp_auto_auth_login
+        - gcp_auto_auth_login_enabled
         - gcloud_reauth.rc != 0 or gcloud_token_check_after.rc != 0
 
     - name: Set gcloud project for this run
@@ -252,6 +267,123 @@
         msg:
           - "Using gcloud account: {{ gcloud_selected_account }}"
           - "Using gcloud project: {{ gcp_project }}"
+
+    # ── 0b. Optional org-policy prerequisite setup ───────────────────────────
+    - name: Assert managed policy scope value is valid
+      ansible.builtin.assert:
+        that:
+          - gcp_managed_policy_scope in ['project', 'organization']
+        fail_msg: >-
+          Invalid gcp_managed_policy_scope={{ gcp_managed_policy_scope }}.
+          Use -e gcp_managed_policy_scope=project or -e gcp_managed_policy_scope=organization.
+      when: gcp_configure_managed_allowed_policy_members_enabled
+
+    - name: Assert gcp_org_id is set when managed policy automation is enabled
+      ansible.builtin.assert:
+        that:
+          - gcp_org_id | length > 0
+        fail_msg: >-
+          Set gcp_org_id (numeric org ID), e.g. -e gcp_org_id=126678810646
+          when using -e gcp_configure_managed_allowed_policy_members=true.
+      when: gcp_configure_managed_allowed_policy_members_enabled
+
+    - name: Get project number for project-scoped managed policy
+      ansible.builtin.command:
+        cmd: "gcloud projects describe {{ gcp_project }} --format=value(projectNumber)"
+      register: gcp_project_number_for_managed_policy
+      changed_when: false
+      when:
+        - gcp_configure_managed_allowed_policy_members_enabled
+        - gcp_managed_policy_scope == 'project'
+
+    - name: Set managed policy resource name for organization scope
+      ansible.builtin.set_fact:
+        managed_allowed_policy_name: "organizations/{{ gcp_org_id }}/policies/iam.managed.allowedPolicyMembers"
+      when:
+        - gcp_configure_managed_allowed_policy_members_enabled
+        - gcp_managed_policy_scope == 'organization'
+
+    - name: Set managed policy resource name for project scope
+      ansible.builtin.set_fact:
+        managed_allowed_policy_name: >-
+          projects/{{ gcp_project_number_for_managed_policy.stdout | trim }}/policies/iam.managed.allowedPolicyMembers
+      when:
+        - gcp_configure_managed_allowed_policy_members_enabled
+        - gcp_managed_policy_scope == 'project'
+
+    - name: Build allowed members/principal sets for managed domain restriction
+      ansible.builtin.set_fact:
+        managed_allowed_member_subjects: >-
+          {{
+            ([gmail_publisher] + (gcp_allowed_member_subjects_extra_list | list)) | unique
+          }}
+        managed_allowed_principal_sets: >-
+          {{
+            (
+              ['//cloudresourcemanager.googleapis.com/organizations/' ~ gcp_org_id]
+              + (gcp_allowed_principal_sets_extra_list | list)
+            ) | unique
+          }}
+      when: gcp_configure_managed_allowed_policy_members_enabled
+
+    - name: Build managed policy document
+      ansible.builtin.set_fact:
+        managed_allowed_policy_doc:
+          name: "{{ managed_allowed_policy_name }}"
+          spec:
+            rules:
+              - enforce: true
+                parameters:
+                  allowedMemberSubjects: "{{ managed_allowed_member_subjects }}"
+                  allowedPrincipalSets: "{{ managed_allowed_principal_sets }}"
+      when: gcp_configure_managed_allowed_policy_members_enabled
+
+    - name: Create temp file for managed allowedPolicyMembers policy
+      ansible.builtin.tempfile:
+        state: file
+        prefix: managed-allowed-policy-members-
+        suffix: .yaml
+      register: managed_policy_file
+      when: gcp_configure_managed_allowed_policy_members_enabled
+
+    - name: Write managed allowedPolicyMembers policy file
+      ansible.builtin.copy:
+        dest: "{{ managed_policy_file.path }}"
+        content: "{{ managed_allowed_policy_doc | to_nice_yaml }}"
+        mode: "0600"
+      when: gcp_configure_managed_allowed_policy_members_enabled
+
+    - name: Apply iam.managed.allowedPolicyMembers policy
+      ansible.builtin.command:
+        cmd: >-
+          gcloud org-policies set-policy {{ managed_policy_file.path }}
+          --update-mask=spec
+      register: apply_managed_policy
+      changed_when: true
+      failed_when: false
+      when: gcp_configure_managed_allowed_policy_members_enabled
+
+    - name: Fail with guidance when managed policy apply is denied
+      ansible.builtin.fail:
+        msg: >-
+          Failed to apply managed policy {{ managed_allowed_policy_name }}.
+          gcloud stderr: {{ apply_managed_policy.stderr | default('') }}
+          If this is IAM_PERMISSION_DENIED, grant roles/orgpolicy.policyAdmin
+          on an ancestor resource (organization or folder) that contains project {{ gcp_project }},
+          then re-run with an account that has that inherited permission.
+          Note: roles/orgpolicy.policyAdmin is not grantable directly on projects.
+      when:
+        - gcp_configure_managed_allowed_policy_members_enabled
+        - apply_managed_policy.rc != 0
+
+    - name: Managed policy setup summary
+      ansible.builtin.debug:
+        msg:
+          - "Applied managed policy scope: {{ gcp_managed_policy_scope }}"
+          - "Policy resource: {{ managed_allowed_policy_name }}"
+          - "Allowed member subjects: {{ managed_allowed_member_subjects | join(', ') }}"
+          - "Allowed principal sets: {{ managed_allowed_principal_sets | join(', ') }}"
+      when: gcp_configure_managed_allowed_policy_members_enabled
 
     # ── 1. Pub/Sub topic ────────────────────────────────────────────────
     - name: Check if topic exists
@@ -298,8 +430,24 @@
           --member={{ gmail_publisher }}
           --role=roles/pubsub.publisher
           --project={{ gcp_project }}
+      register: grant_gmail_publisher
       when: not topic_has_gmail_publisher
       changed_when: true
+      failed_when: false
+
+    - name: Fail with actionable guidance when domain-restricted sharing blocks Gmail publisher
+      ansible.builtin.fail:
+        msg: >-
+          Could not grant {{ gmail_publisher }} on {{ full_topic }}.
+          gcloud stderr: {{ grant_gmail_publisher.stderr | default('') }}
+          This is usually blocked by org policy `constraints/iam.allowedPolicyMemberDomains`.
+          Gmail push requires this principal to publish to Pub/Sub.
+          Ask an Org Policy Admin to migrate domain-restricted sharing to
+          `iam.managed.allowedPolicyMembers` (or custom AllowPolicy) and allow
+          `serviceAccount:gmail-api-push@system.gserviceaccount.com`.
+      when:
+        - not topic_has_gmail_publisher
+        - grant_gmail_publisher.rc != 0
 
     # ── 3. Pub/Sub subscription ─────────────────────────────────────────
     - name: Check if subscription exists
@@ -371,8 +519,12 @@
           --member={{ sa_member }}
           --role=roles/pubsub.subscriber
           --project={{ gcp_project }}
+      register: grant_subscriber_binding
       when: not sub_has_subscriber
       changed_when: true
+      retries: 10
+      delay: 3
+      until: grant_subscriber_binding.rc == 0
 
     # ── 6. Service account key ──────────────────────────────────────────
     - name: Check if credentials file exists
@@ -380,13 +532,37 @@
         path: "{{ credentials_dest }}"
       register: creds_file
 
+    - name: Validate existing credentials file JSON
+      ansible.builtin.command:
+        cmd: >-
+          python3 -c "import json,sys; d=json.load(open(sys.argv[1]));
+          req=['type','project_id','private_key_id','private_key','client_email','client_id'];
+          missing=[k for k in req if not d.get(k)];
+          raise SystemExit(1 if missing else 0)" {{ credentials_dest }}
+      register: creds_file_check
+      changed_when: false
+      failed_when: false
+      when: creds_file.stat.exists
+
+    - name: Determine whether credentials file is usable
+      ansible.builtin.set_fact:
+        creds_file_valid: "{{ (creds_file.stat.exists | bool) and ((creds_file_check.rc | default(1)) == 0) }}"
+
+    - name: Remove invalid credentials file before regenerating
+      ansible.builtin.file:
+        path: "{{ credentials_dest }}"
+        state: absent
+      when:
+        - creds_file.stat.exists
+        - not creds_file_valid
+
     - name: Create service account key
       ansible.builtin.command:
         cmd: >-
           gcloud iam service-accounts keys create {{ credentials_dest }}
           --iam-account={{ sa_email }}
           --project={{ gcp_project }}
-      when: not creds_file.stat.exists
+      when: not creds_file_valid
       changed_when: true
 
     - name: Protect credentials file

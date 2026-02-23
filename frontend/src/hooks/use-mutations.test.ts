@@ -875,6 +875,36 @@ describe("useUpdateItem", () => {
     expect(itemId).toBe("tid-action-1");
     expect(patch).toEqual({ name: "Updated title" });
   });
+
+  it("finds item_id via JSON-LD @id when canonical_id differs", async () => {
+    const mismatchRecord = makeRecord({
+      item_id: "tid-project-rename",
+      canonical_id:
+        "urn:app:project:org-123:6050ce1a-63bd-4f7e-b823-d679d5ae73a2",
+      item: {
+        "@type": "Project",
+        "@id": "urn:app:project:6050ce1a-63bd-4f7e-b823-d679d5ae73a2",
+        additionalProperty: [pv("app:bucket", "project")],
+      },
+    });
+    mocked.update.mockResolvedValue(mismatchRecord);
+
+    const { result } = renderHook(() => useUpdateItem(), {
+      wrapper: createWrapper([mismatchRecord]),
+    });
+
+    act(() =>
+      result.current.mutate({
+        canonicalId:
+          "urn:app:project:6050ce1a-63bd-4f7e-b823-d679d5ae73a2" as CanonicalId,
+        patch: { name: "Renamed Project" },
+      }),
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const [itemId] = mocked.update.mock.calls[0]!;
+    expect(itemId).toBe("tid-project-rename");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1048,6 +1078,37 @@ describe("useToggleFocus edge cases", () => {
     expect(patch.additionalProperty).toEqual([
       { "@type": "PropertyValue", propertyID: "app:isFocused", value: true },
     ]);
+  });
+
+  it("resolves records by JSON-LD @id when canonical_id differs", async () => {
+    const orgScopedRecord = makeRecord({
+      item_id: "tid-project-1",
+      canonical_id:
+        "urn:app:project:org-123:6050ce1a-63bd-4f7e-b823-d679d5ae73a2",
+      item: {
+        "@type": "Project",
+        "@id": "urn:app:project:6050ce1a-63bd-4f7e-b823-d679d5ae73a2",
+        additionalProperty: [
+          pv("app:bucket", "project"),
+          pv("app:isFocused", false),
+        ],
+      },
+    });
+    mocked.update.mockResolvedValue(orgScopedRecord);
+
+    const { result } = renderHook(() => useToggleFocus(), {
+      wrapper: createWrapper([orgScopedRecord]),
+    });
+
+    act(() =>
+      result.current.mutate(
+        "urn:app:project:6050ce1a-63bd-4f7e-b823-d679d5ae73a2" as CanonicalId,
+      ),
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const [itemId] = mocked.update.mock.calls[0]!;
+    expect(itemId).toBe("tid-project-1");
   });
 });
 

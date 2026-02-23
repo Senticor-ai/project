@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect, useMemo } from "react";
+import { useCallback, useState, useEffect, useMemo, type ReactNode } from "react";
 import { BucketView } from "./BucketView";
 import { useAllItems, useProjects, useReferences } from "@/hooks/use-items";
 import { useOrganizations } from "@/hooks/use-organizations";
@@ -26,12 +26,14 @@ import type { Bucket } from "@/model/types";
 export interface ConnectedBucketViewProps {
   activeBucket: Bucket;
   onBucketChange: (bucket: Bucket) => void;
+  sidebarControls?: ReactNode;
   className?: string;
 }
 
 export function ConnectedBucketView({
   activeBucket,
   onBucketChange,
+  sidebarControls,
   className,
 }: ConnectedBucketViewProps) {
   const actionItemsQuery = useAllItems();
@@ -147,6 +149,28 @@ export function ConnectedBucketView({
     [createProjectMutation],
   );
 
+  const handleArchiveProject = useCallback(
+    (id: CanonicalId) =>
+      updateItemMutation.mutate({
+        canonicalId: id,
+        patch: {
+          additionalProperty: [
+            {
+              "@type": "PropertyValue",
+              propertyID: "app:projectStatus",
+              value: "archived",
+            },
+            {
+              "@type": "PropertyValue",
+              propertyID: "app:isFocused",
+              value: false,
+            },
+          ],
+        },
+      }),
+    [updateItemMutation],
+  );
+
   const handleFileDrop = useCallback(
     (files: File[]) => {
       for (const file of files) {
@@ -226,6 +250,7 @@ export function ConnectedBucketView({
         onAddReference={handleAddReference}
         onArchiveReference={handleArchiveReference}
         onAddProjectAction={handleAddProjectAction}
+        onArchiveProject={handleArchiveProject}
         onCreateProject={handleCreateProject}
         onEditReference={handleEditItem}
         onEditProject={handleEditItem}
@@ -233,6 +258,7 @@ export function ConnectedBucketView({
         onNavigateToReference={handleNavigateToReference}
         linkedActionBuckets={linkedActionBuckets}
         organizations={orgsQuery.data}
+        sidebarControls={sidebarControls}
       />
     </div>
   );

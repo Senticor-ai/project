@@ -1,4 +1,11 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  useLayoutEffect,
+  type CSSProperties,
+} from "react";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
 
@@ -29,6 +36,7 @@ export interface AppMenuProps {
 
 export function AppMenu({ sections, className }: AppMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [menuStyle, setMenuStyle] = useState<CSSProperties>();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -73,6 +81,51 @@ export function AppMenu({ sections, className }: AppMenuProps) {
         menuRef.current.querySelector<HTMLButtonElement>('[role="menuitem"]');
       firstItem?.focus();
     }
+  }, [isOpen]);
+
+  // Clamp menu position within viewport so it never overflows the screen.
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+
+    const viewportPadding = 6;
+    const maxMenuWidth = 224;
+
+    const positionMenu = () => {
+      const trigger = triggerRef.current;
+      const menu = menuRef.current;
+      if (!trigger || !menu) return;
+
+      const triggerRect = trigger.getBoundingClientRect();
+      const menuHeight = menu.offsetHeight;
+      const menuWidth = Math.min(
+        maxMenuWidth,
+        window.innerWidth - viewportPadding * 2,
+      );
+
+      let left = triggerRect.left;
+      if (left + menuWidth > window.innerWidth - viewportPadding) {
+        left = window.innerWidth - viewportPadding - menuWidth;
+      }
+      left = Math.max(viewportPadding, left);
+
+      const preferredTop = triggerRect.bottom + 4;
+      const maxTop = window.innerHeight - viewportPadding - menuHeight;
+      const top = Math.max(viewportPadding, Math.min(preferredTop, maxTop));
+
+      setMenuStyle({
+        left: Math.round(left),
+        top: Math.round(top),
+        width: Math.round(menuWidth),
+      });
+    };
+
+    positionMenu();
+    window.addEventListener("resize", positionMenu);
+    window.addEventListener("scroll", positionMenu, true);
+    return () => {
+      window.removeEventListener("resize", positionMenu);
+      window.removeEventListener("scroll", positionMenu, true);
+    };
   }, [isOpen]);
 
   const handleItemClick = useCallback((item: AppMenuItem) => {
@@ -124,7 +177,8 @@ export function AppMenu({ sections, className }: AppMenuProps) {
           role="menu"
           aria-label="Main menu"
           onKeyDown={handleKeyDown}
-          className="absolute left-0 top-full z-50 mt-1 max-h-[80vh] w-56 overflow-y-auto rounded-[var(--radius-lg)] border border-border bg-paper-50 py-1 shadow-[var(--shadow-overlay)] md:left-auto md:right-0"
+          style={menuStyle}
+          className="fixed z-50 max-h-[80vh] overflow-y-auto rounded-[var(--radius-lg)] border border-border bg-paper-50 py-1 shadow-[var(--shadow-overlay)]"
         >
           {sections.map((section, sIdx) => (
             <div key={sIdx}>

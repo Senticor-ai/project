@@ -76,9 +76,22 @@ cd agents && uv run python -m pytest tests/          # Agents tests
 # Pre-commit checks (frontend)
 cd frontend && npx tsc -b --noEmit && npx eslint src/ && npx prettier --check src/
 
-# CI preflight (recommended before push)
+# Local completion gate (required before marking work as done)
+npm run preflight:local
+
+# Strict local gate with backend integration (required for backend behavior/API changes)
+# Requires local Postgres (e.g. `docker compose -f infra/docker-compose.yml up -d postgres`)
+npm run preflight:local:strict
+
+# CI parity preflight (recommended before push)
 npm run preflight:ci
 ```
+
+## Definition of Done
+
+- Do not mark work complete until the local completion gate passes.
+- For backend behavior/API changes, the strict gate must pass.
+- If a required gate cannot run locally, treat the task as incomplete and report the blocker.
 
 ## API
 

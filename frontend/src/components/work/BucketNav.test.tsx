@@ -64,4 +64,48 @@ describe("BucketNav", () => {
       screen.getByRole("navigation", { name: "Buckets" }),
     ).toBeInTheDocument();
   });
+
+  it("calls onSelectProject when clicking a starred project sub-item", async () => {
+    const user = userEvent.setup();
+    const onSelectProject = vi.fn();
+    render(
+      <BucketNav
+        {...defaultProps}
+        onSelectProject={onSelectProject}
+        projects={[
+          {
+            id: "urn:app:project:1",
+            name: "Starred Project",
+            isFocused: true,
+            status: "active",
+          },
+        ]}
+      />,
+    );
+
+    await user.click(screen.getByText("Starred Project"));
+    expect(onSelectProject).toHaveBeenCalledWith("urn:app:project:1");
+  });
+
+  it("falls back to selecting project bucket when no onSelectProject is provided", async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    render(
+      <BucketNav
+        {...defaultProps}
+        onSelect={onSelect}
+        projects={[
+          {
+            id: "urn:app:project:2",
+            name: "Starred Project",
+            isFocused: true,
+            status: "active",
+          },
+        ]}
+      />,
+    );
+
+    await user.click(screen.getByText("Starred Project"));
+    expect(onSelect).toHaveBeenCalledWith("project");
+  });
 });

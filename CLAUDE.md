@@ -11,6 +11,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **No hardcoded secrets** - Never put passwords, API keys, or secrets directly in `docker-compose.yml`, code, or config files. Use environment variables with `${VAR:-default}` syntax for local dev defaults.
 - **Robust over quick fixes** - Prefer proper solutions over lint-disable comments or workarounds. For example, use `useEffect` + `ref` for focus management instead of `autoFocus` with eslint-disable.
 
+## Completion Gate (MANDATORY)
+
+Before declaring any change "done":
+
+1. Run `npm run preflight:local`
+2. If backend behavior/API contracts changed, also run `npm run preflight:local:strict`
+3. If any required check fails, do not mark the task complete
+4. Include executed check commands and pass/fail status in the final update
+
 ## Secrets in Documentation
 
 When documenting example credentials, use placeholder patterns that scanners recognize as non-secrets:

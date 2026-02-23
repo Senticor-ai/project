@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, act } from "@testing-library/react";
+import { render, screen, act, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./App";
@@ -284,5 +284,22 @@ describe("App", () => {
 
     expect(screen.getByTestId("connected-bucket-view")).toBeInTheDocument();
     expect(screen.queryByTestId("settings-screen")).not.toBeInTheDocument();
+  });
+
+  it("hides floating chat launcher while chat is open", async () => {
+    const user = userEvent.setup();
+    renderAuthenticated();
+
+    await user.click(screen.getByRole("button", { name: "Chat öffnen" }));
+    expect(
+      screen.queryByRole("button", { name: "Chat öffnen" }),
+    ).not.toBeInTheDocument();
+
+    const panel = screen.getByRole("complementary", { name: "Copilot Chat" });
+    await user.click(
+      within(panel).getByRole("button", { name: "Chat minimieren" }),
+    );
+
+    expect(screen.getByRole("button", { name: "Chat öffnen" })).toBeInTheDocument();
   });
 });

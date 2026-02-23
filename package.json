@@ -2,6 +2,8 @@
   "private": true,
   "scripts": {
     "dev": "npm --prefix frontend run dev:stack",
+    "preflight:local": "bash scripts/preflight-local.sh",
+    "preflight:local:strict": "bash scripts/preflight-local.sh --with-backend-integration",
     "preflight:ci": "bash scripts/preflight-ci.sh",
     "copilot": "npm --prefix packages/core run copilot --",
     "copilot:build": "npm --prefix packages/core run build",

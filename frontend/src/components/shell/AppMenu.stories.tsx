@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn } from "storybook/test";
+import { expect, fn, waitFor } from "storybook/test";
 import { AppMenu, type AppMenuSection } from "./AppMenu";
 
 const defaultSections: AppMenuSection[] = [
@@ -138,6 +138,39 @@ export const WithSectionHeaders: Story = {
       await userEvent.click(canvas.getByRole("button", { name: "Main menu" }));
       await expect(canvas.getByText("Navigation")).toBeInTheDocument();
       await expect(canvas.getByText("Account")).toBeInTheDocument();
+    });
+  },
+};
+
+// ---------------------------------------------------------------------------
+// ViewportClampMobile — menu stays fully inside mobile viewport
+// ---------------------------------------------------------------------------
+
+export const ViewportClampMobile: Story = {
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  decorators: [
+    (Story) => (
+      <div className="flex w-full justify-end p-1">
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvas, userEvent, step }) => {
+    await step("Open menu near viewport edge", async () => {
+      await userEvent.click(canvas.getByRole("button", { name: "Main menu" }));
+      await expect(canvas.getByRole("menu")).toBeInTheDocument();
+    });
+
+    await step("Verify menu is clamped inside viewport", async () => {
+      const menu = canvas.getByRole("menu");
+
+      await waitFor(() => {
+        expect(menu.style.left).toBeTruthy();
+      });
+
+      const rect = menu.getBoundingClientRect();
+      expect(rect.left).toBeGreaterThanOrEqual(0);
+      expect(rect.right).toBeLessThanOrEqual(window.innerWidth);
     });
   },
 };

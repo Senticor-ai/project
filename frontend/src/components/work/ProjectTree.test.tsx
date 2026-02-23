@@ -114,6 +114,22 @@ describe("ProjectTree", () => {
     expect(screen.getByText("Design wireframes")).toBeInTheDocument();
   });
 
+  it("auto-expands the requested project from nav selection", () => {
+    const project = makeProject({ name: "Nav Target" });
+    const action = makeAction({
+      name: "Nav-linked action",
+      projectId: project.id,
+      sequenceOrder: 1,
+    });
+
+    renderTree([project], [action], {
+      expandProjectId: project.id,
+      expandProjectRequest: 1,
+    });
+
+    expect(screen.getByText("Nav-linked action")).toBeInTheDocument();
+  });
+
   it("collapses project on second click", async () => {
     const user = userEvent.setup();
     const project = makeProject({ name: "Toggle Me" });
@@ -289,6 +305,19 @@ describe("ProjectTree", () => {
     expect(within(row).getByText("2")).toBeInTheDocument();
   });
 
+  it("creates a project without desired outcome", async () => {
+    const user = userEvent.setup();
+    const onCreateProject = vi.fn();
+
+    renderTree([], [], { onCreateProject });
+
+    await user.click(screen.getByLabelText("Create project"));
+    await user.type(screen.getByLabelText("Project name"), "No Goal Project");
+    await user.click(screen.getByRole("button", { name: "Create" }));
+
+    expect(onCreateProject).toHaveBeenCalledWith("No Goal Project", "");
+  });
+
   // -----------------------------------------------------------------------
   // Show all projects toggle
   // -----------------------------------------------------------------------
@@ -380,6 +409,20 @@ describe("ProjectTree", () => {
     expect(onFocus).toHaveBeenCalledWith(project.id);
   });
 
+  it("calls onArchiveProject with project ID when archive clicked", async () => {
+    const user = userEvent.setup();
+    const project = makeProject({ name: "Archivable Project" });
+    const onArchiveProject = vi.fn();
+
+    renderTree([project], [], { onArchiveProject });
+
+    const archiveButton = screen.getByRole("button", {
+      name: /archive archivable project/i,
+    });
+    await user.click(archiveButton);
+    expect(onArchiveProject).toHaveBeenCalledWith(project.id);
+  });
+
   it("shows filled star when project is focused", () => {
     const project = makeProject({ name: "Starred Project", isFocused: true });
     renderTree([project]);
@@ -419,7 +462,7 @@ describe("ProjectTree", () => {
   // Project rename
   // -----------------------------------------------------------------------
 
-  it("enters edit mode on double-click when expanded", async () => {
+  it("enters edit mode on click when expanded", async () => {
     const user = userEvent.setup();
     const project = makeProject({ name: "Rename Me" });
     const onUpdateTitle = vi.fn();
@@ -428,20 +471,20 @@ describe("ProjectTree", () => {
 
     // First click to expand
     await user.click(screen.getByText("Rename Me"));
-    // Double-click the name to enter edit mode
-    await user.dblClick(screen.getByText("Rename Me"));
+    // Click again while expanded to enter edit mode
+    await user.click(screen.getByText("Rename Me"));
     expect(screen.getByDisplayValue("Rename Me")).toBeInTheDocument();
   });
 
-  it("does not enter edit mode on double-click when collapsed", async () => {
+  it("does not enter edit mode on first click when collapsed", async () => {
     const user = userEvent.setup();
     const project = makeProject({ name: "Stay Collapsed" });
     const onUpdateTitle = vi.fn();
 
     renderTree([project], [], { onUpdateTitle });
 
-    // Double-click on collapsed project — should just toggle expand (via click events)
-    await user.dblClick(screen.getByText("Stay Collapsed"));
+    // First click on collapsed project should just expand
+    await user.click(screen.getByText("Stay Collapsed"));
     // Should not be in edit mode (no textarea)
     expect(
       screen.queryByDisplayValue("Stay Collapsed"),
@@ -455,14 +498,27 @@ describe("ProjectTree", () => {
 
     renderTree([project], [], { onUpdateTitle });
 
-    // Expand, then double-click to edit
+    // Expand, then click to edit
     await user.click(screen.getByText("Old Name"));
-    await user.dblClick(screen.getByText("Old Name"));
+    await user.click(screen.getByText("Old Name"));
 
     const textarea = screen.getByDisplayValue("Old Name");
     await user.clear(textarea);
     await user.type(textarea, "New Name{Enter}");
     expect(onUpdateTitle).toHaveBeenCalledWith(project.id, "New Name");
+  });
+
+  it("enters edit mode from rename button", async () => {
+    const user = userEvent.setup();
+    const project = makeProject({ name: "Rename Shortcut" });
+    const onUpdateTitle = vi.fn();
+
+    renderTree([project], [], { onUpdateTitle });
+
+    await user.click(
+      screen.getByRole("button", { name: /rename rename shortcut/i }),
+    );
+    expect(screen.getByDisplayValue("Rename Shortcut")).toBeInTheDocument();
   });
 
   it("cancels rename on Escape", async () => {
@@ -473,7 +529,7 @@ describe("ProjectTree", () => {
     renderTree([project], [], { onUpdateTitle });
 
     await user.click(screen.getByText("Keep This"));
-    await user.dblClick(screen.getByText("Keep This"));
+    await user.click(screen.getByText("Keep This"));
 
     const textarea = screen.getByDisplayValue("Keep This");
     await user.clear(textarea);
@@ -488,7 +544,7 @@ describe("ProjectTree", () => {
     renderTree([project], []); // no onUpdateTitle
 
     await user.click(screen.getByText("No Edit"));
-    await user.dblClick(screen.getByText("No Edit"));
+    await user.click(screen.getByText("No Edit"));
     expect(screen.queryByDisplayValue("No Edit")).not.toBeInTheDocument();
   });
 });

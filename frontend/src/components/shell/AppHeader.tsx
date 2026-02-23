@@ -25,21 +25,33 @@ export interface AppHeaderProps {
   isChatOpen?: boolean;
   mobileBucketNav?: MobileBucketNav;
   appVersion?: string;
+  showControls?: boolean;
   className?: string;
 }
 
-export function AppHeader({
+export interface AppHeaderControlsProps {
+  username: string;
+  currentView: AppView;
+  onNavigate: (view: AppView) => void;
+  onSignOut: () => void;
+  onToggleChat?: () => void;
+  isChatOpen?: boolean;
+  mobileBucketNav?: MobileBucketNav;
+  appVersion?: string;
+  className?: string;
+}
+
+export function AppHeaderControls({
   username,
   currentView,
   onNavigate,
   onSignOut,
-  onLogoClick,
   onToggleChat,
   isChatOpen,
   mobileBucketNav,
   appVersion,
   className,
-}: AppHeaderProps) {
+}: AppHeaderControlsProps) {
   const menuSections: AppMenuSection[] = useMemo(() => {
     const headerSection: AppMenuSection = {
       header: { username, appName: "Senticor Project", appVersion },
@@ -105,35 +117,63 @@ export function AppHeader({
   ]);
 
   return (
-    <header className={cn("flex items-center justify-between", className)}>
-      {/* Mobile: hamburger left, logo right */}
-      {/* Desktop: logo left, hamburger right */}
-      <div className="flex items-center gap-3 md:order-2">
-        {onToggleChat && (
-          <button
-            onClick={onToggleChat}
-            aria-label={isChatOpen ? "Chat schließen" : "Chat mit Copilot"}
-            aria-pressed={isChatOpen}
-            className={cn(
-              "flex h-8 w-8 items-center justify-center rounded-lg transition-colors",
-              isChatOpen
-                ? "bg-blueprint-100 text-blueprint-600"
-                : "text-text-muted hover:bg-paper-100",
-            )}
-          >
-            <Icon name="chat_bubble" size={20} />
-          </button>
-        )}
-        <AppMenu sections={menuSections} />
-      </div>
+    <div className={cn("flex items-center gap-3", className)}>
+      {onToggleChat && (
+        <button
+          onClick={onToggleChat}
+          aria-label={isChatOpen ? "Chat minimieren" : "Chat mit Copilot"}
+          aria-pressed={isChatOpen}
+          className={cn(
+            "flex h-8 w-8 items-center justify-center rounded-lg transition-colors",
+            isChatOpen
+              ? "bg-blueprint-100 text-blueprint-600"
+              : "text-text-muted hover:bg-paper-100",
+          )}
+        >
+          <Icon name="chat_bubble" size={20} />
+        </button>
+      )}
+      <AppMenu sections={menuSections} />
+    </div>
+  );
+}
+
+export function AppHeader({
+  username,
+  currentView,
+  onNavigate,
+  onSignOut,
+  onLogoClick,
+  onToggleChat,
+  isChatOpen,
+  mobileBucketNav,
+  appVersion,
+  showControls = true,
+  className,
+}: AppHeaderProps) {
+  return (
+    <header className={cn("flex items-center gap-2", className)}>
       <button
         onClick={onLogoClick}
-        className="cursor-pointer md:order-1"
+        className="cursor-pointer shrink-0"
         aria-label="Go to Inbox"
         title="Senticor Project"
       >
         <img src="/tay-logo.svg" alt="Senticor Project" className="h-8 w-8" />
       </button>
+      {showControls && (
+        <AppHeaderControls
+          username={username}
+          currentView={currentView}
+          onNavigate={onNavigate}
+          onSignOut={onSignOut}
+          onToggleChat={onToggleChat}
+          isChatOpen={isChatOpen}
+          mobileBucketNav={mobileBucketNav}
+          appVersion={appVersion}
+          className="gap-1.5"
+        />
+      )}
     </header>
   );
 }

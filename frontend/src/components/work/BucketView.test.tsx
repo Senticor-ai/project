@@ -1,6 +1,14 @@
 import { describe, it, expect, vi } from "vitest";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { BucketView } from "./BucketView";
 import {
   createActionItem,
@@ -8,6 +16,7 @@ import {
   createProject,
   createAction,
 } from "@/model/factories";
+import type { Bucket } from "@/model/types";
 
 // Mock completed items hook (used by ActionList)
 vi.mock("@/hooks/use-items", () => ({
@@ -129,6 +138,42 @@ describe("BucketView", () => {
     const nav = screen.getByRole("navigation", { name: "Buckets" });
     await user.click(within(nav).getByText("Calendar"));
     expect(onBucketChange).toHaveBeenCalledWith("calendar");
+  });
+
+  it("opens Projects and auto-expands clicked starred project from nav", async () => {
+    const user = userEvent.setup();
+    const project = createProject({
+      name: "Starred Project",
+      desiredOutcome: "Ship release",
+      isFocused: true,
+      status: "active",
+    });
+    const action = createAction({
+      name: "Project action",
+      bucket: "next",
+      projectId: project.id,
+    });
+
+    function Harness() {
+      const [activeBucket, setActiveBucket] = useState<Bucket>("inbox");
+      return (
+        <BucketView
+          {...baseProps}
+          activeBucket={activeBucket}
+          onBucketChange={setActiveBucket}
+          projects={[project]}
+          actionItems={[action]}
+        />
+      );
+    }
+
+    render(<Harness />);
+
+    await user.click(screen.getByText("Starred Project"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Project action")).toBeInTheDocument();
+    });
   });
 });
 

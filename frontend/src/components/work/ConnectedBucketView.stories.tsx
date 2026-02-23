@@ -426,7 +426,9 @@ export const InboxWithEmail: Story = {
 
     await step("Verify email sender is shown", async () => {
       expect(canvas.getByText("h.schmidt@example.de")).toBeInTheDocument();
-      expect(canvas.getByText("sekretariat@bund.de")).toBeInTheDocument();
+      expect(canvas.getAllByText("sekretariat@bund.de").length).toBeGreaterThan(
+        0,
+      );
     });
 
     await step("Verify email mail icon is visible", async () => {

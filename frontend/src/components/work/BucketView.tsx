@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -65,6 +65,7 @@ export interface BucketViewProps {
     fields: Partial<ItemEditableFields>,
   ) => void;
   onAddProjectAction?: (projectId: CanonicalId, title: string) => void;
+  onArchiveProject?: (id: CanonicalId) => void;
   onCreateProject?: (name: string, desiredOutcome: string) => void;
   onEditProject?: (
     id: CanonicalId,
@@ -79,6 +80,8 @@ export interface BucketViewProps {
   linkedActionBuckets?: Map<CanonicalId, ActionItemBucket>;
   /** Organizations for reference bucket grouping. */
   organizations?: { id: string; name: string }[];
+  /** Optional controls rendered above the left bucket menu. */
+  sidebarControls?: ReactNode;
   className?: string;
 }
 
@@ -99,6 +102,7 @@ export function BucketView({
   onArchiveReference,
   onEditReference,
   onAddProjectAction,
+  onArchiveProject,
   onCreateProject,
   onEditProject,
   onSelectReference,
@@ -106,12 +110,17 @@ export function BucketView({
   onNavigateToReference,
   linkedActionBuckets,
   organizations,
+  sidebarControls,
   className,
 }: BucketViewProps) {
   const isMobile = useIsMobile();
   const [activeItem, setActiveItem] = useState<
     (ActionItem | ReferenceMaterial) | null
   >(null);
+  const [expandProjectId, setExpandProjectId] = useState<CanonicalId | null>(
+    null,
+  );
+  const [expandProjectRequest, setExpandProjectRequest] = useState(0);
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const item = event.active.data.current?.thing as AppItem | undefined;
@@ -142,20 +151,32 @@ export function BucketView({
 
   const counts = computeBucketCounts(actionItems, referenceItems, projects);
 
+  const handleSelectProjectNav = useCallback(
+    (projectId: CanonicalId) => {
+      setExpandProjectId(projectId);
+      setExpandProjectRequest((n) => n + 1);
+      onBucketChange("project");
+    },
+    [onBucketChange],
+  );
+
   return (
     <DndContext
       onDragStart={isMobile ? undefined : handleDragStart}
       onDragEnd={isMobile ? undefined : handleDragEnd}
       sensors={isMobile ? [] : undefined}
     >
-      <div className={cn("flex gap-6", className)}>
-        <BucketNav
-          activeBucket={activeBucket}
-          onSelect={onBucketChange}
-          counts={counts}
-          projects={projects}
-          className="hidden w-56 shrink-0 md:block"
-        />
+      <div className={cn("flex items-start gap-6", className)}>
+        <aside className="hidden w-56 shrink-0 md:sticky md:top-3 md:block md:max-h-[calc(100vh-1.5rem)] md:overflow-y-auto">
+          {sidebarControls && <div className="mb-3">{sidebarControls}</div>}
+          <BucketNav
+            activeBucket={activeBucket}
+            onSelect={onBucketChange}
+            onSelectProject={handleSelectProjectNav}
+            counts={counts}
+            projects={projects}
+          />
+        </aside>
 
         <main className="min-w-0 flex-1" aria-label="Bucket content">
           {thingBuckets.has(activeBucket) ? (
@@ -195,9 +216,12 @@ export function BucketView({
               projects={projects}
               actions={actionItems.filter((t) => t.bucket !== "inbox")}
               references={referenceItems}
+              expandProjectId={expandProjectId}
+              expandProjectRequest={expandProjectRequest}
               onCompleteAction={onCompleteActionItem}
               onToggleFocus={onToggleFocus}
               onAddAction={onAddProjectAction ?? (() => {})}
+              onArchiveProject={onArchiveProject}
               onCreateProject={onCreateProject}
               onUpdateTitle={onUpdateTitle}
               onEditProject={onEditProject}

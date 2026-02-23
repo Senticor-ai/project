@@ -257,7 +257,7 @@ function AuthenticatedApp({
           isChatOpen={isChatOpen}
           mobileBucketNav={mobileBucketNav}
           appVersion="0.1.0"
-          className="mb-6"
+          className="sticky top-2 z-30 mb-6 w-fit rounded-[var(--radius-lg)] border border-paper-200 bg-surface/95 px-2 py-1 shadow-sm backdrop-blur"
         />
 
         {/* Main workspace */}
@@ -352,6 +352,18 @@ function AuthenticatedApp({
           />
         </Suspense>
       </div>
+
+      {/* Floating chat launcher (hidden while panel is open) */}
+      {!isChatOpen && (
+        <button
+          onClick={() => setIsChatOpen(true)}
+          aria-label="Chat öffnen"
+          title="Chat öffnen"
+          className="fixed bottom-4 right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full border border-blueprint-200 bg-blueprint-600 text-white shadow-[var(--shadow-sheet)] transition-colors hover:bg-blueprint-700"
+        >
+          <Icon name="chat_bubble" size={22} />
+        </button>
+      )}
 
       {/* Chat Panel */}
       <TayChatPanel
