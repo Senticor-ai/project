@@ -14,12 +14,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse, Response
 
+from slowapi.errors import RateLimitExceeded
+
 from .chat import router as chat_router
 from .config import settings
 from .csrf import should_validate_csrf, validate_csrf_request
 from .db import db_conn
 from .deps import ORG_ID_HEADER
 from .email import routes as email_routes
+from .rate_limit import limiter
 from .metrics import (
     dec_in_flight_requests,
     inc_in_flight_requests,
@@ -162,6 +165,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Attach rate limiter to app state for SlowAPI
+app.state.limiter = limiter
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -288,6 +294,26 @@ async def validation_exception_with_request_id(
     response.headers[REQUEST_ID_HEADER] = getattr(request.state, "request_id", "")
     response.headers[TRAIL_ID_HEADER] = getattr(request.state, "trail_id", "")
     return response
+
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_exception_handler(request: Request, exc: RateLimitExceeded):
+    request.state.error_reason = "Rate limit exceeded"
+    logger.warning(
+        "rate_limit.exceeded",
+        method=request.method,
+        path=request.url.path,
+        remote_addr=request.client.host if request.client else None,
+    )
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Rate limit exceeded"},
+        headers={
+            "Retry-After": "60",
+            REQUEST_ID_HEADER: getattr(request.state, "request_id", ""),
+            TRAIL_ID_HEADER: getattr(request.state, "trail_id", ""),
+        },
+    )
 
 
 @app.exception_handler(Exception)
