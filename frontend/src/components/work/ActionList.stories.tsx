@@ -4,7 +4,11 @@ import { expect, fn, waitFor } from "storybook/test";
 import { ActionList } from "./ActionList";
 import type { ActionItem } from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
-import { createActionItem, resetFactoryCounter } from "@/model/factories";
+import {
+  createActionItem,
+  resetFactoryCounter,
+  computationPort,
+} from "@/model/factories";
 import { store, createItemRecord } from "@/test/msw/fixtures";
 
 resetFactoryCounter();
@@ -171,6 +175,121 @@ export const WithContextFilters: Story = {
           "@phone",
           "@computer",
         ] as unknown as import("@/model/canonical-id").CanonicalId[],
+      }),
+    ],
+  },
+};
+
+export const WithEnergyFilters: Story = {
+  args: {
+    bucket: "next",
+    items: [
+      createActionItem({
+        rawCapture: "Quick email reply",
+        bucket: "next",
+        ports: [computationPort({ energyLevel: "low" })],
+      }),
+      createActionItem({
+        rawCapture: "Deep focus coding session",
+        bucket: "next",
+        ports: [computationPort({ energyLevel: "high" })],
+      }),
+      createActionItem({
+        rawCapture: "Review meeting notes",
+        bucket: "next",
+        ports: [computationPort({ energyLevel: "medium" })],
+      }),
+      createActionItem({
+        rawCapture: "Brainstorm project ideas",
+        bucket: "next",
+        ports: [computationPort({ energyLevel: "high" })],
+      }),
+    ],
+  },
+};
+
+export const WithTimeFilters: Story = {
+  args: {
+    bucket: "next",
+    items: [
+      createActionItem({
+        rawCapture: "Send quick Slack message",
+        bucket: "next",
+        ports: [computationPort({ timeEstimate: "5min" })],
+      }),
+      createActionItem({
+        rawCapture: "Write status report",
+        bucket: "next",
+        ports: [computationPort({ timeEstimate: "30min" })],
+      }),
+      createActionItem({
+        rawCapture: "Prepare quarterly review",
+        bucket: "next",
+        ports: [computationPort({ timeEstimate: "2hr" })],
+      }),
+      createActionItem({
+        rawCapture: "Organize team workshop",
+        bucket: "next",
+        ports: [computationPort({ timeEstimate: "half-day" })],
+      }),
+    ],
+  },
+};
+
+export const WithAllFilters: Story = {
+  args: {
+    bucket: "next",
+    items: [
+      createActionItem({
+        rawCapture: "Call dentist",
+        bucket: "next",
+        contexts: [
+          "@phone",
+        ] as unknown as import("@/model/canonical-id").CanonicalId[],
+        ports: [computationPort({ energyLevel: "low", timeEstimate: "5min" })],
+      }),
+      createActionItem({
+        rawCapture: "Write architecture doc",
+        bucket: "next",
+        contexts: [
+          "@computer",
+        ] as unknown as import("@/model/canonical-id").CanonicalId[],
+        ports: [
+          computationPort({ energyLevel: "high", timeEstimate: "2hr" }),
+        ],
+      }),
+      createActionItem({
+        rawCapture: "Pick up groceries",
+        bucket: "next",
+        contexts: [
+          "@errands",
+        ] as unknown as import("@/model/canonical-id").CanonicalId[],
+        ports: [
+          computationPort({ energyLevel: "medium", timeEstimate: "30min" }),
+        ],
+      }),
+      createActionItem({
+        rawCapture: "Review PR feedback",
+        bucket: "next",
+        contexts: [
+          "@computer",
+        ] as unknown as import("@/model/canonical-id").CanonicalId[],
+        ports: [
+          computationPort({ energyLevel: "low", timeEstimate: "15min" }),
+        ],
+      }),
+    ],
+  },
+};
+
+export const FilteredEmptyState: Story = {
+  args: {
+    bucket: "next",
+    items: [
+      createActionItem({
+        rawCapture: "Only high-energy task",
+        bucket: "next",
+        ports: [computationPort({ energyLevel: "high", timeEstimate: "2hr" })],
       }),
     ],
   },

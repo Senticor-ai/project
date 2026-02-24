@@ -59,7 +59,7 @@ export interface ItemListProps<T extends BaseEntity> {
   /** Empty state message when no items and secondary section is empty/collapsed */
   emptyMessage: string;
   /** Secondary empty-state hint (e.g. "Capture a thought to get started") */
-  emptyHint?: string;
+  emptyHint?: ReactNode;
   /** Footer count configuration */
   footer: ItemListFooterConfig;
   /** Collapsible secondary section (Done / Archived). Omit to hide. */
