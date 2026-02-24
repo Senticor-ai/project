@@ -285,6 +285,7 @@ export type AuthUser = {
   email: string;
   username?: string | null;
   created_at: string;
+  disclaimer_acknowledged_at?: string | null;
 };
 
 export type SessionRefreshResponse = {
