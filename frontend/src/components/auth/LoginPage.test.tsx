@@ -92,4 +92,38 @@ describe("LoginPage", () => {
     await user.click(screen.getByRole("button", { name: "Sign in" }));
     expect(screen.getByText("Sign in to continue")).toBeInTheDocument();
   });
+
+  describe("Disclaimer", () => {
+    it("renders dev/demo disclaimer in login mode", () => {
+      render(<LoginPage {...defaultProps} />);
+
+      const disclaimer = screen.getByRole("status");
+      expect(disclaimer).toBeInTheDocument();
+      expect(disclaimer).toHaveTextContent(
+        "Development/demo environment — not for production use",
+      );
+    });
+
+    it("renders dev/demo disclaimer in register mode", async () => {
+      const user = userEvent.setup();
+      render(<LoginPage {...defaultProps} />);
+
+      // Switch to register mode
+      await user.click(screen.getByText("Request access"));
+
+      const disclaimer = screen.getByRole("status");
+      expect(disclaimer).toBeInTheDocument();
+      expect(disclaimer).toHaveTextContent(
+        "Development/demo environment — not for production use",
+      );
+    });
+
+    it("applies correct warning styling to disclaimer", () => {
+      render(<LoginPage {...defaultProps} />);
+
+      const disclaimer = screen.getByRole("status");
+      expect(disclaimer).toHaveClass("text-status-warning");
+      expect(disclaimer).toHaveClass("bg-status-warning/10");
+    });
+  });
 });
