@@ -1,8 +1,9 @@
 """Unit tests for ReadAction support in Pydantic models."""
 
 import pytest
+from pydantic import ValidationError
 
-from app.models import ActionItemJsonLd, ItemPatchModel, _resolve_item_type
+from app.models import ACTION_SUBTYPES, ActionItemJsonLd, ItemPatchModel, _resolve_item_type
 from app.routes.items import _is_action_type
 
 pytestmark = pytest.mark.unit
@@ -37,6 +38,35 @@ class TestIsActionType:
 
     def test_digital_document_is_not_action_type(self):
         assert _is_action_type("DigitalDocument") is False
+
+
+class TestActionSubtypeValidation:
+    def test_all_subtypes_resolve_to_action(self):
+        """All ACTION_SUBTYPES should resolve to 'action' discriminator."""
+        for subtype in ACTION_SUBTYPES:
+            result = _resolve_item_type({"@type": subtype})
+            assert result == "action", f"{subtype} should resolve to 'action', got '{result}'"
+
+    def test_invalid_subtype_rejected(self):
+        """Invalid action subtypes should be rejected by Pydantic validation."""
+        data = {
+            "@id": "urn:app:test:invalid",
+            "@type": "InvalidAction",
+            "_schemaVersion": 2,
+            "name": "Invalid action",
+            "additionalProperty": [
+                {"@type": "PropertyValue", "propertyID": "app:bucket", "value": "next"},
+            ],
+        }
+        with pytest.raises(ValidationError) as exc_info:
+            ActionItemJsonLd.model_validate(data)
+        # Verify the error is about the @type field
+        assert "type" in str(exc_info.value).lower()
+
+    def test_creative_work_not_action_type(self):
+        """CreativeWork types should not resolve to 'action'."""
+        assert _resolve_item_type({"@type": "CreativeWork"}) != "action"
+        assert _resolve_item_type({"@type": "DigitalDocument"}) != "action"
 
 
 class TestActionItemJsonLd:
