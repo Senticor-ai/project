@@ -5,6 +5,23 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag
 
 
+# Schema.org Action subtypes for validation
+ACTION_SUBTYPES = frozenset({
+    "Action",
+    "ReadAction",
+    "EmailMessage",
+    "CreateAction",
+    "UpdateAction",
+    "DeleteAction",
+    "SearchAction",
+    "FindAction",
+    "CheckAction",
+    "ConfirmAction",
+    "InformAction",
+    "PlanAction",
+})
+
+
 class AuthCredentials(BaseModel):
     email: str
     password: str
