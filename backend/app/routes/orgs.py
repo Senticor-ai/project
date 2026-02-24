@@ -13,7 +13,8 @@ def list_orgs(current_user=Depends(get_current_user)):
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT o.id, o.name, o.created_at, m.role
+                SELECT o.id, o.name, o.created_at, m.role,
+                       o.general_doc_id, o.user_doc_id, o.log_doc_id, o.agent_doc_id
                 FROM org_memberships m
                 JOIN organizations o ON o.id = m.org_id
                 WHERE m.user_id = %s AND m.status = 'active'
@@ -29,6 +30,10 @@ def list_orgs(current_user=Depends(get_current_user)):
             name=row["name"],
             role=row["role"],
             created_at=row["created_at"].isoformat(),
+            general_doc_id=str(row["general_doc_id"]) if row["general_doc_id"] else None,
+            user_doc_id=str(row["user_doc_id"]) if row["user_doc_id"] else None,
+            log_doc_id=str(row["log_doc_id"]) if row["log_doc_id"] else None,
+            agent_doc_id=str(row["agent_doc_id"]) if row["agent_doc_id"] else None,
         )
         for row in rows
     ]
