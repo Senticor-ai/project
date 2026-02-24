@@ -24,7 +24,7 @@ and aligned to schema.org vocabulary for interoperability and semantic clarity.
 ```
 Person (personal owner) or Organization (business owner)
     └── owns → Project
-                  ├── contains → Task (Action / PlanAction)
+                  ├── contains → Task (Action subtypes: BuyAction, CreateAction, etc.)
                   ├── contains → Checklist (ItemList)
                   └── contains → Procedure (HowTo)
                                     └── step → HowToStep
@@ -80,25 +80,105 @@ interface Project extends Thing {
 
 ### Task
 
-**Schema:** `schema:Action` or `schema:PlanAction`
+**Schema:** `schema:Action` and action subtypes
 **Purpose:** A unit of work that can be assigned, scheduled, and completed
+
+The app supports schema.org action subtypes to provide semantic specificity while maintaining a simple UX. All action types share the same base properties but allow for specialized classification via `@type`.
+
+#### Supported Action Subtypes
+
+The app recognizes the following schema.org action types:
+
+- `schema:Action` — Generic action (default)
+- `schema:PlanAction` — Planned or future action
+- `schema:BuyAction` — Purchase or procurement task
+- `schema:CommunicateAction` — Communication task (email, call, message)
+- `schema:ReviewAction` — Review or approval task
+- `schema:CreateAction` — Content creation task (document, design, etc.)
+- `schema:SendAction` — Send or deliver task
+- `schema:CheckAction` — Verification or validation task
+- `schema:ReadAction` — Reading or research task
+
+#### Base Action Interface
 
 ```typescript
 interface Task extends Thing {
-  "@type": "schema:Action" | "schema:PlanAction";
+  "@type":
+    | "schema:Action"
+    | "schema:PlanAction"
+    | "schema:BuyAction"
+    | "schema:CommunicateAction"
+    | "schema:ReviewAction"
+    | "schema:CreateAction"
+    | "schema:SendAction"
+    | "schema:CheckAction"
+    | "schema:ReadAction";
   name: string; // "Send contract to legal"
   description?: string;
-  agent?: ThingRef<Person | Organization>; // Assignee
+  agent?: ThingRef<Person | Organization>; // Assignee (direct performer)
   participant?: ThingRef<Person | Organization | Role>[]; // Collaborators
   actionStatus?: ActionStatusType; // ActiveActionStatus | CompletedActionStatus | ...
   startTime?: string; // Planned start (ISO 8601)
   endTime?: string; // Due or completion time (ISO 8601)
-  object?: ThingRef; // Project, procedure, or asset this task targets
-  result?: ThingRef; // Output artifact
-  location?: ThingRef; // Where work happens
-  instrument?: ThingRef; // Tool used
+
+  // Relationship properties
+  object?: ThingRef | string; // What the action acts on
+  result?: ThingRef | string; // What the action produces
+  location?: ThingRef | string; // Where work happens
+  instrument?: ThingRef | string; // Tool or device used
 }
 ```
+
+#### Relationship Properties
+
+Action subtypes support schema.org relationship properties to capture semantic context:
+
+- **`object`** — What the action acts on (e.g., "Apples" for a `BuyAction`, "Contract" for a `ReviewAction`)
+- **`result`** — What the action produces (e.g., "Signed contract" for a `ReviewAction`)
+- **`location`** — Where the action happens (e.g., "Supermarket" for a `BuyAction`)
+- **`instrument`** — Tool or device used (e.g., "DocuSign" for a `ReviewAction`)
+- **`agent`** — Direct performer of the action (assignee)
+- **`participant`** — Additional collaborators or stakeholders
+
+#### Example: BuyAction with Relationships
+
+```json
+{
+  "@id": "urn:app:action:buy-apples",
+  "@type": "schema:BuyAction",
+  "name": "Buy apples for party",
+  "description": "Get 5kg of apples from the supermarket",
+  "agent": { "@id": "urn:app:person:john" },
+  "object": "Apples",
+  "location": "Edeka Supermarket",
+  "result": "Purchased apples",
+  "app:bucket": "personal",
+  "actionStatus": "schema:PotentialActionStatus"
+}
+```
+
+#### Example: CreateAction with Context
+
+```json
+{
+  "@id": "urn:app:action:create-list",
+  "@type": "schema:CreateAction",
+  "name": "Create shopping list",
+  "description": "Write shopping list for husband",
+  "agent": { "@id": "urn:app:person:maria" },
+  "result": { "@id": "urn:app:creative-work:shopping-list" },
+  "instrument": "Notes app",
+  "app:bucket": "personal",
+  "actionStatus": "schema:ActiveActionStatus"
+}
+```
+
+#### Type Assignment Workflow
+
+1. **Capture** — All user inputs are created as `schema:Thing` (generic)
+2. **Triage** — User or AI enrichment can reassign `@type` to a specific action subtype
+3. **Enrichment** — AI pipeline can add relationship properties (`object`, `instrument`, etc.)
+4. **Frontend** — Serializer recognizes all action subtypes and maps them to the action bucket
 
 **Status mapping:** App statuses map to `schema:ActionStatusType`.
 
