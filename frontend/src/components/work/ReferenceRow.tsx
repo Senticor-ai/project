@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
+import { Tooltip } from "@/components/ui/Tooltip";
 import { MarkdownViewer } from "@/components/ui/MarkdownViewer";
 import { BucketBadge } from "@/components/paperclip/BucketBadge";
 import { getFileUrl } from "@/lib/api-client";
@@ -212,68 +213,78 @@ export function ReferenceRow({
 
         {/* Note indicator */}
         {reference.description && (
-          <button
-            onClick={() =>
-              onToggleExpand ? onToggleExpand() : onSelect(reference.id)
-            }
-            aria-label={`Show notes for ${reference.name ?? "Untitled"}`}
-            className="shrink-0 text-text-subtle hover:text-text"
-          >
-            <Icon name="description" size={14} />
-          </button>
+          <Tooltip>
+            <button
+              onClick={() =>
+                onToggleExpand ? onToggleExpand() : onSelect(reference.id)
+              }
+              aria-label={`Show notes for ${reference.name ?? "Untitled"}`}
+              className="shrink-0 text-text-subtle hover:text-text"
+            >
+              <Icon name="description" size={14} />
+            </button>
+          </Tooltip>
         )}
 
         {/* External URL link */}
         {reference.url && (
-          <a
-            href={reference.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Open external link"
-            className="shrink-0 text-text-subtle hover:text-blueprint-500"
-          >
-            <Icon name="open_in_new" size={14} />
-          </a>
+          <Tooltip>
+            <a
+              href={reference.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Open external link"
+              className="shrink-0 text-text-subtle hover:text-blueprint-500"
+            >
+              <Icon name="open_in_new" size={14} />
+            </a>
+          </Tooltip>
         )}
 
         {/* View in browser (only for formats browsers can render inline) */}
         {reference.downloadUrl &&
           isBrowserViewable(reference.encodingFormat) && (
-            <a
-              href={`${getFileUrl(reference.downloadUrl)}?inline=true`}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="View file"
-              className="shrink-0 text-text-subtle hover:text-blueprint-500"
-            >
-              <Icon name="visibility" size={14} />
-            </a>
+            <Tooltip>
+              <a
+                href={`${getFileUrl(reference.downloadUrl)}?inline=true`}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="View file"
+                className="shrink-0 text-text-subtle hover:text-blueprint-500"
+              >
+                <Icon name="visibility" size={14} />
+              </a>
+            </Tooltip>
           )}
 
         {/* Download file */}
         {reference.downloadUrl && (
-          <a
-            href={getFileUrl(reference.downloadUrl)}
-            target="_blank"
-            rel="noopener noreferrer"
-            download
-            aria-label="Download file"
-            className="shrink-0 text-text-subtle hover:text-blueprint-500"
-          >
-            <Icon name="download" size={14} />
-          </a>
+          <Tooltip>
+            <a
+              href={getFileUrl(reference.downloadUrl)}
+              target="_blank"
+              rel="noopener noreferrer"
+              download
+              aria-label="Download file"
+              className="shrink-0 text-text-subtle hover:text-blueprint-500"
+            >
+              <Icon name="download" size={14} />
+            </a>
+          </Tooltip>
         )}
 
         {/* Actions menu */}
         <div className="relative">
-          <button
-            onClick={() => setMenuOpen(!menuOpen)}
-            aria-label={`Actions for ${reference.name ?? "Untitled"}`}
-            aria-expanded={menuOpen}
-            className="shrink-0 text-text-subtle opacity-0 hover:text-text group-hover:opacity-100"
-          >
-            <Icon name="more_vert" size={16} />
-          </button>
+          <Tooltip>
+            <button
+              onClick={() => setMenuOpen(!menuOpen)}
+              aria-label={`Actions for ${reference.name ?? "Untitled"}`}
+              aria-expanded={menuOpen}
+              className="shrink-0 text-text-subtle opacity-0 hover:text-text group-hover:opacity-100"
+            >
+              <Icon name="more_vert" size={16} />
+            </button>
+          </Tooltip>
 
           {menuOpen && (
             <div
@@ -327,30 +338,34 @@ export function ReferenceRow({
           {/* Markdown view/edit toggle — only for text references without a file */}
           {hasMarkdownContent && !reference.downloadUrl && (
             <div className="mb-2 flex items-center gap-1">
-              <button
-                onClick={() => setViewMode("view")}
-                aria-label="View markdown"
-                className={cn(
-                  "rounded-[var(--radius-sm)] p-1 text-xs",
-                  viewMode === "view"
-                    ? "bg-paper-200 text-text"
-                    : "text-text-subtle hover:text-text",
-                )}
-              >
-                <Icon name="visibility" size={14} />
-              </button>
-              <button
-                onClick={() => setViewMode("edit")}
-                aria-label="Edit content"
-                className={cn(
-                  "rounded-[var(--radius-sm)] p-1 text-xs",
-                  viewMode === "edit"
-                    ? "bg-paper-200 text-text"
-                    : "text-text-subtle hover:text-text",
-                )}
-              >
-                <Icon name="edit" size={14} />
-              </button>
+              <Tooltip>
+                <button
+                  onClick={() => setViewMode("view")}
+                  aria-label="View markdown"
+                  className={cn(
+                    "rounded-[var(--radius-sm)] p-1 text-xs",
+                    viewMode === "view"
+                      ? "bg-paper-200 text-text"
+                      : "text-text-subtle hover:text-text",
+                  )}
+                >
+                  <Icon name="visibility" size={14} />
+                </button>
+              </Tooltip>
+              <Tooltip>
+                <button
+                  onClick={() => setViewMode("edit")}
+                  aria-label="Edit content"
+                  className={cn(
+                    "rounded-[var(--radius-sm)] p-1 text-xs",
+                    viewMode === "edit"
+                      ? "bg-paper-200 text-text"
+                      : "text-text-subtle hover:text-text",
+                  )}
+                >
+                  <Icon name="edit" size={14} />
+                </button>
+              </Tooltip>
             </div>
           )}
 

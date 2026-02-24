@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AppHeader } from "./AppHeader";
 
@@ -128,5 +128,42 @@ describe("AppHeader", () => {
     await user.click(screen.getByText("Install app"));
 
     expect(onInstall).toHaveBeenCalledOnce();
+  });
+});
+
+describe("AppHeader chat toggle", () => {
+  it("renders chat toggle when onToggleChat is provided", () => {
+    render(<AppHeader {...defaults} onToggleChat={vi.fn()} />);
+    expect(screen.getByLabelText("Chat mit Copilot")).toBeInTheDocument();
+  });
+
+  it("fires onToggleChat when chat button is clicked", async () => {
+    const onToggleChat = vi.fn();
+    const user = userEvent.setup();
+    render(<AppHeader {...defaults} onToggleChat={onToggleChat} />);
+
+    await user.click(screen.getByLabelText("Chat mit Copilot"));
+    expect(onToggleChat).toHaveBeenCalledOnce();
+  });
+
+  it("shows minimize label when chat is open", () => {
+    render(
+      <AppHeader {...defaults} onToggleChat={vi.fn()} isChatOpen={true} />,
+    );
+    expect(screen.getByLabelText("Chat minimieren")).toBeInTheDocument();
+  });
+
+  it("shows tooltip on chat toggle hover", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    render(<AppHeader {...defaults} onToggleChat={vi.fn()} />);
+
+    const wrapper = screen.getByLabelText("Chat mit Copilot").closest("span")!;
+    await userEvent.hover(wrapper);
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
+
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Chat mit Copilot");
+    vi.useRealTimers();
   });
 });

@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, within, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ActionRow, type ActionRowProps } from "./ActionRow";
 import { createActionItem } from "@/model/factories";
@@ -1156,5 +1156,84 @@ describe("ActionRow tag chips", () => {
       thing: createActionItem({ name: "No tags", bucket: "next", tags: [] }),
     });
     expect(screen.queryByText("1099-int")).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tooltip integration
+// ---------------------------------------------------------------------------
+
+describe("ActionRow tooltip integration", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("shows tooltip on complete button hover", async () => {
+    renderRow({ thing: createActionItem({ name: "Buy milk" }) });
+
+    const wrapper = screen.getByLabelText("Complete Buy milk").closest("span")!;
+    await userEvent.hover(wrapper);
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
+
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Complete Buy milk");
+  });
+
+  it("shows tooltip on focus star hover", async () => {
+    renderRow({ thing: createActionItem({ name: "Tax return" }) });
+
+    const wrapper = screen.getByLabelText("Focus Tax return").closest("span")!;
+    await userEvent.hover(wrapper);
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
+
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Focus Tax return");
+  });
+
+  it("shows tooltip on edit button hover", async () => {
+    renderRow({
+      thing: createActionItem({ name: "Task" }),
+      onToggleExpand: vi.fn(),
+    });
+
+    const wrapper = screen.getByLabelText("Edit Task").closest("span")!;
+    await userEvent.hover(wrapper);
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
+
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Edit Task");
+  });
+
+  it("shows tooltip on move menu button hover", async () => {
+    renderRow({ thing: createActionItem({ name: "Item" }) });
+
+    const wrapper = screen.getByLabelText("Move Item").closest("span")!;
+    await userEvent.hover(wrapper);
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
+
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Move Item");
+  });
+
+  it("hides tooltip when mouse leaves", async () => {
+    renderRow({ thing: createActionItem({ name: "Task" }) });
+
+    const wrapper = screen.getByLabelText("Complete Task").closest("span")!;
+    await userEvent.hover(wrapper);
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
+    expect(screen.getByRole("tooltip")).toBeInTheDocument();
+
+    await userEvent.unhover(wrapper);
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   });
 });

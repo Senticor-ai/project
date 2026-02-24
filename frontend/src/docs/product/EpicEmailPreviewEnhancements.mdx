@@ -1,0 +1,336 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Product/Epics/Email Preview Enhancements" />
+
+# Epic: Email Preview Enhancements — Copy, Archive, Responsive
+
+**Status:** Not started
+**Priority:** Current
+**Checklist audit:** February 24, 2026 — implementation has not started; all checklist items remain unchecked.
+**See also:** [Engineering / Email Integration](?path=/docs/engineering-email-integration--docs), [Design / Copilot UX](?path=/docs/design-copilot-ux--docs)
+
+## Context
+
+The `EmailBodyViewer` component renders sanitized email HTML inline within an
+`ActionRow`. It works well for reading, but three usability gaps have emerged
+from daily use:
+
+1. **Copy/paste** — Users cannot easily copy email content. The sanitized HTML
+   renders via `dangerouslySetInnerHTML`, and while browser text selection works
+   for simple paragraphs, complex email layouts (tables, nested divs, styled
+   spans) produce garbled clipboard results. There is no "copy" affordance in
+   the UI.
+
+2. **Archive from preview** — Archiving a gmail item currently requires either
+   the inbox triage buttons (only visible in inbox bucket when expanded) or the
+   overflow menu (`more_vert`). When a user reads an email and decides to archive
+   it, the action should be reachable directly from the email preview — one click
+   without hunting through menus.
+
+3. **Small-screen reformatting** — The email preview has no responsive handling.
+   Emails with wide HTML tables, inline styles with fixed widths, or large images
+   overflow the container on mobile viewports. The `prose prose-sm` wrapper does
+   not constrain these elements.
+
+**Problem:** Users read emails, want to grab a quote or reference, decide to
+archive, or use the app on their phone — and hit friction at each step.
+
+**Outcome:** A polished email preview that supports copying content, offers a
+direct archive action, and reformats gracefully on small screens.
+
+---
+
+## User Story
+
+> "Ich lese eine E-Mail im Posteingang, möchte einen Absatz kopieren, die
+> E-Mail archivieren und das Ganze auch auf meinem Handy machen können —
+> ohne Umwege."
+
+---
+
+## Feature 1: Copy/Paste Support
+
+### Problem
+
+Browser-native copy from `dangerouslySetInnerHTML` content often captures HTML
+artifacts (extra whitespace, invisible divs, broken table formatting). Users
+expect to select text and get clean plaintext, or press a button to copy the
+full email body.
+
+### Solution
+
+**1a) Clean text selection** — Add CSS to the email body container that improves
+native text selection behavior:
+
+```css
+/* EmailBodyViewer body wrapper */
+.email-body-content {
+  user-select: text;              /* Ensure text is selectable */
+  -webkit-user-select: text;
+}
+.email-body-content table {
+  table-layout: fixed;            /* Prevent selection from jumping across cells */
+  word-break: break-word;
+}
+```
+
+**1b) Copy button** — Add a "Kopieren" button in the email preview header
+(visible when expanded). Clicking it copies the email body as clean plaintext
+to the clipboard.
+
+```
+┌──────────────────────────────────────────────────────┐
+│ ✉ Hans Schmidt h.schmidt@example.de    [Kopieren] [▲]│
+├──────────────────────────────────────────────────────┤
+│ Sehr geehrte Frau Müller,                            │
+│ hiermit teile ich Ihnen mit...                       │
+│                                                      │
+│ 🔗 In Gmail öffnen                                   │
+└──────────────────────────────────────────────────────┘
+```
+
+Implementation:
+
+- Extract plaintext from the sanitized HTML using a temporary DOM element
+  (`document.createElement("div")`, set `innerHTML`, read `textContent`)
+- Use `navigator.clipboard.writeText()` with fallback to
+  `document.execCommand("copy")`
+- Show brief visual feedback: button text changes to "Kopiert!" for 2 seconds,
+  then reverts to "Kopieren"
+- Button only appears when the email body is expanded
+
+### Files to modify
+
+| File | Change |
+| --- | --- |
+| `frontend/src/components/work/EmailBodyViewer.tsx` | Add copy button, plaintext extraction, clipboard logic |
+| `frontend/src/components/work/EmailBodyViewer.test.tsx` | Tests for copy behavior, fallback, feedback state |
+| `frontend/src/components/work/EmailBodyViewer.stories.tsx` | Story with copy interaction |
+
+---
+
+## Feature 2: Archive from Email Preview
+
+### Problem
+
+After reading an email, the user must locate the archive action in the overflow
+menu or rely on inbox triage buttons (only available in the inbox bucket). The
+email preview — where the user's attention is focused — has no archive affordance.
+
+### Solution
+
+Add an "Archivieren" button to the `EmailBodyViewer` footer, next to the
+"In Gmail öffnen" link. The button triggers the existing `onArchive` callback
+already wired through `ActionRow`.
+
+```
+┌──────────────────────────────────────────────────────┐
+│ ✉ Hans Schmidt h.schmidt@example.de    [Kopieren] [▲]│
+├──────────────────────────────────────────────────────┤
+│ Sehr geehrte Frau Müller,                            │
+│ hiermit teile ich Ihnen mit...                       │
+│                                                      │
+├──────────────────────────────────────────────────────┤
+│ 🔗 In Gmail öffnen              [📥 Archivieren]     │
+└──────────────────────────────────────────────────────┘
+```
+
+**Behavior:**
+
+- Button calls `onArchive()` — the same callback already used by `ActionRow`
+  triage buttons and the overflow menu
+- After click, the item animates out as it does today (existing archive animation)
+- Button is only shown when `onArchive` prop is provided (not all contexts
+  support archiving, e.g. already-archived items)
+- Bidirectional sync is already handled — archiving in COPILOT removes the
+  Gmail INBOX label via the existing worker pipeline
+
+**Props change:**
+
+```typescript
+export interface EmailBodyViewerProps {
+  htmlBody: string;
+  textBody?: string;
+  sourceUrl?: string;
+  senderName?: string;
+  senderEmail?: string;
+  className?: string;
+  onArchive?: () => void;  // NEW — archive callback from parent
+}
+```
+
+### Files to modify
+
+| File | Change |
+| --- | --- |
+| `frontend/src/components/work/EmailBodyViewer.tsx` | Add `onArchive` prop, archive button in footer |
+| `frontend/src/components/work/EmailBodyViewer.test.tsx` | Tests for archive button visibility, click callback |
+| `frontend/src/components/work/EmailBodyViewer.stories.tsx` | Story with archive action |
+| `frontend/src/components/work/ActionRow.tsx` | Pass `onArchive` to `EmailBodyViewer` |
+
+---
+
+## Feature 3: Responsive Reformatting on Small Screens
+
+### Problem
+
+Email HTML often contains elements that break on narrow viewports:
+
+- **Tables** with fixed `width` attributes or many columns overflow horizontally
+- **Images** with inline `width`/`height` styles exceed the container
+- **Nested divs** with `min-width` or `padding` push content offscreen
+- **Long URLs** or unbroken strings don't wrap
+
+The current `prose prose-sm max-w-none` wrapper does not address these issues.
+
+### Solution
+
+**3a) CSS containment** — Add overflow and responsive styles to the email body
+wrapper:
+
+```css
+.email-body-content {
+  overflow-x: auto;                    /* Horizontal scroll for truly wide content */
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+/* Force tables to fit container */
+.email-body-content table {
+  max-width: 100%;
+  width: 100% !important;
+  table-layout: fixed;
+}
+
+/* Constrain images */
+.email-body-content img {
+  max-width: 100%;
+  height: auto;
+}
+```
+
+Apply these as Tailwind arbitrary classes on the `dangerouslySetInnerHTML` wrapper:
+
+```tsx
+<div
+  className="prose prose-sm max-w-none text-xs text-text-primary
+    overflow-x-auto break-words
+    [&_table]:max-w-full [&_table]:w-full [&_table]:table-fixed
+    [&_img]:max-w-full [&_img]:h-auto
+    [&_a]:text-blueprint-600 [&_a]:underline"
+  dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
+/>
+```
+
+**3b) Mobile layout adjustments** — On small screens (`< md`), adjust the
+email preview chrome:
+
+- Header stacks vertically: sender info above, toggle button below
+- Copy and archive buttons use full-width layout
+- Footer stacks: "In Gmail öffnen" link above, archive button below
+- Reduce horizontal padding from `px-3` to `px-2`
+
+```
+Mobile (< 640px):
+┌────────────────────────────┐
+│ ✉ Hans Schmidt             │
+│   h.schmidt@example.de     │
+│            [E-Mail anzeigen]│
+├────────────────────────────┤
+│ Sehr geehrte Frau Müller,  │
+│ hiermit teile ich Ihnen    │
+│ mit...                     │
+│                            │
+│ [Kopieren]                 │
+├────────────────────────────┤
+│ 🔗 In Gmail öffnen         │
+│ [📥 Archivieren]           │
+└────────────────────────────┘
+```
+
+**3c) DOMPurify post-processing** — After sanitization, strip inline `width`
+and `min-width` styles from table and div elements that would cause overflow.
+Add a post-processing step:
+
+```typescript
+const sanitizedHtml = useMemo(() => {
+  if (!htmlBody) return "";
+  let html = DOMPurify.sanitize(htmlBody, { /* existing config */ });
+  // Strip fixed widths that cause overflow on mobile
+  html = html.replace(/\s*(min-)?width\s*:\s*\d+px/gi, "");
+  return html;
+}, [htmlBody]);
+```
+
+### Files to modify
+
+| File | Change |
+| --- | --- |
+| `frontend/src/components/work/EmailBodyViewer.tsx` | Responsive Tailwind classes, width-stripping post-process |
+| `frontend/src/components/work/EmailBodyViewer.test.tsx` | Tests for width stripping, overflow handling |
+| `frontend/src/components/work/EmailBodyViewer.stories.tsx` | Mobile viewport story, wide-table story |
+
+---
+
+## Acceptance Criteria
+
+### Copy/Paste
+- [ ] Expanded email body text is selectable with standard browser selection
+- [ ] "Kopieren" button appears in header when email body is expanded
+- [ ] Clicking "Kopieren" copies the email body as clean plaintext to clipboard
+- [ ] Button shows "Kopiert!" feedback for 2 seconds after successful copy
+- [ ] Copy works in Chrome, Firefox, and Safari
+
+### Archive
+- [ ] "Archivieren" button appears in email preview footer when `onArchive` is provided
+- [ ] Clicking "Archivieren" triggers the same archive flow as the overflow menu
+- [ ] Button is not shown for already-archived items or contexts without archive support
+- [ ] Bidirectional Gmail sync works (COPILOT archive removes Gmail INBOX label)
+
+### Responsive
+- [ ] Email HTML tables do not overflow the container on 375px-wide viewport
+- [ ] Email images scale down to fit container width
+- [ ] Inline `width: NNNpx` styles on tables/divs are stripped during sanitization
+- [ ] Long unbroken strings (URLs) wrap instead of overflowing
+- [ ] Header layout stacks vertically on screens below `md` breakpoint
+- [ ] Footer actions stack vertically on screens below `md` breakpoint
+- [ ] Email preview is usable on iPhone SE (375px) and Galaxy S8 (360px) viewports
+
+---
+
+## Delivery Plan
+
+### Phase 1: Responsive reformatting
+
+- [ ] Add overflow/containment CSS to email body wrapper
+- [ ] Add width-stripping post-processing to DOMPurify output
+- [ ] Add responsive header/footer layout (stacking on mobile)
+- [ ] Add Storybook stories for mobile viewport and wide-table email
+- [ ] Add unit tests for width stripping and overflow behavior
+
+### Phase 2: Copy/paste support
+
+- [ ] Add plaintext extraction utility (sanitized HTML → textContent)
+- [ ] Add "Kopieren" button to email header (expanded state only)
+- [ ] Implement clipboard write with fallback
+- [ ] Add "Kopiert!" feedback animation
+- [ ] Add unit tests and Storybook story for copy interaction
+
+### Phase 3: Archive from preview
+
+- [ ] Add `onArchive` prop to `EmailBodyViewerProps`
+- [ ] Render "Archivieren" button in footer when prop is provided
+- [ ] Wire `onArchive` from `ActionRow` through to `EmailBodyViewer`
+- [ ] Add unit tests for archive button visibility and callback
+- [ ] Add Storybook story with archive action
+
+---
+
+## Verification
+
+1. Frontend: `cd frontend && npx tsc -b --noEmit && npx eslint src/ && npx prettier --check src/`
+2. Unit tests: `cd frontend && CI=1 npx vitest run --project=unit`
+3. Storybook tests: `cd frontend && STORYBOOK_TESTS=1 CI=1 npx vitest run --project=storybook`
+4. Manual: open Storybook, verify all new stories render correctly at desktop and mobile viewports
+5. Manual: expand an email, copy text, paste into a text editor — confirm clean plaintext
+6. Manual: archive from email preview, confirm item disappears and Gmail INBOX label is removed
