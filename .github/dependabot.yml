@@ -1,0 +1,83 @@
+# Dependabot configuration for automated dependency updates
+# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+
+version: 2
+updates:
+  # Backend Python dependencies (FastAPI, SQLAlchemy, etc.)
+  - package-ecosystem: "pip"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "03:00"
+      timezone: "Europe/Berlin"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "project-frontend-team"
+    labels:
+      - "dependencies"
+      - "backend"
+      - "python"
+    commit-message:
+      prefix: "deps(backend)"
+      include: "scope"
+    # Group minor and patch updates to reduce PR noise
+    groups:
+      backend-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Agents Python dependencies (Haystack, OpenRouter client, etc.)
+  - package-ecosystem: "pip"
+    directory: "/agents"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "03:00"
+      timezone: "Europe/Berlin"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "project-frontend-team"
+    labels:
+      - "dependencies"
+      - "agents"
+      - "python"
+    commit-message:
+      prefix: "deps(agents)"
+      include: "scope"
+    # Group minor and patch updates to reduce PR noise
+    groups:
+      agents-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Frontend npm dependencies (React, Vite, Tailwind, etc.)
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "03:00"
+      timezone: "Europe/Berlin"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "project-frontend-team"
+    labels:
+      - "dependencies"
+      - "frontend"
+      - "javascript"
+    commit-message:
+      prefix: "deps(frontend)"
+      include: "scope"
+    # Group minor and patch updates to reduce PR noise
+    groups:
+      frontend-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    # Ignore specific packages if needed (example - uncomment to use)
+    # ignore:
+    #   - dependency-name: "react"
+    #     update-types: ["version-update:semver-major"]
