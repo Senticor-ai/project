@@ -1,23 +1,6 @@
 import celRules from "./cel/rules.json" with { type: "json" };
+import { evaluateCelRules } from "./cel/evaluator.js";
 import { validateWithShacl } from "./shacl/validator.js";
-
-const ACTION_BUCKETS = new Set([
-  "inbox",
-  "next",
-  "waiting",
-  "someday",
-  "calendar",
-  "reference",
-  "completed",
-]);
-
-const TRIAGE_TARGETS_FROM_INBOX = new Set([
-  "next",
-  "waiting",
-  "someday",
-  "calendar",
-  "reference",
-]);
 
 const PERSON_ROLES = new Set(["member", "founder", "accountant", "advisor", "interest"]);
 
@@ -134,16 +117,12 @@ export function validateCreateItem(item: Record<string, unknown>): ValidationIss
   issues.push(...mappedShaclIssues);
 
   // CEL validation (business rules)
-  if (bucket && !ACTION_BUCKETS.has(bucket) && bucket !== "project") {
-    issues.push({
-      source: "cel",
-      code: "BUCKET_ENUM",
-      field: "additionalProperty.app:bucket",
-      rule: "item.bucket.enum",
-      message:
-        "Bucket must be one of inbox,next,waiting,someday,calendar,reference,project,completed.",
-    });
-  }
+  const celIssues = evaluateCelRules({
+    operation: "create",
+    bucket: bucket,
+    source: { bucket: "" },
+  });
+  issues.push(...celIssues);
 
   return issues;
 }
@@ -152,43 +131,18 @@ export function validateTriageTransition(params: {
   sourceBucket?: string | null;
   targetBucket: string;
 }): ValidationIssue[] {
-  const issues: ValidationIssue[] = [];
   const sourceBucket = (params.sourceBucket ?? "").trim();
   const targetBucket = params.targetBucket.trim();
 
-  if (!targetBucket || (!ACTION_BUCKETS.has(targetBucket) && targetBucket !== "project")) {
-    issues.push({
-      source: "cel",
-      code: "TRIAGE_TARGET_INVALID",
-      field: "bucket",
-      rule: "item.bucket.enum",
-      message:
-        "Target bucket must be one of inbox,next,waiting,someday,calendar,reference,project,completed.",
-    });
-  }
+  // CEL validation (business rules)
+  const celIssues = evaluateCelRules({
+    operation: "triage",
+    source: { bucket: sourceBucket },
+    target: { bucket: targetBucket },
+    bucket: targetBucket,
+  });
 
-  if (sourceBucket === "inbox" && !TRIAGE_TARGETS_FROM_INBOX.has(targetBucket)) {
-    issues.push({
-      source: "cel",
-      code: "TRIAGE_INBOX_TARGET_INVALID",
-      field: "bucket",
-      rule: "triage.inbox.targets",
-      message:
-        "Inbox items can only move to next,waiting,someday,calendar,reference.",
-    });
-  }
-
-  if (sourceBucket === "completed") {
-    issues.push({
-      source: "cel",
-      code: "COMPLETED_IMMUTABLE",
-      field: "bucket",
-      rule: "item.completed.immutable",
-      message: "Completed items are immutable.",
-    });
-  }
-
-  return issues;
+  return celIssues;
 }
 
 export function validateUpdateItem(params: {
@@ -198,15 +152,12 @@ export function validateUpdateItem(params: {
   const issues: ValidationIssue[] = [];
   const sourceBucket = (params.sourceBucket ?? "").trim();
 
-  if (sourceBucket === "completed") {
-    issues.push({
-      source: "cel",
-      code: "COMPLETED_IMMUTABLE",
-      field: "item",
-      rule: "item.completed.immutable",
-      message: "Completed items are immutable.",
-    });
-  }
+  // CEL validation (business rules)
+  const celIssues = evaluateCelRules({
+    operation: "update",
+    source: { bucket: sourceBucket },
+  });
+  issues.push(...celIssues);
 
   const shapeIssues = validateCreateItem(params.nextItem);
   issues.push(...shapeIssues);
