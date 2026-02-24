@@ -442,3 +442,16 @@ def me(current_user=Depends(get_current_user)):
         if current_user.get("disclaimer_acknowledged_at")
         else None,
     )
+
+
+@router.post("/acknowledge-disclaimer")
+def acknowledge_disclaimer(current_user=Depends(get_current_user)):
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE users SET disclaimer_acknowledged_at = %s WHERE id = %s",
+                (utc_now(), current_user["id"]),
+            )
+        conn.commit()
+
+    return {"ok": True}
