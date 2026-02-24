@@ -27,18 +27,27 @@ export function initFaro(): Faro | null {
     return null;
   }
 
-  faro = initializeFaro({
-    url: COLLECTOR_URL,
-    app: {
-      name: APP_NAME,
-      environment: ENVIRONMENT,
-    },
-    instrumentations: [...getWebInstrumentations()],
-  });
+  try {
+    faro = initializeFaro({
+      url: COLLECTOR_URL,
+      app: {
+        name: APP_NAME,
+        environment: ENVIRONMENT,
+      },
+      instrumentations: [...getWebInstrumentations()],
+    });
 
-  faro.api.pushEvent("app_bootstrapped", {
-    timestamp: new Date().toISOString(),
-  });
+    faro.api.pushEvent("app_bootstrapped", {
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.warn(
+      "[faro] initialization failed, continuing without observability",
+      err,
+    );
+    faro = null;
+    return null;
+  }
 
   return faro;
 }
