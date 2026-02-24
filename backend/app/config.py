@@ -7,7 +7,7 @@ from urllib.parse import quote
 
 from dotenv import load_dotenv
 
-from app.secrets import get_secrets_manager
+from app.secrets import SecretsManager, get_secrets_manager
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +16,7 @@ load_dotenv(ROOT_DIR / ".env")
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 # Initialize secrets manager (env fallback for dev, Vault/AWS for production)
+secrets_manager: SecretsManager | None
 try:
     secrets_manager = get_secrets_manager()
 except Exception as e:
@@ -322,7 +323,9 @@ def load_settings() -> Settings:
             _get_env("OPENCLAW_IDLE_TIMEOUT_SECONDS", "1800") or "1800"
         ),
         openclaw_health_check_timeout=int(_get_env("OPENCLAW_HEALTH_CHECK_TIMEOUT", "30") or "30"),
-        delegation_jwt_secret=_get_secret("DELEGATION_JWT_SECRET") or _get_secret("JWT_SECRET") or "",
+        delegation_jwt_secret=(
+            _get_secret("DELEGATION_JWT_SECRET") or _get_secret("JWT_SECRET") or ""
+        ),
         delegation_jwt_ttl_seconds=int(_get_env("DELEGATION_JWT_TTL_SECONDS", "60") or "60"),
         encryption_key=_get_secret("ENCRYPTION_KEY"),
         gmail_client_id=_get_env("GMAIL_CLIENT_ID", "") or "",

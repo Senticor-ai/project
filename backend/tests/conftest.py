@@ -19,6 +19,9 @@ ROOT_DIR = Path(__file__).resolve().parents[2]
 load_dotenv(ROOT_DIR / ".env")
 sys.path.insert(0, str(ROOT_DIR / "backend"))
 
+# Set TESTING flag to disable rate limiting during tests
+os.environ["TESTING"] = "true"
+
 
 def _build_base_db_url() -> str | None:
     database_url = os.environ.get("DATABASE_URL")

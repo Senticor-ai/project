@@ -44,6 +44,7 @@ router = APIRouter(prefix="/files", tags=["files"], dependencies=[Depends(get_cu
 )
 @limiter.limit("10/minute")
 def initiate_upload(
+    request: Request,
     payload: FileInitiateRequest,
     idempotency_key: str | None = Header(
         default=None,
@@ -324,7 +325,7 @@ def complete_upload(
             )
         with open(local_path, "rb") as f:
             file_header = f.read(2048)
-        detected_mime = validate_file_type(file_header, upload["filename"])
+        validate_file_type(file_header, upload["filename"])
 
         with conn.cursor() as cur:
             cur.execute(

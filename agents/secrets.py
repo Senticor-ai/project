@@ -2,7 +2,6 @@ import logging
 import os
 import time
 from abc import ABC, abstractmethod
-from typing import Dict
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +15,7 @@ class SecretsManager(ABC):
         pass
 
     @abstractmethod
-    def get_secrets_batch(self, keys: list[str]) -> Dict[str, str]:
+    def get_secrets_batch(self, keys: list[str]) -> dict[str, str]:
         """Retrieve multiple secrets at once."""
         pass
 
@@ -27,10 +26,10 @@ class VaultSecretsManager(SecretsManager):
     def __init__(self):
         try:
             import hvac
-        except ImportError:
+        except ImportError as e:
             raise ImportError(
                 "hvac package not installed. Install with: pip install hvac"
-            )
+            ) from e
 
         vault_addr = os.environ.get("VAULT_ADDR", "http://localhost:8200")
         vault_token = os.environ.get("VAULT_TOKEN")
@@ -49,7 +48,7 @@ class VaultSecretsManager(SecretsManager):
         logger.info(f"Initialized Vault secrets manager at {vault_addr}")
 
         # In-memory cache with 5-minute TTL
-        self._cache: Dict[str, tuple[str, float]] = {}
+        self._cache: dict[str, tuple[str, float]] = {}
         self._cache_ttl = 300  # 5 minutes
 
     def _get_from_cache(self, key: str) -> str | None:
@@ -82,7 +81,7 @@ class VaultSecretsManager(SecretsManager):
             logger.error(f"Failed to retrieve secret {key} from Vault: {e}")
             raise
 
-    def get_secrets_batch(self, keys: list[str]) -> Dict[str, str]:
+    def get_secrets_batch(self, keys: list[str]) -> dict[str, str]:
         return {key: self.get_secret(key) for key in keys}
 
 
@@ -93,10 +92,10 @@ class AWSSecretsManager(SecretsManager):
         try:
             import boto3
             from botocore.exceptions import ClientError
-        except ImportError:
+        except ImportError as e:
             raise ImportError(
                 "boto3 package not installed. Install with: pip install boto3"
-            )
+            ) from e
 
         region = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
 
@@ -109,7 +108,7 @@ class AWSSecretsManager(SecretsManager):
             raise
 
         # In-memory cache with 5-minute TTL
-        self._cache: Dict[str, tuple[str, float]] = {}
+        self._cache: dict[str, tuple[str, float]] = {}
         self._cache_ttl = 300  # 5 minutes
 
     def _get_from_cache(self, key: str) -> str | None:
@@ -151,7 +150,7 @@ class AWSSecretsManager(SecretsManager):
                 logger.error(f"AWS Secrets Manager internal error for {key}")
             raise
 
-    def get_secrets_batch(self, keys: list[str]) -> Dict[str, str]:
+    def get_secrets_batch(self, keys: list[str]) -> dict[str, str]:
         return {key: self.get_secret(key) for key in keys}
 
 
@@ -169,7 +168,7 @@ class EnvSecretsManager(SecretsManager):
             raise ValueError(f"Environment variable {key} not set")
         return value
 
-    def get_secrets_batch(self, keys: list[str]) -> Dict[str, str]:
+    def get_secrets_batch(self, keys: list[str]) -> dict[str, str]:
         return {key: self.get_secret(key) for key in keys}
 
 

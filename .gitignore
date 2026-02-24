@@ -72,6 +72,3 @@ frontend/dev-dist/
 .worktrees/
 .security-key
 logs/security/
-
-# Temporary files
-.tmp/

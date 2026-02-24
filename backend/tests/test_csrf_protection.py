@@ -134,7 +134,6 @@ def test_csrf_token_mismatch_returns_403(authenticated_session):
 
     # Get CSRF token
     csrf_response = client.get("/auth/csrf")
-    csrf_token = csrf_response.json()["csrf_token"]
 
     # Combine session cookies with CSRF cookie
     all_cookies = dict(authenticated_session)

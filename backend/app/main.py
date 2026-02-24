@@ -13,7 +13,6 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse, Response
-
 from slowapi.errors import RateLimitExceeded
 
 from .chat import router as chat_router
@@ -22,7 +21,6 @@ from .csrf import should_validate_csrf, validate_csrf_request
 from .db import db_conn
 from .deps import ORG_ID_HEADER
 from .email import routes as email_routes
-from .rate_limit import limiter
 from .metrics import (
     dec_in_flight_requests,
     inc_in_flight_requests,
@@ -43,6 +41,7 @@ from .observability import (
     generate_trail_id,
     get_logger,
 )
+from .rate_limit import limiter
 from .routes import (
     agent_settings,
     assertions,
