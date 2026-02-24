@@ -20,6 +20,11 @@ CREATE TABLE IF NOT EXISTS organizations (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS general_doc_id UUID REFERENCES items(item_id);
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS user_doc_id UUID REFERENCES items(item_id);
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS log_doc_id UUID REFERENCES items(item_id);
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS agent_doc_id UUID REFERENCES items(item_id);
+
 CREATE TABLE IF NOT EXISTS org_memberships (
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
