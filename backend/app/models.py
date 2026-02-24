@@ -391,15 +391,19 @@ def _resolve_item_type(v: Any) -> str:
     raw_type = str(
         v.get("@type", v.get("type", "")) if isinstance(v, dict) else getattr(v, "type", "")
     )
-    return {
-        "Action": "action",
-        "EmailMessage": "action",
-        "ReadAction": "action",
+
+    # Check if it's an Action subtype
+    if raw_type in ACTION_SUBTYPES:
+        return "action"
+
+    # Check other known types
+    type_mapping = {
         "Project": "project",
         "CreativeWork": "creative_work",
         "DigitalDocument": "creative_work",
         "Event": "event",
-    }.get(raw_type, "action")
+    }
+    return type_mapping.get(raw_type, "action")
 
 
 ItemJsonLd = Annotated[
