@@ -469,6 +469,10 @@ class ItemPatchModel(BaseModel):
         default=None,
         description="schema.org result (ThingRef for outcome/product).",
     )
+    location: dict | None = Field(
+        default=None,
+        description="schema.org location (ThingRef for place).",
+    )
     schemaVersion: int | None = Field(default=None, alias="_schemaVersion")
     name: str | None = None
     description: str | None = None
