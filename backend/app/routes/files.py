@@ -546,6 +546,71 @@ def patch_file_content(
     )
 
 
+@router.post(
+    "/{file_id}/content/append",
+    response_model=FileContentResponse,
+    summary="Append content to file",
+    description="Appends text to the end of the existing file content.",
+)
+def append_file_content(
+    file_id: str,
+    payload: FileAppendContentRequest,
+    current_org=Depends(get_current_org),
+):
+    org_id = current_org["org_id"]
+
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT original_name, content_type, storage_path
+                FROM files
+                WHERE file_id = %s AND org_id = %s
+                """,
+                (file_id, org_id),
+            )
+            row = cur.fetchone()
+
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+
+    storage = get_storage()
+    local_path = storage.resolve_path(row["storage_path"])
+    if local_path is None or not local_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File data not found in storage",
+        )
+
+    existing_content = local_path.read_text(encoding="utf-8")
+    new_content = existing_content + payload.text
+    content_bytes = new_content.encode("utf-8")
+    new_size = len(content_bytes)
+    new_hash = hashlib.sha256(content_bytes).hexdigest()
+
+    storage.write(row["storage_path"], content_bytes)
+
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE files
+                SET size_bytes = %s, sha256 = %s, updated_at = %s
+                WHERE file_id = %s
+                """,
+                (new_size, new_hash, datetime.now(UTC), file_id),
+            )
+        conn.commit()
+
+    return FileContentResponse(
+        file_id=file_id,
+        original_name=row["original_name"],
+        content_type=row["content_type"],
+        text=new_content,
+        truncated=False,
+    )
+
+
 @router.get(
     "/{file_id}/meta",
     response_model=FileMetaResponse,
