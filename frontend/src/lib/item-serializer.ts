@@ -41,6 +41,18 @@ const ACTION_BUCKET_SET = new Set<ActionItemBucket>([
   "someday",
 ]);
 
+/** schema.org Action subtypes recognized by the frontend serializer. */
+export const ACTION_SUBTYPES = new Set([
+  "Action",
+  "PlanAction",
+  "BuyAction",
+  "CommunicateAction",
+  "ReviewAction",
+  "CreateAction",
+  "SendAction",
+  "CheckAction",
+]);
+
 function coerceActionBucket(value: unknown): ActionItemBucket {
   return ACTION_BUCKET_SET.has(value as ActionItemBucket)
     ? (value as ActionItemBucket)
