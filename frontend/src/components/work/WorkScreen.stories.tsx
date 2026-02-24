@@ -176,7 +176,9 @@ export const CaptureTriageNavigate: Story = {
         canvas.getByRole("heading", { name: /Next/ }),
       ).toBeInTheDocument();
       // With inbox auto-expand on newest, the just-captured item is moved.
-      await expect(canvas.getByText("Neue Verfügung entwerfen")).toBeInTheDocument();
+      await expect(
+        canvas.getByText("Neue Verfügung entwerfen"),
+      ).toBeInTheDocument();
     });
 
     await step("Verify inbox count badge updated in sidebar", async () => {
