@@ -10,15 +10,6 @@ This module verifies that:
 import time
 
 import pytest
-from fastapi.testclient import TestClient
-
-
-@pytest.fixture
-def client():
-    """Create a test client for the FastAPI app."""
-    from app.main import app
-
-    return TestClient(app)
 
 
 def test_auth_login_rate_limiting(client):
@@ -77,10 +68,11 @@ def test_auth_register_rate_limiting(client):
     Test that /auth/register endpoint enforces 5 requests/minute rate limit.
     """
     endpoint = "/auth/register"
+    suffix = str(int(time.time() * 1000))
     payload = {
-        "email": f"test-{time.time()}@example.com",
+        "email": f"rate-limit-{suffix}@example.com",
         "password": "testpassword123",
-        "full_name": "Test User",
+        "username": f"ratelimit{suffix[-8:]}",
     }
 
     # Send 5 requests rapidly
