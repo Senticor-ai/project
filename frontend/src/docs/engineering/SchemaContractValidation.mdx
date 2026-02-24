@@ -54,6 +54,68 @@ so they always reflect the exact Pydantic model that validates incoming requests
 
 ---
 
+## Action Subtype Validation
+
+Action items (`@type: "Action"`) support **semantic subtypes** via the `additionalType` field.
+Each subtype corresponds to a specific schema.org action type and must be validated against
+its corresponding Pydantic model in `backend/app/models.py`.
+
+### Available action subtypes
+
+| Subtype            | Schema.org Type      | Purpose                                      | Pydantic Model         |
+| ------------------ | -------------------- | -------------------------------------------- | ---------------------- |
+| `InformAction`     | `InformAction`       | Notify, announce, report                     | `InformActionJsonLd`   |
+| `OrganizeAction`   | `OrganizeAction`     | Arrange, plan, schedule                      | `OrganizeActionJsonLd` |
+| `CommunicateAction`| `CommunicateAction`  | Call, email, discuss                         | `CommunicateActionJsonLd` |
+| `ConsumeAction`    | `ConsumeAction`      | Read, review documents                       | `ConsumeActionJsonLd`  |
+| `AssessAction`     | `AssessAction`       | Evaluate, decide, judge                      | `AssessActionJsonLd`   |
+| `ReviewAction`     | `ReviewAction`       | Review, check, validate                      | `ReviewActionJsonLd`   |
+| `CreateAction`     | `CreateAction`       | Write, draft, create                         | `CreateActionJsonLd`   |
+| `InteractAction`   | `InteractAction`     | Meet, present, collaborate                   | `InteractActionJsonLd` |
+
+### Validation rules
+
+1. **Type hierarchy**: All subtypes inherit from `ActionItemJsonLd` and must include both:
+   - `@type: "Action"` (base type)
+   - `additionalType: "https://schema.org/{SubtypeName}"` (semantic subtype)
+
+2. **Required fields**: Each subtype extends the base action schema with subtype-specific fields:
+   - `InformAction`: `recipient` (Person or Organization)
+   - `CommunicateAction`: `recipient` (Person or Organization)
+   - `AssessAction`: `object` (Thing being assessed)
+   - `ReviewAction`: `itemReviewed` (Thing being reviewed)
+
+3. **Backend validation**: The backend uses Pydantic discriminated unions to validate subtypes:
+   ```python
+   ActionItemJsonLd = Annotated[
+       Union[
+           InformActionJsonLd,
+           OrganizeActionJsonLd,
+           # ... other subtypes
+       ],
+       Field(discriminator="additional_type")
+   ]
+   ```
+
+4. **Frontend serialization**: `item-serializer.ts` must set both `@type` and `additionalType`:
+   ```typescript
+   {
+     "@type": "Action",
+     "additionalType": "https://schema.org/InformAction",
+     // ... other fields
+   }
+   ```
+
+### Schema endpoint behavior
+
+When fetching schemas for subtypes:
+
+- `GET /schemas/action-item` returns the **discriminated union schema** with all subtype variants
+- Each variant in `oneOf` corresponds to one subtype's Pydantic model
+- AJV validates by testing each `oneOf` branch until one matches
+
+---
+
 ## Frontend Validation Helper
 
 **File**: `frontend/src/lib/__tests__/schema-validator.ts`
