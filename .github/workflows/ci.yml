@@ -24,7 +24,7 @@ concurrency:
 jobs:
   docs-drift:
     continue-on-error: true
-    runs-on: senticor000-github-runner
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Check docs drift
@@ -32,7 +32,7 @@ jobs:
 
   backend-migration-policy:
     continue-on-error: true
-    runs-on: senticor000-github-runner
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -45,7 +45,7 @@ jobs:
 
   frontend-lint:
     continue-on-error: true
-    runs-on: senticor000-github-runner
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -60,7 +60,7 @@ jobs:
           npm run lint
 
   frontend-typecheck:
-    runs-on: senticor000-github-runner
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -76,7 +76,7 @@ jobs:
 
   backend-lint:
     continue-on-error: true
-    runs-on: senticor000-github-runner
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -91,7 +91,7 @@ jobs:
           uv run ruff check .
 
   backend-typecheck:
-    runs-on: senticor000-github-runner
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -107,7 +107,7 @@ jobs:
 
   agents-lint:
     continue-on-error: true
-    runs-on: senticor000-github-runner
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -122,7 +122,7 @@ jobs:
           uv run ruff check .
 
   agents-typecheck:
-    runs-on: senticor000-github-runner
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -137,7 +137,7 @@ jobs:
           uv run mypy .
 
   frontend-unit:
-    runs-on: senticor000-github-runner
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -155,7 +155,7 @@ jobs:
     # Coverage should not block CI, but failures are still tracked by the
     # CI Failure Tickets workflow.
     continue-on-error: true
-    runs-on: senticor000-github-runner
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -177,7 +177,7 @@ jobs:
           if-no-files-found: ignore
 
   frontend-storybook:
-    runs-on: senticor000-github-runner
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -199,7 +199,7 @@ jobs:
           STORYBOOK_TESTS=1 CI=1 npx vitest run --project=storybook
 
   backend-unit:
-    runs-on: senticor000-github-runner
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -214,7 +214,7 @@ jobs:
           uv run pytest -m unit -q --maxfail=1
 
   agents-unit:
-    runs-on: senticor000-github-runner
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -229,7 +229,7 @@ jobs:
           uv run pytest tests/ -q
 
   backend-integration:
-    runs-on: senticor000-github-runner
+    runs-on: ubuntu-latest
     services:
       postgres:
         image: postgres:16
@@ -274,7 +274,7 @@ jobs:
           if-no-files-found: ignore
 
   frontend-contract:
-    runs-on: senticor000-github-runner
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -308,7 +308,7 @@ jobs:
       - agents-unit
       - backend-integration
       - frontend-contract
-    runs-on: senticor000-github-runner
+    runs-on: ubuntu-latest
     outputs:
       image_pushed: ${{ steps.push_frontend.outcome == 'success' }}
     steps:
@@ -361,7 +361,7 @@ jobs:
       - agents-unit
       - backend-integration
       - frontend-contract
-    runs-on: senticor000-github-runner
+    runs-on: ubuntu-latest
     outputs:
       image_pushed: ${{ steps.push_backend.outcome == 'success' }}
     steps:
@@ -414,7 +414,7 @@ jobs:
       - agents-unit
       - backend-integration
       - frontend-contract
-    runs-on: senticor000-github-runner
+    runs-on: ubuntu-latest
     outputs:
       image_pushed: ${{ steps.push_storybook.outcome == 'success' }}
     steps:
@@ -474,7 +474,7 @@ jobs:
       - agents-unit
       - backend-integration
       - frontend-contract
-    runs-on: senticor000-github-runner
+    runs-on: ubuntu-latest
     outputs:
       image_pushed: ${{ steps.push_agents.outcome == 'success' }}
     steps:
@@ -522,7 +522,7 @@ jobs:
       - push-backend
       - push-storybook
       - push-agents
-    runs-on: senticor000-github-runner
+    runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:

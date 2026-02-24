@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   track-failures:
-    runs-on: senticor000-github-runner
+    runs-on: ubuntu-latest
     steps:
       - name: Create or update tickets for failed jobs
         uses: actions/github-script@v7
