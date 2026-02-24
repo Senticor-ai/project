@@ -563,6 +563,14 @@ class FileCompleteRequest(BaseModel):
     upload_id: str
 
 
+class FilePatchContentRequest(BaseModel):
+    text: str = Field(..., description="New content to replace existing file content.")
+
+
+class FileAppendContentRequest(BaseModel):
+    text: str = Field(..., description="Content to append to existing file content.")
+
+
 class FileRecord(BaseModel):
     file_id: str
     original_name: str
