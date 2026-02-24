@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from ..db import db_conn
+from ..db import db_conn, jsonb
 from ..deps import get_current_org, get_current_user
 from ..models import OrgCreateRequest, OrgMemberAddRequest, OrgMemberResponse, OrgResponse
 
@@ -45,6 +45,7 @@ def create_org(payload: OrgCreateRequest, current_user=Depends(get_current_user)
 
     with db_conn() as conn:
         with conn.cursor() as cur:
+            # Step 1: Create org record (without doc IDs yet)
             cur.execute(
                 """
                 INSERT INTO organizations (name, owner_user_id)
@@ -55,6 +56,41 @@ def create_org(payload: OrgCreateRequest, current_user=Depends(get_current_user)
             )
             org = cur.fetchone()
 
+            # Step 2: Create 4 document items
+            doc_ids = {}
+            for doc_type in ["GENERAL", "USER", "LOG", "AGENT"]:
+                cur.execute(
+                    """
+                    INSERT INTO items (org_id, created_by_user_id, canonical_id, schema_jsonld, source)
+                    VALUES (%s, %s, %s, %s, %s)
+                    RETURNING item_id
+                    """,
+                    (
+                        org["id"],
+                        current_user["id"],
+                        f"org:{org['id']}:knowledge:{doc_type.lower()}",
+                        jsonb({
+                            "@type": "DigitalDocument",
+                            "name": f"Organization {doc_type.title()} Knowledge",
+                            "encodingFormat": "text/markdown",
+                            "text": "",
+                        }),
+                        "system",
+                    ),
+                )
+                doc_ids[doc_type.lower()] = str(cur.fetchone()["item_id"])
+
+            # Step 3: Update org with doc IDs
+            cur.execute(
+                """
+                UPDATE organizations
+                SET general_doc_id = %s, user_doc_id = %s, log_doc_id = %s, agent_doc_id = %s
+                WHERE id = %s
+                """,
+                (doc_ids["general"], doc_ids["user"], doc_ids["log"], doc_ids["agent"], org["id"]),
+            )
+
+            # Step 4: Create membership (existing logic)
             cur.execute(
                 """
                 INSERT INTO org_memberships (org_id, user_id, role, status)
@@ -75,6 +111,10 @@ def create_org(payload: OrgCreateRequest, current_user=Depends(get_current_user)
         name=org["name"],
         role="owner",
         created_at=org["created_at"].isoformat(),
+        general_doc_id=doc_ids["general"],
+        user_doc_id=doc_ids["user"],
+        log_doc_id=doc_ids["log"],
+        agent_doc_id=doc_ids["agent"],
     )
 
 
