@@ -109,7 +109,7 @@ async def test_executes_cli_and_parses_created_item(auth_ctx):
     args, kwargs = create_proc.call_args
     assert "--json" in args
     assert "--non-interactive" in args
-    assert "--yes" in args
+    assert "--approve" in args
     assert "--conversation-id" in args
     assert kwargs["env"]["COPILOT_TOKEN"] == "jwt-delegated-token"
     assert kwargs["env"]["COPILOT_ORG_ID"] == "org-1"
@@ -230,3 +230,54 @@ async def test_cli_failure_raises(auth_ctx):
                 conversation_id="conv-1",
                 auth=auth_ctx,
             )
+
+
+@pytest.mark.anyio
+async def test_cli_contract_enforcement(auth_ctx):
+    """Verify CLI contract enforcement: argv[], --json, --non-interactive, --approve flags."""
+    payload = {
+        "schema_version": "copilot.v1",
+        "ok": True,
+        "data": {"total": 1},
+        "meta": {},
+    }
+    process = _DummyProcess(0, stdout=json.dumps(payload))
+
+    with patch(
+        "tool_executor.asyncio.create_subprocess_exec",
+        new=AsyncMock(return_value=process),
+    ) as create_proc:
+        # Test with minimal argv (no flags)
+        await execute_tool(
+            ToolCallInput(
+                name="copilot_cli",
+                arguments={"argv": ["items", "list"]},
+            ),
+            conversation_id="conv-1",
+            auth=auth_ctx,
+        )
+
+        args, kwargs = create_proc.call_args
+        # Verify all three contract flags were auto-added
+        assert "--json" in args, "CLI contract requires --json flag"
+        assert "--non-interactive" in args, "CLI contract requires --non-interactive flag"
+        assert "--approve" in args, "CLI contract requires --approve flag"
+
+        # Test idempotency: flags already present should not be duplicated
+        create_proc.reset_mock()
+        await execute_tool(
+            ToolCallInput(
+                name="copilot_cli",
+                arguments={
+                    "argv": ["items", "list", "--json", "--non-interactive", "--approve"]
+                },
+            ),
+            conversation_id="conv-1",
+            auth=auth_ctx,
+        )
+
+        args, _ = create_proc.call_args
+        # Verify flags appear exactly once
+        assert args.count("--json") == 1, "--json should not be duplicated"
+        assert args.count("--non-interactive") == 1, "--non-interactive should not be duplicated"
+        assert args.count("--approve") == 1, "--approve should not be duplicated"
