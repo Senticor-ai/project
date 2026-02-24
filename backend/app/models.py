@@ -436,6 +436,22 @@ class ItemPatchModel(BaseModel):
         alias="object",
         description="schema.org object (ThingRef, e.g. for ReadAction).",
     )
+    instrument: dict | None = Field(
+        default=None,
+        description="schema.org instrument (ThingRef for tool/means used).",
+    )
+    agent: dict | None = Field(
+        default=None,
+        description="schema.org agent (ThingRef for person/entity performing action).",
+    )
+    participant: dict | None = Field(
+        default=None,
+        description="schema.org participant (ThingRef for involved entity).",
+    )
+    result: dict | None = Field(
+        default=None,
+        description="schema.org result (ThingRef for outcome/product).",
+    )
     schemaVersion: int | None = Field(default=None, alias="_schemaVersion")
     name: str | None = None
     description: str | None = None
