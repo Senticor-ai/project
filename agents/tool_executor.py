@@ -59,8 +59,8 @@ def _with_required_cli_flags(argv: list[str], conversation_id: str) -> list[str]
         normalized.append("--json")
     if "--non-interactive" not in normalized:
         normalized.append("--non-interactive")
-    if "--yes" not in normalized:
-        normalized.append("--yes")
+    if "--approve" not in normalized:
+        normalized.append("--approve")
 
     # Carry chat context for write capture metadata when supported.
     if (
