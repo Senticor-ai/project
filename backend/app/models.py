@@ -317,6 +317,26 @@ class ActionItemJsonLd(ItemJsonLdBase):
         alias="object",
         description="schema.org object (ThingRef, e.g. for ReadAction).",
     )
+    instrument: dict | None = Field(
+        default=None,
+        description="schema.org instrument (ThingRef for tool/means used).",
+    )
+    agent: dict | None = Field(
+        default=None,
+        description="schema.org agent (ThingRef for person/entity performing action).",
+    )
+    participant: dict | None = Field(
+        default=None,
+        description="schema.org participant (ThingRef for involved entity).",
+    )
+    result: dict | None = Field(
+        default=None,
+        description="schema.org result (ThingRef for outcome/product).",
+    )
+    location: dict | None = Field(
+        default=None,
+        description="schema.org location (ThingRef for place).",
+    )
 
 
 class ProjectItemJsonLd(ItemJsonLdBase):
