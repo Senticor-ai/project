@@ -654,6 +654,12 @@ class OrgResponse(BaseModel):
     name: str
     role: str | None = None
     created_at: str
+    general_doc_id: str | None = Field(default=None, alias="generalDocId")
+    user_doc_id: str | None = Field(default=None, alias="userDocId")
+    log_doc_id: str | None = Field(default=None, alias="logDocId")
+    agent_doc_id: str | None = Field(default=None, alias="agentDocId")
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class OrgMemberAddRequest(BaseModel):
