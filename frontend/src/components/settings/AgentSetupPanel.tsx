@@ -206,11 +206,7 @@ function ContainerStatusBadge({
   );
 }
 
-function ValidationSummary({
-  settings,
-}: {
-  settings: AgentSettings;
-}) {
+function ValidationSummary({ settings }: { settings: AgentSettings }) {
   const status = settings.validationStatus ?? null;
   const statusUi = status ? VALIDATION_UI[status] : null;
   const checkedAt = formatCheckedAt(settings.lastValidatedAt);
@@ -238,15 +234,22 @@ function ValidationSummary({
         </div>
       )}
       {settings.validationMessage && (
-        <p className="text-[10px] text-text-muted">{settings.validationMessage}</p>
+        <p className="text-[10px] text-text-muted">
+          {settings.validationMessage}
+        </p>
       )}
       {remaining && (
         <p className="mt-1 text-[10px] text-text-muted">
-          Remaining credits: <span className="font-medium text-text-primary">{remaining}</span>
+          Remaining credits:{" "}
+          <span className="font-medium text-text-primary">{remaining}</span>
           {limit && used ? ` (${used} used of ${limit})` : ""}
         </p>
       )}
-      {checkedAt && <p className="mt-1 text-[10px] text-text-muted">Last checked: {checkedAt}</p>}
+      {checkedAt && (
+        <p className="mt-1 text-[10px] text-text-muted">
+          Last checked: {checkedAt}
+        </p>
+      )}
     </div>
   );
 }
@@ -262,7 +265,9 @@ export function AgentSetupPanel({
   isContainerActionPending,
   className,
 }: AgentSetupPanelProps) {
-  const [providerInput, setProviderInput] = useState<AgentProvider | null>(null);
+  const [providerInput, setProviderInput] = useState<AgentProvider | null>(
+    null,
+  );
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [modelInput, setModelInput] = useState<string | null>(null);
 
@@ -275,7 +280,8 @@ export function AgentSetupPanel({
   const hasApiKeyChange = apiKeyInput.trim().length > 0;
   const hasModelChange = modelValue.trim() !== settings.model;
   const hasModelError = modelValue.trim().length === 0;
-  const hasPendingChanges = hasProviderChange || hasApiKeyChange || hasModelChange;
+  const hasPendingChanges =
+    hasProviderChange || hasApiKeyChange || hasModelChange;
 
   const canRestart =
     onRestartContainer &&
@@ -294,7 +300,9 @@ export function AgentSetupPanel({
     const nextProvider: AgentProvider = nextProviders.includes(providerValue)
       ? providerValue
       : fallbackProvider;
-    const update: Parameters<typeof onUpdate>[0] = { agentBackend: nextBackend };
+    const update: Parameters<typeof onUpdate>[0] = {
+      agentBackend: nextBackend,
+    };
     if (nextProvider !== providerValue) {
       setProviderInput(nextProvider);
       const fallbackModel = MODEL_OPTIONS[nextProvider][0];
@@ -418,7 +426,9 @@ export function AgentSetupPanel({
             id="agent-provider"
             aria-label="LLM Provider"
             value={providerValue}
-            onChange={(e) => handleProviderChange(e.target.value as AgentProvider)}
+            onChange={(e) =>
+              handleProviderChange(e.target.value as AgentProvider)
+            }
             className={selectClass}
           >
             {availableProviders.includes("openrouter") && (
@@ -506,7 +516,9 @@ export function AgentSetupPanel({
             Suggested models match the OpenClaw presets for this provider.
           </p>
           {hasModelError && (
-            <p className="mt-1 text-[10px] text-red-600">Model must not be empty.</p>
+            <p className="mt-1 text-[10px] text-red-600">
+              Model must not be empty.
+            </p>
           )}
         </div>
       </section>

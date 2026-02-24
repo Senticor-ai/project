@@ -481,7 +481,9 @@ describe("401 session recovery", () => {
     const [, retryInit] = fetchSpy.mock.calls[3] as [string, RequestInit];
     const firstHeaders = new Headers(firstInit.headers);
     const retryHeaders = new Headers(retryInit.headers);
-    expect(firstHeaders.get("X-Request-ID")).toBe(retryHeaders.get("X-Request-ID"));
+    expect(firstHeaders.get("X-Request-ID")).toBe(
+      retryHeaders.get("X-Request-ID"),
+    );
   });
 
   it("calls onSessionExpired and throws when refresh fails", async () => {
