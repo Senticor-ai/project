@@ -647,4 +647,178 @@ describe("useChatState", () => {
       expect(others.some((m) => m.role === "user")).toBe(true);
     });
   });
+
+  describe("acceptAllSuggestions", () => {
+    async function setupMultipleSuggestions(
+      hook: ChatHookResult,
+    ): Promise<string[]> {
+      mockSendMessageStreaming.mockImplementationOnce(
+        (
+          _message: string,
+          _conversationId: string,
+          onEvent: (event: StreamEvent) => void,
+        ) => {
+          onEvent({ type: "text_delta", content: "Vorschläge:" });
+          onEvent({
+            type: "tool_calls",
+            toolCalls: [
+              {
+                name: "copilot_cli",
+                arguments: {
+                  type: "copilot_cli" as const,
+                  argv: ["items", "triage", "--id", "id1", "--status", "completed"],
+                },
+              },
+              {
+                name: "copilot_cli",
+                arguments: {
+                  type: "copilot_cli" as const,
+                  argv: ["items", "triage", "--id", "id2", "--status", "completed"],
+                },
+              },
+              {
+                name: "copilot_cli",
+                arguments: {
+                  type: "copilot_cli" as const,
+                  argv: ["items", "triage", "--id", "id3", "--status", "completed"],
+                },
+              },
+            ],
+          });
+          onEvent({ type: "done", text: "Vorschläge:" });
+          return Promise.resolve();
+        },
+      );
+
+      await sendAndWait(hook, "Archiviere alles");
+
+      const suggestions = findByKind(
+        hook.result.current.messages,
+        "suggestion",
+      );
+      return suggestions.map((s) => s.id);
+    }
+
+    it("marks all suggestions as accepted and adds one confirmation", async () => {
+      mockExecuteSuggestion.mockResolvedValue([
+        {
+          canonicalId: "urn:app:action:batch",
+          name: "Batch item",
+          type: "action",
+        },
+      ]);
+
+      const hook = renderHook(() => useChatState());
+      const ids = await setupMultipleSuggestions(hook);
+
+      await act(async () => {
+        await hook.result.current.acceptAllSuggestions(ids);
+      });
+
+      // All should be accepted
+      const suggestions = findByKind(
+        hook.result.current.messages,
+        "suggestion",
+      );
+      expect(suggestions.every((s) => s.status === "accepted")).toBe(true);
+
+      // Single batch confirmation
+      const confirmations = findByKind(
+        hook.result.current.messages,
+        "confirmation",
+      );
+      expect(confirmations).toHaveLength(1);
+    });
+
+    it("reverts failed suggestions to pending", async () => {
+      mockExecuteSuggestion
+        .mockResolvedValueOnce([])
+        .mockRejectedValueOnce(new Error("Fail"))
+        .mockResolvedValueOnce([]);
+
+      const hook = renderHook(() => useChatState());
+      const ids = await setupMultipleSuggestions(hook);
+
+      await act(async () => {
+        await hook.result.current.acceptAllSuggestions(ids);
+      });
+
+      const suggestions = findByKind(
+        hook.result.current.messages,
+        "suggestion",
+      );
+      const statuses = suggestions.map((s) => s.status);
+      // First and third succeeded, second failed
+      expect(statuses).toEqual(["accepted", "pending", "accepted"]);
+    });
+
+    it("executes all suggestions in parallel", async () => {
+      mockExecuteSuggestion.mockResolvedValue([]);
+
+      const hook = renderHook(() => useChatState());
+      const ids = await setupMultipleSuggestions(hook);
+
+      await act(async () => {
+        await hook.result.current.acceptAllSuggestions(ids);
+      });
+
+      expect(mockExecuteSuggestion).toHaveBeenCalledTimes(3);
+    });
+  });
+
+  describe("dismissAllSuggestions", () => {
+    async function setupMultipleSuggestions(
+      hook: ChatHookResult,
+    ): Promise<string[]> {
+      mockSendMessageStreaming.mockImplementationOnce(
+        (
+          _message: string,
+          _conversationId: string,
+          onEvent: (event: StreamEvent) => void,
+        ) => {
+          onEvent({
+            type: "tool_calls",
+            toolCalls: [
+              {
+                name: "copilot_cli",
+                arguments: {
+                  type: "copilot_cli" as const,
+                  argv: ["items", "triage", "--id", "id1"],
+                },
+              },
+              {
+                name: "copilot_cli",
+                arguments: {
+                  type: "copilot_cli" as const,
+                  argv: ["items", "triage", "--id", "id2"],
+                },
+              },
+            ],
+          });
+          onEvent({ type: "done", text: "" });
+          return Promise.resolve();
+        },
+      );
+
+      await sendAndWait(hook, "Test");
+      return findByKind(hook.result.current.messages, "suggestion").map(
+        (s) => s.id,
+      );
+    }
+
+    it("marks all suggestions as dismissed", async () => {
+      const hook = renderHook(() => useChatState());
+      const ids = await setupMultipleSuggestions(hook);
+
+      act(() => {
+        hook.result.current.dismissAllSuggestions(ids);
+      });
+
+      const suggestions = findByKind(
+        hook.result.current.messages,
+        "suggestion",
+      );
+      expect(suggestions.every((s) => s.status === "dismissed")).toBe(true);
+    });
+  });
 });

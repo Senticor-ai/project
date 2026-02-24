@@ -15,6 +15,8 @@ export interface CopilotChatPanelProps {
   onSend: (text: string) => void;
   onAcceptSuggestion: (messageId: string) => void;
   onDismissSuggestion: (messageId: string) => void;
+  onAcceptAllSuggestions?: (messageIds: string[]) => void;
+  onDismissAllSuggestions?: (messageIds: string[]) => void;
   onItemClick?: (canonicalId: string) => void;
   onNewConversation?: () => void;
   onLoadConversation?: (
@@ -33,6 +35,8 @@ export function CopilotChatPanel({
   onSend,
   onAcceptSuggestion,
   onDismissSuggestion,
+  onAcceptAllSuggestions,
+  onDismissAllSuggestions,
   onItemClick,
   onNewConversation,
   onLoadConversation,
@@ -155,6 +159,8 @@ export function CopilotChatPanel({
             messages={messages}
             onAcceptSuggestion={onAcceptSuggestion}
             onDismissSuggestion={onDismissSuggestion}
+            onAcceptAllSuggestions={onAcceptAllSuggestions}
+            onDismissAllSuggestions={onDismissAllSuggestions}
             onItemClick={onItemClick}
             agentName={agentName}
             className="flex-1 p-4"

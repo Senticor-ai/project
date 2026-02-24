@@ -442,6 +442,82 @@ def chat_completions(
     )
 
 
+def _parse_cli_triage(argv: list) -> dict | None:
+    """Parse ``items triage`` CLI argv into local operation params.
+
+    Returns a dict with ``id`` (required) and optional ``status`` / ``bucket``
+    keys, or *None* when the argv is not an ``items triage`` command.
+    """
+    if not isinstance(argv, list) or len(argv) < 4:
+        return None
+    if argv[0] != "items" or argv[1] != "triage":
+        return None
+
+    params: dict[str, str] = {}
+    i = 2
+    while i < len(argv):
+        if argv[i] == "--id" and i + 1 < len(argv):
+            params["id"] = argv[i + 1]
+            i += 2
+        elif argv[i] == "--bucket" and i + 1 < len(argv):
+            params["bucket"] = argv[i + 1]
+            i += 2
+        elif argv[i] == "--status" and i + 1 < len(argv):
+            params["status"] = argv[i + 1]
+            i += 2
+        else:
+            # Skip flags like --apply, --yes, --json, --non-interactive
+            i += 1
+
+    if "id" not in params:
+        return None
+    return params
+
+
+async def _patch_item_local(
+    item_id: str,
+    patch_jsonld: dict,
+    token: str,
+    org_id: str | None,
+) -> dict:
+    """PATCH /items/{item_id} using the backend's own URL (self-call)."""
+    import os
+
+    port = os.getenv("PORT", "8000")
+    base_url = f"http://localhost:{port}"
+
+    headers: dict[str, str] = {
+        "Authorization": f"Bearer {token}",
+        "X-Agent": "copilot",
+    }
+    if org_id:
+        headers["X-Org-Id"] = org_id
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.patch(
+            f"{base_url}/items/{item_id}",
+            json={"item": patch_jsonld, "source": "copilot"},
+            headers=headers,
+        )
+        response.raise_for_status()
+        return response.json()
+
+
+def _item_type_from_jsonld(schema_jsonld: dict) -> str:
+    """Derive the frontend item type from JSON-LD @type."""
+    t = schema_jsonld.get("@type")
+    if isinstance(t, list):
+        t = t[0] if t else None
+    if not isinstance(t, str):
+        return "reference"
+    local = t.split(":")[-1]
+    if local in {"Action", "ReadAction", "PlanAction"}:
+        return "action"
+    if local == "Project":
+        return "project"
+    return "reference"
+
+
 @router.post("/execute-tool", response_model=ExecuteToolResponse)
 async def execute_tool_endpoint(
     req: ExecuteToolRequest,
@@ -452,7 +528,8 @@ async def execute_tool_endpoint(
 
     Semantic tool names (create_project_with_actions, create_action,
     create_reference) are handled locally using the backend's own item
-    creation API.  The low-level ``copilot_cli`` tool is forwarded to the
+    creation API.  ``copilot_cli`` with ``items triage`` argv is also
+    handled locally.  Other ``copilot_cli`` commands are forwarded to the
     agents service for CLI execution.
     """
     user_id = str(current_user["id"])
@@ -490,6 +567,46 @@ async def execute_tool_endpoint(
                 for ref in created
             ]
         )
+
+    # copilot_cli with "items triage" argv — handle locally via PATCH
+    if tool_name == "copilot_cli":
+        argv = req.toolCall.arguments.get("argv", [])
+        triage = _parse_cli_triage(argv)
+        if triage is not None:
+            try:
+                from datetime import UTC, datetime
+
+                item_id = triage["id"]
+                patch: dict = {}
+
+                if triage.get("status") == "completed":
+                    patch["endTime"] = datetime.now(tz=UTC).isoformat()
+
+                if triage.get("bucket"):
+                    patch["additionalProperty"] = [
+                        {
+                            "@type": "PropertyValue",
+                            "propertyID": "app:bucket",
+                            "value": triage["bucket"],
+                        }
+                    ]
+
+                result = await _patch_item_local(item_id, patch, delegated_token, org_id)
+                name = result.get("schema_jsonld", {}).get("name", item_id)
+                item_type = _item_type_from_jsonld(result.get("schema_jsonld", {}))
+
+                return ExecuteToolResponse(
+                    createdItems=[
+                        CreatedItemRefResponse(
+                            canonicalId=result.get("canonical_id", item_id),
+                            name=name,
+                            type=item_type,
+                        )
+                    ]
+                )
+            except Exception as exc:
+                logger.exception("Local triage execution error")
+                raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     # Low-level copilot_cli: forward to agents service
     if not settings.agents_url:

@@ -547,6 +547,97 @@ class TestExecuteTool:
         response = auth_client.post("/chat/execute-tool", json=_SEMANTIC_EXECUTE_REQUEST)
         assert response.status_code == 200
 
+    def test_cli_triage_handled_locally(self, auth_client, monkeypatch):
+        """copilot_cli 'items triage' commands should be handled locally
+        without forwarding to the agents service."""
+        from unittest.mock import AsyncMock
+
+        _patch_settings(monkeypatch, agents_url=None)  # No agents → would 503 if forwarded
+
+        mock_triage = AsyncMock(return_value={
+            "item_id": "item-abc",
+            "canonical_id": "urn:app:action:abc",
+            "schema_jsonld": {"name": "GitHub PR #64", "@type": ["schema:Action"]},
+        })
+        monkeypatch.setattr("app.chat.routes._patch_item_local", mock_triage)
+
+        request = {
+            "toolCall": {
+                "name": "copilot_cli",
+                "arguments": {
+                    "argv": [
+                        "items", "triage",
+                        "--id", "01jksnyyypf0vbead2gcr7p80w",
+                        "--bucket", "inbox",
+                        "--status", "completed",
+                        "--apply",
+                    ],
+                },
+            },
+            "conversationId": "conv-42",
+        }
+
+        response = auth_client.post("/chat/execute-tool", json=request)
+        assert response.status_code == 200
+        body = response.json()
+        assert body["createdItems"][0]["canonicalId"] == "urn:app:action:abc"
+
+    def test_cli_triage_works_without_agents_url(self, auth_client, monkeypatch):
+        """Triage should work even when agents service is not configured."""
+        from unittest.mock import AsyncMock
+
+        _patch_settings(monkeypatch, agents_url=None)
+
+        mock_triage = AsyncMock(return_value={
+            "item_id": "item-abc",
+            "canonical_id": "urn:app:action:abc",
+            "schema_jsonld": {"name": "Newsletter", "@type": ["schema:DigitalDocument"]},
+        })
+        monkeypatch.setattr("app.chat.routes._patch_item_local", mock_triage)
+
+        request = {
+            "toolCall": {
+                "name": "copilot_cli",
+                "arguments": {
+                    "argv": [
+                        "items", "triage",
+                        "--id", "urn:app:ref:xyz",
+                        "--bucket", "inbox",
+                        "--status", "completed",
+                        "--apply",
+                    ],
+                },
+            },
+            "conversationId": "conv-42",
+        }
+
+        response = auth_client.post("/chat/execute-tool", json=request)
+        assert response.status_code == 200
+
+    def test_cli_non_triage_still_forwarded(self, auth_client, monkeypatch):
+        """Non-triage copilot_cli commands should still forward to agents."""
+        _patch_settings(monkeypatch, agents_url="http://localhost:8002")
+
+        mock_response = httpx.Response(
+            200,
+            json={"createdItems": []},
+            request=_DUMMY_EXECUTE_REQUEST,
+        )
+        monkeypatch.setattr("app.chat.routes.httpx.post", lambda *a, **kw: mock_response)
+
+        request = {
+            "toolCall": {
+                "name": "copilot_cli",
+                "arguments": {
+                    "argv": ["items", "create", "--type", "Action", "--name", "Test"],
+                },
+            },
+            "conversationId": "conv-42",
+        }
+
+        response = auth_client.post("/chat/execute-tool", json=request)
+        assert response.status_code == 200
+
 
 # ---------------------------------------------------------------------------
 # Conversation management

@@ -173,7 +173,9 @@ function AuthenticatedApp({
     const rawErrors: string[] = [];
 
     if (location.view === "settings" && location.sub === "email") {
-      const emailQueryError = getMutationErrorMessage(emailConnectionsQuery.error);
+      const emailQueryError = getMutationErrorMessage(
+        emailConnectionsQuery.error,
+      );
       if (emailQueryError) rawErrors.push(emailQueryError);
 
       for (const conn of emailConnections ?? []) {
@@ -540,6 +542,8 @@ function AuthenticatedApp({
         onSend={chat.sendMessage}
         onAcceptSuggestion={chat.acceptSuggestion}
         onDismissSuggestion={chat.dismissSuggestion}
+        onAcceptAllSuggestions={chat.acceptAllSuggestions}
+        onDismissAllSuggestions={chat.dismissAllSuggestions}
         onNewConversation={chat.startNewConversation}
         onLoadConversation={chat.loadConversation}
         agentName={

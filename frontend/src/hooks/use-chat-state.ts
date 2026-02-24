@@ -274,6 +274,85 @@ export function useChatState(options: ChatStateOptions = {}) {
     );
   }, []);
 
+  const acceptAllSuggestions = useCallback(
+    async (messageIds: string[]) => {
+      // Collect all pending suggestions to execute
+      const suggestions = messages.filter(
+        (m): m is CopilotSuggestionMessage =>
+          m.kind === "suggestion" &&
+          m.status === "pending" &&
+          messageIds.includes(m.id),
+      );
+
+      if (suggestions.length === 0) return;
+
+      // Mark all as accepted optimistically
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.kind === "suggestion" &&
+          m.status === "pending" &&
+          messageIds.includes(m.id)
+            ? { ...m, status: "accepted" as const }
+            : m,
+        ),
+      );
+
+      // Execute all in parallel
+      const results = await Promise.allSettled(
+        suggestions.map((s) => executeSuggestion(s.suggestion, conversationId)),
+      );
+
+      // Collect all created items from successful executions
+      const allCreated: CreatedItemRef[] = [];
+      const failedIds: string[] = [];
+
+      results.forEach((result, i) => {
+        if (result.status === "fulfilled") {
+          allCreated.push(...result.value);
+        } else {
+          failedIds.push(suggestions[i]!.id);
+        }
+      });
+
+      // Add single batch confirmation for all successes
+      if (allCreated.length > 0) {
+        const confirmation: CopilotConfirmationMessage = {
+          id: generateId(),
+          role: "copilot",
+          kind: "confirmation",
+          content: buildConfirmationText(allCreated),
+          createdItems: allCreated,
+          timestamp: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, confirmation]);
+      }
+
+      // Revert failed ones to pending
+      if (failedIds.length > 0) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.kind === "suggestion" && failedIds.includes(m.id)
+              ? { ...m, status: "pending" as const }
+              : m,
+          ),
+        );
+      }
+    },
+    [messages, executeSuggestion, conversationId],
+  );
+
+  const dismissAllSuggestions = useCallback((messageIds: string[]) => {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.kind === "suggestion" &&
+        m.status === "pending" &&
+        messageIds.includes(m.id)
+          ? { ...m, status: "dismissed" as const }
+          : m,
+      ),
+    );
+  }, []);
+
   const startNewConversation = useCallback(() => {
     setMessages([]);
     setConversationId(newConversationId());
@@ -294,6 +373,8 @@ export function useChatState(options: ChatStateOptions = {}) {
     sendMessage,
     acceptSuggestion,
     dismissSuggestion,
+    acceptAllSuggestions,
+    dismissAllSuggestions,
     startNewConversation,
     loadConversation,
   };

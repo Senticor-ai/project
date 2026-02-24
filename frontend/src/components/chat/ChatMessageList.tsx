@@ -1,6 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useMemo } from "react";
 import { cn } from "@/lib/utils";
-import type { ChatMessage } from "@/model/chat-types";
+import type { ChatMessage, CopilotSuggestionMessage } from "@/model/chat-types";
 import {
   UserMessageBubble,
   CopilotMessageBubble,
@@ -14,15 +14,49 @@ export interface ChatMessageListProps {
   messages: ChatMessage[];
   onAcceptSuggestion?: (messageId: string) => void;
   onDismissSuggestion?: (messageId: string) => void;
+  onAcceptAllSuggestions?: (messageIds: string[]) => void;
+  onDismissAllSuggestions?: (messageIds: string[]) => void;
   onItemClick?: (canonicalId: string) => void;
   agentName?: string;
   className?: string;
+}
+
+/**
+ * Groups consecutive suggestion messages into batches.
+ * Returns a map from the first message ID in each group to the group's message IDs.
+ */
+function groupConsecutiveSuggestions(
+  messages: ChatMessage[],
+): Map<string, string[]> {
+  const groups = new Map<string, string[]>();
+  let currentGroup: CopilotSuggestionMessage[] = [];
+
+  for (const msg of messages) {
+    if (msg.kind === "suggestion") {
+      currentGroup.push(msg);
+    } else {
+      if (currentGroup.length >= 2) {
+        const ids = currentGroup.map((m) => m.id);
+        groups.set(ids[0]!, ids);
+      }
+      currentGroup = [];
+    }
+  }
+  // Flush trailing group
+  if (currentGroup.length >= 2) {
+    const ids = currentGroup.map((m) => m.id);
+    groups.set(ids[0]!, ids);
+  }
+
+  return groups;
 }
 
 export function ChatMessageList({
   messages,
   onAcceptSuggestion,
   onDismissSuggestion,
+  onAcceptAllSuggestions,
+  onDismissAllSuggestions,
   onItemClick,
   agentName = "Copilot",
   className,
@@ -32,6 +66,12 @@ export function ChatMessageList({
   useEffect(() => {
     bottomRef.current?.scrollIntoView?.({ behavior: "smooth" });
   }, [messages.length]);
+
+  // Group consecutive suggestions for batch actions
+  const suggestionGroups = useMemo(
+    () => groupConsecutiveSuggestions(messages),
+    [messages],
+  );
 
   if (messages.length === 0) {
     return (
@@ -55,17 +95,74 @@ export function ChatMessageList({
     <div
       className={cn("flex flex-1 flex-col gap-3 overflow-y-auto", className)}
     >
-      {messages.map((msg) => (
-        <ChatMessageRenderer
-          key={msg.id}
-          message={msg}
-          onAcceptSuggestion={onAcceptSuggestion}
-          onDismissSuggestion={onDismissSuggestion}
-          onItemClick={onItemClick}
-          agentName={agentName}
-        />
-      ))}
+      {messages.map((msg) => {
+        const groupIds = suggestionGroups.get(msg.id);
+        const hasPending =
+          groupIds?.some((id) => {
+            const m = messages.find((x) => x.id === id);
+            return m?.kind === "suggestion" && m.status === "pending";
+          }) ?? false;
+
+        return (
+          <div key={msg.id}>
+            {/* Batch action bar at the start of a suggestion group */}
+            {groupIds && hasPending && (
+              <SuggestionGroupActions
+                count={
+                  groupIds.filter((id) => {
+                    const m = messages.find((x) => x.id === id);
+                    return m?.kind === "suggestion" && m.status === "pending";
+                  }).length
+                }
+                onAcceptAll={() => onAcceptAllSuggestions?.(groupIds)}
+                onDismissAll={() => onDismissAllSuggestions?.(groupIds)}
+              />
+            )}
+            <ChatMessageRenderer
+              message={msg}
+              onAcceptSuggestion={onAcceptSuggestion}
+              onDismissSuggestion={onDismissSuggestion}
+              onItemClick={onItemClick}
+              agentName={agentName}
+            />
+          </div>
+        );
+      })}
       <div ref={bottomRef} />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Batch action bar for grouped suggestions
+// ---------------------------------------------------------------------------
+
+function SuggestionGroupActions({
+  count,
+  onAcceptAll,
+  onDismissAll,
+}: {
+  count: number;
+  onAcceptAll: () => void;
+  onDismissAll: () => void;
+}) {
+  return (
+    <div className="ml-9 mb-2 flex items-center gap-2">
+      <span className="text-xs text-text-muted">{count} Vorschläge</span>
+      <button
+        onClick={onAcceptAll}
+        className="inline-flex items-center gap-1 rounded-lg bg-blueprint-500 px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-blueprint-600"
+      >
+        <Icon name="done_all" size={14} />
+        Alle übernehmen
+      </button>
+      <button
+        onClick={onDismissAll}
+        className="inline-flex items-center gap-1 rounded-lg px-3 py-1 text-xs font-medium text-text-muted transition-colors hover:bg-paper-100"
+      >
+        <Icon name="close" size={14} />
+        Alle verwerfen
+      </button>
     </div>
   );
 }

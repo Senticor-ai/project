@@ -2,7 +2,16 @@
   "permissions": {
     "allow": [
       "Bash(DATABASE_URL=\"\" POSTGRES_PASSWORD=\"\" uv run pytest:*)",
-      "Bash(git pull:*)"
+      "Bash(git pull:*)",
+      "Bash(gh pr list --state all --search \"auto-claude\" --json number,title,headRefName,state)",
+      "Bash(git branch -D auto-claude/002-failed-to-authenticate-api-error-401-type-error-er auto-claude/010-product-epic-schema-enrichment-frontend-documentat auto-claude/007-critical-security-remediation-secrets-exposure-and auto-claude/009-action-list-with-context-filters auto-claude/011-product-epic-schema-enrichment-action-subtype-back auto-claude/012-product-epic-platform-sdk-shacl-cel-validation-pip auto-claude/013-product-epic-platform-sdk-agent-contract-hardening auto-claude/015-product-epic-org-knowledge-backend-org-document-mo)",
+      "Bash(while read wt)",
+      "Bash(do echo \"Removing: $wt\")",
+      "Bash(git worktree remove --force \"$wt\")",
+      "Bash(git branch -D auto-claude/002-failed-to-authenticate-api-error-401-type-error-er auto-claude/007-critical-security-remediation-secrets-exposure-and auto-claude/009-action-list-with-context-filters auto-claude/010-product-epic-schema-enrichment-frontend-documentat auto-claude/011-product-epic-schema-enrichment-action-subtype-back auto-claude/012-product-epic-platform-sdk-shacl-cel-validation-pip auto-claude/013-product-epic-platform-sdk-agent-contract-hardening auto-claude/015-product-epic-org-knowledge-backend-org-document-mo)",
+      "Bash(git branch -D 29-frontend-add-dev-demo-disclaimer)",
+      "Bash(find /Users/wolfgang/workspace/project-frontend-team -type f -name \"*.py\" -path \"*/agents/*\" ! -path \"*venv*\" ! -path \"*test*\" -exec grep -l \"execute_tool\\\\|ToolCallInput\" {} ;)",
+      "Read(//Users/wolfgang/workspace/project-frontend-team/**)"
     ]
   }
 }
