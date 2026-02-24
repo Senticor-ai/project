@@ -16,6 +16,7 @@ from ..idempotency import (
 )
 from ..metrics import APP_ITEMS_ARCHIVED_TOTAL, APP_ITEMS_CREATED_TOTAL, APP_ITEMS_UPDATED_TOTAL
 from ..models import (
+    ACTION_SUBTYPES,
     ItemContentResponse,
     ItemCreateRequest,
     ItemPatchRequest,
@@ -213,7 +214,7 @@ def _normalize_types(value) -> list[str]:
 
 
 def _is_action_type(type_value: str) -> bool:
-    return type_value.split(":")[-1] in {"Action", "PlanAction", "ReadAction"}
+    return type_value.split(":")[-1] in ACTION_SUBTYPES
 
 
 def _get_additional_property(item: dict, property_id: str):
