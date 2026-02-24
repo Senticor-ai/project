@@ -1,3 +1,4 @@
+import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -6,9 +7,26 @@ from urllib.parse import quote
 
 from dotenv import load_dotenv
 
+from app.secrets import get_secrets_manager
+
+logger = logging.getLogger(__name__)
+
 ROOT_DIR = Path(__file__).resolve().parents[2]
 load_dotenv(ROOT_DIR / ".env")
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+
+# Initialize secrets manager (env fallback for dev, Vault/AWS for production)
+try:
+    secrets_manager = get_secrets_manager()
+except Exception as e:
+    # Fail fast in production if secrets manager is unreachable
+    backend = os.environ.get("SECRETS_BACKEND", "env").lower()
+    if backend != "env":
+        logger.error(f"Failed to initialize secrets manager ({backend}): {e}")
+        raise
+    # For env backend, log warning and continue (dev environment)
+    logger.warning(f"Secrets manager initialization issue (using env fallback): {e}")
+    secrets_manager = None
 
 
 def _get_env(name: str, default: str | None = None) -> str | None:
@@ -23,6 +41,20 @@ def _get_bool_env(name: str, default: bool = False) -> bool:
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _get_secret(name: str, default: str | None = None) -> str | None:
+    """Get secret from secrets manager (with env fallback)."""
+    # If secrets manager is available, try it first
+    if secrets_manager is not None:
+        try:
+            return secrets_manager.get_secret(name)
+        except Exception as e:
+            logger.debug(f"Failed to get secret {name} from secrets manager: {e}")
+            # Fall through to env var fallback
+
+    # Fallback to environment variable
+    return _get_env(name, default)
 
 
 CookieSameSite = Literal["lax", "strict", "none"]
@@ -144,7 +176,7 @@ def _build_database_url() -> str:
         return database_url
 
     user = _get_env("POSTGRES_USER", "project") or "project"
-    password = _get_env("POSTGRES_PASSWORD", "")
+    password = _get_secret("POSTGRES_PASSWORD", "")
     host = _get_env("POSTGRES_HOST", "localhost") or "localhost"
     port = _get_env("POSTGRES_PORT", "5432") or "5432"
     database = _get_env("POSTGRES_DB", "project") or "project"
@@ -212,7 +244,7 @@ def load_settings() -> Settings:
         csrf_cookie_domain=_get_env("CSRF_COOKIE_DOMAIN"),
         csrf_cookie_path=_get_env("CSRF_COOKIE_PATH", "/") or "/",
         meili_url=_get_env("MEILI_URL"),
-        meili_api_key=_get_env("MEILI_API_KEY"),
+        meili_api_key=_get_secret("MEILI_API_KEY"),
         meili_index_items=_get_env("MEILI_INDEX_ITEMS", "items") or "items",
         meili_index_files=_get_env("MEILI_INDEX_FILES", "files") or "files",
         meili_index_files_enabled=_get_bool_env("MEILI_INDEX_FILES_ENABLED", False),
@@ -245,7 +277,7 @@ def load_settings() -> Settings:
             _get_env("WORKER_HEALTH_STALENESS_MULTIPLIER", "3.0") or "3.0"
         ),
         vapid_public_key=_get_env("VAPID_PUBLIC_KEY"),
-        vapid_private_key=_get_env("VAPID_PRIVATE_KEY"),
+        vapid_private_key=_get_secret("VAPID_PRIVATE_KEY"),
         vapid_subject=_get_env("VAPID_SUBJECT", "mailto:admin@example.com"),
         dev_tools_enabled=_get_bool_env("DEV_TOOLS_ENABLED", False),
         security_headers_enabled=_get_bool_env("SECURITY_HEADERS_ENABLED", True),
@@ -279,7 +311,7 @@ def load_settings() -> Settings:
         agents_url=_get_env("AGENTS_URL"),
         agent_require_user_api_key=_get_bool_env("AGENT_REQUIRE_USER_API_KEY", False),
         openclaw_url=_get_env("OPENCLAW_URL"),
-        openclaw_token=_get_env("OPENCLAW_GATEWAY_TOKEN"),
+        openclaw_token=_get_secret("OPENCLAW_GATEWAY_TOKEN"),
         openclaw_image=_get_env("OPENCLAW_IMAGE", "ghcr.io/openclaw/openclaw:latest")
         or "ghcr.io/openclaw/openclaw:latest",
         openclaw_port_range_start=int(_get_env("OPENCLAW_PORT_RANGE_START", "18800") or "18800"),
@@ -288,11 +320,11 @@ def load_settings() -> Settings:
             _get_env("OPENCLAW_IDLE_TIMEOUT_SECONDS", "1800") or "1800"
         ),
         openclaw_health_check_timeout=int(_get_env("OPENCLAW_HEALTH_CHECK_TIMEOUT", "30") or "30"),
-        delegation_jwt_secret=_get_env("DELEGATION_JWT_SECRET") or _get_env("JWT_SECRET") or "",
+        delegation_jwt_secret=_get_secret("DELEGATION_JWT_SECRET") or _get_secret("JWT_SECRET") or "",
         delegation_jwt_ttl_seconds=int(_get_env("DELEGATION_JWT_TTL_SECONDS", "60") or "60"),
-        encryption_key=_get_env("ENCRYPTION_KEY"),
+        encryption_key=_get_secret("ENCRYPTION_KEY"),
         gmail_client_id=_get_env("GMAIL_CLIENT_ID", "") or "",
-        gmail_client_secret=_get_env("GMAIL_CLIENT_SECRET", "") or "",
+        gmail_client_secret=_get_secret("GMAIL_CLIENT_SECRET", "") or "",
         gmail_redirect_uri=_get_env(
             "GMAIL_REDIRECT_URI",
             "http://localhost:8000/email/oauth/gmail/callback",
@@ -300,7 +332,7 @@ def load_settings() -> Settings:
         or "http://localhost:8000/email/oauth/gmail/callback",
         gmail_scopes=_get_env("GMAIL_SCOPES", "https://mail.google.com/")
         or "https://mail.google.com/",
-        gmail_state_secret=_get_env("GMAIL_STATE_SECRET", "") or "",
+        gmail_state_secret=_get_secret("GMAIL_STATE_SECRET", "") or "",
         backend_base_url=_get_env("BACKEND_BASE_URL", "http://localhost:8000")
         or "http://localhost:8000",
         frontend_base_url=_get_env("FRONTEND_BASE_URL", "http://localhost:5173")
