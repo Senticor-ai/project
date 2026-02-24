@@ -40,7 +40,7 @@ def _send_push(subscription: dict, payload: dict) -> None:
 )
 def get_public_key():
     _require_vapid()
-    return PushPublicKeyResponse(public_key=settings.vapid_public_key)  # type: ignore[arg-type]
+    return PushPublicKeyResponse(public_key=settings.vapid_public_key)
 
 
 @router.post("/subscribe", summary="Store a push subscription")

@@ -66,7 +66,9 @@ def create_org(payload: OrgCreateRequest, current_user=Depends(get_current_user)
             for doc_type in ["GENERAL", "USER", "LOG", "AGENT"]:
                 cur.execute(
                     """
-                    INSERT INTO items (org_id, created_by_user_id, canonical_id, schema_jsonld, source)
+                    INSERT INTO items (
+                        org_id, created_by_user_id, canonical_id, schema_jsonld, source
+                    )
                     VALUES (%s, %s, %s, %s, %s)
                     RETURNING item_id
                     """,
@@ -74,12 +76,14 @@ def create_org(payload: OrgCreateRequest, current_user=Depends(get_current_user)
                         org["id"],
                         current_user["id"],
                         f"org:{org['id']}:knowledge:{doc_type.lower()}",
-                        jsonb({
-                            "@type": "DigitalDocument",
-                            "name": f"Organization {doc_type.title()} Knowledge",
-                            "encodingFormat": "text/markdown",
-                            "text": "",
-                        }),
+                        jsonb(
+                            {
+                                "@type": "DigitalDocument",
+                                "name": f"Organization {doc_type.title()} Knowledge",
+                                "encodingFormat": "text/markdown",
+                                "text": "",
+                            }
+                        ),
                         "system",
                     ),
                 )

@@ -70,8 +70,8 @@ def _resolve_route_and_handler(request: Request) -> tuple[str | None, str | None
 
     endpoint = request.scope.get("endpoint")
     if callable(endpoint):
-        handler_name = (
-            getattr(endpoint, "__qualname__", None) or getattr(endpoint, "__name__", None)
+        handler_name = getattr(endpoint, "__qualname__", None) or getattr(
+            endpoint, "__name__", None
         )
 
     return route_template, handler_name

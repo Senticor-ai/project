@@ -13,7 +13,9 @@ from app.db import db_conn
 from app.outbox import enqueue_event
 
 
-def _wait_for_payload(listener_conn: psycopg.Connection, payload: str, timeout: float = 2.0) -> bool:
+def _wait_for_payload(
+    listener_conn: psycopg.Connection, payload: str, timeout: float = 2.0
+) -> bool:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         remaining = max(0.01, deadline - time.monotonic())
@@ -44,9 +46,7 @@ def test_enqueue_event_notifies_with_internal_connection(app):
 
     with psycopg.connect(settings.database_url, autocommit=True) as listener_conn:
         with listener_conn.cursor() as cur:
-            cur.execute(
-                sql.SQL("LISTEN {}").format(sql.Identifier(settings.outbox_notify_channel))
-            )
+            cur.execute(sql.SQL("LISTEN {}").format(sql.Identifier(settings.outbox_notify_channel)))
 
         enqueue_event(event_type, {"org_id": str(uuid.uuid4())})
 
@@ -61,9 +61,7 @@ def test_enqueue_event_notifies_with_existing_cursor(app):
 
     with psycopg.connect(settings.database_url, autocommit=True) as listener_conn:
         with listener_conn.cursor() as cur:
-            cur.execute(
-                sql.SQL("LISTEN {}").format(sql.Identifier(settings.outbox_notify_channel))
-            )
+            cur.execute(sql.SQL("LISTEN {}").format(sql.Identifier(settings.outbox_notify_channel)))
 
         with db_conn() as conn:
             with conn.cursor() as cur:

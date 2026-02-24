@@ -281,9 +281,7 @@ def test_content_endpoints_require_org_access(client):
     assert response.status_code == 200
 
     # Login as user 1
-    response = client.post(
-        "/auth/login", json={"email": user1_email, "password": password}
-    )
+    response = client.post("/auth/login", json={"email": user1_email, "password": password})
     assert response.status_code == 200
     payload = response.json()
     org1_id = payload.get("default_org_id")
@@ -333,9 +331,7 @@ def test_content_endpoints_require_org_access(client):
     assert response.status_code == 200
 
     # Login as user 2
-    response = client.post(
-        "/auth/login", json={"email": user2_email, "password": password}
-    )
+    response = client.post("/auth/login", json={"email": user2_email, "password": password})
     assert response.status_code == 200
     payload = response.json()
     org2_id = payload.get("default_org_id")

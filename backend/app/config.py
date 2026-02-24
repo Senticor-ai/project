@@ -236,8 +236,7 @@ def load_settings() -> Settings:
         outbox_worker_notify_fallback_seconds=float(
             _get_env("OUTBOX_WORKER_NOTIFY_FALLBACK_SECONDS", "30.0") or "30.0"
         ),
-        outbox_notify_channel=_get_env("OUTBOX_NOTIFY_CHANNEL", "outbox_events")
-        or "outbox_events",
+        outbox_notify_channel=_get_env("OUTBOX_NOTIFY_CHANNEL", "outbox_events") or "outbox_events",
         outbox_max_attempts=int(_get_env("OUTBOX_MAX_ATTEMPTS", "5") or "5"),
         push_worker_poll_seconds=float(_get_env("PUSH_WORKER_POLL_SECONDS", "1.0") or "1.0"),
         worker_health_port=int(_get_env("WORKER_HEALTH_PORT", "9090") or "9090"),

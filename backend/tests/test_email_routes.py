@@ -99,7 +99,10 @@ class TestGmailCallback:
             follow_redirects=False,
         )
         assert callback_res.status_code == 303
-        assert callback_res.headers["location"] == "https://frontend.test/settings/email?gmail=connected"
+        assert (
+            callback_res.headers["location"]
+            == "https://frontend.test/settings/email?gmail=connected"
+        )
 
         list_res = auth_client.get("/email/connections")
         assert list_res.status_code == 200

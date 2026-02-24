@@ -1064,9 +1064,7 @@ def update_project_action(
                 new_name = str(candidate).strip()
 
             new_description = (
-                updates["description"]
-                if "description" in updates
-                else existing["description"]
+                updates["description"] if "description" in updates else existing["description"]
             )
 
             new_owner_user_id = existing["owner_user_id"]
