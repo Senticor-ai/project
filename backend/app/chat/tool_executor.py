@@ -50,7 +50,7 @@ async def _create_item(jsonld: dict, auth: AuthContext) -> dict:
 
     headers: dict[str, str] = {
         "Authorization": f"Bearer {auth.token}",
-        "X-Agent": "tay",
+        "X-Agent": "copilot",
     }
     if auth.org_id:
         headers["X-Org-Id"] = auth.org_id
@@ -58,7 +58,7 @@ async def _create_item(jsonld: dict, auth: AuthContext) -> dict:
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(
             f"{base_url}/items",
-            json={"item": jsonld, "source": "tay"},
+            json={"item": jsonld, "source": "copilot"},
             headers=headers,
         )
         response.raise_for_status()

@@ -1,6 +1,6 @@
 import { addons } from "storybook/manager-api";
-import tayTheme from "./theme";
+import copilotTheme from "./theme";
 
 addons.setConfig({
-  theme: tayTheme,
+  theme: copilotTheme,
 });

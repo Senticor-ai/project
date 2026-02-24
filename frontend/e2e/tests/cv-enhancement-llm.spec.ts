@@ -9,12 +9,12 @@ import { ApiSeed } from "../helpers/api-seed";
  * Tests the two-step markdown-first flow:
  *   1. Register and log in via UI
  *   2. Seed a project with two documents (CV + job posting) via API
- *   3. Open Tay chat, ask to create a tailored markdown CV
- *   4. Tay uses list_project_items → read_item_content, then
+ *   3. Open Copilot chat, ask to create a tailored markdown CV
+ *   4. Copilot uses list_project_items → read_item_content, then
  *      suggests create_reference with tailored markdown
  *   5. Accept → markdown reference saved in project
- *   6. Ask Tay to render the markdown CV as PDF
- *   7. Tay suggests render_cv with sourceItemId pointing to the markdown ref
+ *   6. Ask Copilot to render the markdown CV as PDF
+ *   7. Copilot suggests render_cv with sourceItemId pointing to the markdown ref
  *   8. Accept → PDF rendered and saved as reference
  *   9. Verify both new references appear in project
  *
@@ -33,7 +33,7 @@ test.skip(
 test.describe("CV Enhancement Journey", () => {
   test.setTimeout(420_000); // Real LLM can require multiple retries/tool-call nudges
 
-  test("upload docs → triage → Tay tailors markdown → render PDF", async ({
+  test("upload docs → triage → Copilot tailors markdown → render PDF", async ({
     page,
   }, testInfo) => {
     const log = (msg: string) => console.log(`[cv-e2e] ${msg}`);
@@ -124,7 +124,7 @@ test.describe("CV Enhancement Journey", () => {
     });
     log("Attached screenshot: 01-project-setup.png");
 
-    // ── 5. Open Tay chat & intercept tool execution ────────────────────
+    // ── 5. Open Copilot chat & intercept tool execution ────────────────────
     const executedTools: Array<{
       name: string;
       args: Record<string, unknown>;
@@ -152,7 +152,7 @@ test.describe("CV Enhancement Journey", () => {
     await expect(
       page.getByRole("complementary", { name: "Copilot Chat" }),
     ).toBeVisible();
-    log("Tay chat panel opened");
+    log("Copilot chat panel opened");
 
     const chatInput = page.getByRole("textbox", {
       name: "Nachricht an Copilot",
@@ -180,7 +180,7 @@ test.describe("CV Enhancement Journey", () => {
       );
     };
 
-    // ── 6. Step 1: Ask Tay to create a tailored markdown CV ────────────
+    // ── 6. Step 1: Ask Copilot to create a tailored markdown CV ────────────
     const prompt =
       `In meinem Projekt "Bewerbung Senior Forward Deployed AI Engineer" ` +
       `liegen mein Lebenslauf und eine Stellenanzeige. ` +
@@ -190,7 +190,7 @@ test.describe("CV Enhancement Journey", () => {
     await chatInput.fill(prompt);
     await chatInput.press("Enter");
 
-    // Wait for Tay to respond with a tool call suggestion (create_reference or render_cv).
+    // Wait for Copilot to respond with a tool call suggestion (create_reference or render_cv).
     const acceptButton = page
       .getByRole("button", { name: /Übernehmen|Accept|Annehmen/i })
       .last();
@@ -216,7 +216,7 @@ test.describe("CV Enhancement Journey", () => {
       contentType: "image/png",
     });
 
-    // Accept the create_reference (or whichever tool Tay chose)
+    // Accept the create_reference (or whichever tool Copilot chose)
     await acceptButton.click();
     log("Clicked Übernehmen — executing step 1 tool call");
 
@@ -248,11 +248,11 @@ test.describe("CV Enhancement Journey", () => {
       contentType: "image/png",
     });
 
-    // ── 7. Step 2: Ask Tay to render the markdown as PDF ───────────────
-    // If step 1 was already render_cv (Tay chose to go direct), skip step 2
+    // ── 7. Step 2: Ask Copilot to render the markdown as PDF ───────────────
+    // If step 1 was already render_cv (Copilot chose to go direct), skip step 2
     const step1WasRenderCv = step1Tool?.name === "render_cv";
     if (!step1WasRenderCv) {
-      log("Step 2: Asking Tay to render the markdown CV as PDF");
+      log("Step 2: Asking Copilot to render the markdown CV as PDF");
       await chatInput.fill(
         "Perfekt! Bitte rendere die angepasste Version jetzt als PDF. " +
           "Schriftart Inter, modernes Design, dezente Farben.",

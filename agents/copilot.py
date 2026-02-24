@@ -49,7 +49,7 @@ def load_prompt(template_path: str, **kwargs) -> str:
     """Load and render a Jinja2 prompt template.
 
     Args:
-        template_path: Relative path from prompts/ dir (e.g. "de/tay_system.j2").
+        template_path: Relative path from prompts/ dir (e.g. "de/copilot_system.j2").
         **kwargs: Template variables.
     """
     template = _jinja_env.get_template(template_path)
@@ -59,7 +59,7 @@ def load_prompt(template_path: str, **kwargs) -> str:
 def build_system_prompt(user_context: dict | None = None) -> str:
     """Render the system prompt with current timestamp and user context."""
     return load_prompt(
-        "de/tay_system.j2",
+        "de/copilot_system.j2",
         buckets=BUCKETS,
         system_time=datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC"),
         user_context=user_context or {},
@@ -289,7 +289,7 @@ def create_agent(
     user_context: Optional[dict] = None,  # noqa: UP007, UP045
     llm_config: Optional[RuntimeLlmConfig] = None,  # noqa: UP007, UP045
 ) -> Agent:
-    """Build a Tay Haystack Agent for the given model.
+    """Build a Copilot Haystack Agent for the given model.
 
     Args:
         model: OpenRouter model ID (e.g. "openai/gpt-4o-mini").

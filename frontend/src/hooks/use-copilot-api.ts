@@ -61,7 +61,7 @@ export async function readNdjsonStream(
   }
 }
 
-export function useTayApi() {
+export function useCopilotApi() {
   const sendMessageStreaming = useCallback(
     async (
       message: string,

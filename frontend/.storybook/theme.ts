@@ -6,7 +6,7 @@ export default create({
   // Brand
   brandTitle: `<div style="line-height:1.2"><strong style="font-size:14px">Senticor Project</strong><br/><span style="font-size:11px;opacity:0.6">Storybook</span></div>`,
   brandUrl: "/",
-  brandImage: "/tay-logo.svg",
+  brandImage: "/copilot-logo.svg",
   brandTarget: "_self",
 
   // Accent colors — blueprint-500

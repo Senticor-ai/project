@@ -8,7 +8,7 @@ import { Meta } from "@storybook/addon-docs/blocks";
 **Priority:** Current
 **Checklist audit:** February 23, 2026 — epic is still in draft planning; all acceptance criteria remain unchecked.
 **Last updated:** 2026-02-23
-**Depends on:** OAuth/auth foundation, connector runtime, search/normalization pipeline, Tay Copilot approval flow
+**Depends on:** OAuth/auth foundation, connector runtime, search/normalization pipeline, Copilot approval flow
 
 ## Context
 
@@ -16,13 +16,13 @@ Senticor Project needs a reliable way for a user to connect Google Workspace and
 
 **Problem:** Without a production-grade Google connection backbone (OAuth lifecycle + incremental sync), users experience stale data, reconnect loops, and low trust.
 
-**Outcome:** A single-user MVP where Gmail and Google Calendar data is ingested reliably, surfaced in Senticor context/search, and used by Tay to generate confirmation-gated proposals for time-sensitive workflows.
+**Outcome:** A single-user MVP where Gmail and Google Calendar data is ingested reliably, surfaced in Senticor context/search, and used by Copilot to generate confirmation-gated proposals for time-sensitive workflows.
 
 ---
 
 ## User Story
 
-> "I want to connect my Google account once, see fresh email/calendar context in Senticor, and let Tay suggest useful actions that only execute after I confirm."
+> "I want to connect my Google account once, see fresh email/calendar context in Senticor, and let Copilot suggest useful actions that only execute after I confirm."
 
 ---
 
@@ -47,7 +47,7 @@ Senticor Project needs a reliable way for a user to connect Google Workspace and
 - Normalized records for agent/search usage (`EmailRecord`, `CalendarEventRecord`)
 - UX states: connected, syncing, error, reconnect required, last synced timestamp
 - Search/context across email subject/snippet/participants and calendar title/attendees/time
-- Tay proposal flows (confirmation required) for:
+- Copilot proposal flows (confirmation required) for:
   - meeting reschedule requests close to event time
   - personal pickup/errand requests (for example "pick up kids early")
 - Basic audit log for sync and executed actions
@@ -74,8 +74,8 @@ Senticor Project needs a reliable way for a user to connect Google Workspace and
 
 ### Proposal and approval model
 
-- Tay analyzes new relevant emails using nearby calendar context.
-- Tay outputs either `NoAction` or a proposal payload.
+- Copilot analyzes new relevant emails using nearby calendar context.
+- Copilot outputs either `NoAction` or a proposal payload.
 - Every write action stays blocked until explicit user confirmation.
 - User can confirm both actions, confirm one, or dismiss.
 
@@ -103,7 +103,7 @@ Rules:
 - **Auth service:** OAuth authorization code flow, token exchange, encrypted token storage.
 - **Connector workers:** Gmail fetcher, Calendar fetcher, incremental cursor management.
 - **Normalization layer:** map provider payloads into internal records and entity graph.
-- **Agent tooling layer:** deterministic Gmail/Calendar tools invoked by Tay.
+- **Agent tooling layer:** deterministic Gmail/Calendar tools invoked by Copilot.
 - **Search/storage:** index normalized fields and relationship edges.
 - **Observability:** metrics, traces, and structured logs per connector run and tool execution.
 
@@ -146,7 +146,7 @@ Trigger: relevant inbound message close to scheduled event.
 Flow:
 
 1. Ingestion emits candidate email + nearby event context.
-2. Tay detects reschedule intent and proposes time shift.
+2. Copilot detects reschedule intent and proposes time shift.
 3. Tool checks free/busy viability.
 4. UI shows proposal card and draft reply.
 5. On user confirm: update event + send reply.
@@ -158,8 +158,8 @@ Trigger: trusted contact or personal-request classification.
 
 Flow:
 
-1. Tay extracts requested time/task from email.
-2. Tay proposes calendar reminder/event + draft reply.
+1. Copilot extracts requested time/task from email.
+2. Copilot proposes calendar reminder/event + draft reply.
 3. UI requests explicit confirmation.
 4. On confirm: create/update event + send reply.
 5. Persist action audit trail.
@@ -184,7 +184,7 @@ Flow:
 - [ ] User can connect Google account and recover via reconnect flow.
 - [ ] First sync completes and exposes Gmail + Calendar context with freshness timestamp.
 - [ ] Incremental polling updates new Gmail messages and relevant calendar changes.
-- [ ] Tay generates proposal cards for both target workflows.
+- [ ] Copilot generates proposal cards for both target workflows.
 - [ ] No write action executes without explicit confirmation.
 - [ ] Confirmed actions correctly call Google APIs and persist audit records.
 - [ ] Core connector metrics and failure alerts are visible.

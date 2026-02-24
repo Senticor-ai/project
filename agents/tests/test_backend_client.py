@@ -138,10 +138,10 @@ class TestBackendClient:
 
         with patch("backend_client.httpx.AsyncClient", return_value=mock_client):
             client = BackendClient(base_url="http://test:8000")
-            await client.create_item({"@id": "x"}, auth_ctx, source="ai-tay")
+            await client.create_item({"@id": "x"}, auth_ctx, source="ai-copilot")
 
         body = mock_client.post.call_args.kwargs["json"]
-        assert body["source"] == "ai-tay"
+        assert body["source"] == "ai-copilot"
 
 
 class TestListWorkspaceOverview:

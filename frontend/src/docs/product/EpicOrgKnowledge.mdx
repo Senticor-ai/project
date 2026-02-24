@@ -268,11 +268,11 @@ When an org doc ReferenceRow is expanded:
 | Backend  | `backend/app/models.py`                   | `OrgDocIds`, extend `OrgResponse`              |
 | Backend  | `backend/app/routes/orgs.py`              | `_create_org_document()`, extend create + list |
 | Backend  | `backend/app/routes/items.py`             | File content + append endpoints                |
-| Agents   | `agents/tay.py`                           | 5 new tools, org context in prompt             |
+| Agents   | `agents/copilot.py`                       | 5 new tools, org context in prompt             |
 | Agents   | `agents/tool_executor.py`                 | New tool dispatches                            |
 | Agents   | `agents/jsonld_builders.py`               | `build_person_jsonld()`                        |
 | Agents   | `agents/backend_client.py`                | `list_orgs()`, file content methods            |
-| Agents   | `agents/prompts/de/tay_system.j2`         | Org awareness section                          |
+| Agents   | `agents/prompts/de/copilot_system.j2`     | Org awareness section                          |
 | Frontend | `frontend/src/model/types.ts`             | `PersonItem`, `OrgDocType`, `OrgRole`          |
 | Frontend | `frontend/src/lib/item-serializer.ts`     | Person + orgDocType serialization              |
 | Frontend | `frontend/src/lib/api-client.ts`          | `OrgResponse` with `doc_ids`                   |
@@ -290,10 +290,10 @@ epic for the full architecture.
 
 **Key decisions:**
 
-- **Stay with PostgreSQL.** JSON-LD JSONB is sufficient. No triple store (Fuseki/SPARQL) needed —
+- **Scopilot with PostgreSQL.** JSON-LD JSONB is sufficient. No triple store (Fuseki/SPARQL) needed —
   [NeurIPS'24 research](https://medium.com/data-science/can-llms-talk-sql-sparql-cypher-and-mongodb-query-language-mql-equally-well-a478f64cc769)
   shows LLM tool-calling accuracy (~95%) far exceeds query language generation (SPARQL &lt;4%, Cypher ~34%).
-- **CLI over many tools.** One `tay_cli` tool replaces 7+ Python tools. Same CLI serves Copilot, backend
+- **CLI over many tools.** One `copilot_cli` tool replaces 7+ Python tools. Same CLI serves Copilot, backend
   automation, and 3rd party integrations.
 - **Isomorphic TypeScript.** Serializers + client + validation run in browser, Node.js, and as Copilot's
   tool — no more Python/TypeScript duplication.

@@ -40,7 +40,7 @@ describe("createIdbPersister", () => {
 
     await persister.persistClient(client);
 
-    expect(mocked.set).toHaveBeenCalledWith("tay-query-cache", client);
+    expect(mocked.set).toHaveBeenCalledWith("copilot-query-cache", client);
   });
 
   it("persistClient silently ignores errors", async () => {
@@ -62,7 +62,7 @@ describe("createIdbPersister", () => {
 
     const result = await persister.restoreClient();
 
-    expect(mocked.get).toHaveBeenCalledWith("tay-query-cache");
+    expect(mocked.get).toHaveBeenCalledWith("copilot-query-cache");
     expect(result).toBe(stored);
   });
 
@@ -90,7 +90,7 @@ describe("createIdbPersister", () => {
 
     await persister.removeClient();
 
-    expect(mocked.del).toHaveBeenCalledWith("tay-query-cache");
+    expect(mocked.del).toHaveBeenCalledWith("copilot-query-cache");
   });
 
   it("removeClient silently ignores errors", async () => {
@@ -127,7 +127,7 @@ describe("clearAllLocalCaches", () => {
     const qc = createMockQueryClient();
     const result = await clearAllLocalCaches(qc);
 
-    expect(mocked.del).toHaveBeenCalledWith("tay-query-cache");
+    expect(mocked.del).toHaveBeenCalledWith("copilot-query-cache");
     expect(globalThis.caches.delete).toHaveBeenCalledWith("items-sync");
     expect(globalThis.caches.delete).toHaveBeenCalledWith("workbox-precache");
     expect(qc.clear).toHaveBeenCalledOnce();

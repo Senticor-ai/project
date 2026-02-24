@@ -12,13 +12,13 @@ see [Agents Service](?path=/docs/engineering-agents-service--docs).
 
 ## Personality & Constraints
 
-| Attribute         | Value                                                            |
-| ----------------- | ---------------------------------------------------------------- |
-| Avatar            | `chat_bubble` Material Symbol                                    |
-| Primary language  | German (matching UI language policy)                             |
-| Tone              | Helpful, concise, respectful of user authority                   |
-| Interaction model | Suggestions as detachable attachments — never auto-applied       |
-| Provenance        | Items created via Copilot carry `CaptureSource: { kind: "tay" }` |
+| Attribute         | Value                                                                |
+| ----------------- | -------------------------------------------------------------------- |
+| Avatar            | `chat_bubble` Material Symbol                                        |
+| Primary language  | German (matching UI language policy)                                 |
+| Tone              | Helpful, concise, respectful of user authority                       |
+| Interaction model | Suggestions as detachable attachments — never auto-applied           |
+| Provenance        | Items created via Copilot carry `CaptureSource: { kind: "copilot" }` |
 
 Copilot implements Paperclip principle #5: _AI is a contributor, not an authority_. It suggests,
 the user decides. No data is committed until the user clicks Accept.

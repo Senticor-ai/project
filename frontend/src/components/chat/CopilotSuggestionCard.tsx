@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
-import type { TaySuggestion, SuggestionStatus } from "@/model/chat-types";
+import type { CopilotSuggestion, SuggestionStatus } from "@/model/chat-types";
 
 // ---------------------------------------------------------------------------
 // Bucket display labels
@@ -15,24 +15,24 @@ const bucketLabels: Record<string, string> = {
 };
 
 // ---------------------------------------------------------------------------
-// TaySuggestionCard
+// CopilotSuggestionCard
 // ---------------------------------------------------------------------------
 
-export interface TaySuggestionCardProps {
-  suggestion: TaySuggestion;
+export interface CopilotSuggestionCardProps {
+  suggestion: CopilotSuggestion;
   status: SuggestionStatus;
   onAccept: () => void;
   onDismiss: () => void;
   className?: string;
 }
 
-export function TaySuggestionCard({
+export function CopilotSuggestionCard({
   suggestion,
   status,
   onAccept,
   onDismiss,
   className,
-}: TaySuggestionCardProps) {
+}: CopilotSuggestionCardProps) {
   if (status === "dismissed") {
     return (
       <div className={cn("flex items-start gap-2", className)}>
@@ -107,7 +107,10 @@ export function TaySuggestionCard({
 function ProjectSuggestionContent({
   suggestion,
 }: {
-  suggestion: Extract<TaySuggestion, { type: "create_project_with_actions" }>;
+  suggestion: Extract<
+    CopilotSuggestion,
+    { type: "create_project_with_actions" }
+  >;
 }) {
   return (
     <>
@@ -147,7 +150,7 @@ function ProjectSuggestionContent({
 function ActionSuggestionContent({
   suggestion,
 }: {
-  suggestion: Extract<TaySuggestion, { type: "create_action" }>;
+  suggestion: Extract<CopilotSuggestion, { type: "create_action" }>;
 }) {
   return (
     <div className="flex items-center gap-1.5">
@@ -163,7 +166,7 @@ function ActionSuggestionContent({
 function ReferenceSuggestionContent({
   suggestion,
 }: {
-  suggestion: Extract<TaySuggestion, { type: "create_reference" }>;
+  suggestion: Extract<CopilotSuggestion, { type: "create_reference" }>;
 }) {
   return (
     <>
@@ -183,7 +186,7 @@ function ReferenceSuggestionContent({
 function RenderCvSuggestionContent({
   suggestion,
 }: {
-  suggestion: Extract<TaySuggestion, { type: "render_cv" }>;
+  suggestion: Extract<CopilotSuggestion, { type: "render_cv" }>;
 }) {
   return (
     <>
@@ -201,7 +204,7 @@ function RenderCvSuggestionContent({
 function CopilotCliSuggestionContent({
   suggestion,
 }: {
-  suggestion: Extract<TaySuggestion, { type: "copilot_cli" }>;
+  suggestion: Extract<CopilotSuggestion, { type: "copilot_cli" }>;
 }) {
   return (
     <>

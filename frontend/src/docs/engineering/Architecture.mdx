@@ -27,17 +27,17 @@ C4Context
 Person(user, "Bundesbeamter", "Federal clerk managing tasks, documents, and workflows")
 Person(cpa, "CPA / Advisor", "Receives exported document packages")
 
-System(tay, "Senticor Project", "Structured task management with AI-assisted triage, Schema.org data model, append-only audit trail")
+System(copilot, "Senticor Project", "Structured task management with AI-assisted triage, Schema.org data model, append-only audit trail")
 
 System_Ext(gmail, "Gmail", "IMAP email sync via OAuth 2.0")
 System_Ext(openrouter, "OpenRouter", "LLM access for Copilot AI agent")
 System_Ext(grafana, "Grafana LGTM", "Logs, traces, metrics via OpenTelemetry")
 
-Rel_D(user, tay, "Captures tasks, triages inbox, manages projects", "HTTPS")
-Rel_D(cpa, tay, "Receives exported document packages", "CSV/PDF/ZIP")
-Rel_D(tay, gmail, "Syncs email to inbox", "IMAP + OAuth")
-Rel_D(tay, openrouter, "AI-assisted triage and planning", "HTTPS/REST")
-Rel_D(tay, grafana, "Exports telemetry", "OTLP")
+Rel_D(user, copilot, "Captures tasks, triages inbox, manages projects", "HTTPS")
+Rel_D(cpa, copilot, "Receives exported document packages", "CSV/PDF/ZIP")
+Rel_D(copilot, gmail, "Syncs email to inbox", "IMAP + OAuth")
+Rel_D(copilot, openrouter, "AI-assisted triage and planning", "HTTPS/REST")
+Rel_D(copilot, grafana, "Exports telemetry", "OTLP")
 
 UpdateLayoutConfig($c4ShapeInRow="2", $c4BoundaryInRow="1")
 `} />
@@ -52,7 +52,7 @@ C4Container
 
 Person(user, "User", "Federal clerk")
 
-System_Boundary(tay, "Senticor Project") {
+System_Boundary(copilot, "Senticor Project") {
 Container(spa, "Frontend SPA", "React 19, Vite, Tailwind v4", "Single-page app with offline-first sync, bucket navigation, inline triage")
 Container(storybook, "Storybook", "Storybook 10, MDX", "Living documentation hub — product specs, design system, component demos, architecture docs")
 Container(api, "Backend API", "Python, FastAPI", "REST API for items, files, imports, email, auth, search, push notifications, chat proxy")

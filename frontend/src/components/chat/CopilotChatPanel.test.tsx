@@ -1,13 +1,13 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { TayChatPanel } from "./TayChatPanel";
+import { CopilotChatPanel } from "./CopilotChatPanel";
 import type { ChatMessage } from "@/model/chat-types";
 
-describe("TayChatPanel", () => {
+describe("CopilotChatPanel", () => {
   it("renders nothing when closed", () => {
     render(
-      <TayChatPanel
+      <CopilotChatPanel
         isOpen={false}
         onClose={vi.fn()}
         messages={[]}
@@ -24,7 +24,7 @@ describe("TayChatPanel", () => {
 
   it("renders panel with header when open", () => {
     render(
-      <TayChatPanel
+      <CopilotChatPanel
         isOpen
         onClose={vi.fn()}
         messages={[]}
@@ -42,7 +42,7 @@ describe("TayChatPanel", () => {
 
   it("renders close button", () => {
     render(
-      <TayChatPanel
+      <CopilotChatPanel
         isOpen
         onClose={vi.fn()}
         messages={[]}
@@ -61,7 +61,7 @@ describe("TayChatPanel", () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
     render(
-      <TayChatPanel
+      <CopilotChatPanel
         isOpen
         onClose={onClose}
         messages={[]}
@@ -77,7 +77,7 @@ describe("TayChatPanel", () => {
 
   it("renders the empty message list when no messages", () => {
     render(
-      <TayChatPanel
+      <CopilotChatPanel
         isOpen
         onClose={vi.fn()}
         messages={[]}
@@ -103,7 +103,7 @@ describe("TayChatPanel", () => {
       },
     ];
     render(
-      <TayChatPanel
+      <CopilotChatPanel
         isOpen
         onClose={vi.fn()}
         messages={messages}
@@ -118,7 +118,7 @@ describe("TayChatPanel", () => {
 
   it("renders chat input", () => {
     render(
-      <TayChatPanel
+      <CopilotChatPanel
         isOpen
         onClose={vi.fn()}
         messages={[]}
@@ -135,7 +135,7 @@ describe("TayChatPanel", () => {
 
   it("disables input while loading", () => {
     render(
-      <TayChatPanel
+      <CopilotChatPanel
         isOpen
         onClose={vi.fn()}
         messages={[]}
@@ -152,7 +152,7 @@ describe("TayChatPanel", () => {
 
   it("renders history toggle button", () => {
     render(
-      <TayChatPanel
+      <CopilotChatPanel
         isOpen
         onClose={vi.fn()}
         messages={[]}
@@ -170,7 +170,7 @@ describe("TayChatPanel", () => {
   it("shows conversation list when history button clicked", async () => {
     const user = userEvent.setup();
     render(
-      <TayChatPanel
+      <CopilotChatPanel
         isOpen
         onClose={vi.fn()}
         messages={[]}

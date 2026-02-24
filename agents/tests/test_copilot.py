@@ -1,4 +1,4 @@
-"""Tests for tay.py — prompt loading, model parsing, agent factory."""
+"""Tests for copilot.py — prompt loading, model parsing, agent factory."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 def test_system_prompt_rendered_from_template():
     """build_system_prompt renders template with bucket definitions."""
-    from tay import build_system_prompt
+    from copilot import build_system_prompt
 
     prompt = build_system_prompt()
     assert "Copilot" in prompt
@@ -27,7 +27,7 @@ def test_system_prompt_rendered_from_template():
 
 def test_system_prompt_includes_user_context():
     """build_system_prompt renders user context when provided."""
-    from tay import build_system_prompt
+    from copilot import build_system_prompt
 
     prompt = build_system_prompt(
         user_context={
@@ -46,7 +46,7 @@ def test_system_prompt_includes_user_context():
 
 def test_system_prompt_without_user_context():
     """build_system_prompt works without user context (graceful degradation)."""
-    from tay import build_system_prompt
+    from copilot import build_system_prompt
 
     prompt = build_system_prompt()
     # Should not contain user-specific sections
@@ -58,10 +58,10 @@ def test_system_prompt_without_user_context():
 
 def test_load_prompt_with_custom_vars():
     """load_prompt renders template variables correctly."""
-    from tay import load_prompt
+    from copilot import load_prompt
 
     result = load_prompt(
-        "de/tay_system.j2",
+        "de/copilot_system.j2",
         buckets=[{"id": "test", "label": "Testbucket"}],
         system_time="2026-01-01 00:00 UTC",
         user_context={},
@@ -75,7 +75,7 @@ def test_load_prompt_with_custom_vars():
 def test_parse_models_from_agent_model():
     """AGENT_MODEL env var is parsed into a list."""
     with patch.dict("os.environ", {"AGENT_MODEL": "model-a, model-b , model-c"}, clear=False):
-        from tay import _parse_models
+        from copilot import _parse_models
 
         models = _parse_models()
     assert models == ["model-a", "model-b", "model-c"]
@@ -89,7 +89,7 @@ def test_parse_models_falls_back_to_openrouter_model():
         import os
 
         os.environ.pop("AGENT_MODEL", None)
-        from tay import _parse_models
+        from copilot import _parse_models
 
         models = _parse_models()
     assert models == ["fallback-model"]
@@ -102,7 +102,7 @@ def test_parse_models_default():
     with patch.dict("os.environ", {}, clear=False):
         os.environ.pop("AGENT_MODEL", None)
         os.environ.pop("OPENROUTER_MODEL", None)
-        from tay import _parse_models
+        from copilot import _parse_models
 
         models = _parse_models()
     assert models == ["openai/gpt-4o-mini"]
@@ -110,7 +110,7 @@ def test_parse_models_default():
 
 def test_system_prompt_includes_workspace_overview_tool():
     """System prompt mentions list_workspace_overview tool."""
-    from tay import build_system_prompt
+    from copilot import build_system_prompt
 
     prompt = build_system_prompt()
     assert "list_workspace_overview" in prompt
@@ -118,7 +118,7 @@ def test_system_prompt_includes_workspace_overview_tool():
 
 def test_tools_defined():
     """Single CLI exit-condition tool is defined."""
-    from tay import TOOLS
+    from copilot import TOOLS
 
     names = [t.name for t in TOOLS]
     assert names == ["copilot_cli"]
@@ -126,7 +126,7 @@ def test_tools_defined():
 
 def test_run_async_from_sync_context():
     """_run_async can call an async function from sync code."""
-    from tay import _run_async
+    from copilot import _run_async
 
     async def add(a, b):
         return a + b
@@ -144,7 +144,7 @@ def test_run_async_from_within_running_loop():
     """
     import asyncio
 
-    from tay import _run_async
+    from copilot import _run_async
 
     async def outer():
         async def inner():

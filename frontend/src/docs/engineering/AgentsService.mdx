@@ -11,15 +11,15 @@ evaluation see [LLM Evaluation](?path=/docs/engineering-llm-evaluation--docs).
 
 ## Dual-Agent Architecture
 
-| Aspect                     | Copilot (Haystack)                                      | OpenClaw                                   |
-| -------------------------- | ------------------------------------------------------- | ------------------------------------------ |
-| **Backend**                | `agents/` service (port 8002), Haystack + OpenRouter    | Per-user Docker container                  |
-| **Execution model**        | Suggest → user approves → backend executes              | Autonomous (exec + curl via skills)        |
-| **System prompt**          | `agents/prompts/de/tay_system.j2` (Jinja2, per-request) | `openclaw/workspace/AGENTS.md`             |
-| **Conversation isolation** | `conversations.agent_backend = 'haystack'`              | `conversations.agent_backend = 'openclaw'` |
-| **UI identity**            | "Copilot" in header, avatar, greeting                   | "OpenClaw" in header, avatar, greeting     |
-| **Tool calls**             | No-op functions, returned to frontend as suggestions    | Native exec + curl, items created directly |
-| **Settings**               | No extra config needed (shared OpenRouter key)          | Requires user API key, provider, model     |
+| Aspect                     | Copilot (Haystack)                                          | OpenClaw                                   |
+| -------------------------- | ----------------------------------------------------------- | ------------------------------------------ |
+| **Backend**                | `agents/` service (port 8002), Haystack + OpenRouter        | Per-user Docker container                  |
+| **Execution model**        | Suggest → user approves → backend executes                  | Autonomous (exec + curl via skills)        |
+| **System prompt**          | `agents/prompts/de/copilot_system.j2` (Jinja2, per-request) | `openclaw/workspace/AGENTS.md`             |
+| **Conversation isolation** | `conversations.agent_backend = 'haystack'`                  | `conversations.agent_backend = 'openclaw'` |
+| **UI identity**            | "Copilot" in header, avatar, greeting                       | "OpenClaw" in header, avatar, greeting     |
+| **Tool calls**             | No-op functions, returned to frontend as suggestions        | Native exec + curl, items created directly |
+| **Settings**               | No extra config needed (shared OpenRouter key)              | Requires user API key, provider, model     |
 
 ### What is shared
 
@@ -55,7 +55,7 @@ the backend API after the user explicitly accepts the suggestion in the chat UI.
 ```
 agents/
 ├── app.py                    # FastAPI entry point (lifespan, endpoints)
-├── tay.py                    # Haystack Agent factory, tools, system prompt
+├── copilot.py                    # Haystack Agent factory, tools, system prompt
 ├── backend_client.py         # HTTP client for backend POST /items
 ├── tool_executor.py          # Tool call dispatch and execution
 ├── jsonld_builders.py        # JSON-LD item serialization (mirrors frontend)
@@ -63,7 +63,7 @@ agents/
 ├── tracing.py                # OpenTelemetry instrumentation (optional)
 ├── pyproject.toml            # Dependencies (Python >=3.12)
 ├── prompts/
-│   └── de/tay_system.j2     # System prompt template (German, Jinja2)
+│   └── de/copilot_system.j2     # System prompt template (German, Jinja2)
 └── tests/
     ├── test_app.py           # HTTP layer + agent integration
     ├── test_backend_client.py
@@ -157,14 +157,14 @@ the backend creates a short-lived delegated JWT for agent-to-backend calls.
 | `aud`        | `"project-backend"` | `"project-backend"`        | Audience (self-issued)                          |
 | `sub`        | User UUID           | User UUID                  | Item ownership                                  |
 | `org`        | Org UUID            | Org UUID                   | Organization context                            |
-| `act.sub`    | `"tay"`             | `"openclaw"`               | Identifies the acting agent (audit trail)       |
+| `act.sub`    | `"copilot"`         | `"openclaw"`               | Identifies the acting agent (audit trail)       |
 | `scope`      | `"items:write"`     | `"items:read items:write"` | Permitted operations                            |
 | `token_type` | `"delegated"`       | `"delegated"`              | Distinguishes from user session tokens          |
 | `exp`        | Now + 60s           | Now + 300s                 | Short TTL (OpenClaw longer for autonomous work) |
 
 **Signing**: HS256 with `DELEGATION_JWT_SECRET` (falls back to `JWT_SECRET`).
 
-Copilot's `tool_executor.py` sends `Authorization: Bearer {token}` plus `X-Agent: tay`.
+Copilot's `tool_executor.py` sends `Authorization: Bearer {token}` plus `X-Agent: copilot`.
 OpenClaw reads the token from `/runtime/token` and sends `X-Agent: openclaw`.
 
 ---
@@ -195,7 +195,7 @@ Each builder produces JSON-LD matching the frontend's `item-serializer.ts` forma
 
 - Schema version: 2
 - Canonical IDs: `urn:app:{type}:{uuid}`
-- Capture source: `{"kind": "tay", "conversationId": "..."}`
+- Capture source: `{"kind": "copilot", "conversationId": "..."}`
 - Provenance history: `[{"timestamp": "...", "action": "created"}]`
 - Type mapping: Project → `"Project"`, Action → `"Action"`, Reference → `"CreativeWork"`
 
@@ -265,7 +265,7 @@ the backend uses `get_or_create_conversation` to persist the conversation record
 
 - `conversationId` tracked per session in `useChatState`
 - `ConversationList` component: list, resume, archive, and start new conversations
-- History toggle button in `TayChatPanel` header
+- History toggle button in `CopilotChatPanel` header
 
 ---
 
@@ -287,8 +287,8 @@ Each line is a JSON object with a `type` field:
 
 ### Frontend Parsing
 
-`readNdjsonStream` in `useTayApi` reads the `ReadableStream`, splits on newlines,
-and dispatches events to `useChatState`. `TayMessageBubble` renders incrementally
+`readNdjsonStream` in `useCopilotApi` reads the `ReadableStream`, splits on newlines,
+and dispatches events to `useChatState`. `CopilotMessageBubble` renders incrementally
 via `isStreaming` flag — partial tokens appear as they arrive.
 
 Tool call JSON is assembled from partial events and only executed after valid completion
@@ -413,9 +413,9 @@ discover its surrounding services. URLs are automatically rewritten from localho
 
 | Variable                 | Example (inside container)         | Description                                                    |
 | ------------------------ | ---------------------------------- | -------------------------------------------------------------- |
-| `TAY_BACKEND_URL`        | `http://host.docker.internal:8000` | Backend REST API (for all curl calls)                          |
-| `TAY_FRONTEND_URL`       | `http://host.docker.internal:5173` | Frontend URL (context)                                         |
-| `TAY_STORYBOOK_URL`      | `http://host.docker.internal:6006` | Storybook with product, design, and engineering docs           |
+| `COPILOT_BACKEND_URL`    | `http://host.docker.internal:8000` | Backend REST API (for all curl calls)                          |
+| `COPILOT_FRONTEND_URL`   | `http://host.docker.internal:5173` | Frontend URL (context)                                         |
+| `COPILOT_STORYBOOK_URL`  | `http://host.docker.internal:6006` | Storybook with product, design, and engineering docs           |
 | `OPENCLAW_CONFIG_PATH`   | `/openclaw.json`                   | OpenClaw configuration file path                               |
 | `OPENCLAW_GATEWAY_TOKEN` | _(generated)_                      | Gateway auth token for the container API                       |
 | Provider API key         | _(decrypted from DB)_              | `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, or `ANTHROPIC_API_KEY` |
@@ -432,9 +432,9 @@ The corresponding backend settings:
 
 OpenClaw can discover its environment and capabilities at runtime:
 
-- **API endpoints**: `curl $TAY_BACKEND_URL/openapi.json` — full OpenAPI spec (~112 KB, unauthenticated)
-- **Product documentation**: `curl $TAY_STORYBOOK_URL/index.json` — Storybook story index
-- **Environment check**: `echo $TAY_BACKEND_URL $TAY_FRONTEND_URL $TAY_STORYBOOK_URL`
+- **API endpoints**: `curl $COPILOT_BACKEND_URL/openapi.json` — full OpenAPI spec (~112 KB, unauthenticated)
+- **Product documentation**: `curl $COPILOT_STORYBOOK_URL/index.json` — Storybook story index
+- **Environment check**: `echo $COPILOT_BACKEND_URL $COPILOT_FRONTEND_URL $COPILOT_STORYBOOK_URL`
 
 This is documented in the agent's SKILL.md (`openclaw/workspace/skills/backend-api/SKILL.md`)
 which the LLM reads at startup. Instead of hardcoding every API endpoint, the agent learns

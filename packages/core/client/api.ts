@@ -1,4 +1,4 @@
-import { TayHttpClient, type HttpClientOptions } from "./http.js";
+import { CopilotHttpClient, type HttpClientOptions } from "./http.js";
 
 export type OrgResponse = {
   id: string;
@@ -178,19 +178,19 @@ export type StoredUser = {
   created_at: string;
 };
 
-export class TayApi {
-  private client: TayHttpClient;
+export class CopilotApi {
+  private client: CopilotHttpClient;
 
-  private constructor(client: TayHttpClient) {
+  private constructor(client: CopilotHttpClient) {
     this.client = client;
   }
 
-  static async create(options: HttpClientOptions): Promise<TayApi> {
-    const client = await TayHttpClient.create(options);
-    return new TayApi(client);
+  static async create(options: HttpClientOptions): Promise<CopilotApi> {
+    const client = await CopilotHttpClient.create(options);
+    return new CopilotApi(client);
   }
 
-  get http(): TayHttpClient {
+  get http(): CopilotHttpClient {
     return this.client;
   }
 

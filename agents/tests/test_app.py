@@ -722,7 +722,7 @@ class TestUserContextIntegration:
 
     def test_user_context_rendered_in_system_prompt(self, client: TestClient):
         """userContext ends up in the rendered system prompt passed to the Agent."""
-        from tay import build_system_prompt
+        from copilot import build_system_prompt
 
         prompt = build_system_prompt(self.USER_CONTEXT)
 
@@ -788,7 +788,7 @@ class TestUserContextIntegration:
 
     def test_partial_context_in_prompt(self):
         """Partial context renders only populated fields in prompt."""
-        from tay import build_system_prompt
+        from copilot import build_system_prompt
 
         prompt = build_system_prompt({"username": "Wolfgang"})
         assert "Wolfgang" in prompt

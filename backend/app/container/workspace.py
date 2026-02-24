@@ -37,7 +37,7 @@ def provision_workspace(
 
     runtime_dir.mkdir(parents=True, exist_ok=True)
 
-    # Always re-read the template config so tool/agent settings stay current,
+    # Always re-read the template config so tool/agent settings scopilot current,
     # then apply per-user overrides on top.
     template_config_path = TEMPLATE_DIR / "openclaw.json"
     config = json.loads(template_config_path.read_text())

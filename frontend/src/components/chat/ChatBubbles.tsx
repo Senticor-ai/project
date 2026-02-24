@@ -30,19 +30,19 @@ export function UserMessageBubble({
 // Copilot Message
 // ---------------------------------------------------------------------------
 
-export interface TayMessageBubbleProps {
+export interface CopilotMessageBubbleProps {
   content: string;
   className?: string;
 }
 
-export function TayMessageBubble({
+export function CopilotMessageBubble({
   content,
   className,
-}: TayMessageBubbleProps) {
+}: CopilotMessageBubbleProps) {
   return (
     <div className={cn("flex items-start gap-2", className)}>
-      <TayAvatar />
-      <div className="tay-prose max-w-[80%] rounded-2xl rounded-bl-md bg-white px-4 py-2.5 text-sm shadow-sm">
+      <CopilotAvatar />
+      <div className="copilot-prose max-w-[80%] rounded-2xl rounded-bl-md bg-white px-4 py-2.5 text-sm shadow-sm">
         <Markdown remarkPlugins={[remarkGfm]}>{content}</Markdown>
       </div>
     </div>
@@ -53,22 +53,22 @@ export function TayMessageBubble({
 // Copilot Thinking Indicator
 // ---------------------------------------------------------------------------
 
-export interface TayThinkingIndicatorProps {
+export interface CopilotThinkingIndicatorProps {
   agentName?: string;
   className?: string;
 }
 
-export function TayThinkingIndicator({
+export function CopilotThinkingIndicator({
   agentName = "Copilot",
   className,
-}: TayThinkingIndicatorProps) {
+}: CopilotThinkingIndicatorProps) {
   return (
     <div
       role="status"
       className={cn("flex items-start gap-2", className)}
       aria-label={`${agentName} denkt nach...`}
     >
-      <TayAvatar />
+      <CopilotAvatar />
       <div className="flex items-center gap-1 rounded-2xl rounded-bl-md bg-white px-4 py-3 shadow-sm">
         <span className="h-2 w-2 animate-bounce rounded-full bg-paper-400 [animation-delay:0ms]" />
         <span className="h-2 w-2 animate-bounce rounded-full bg-paper-400 [animation-delay:150ms]" />
@@ -88,22 +88,22 @@ const itemTypeIcon: Record<CreatedItemRef["type"], string> = {
   reference: "description",
 };
 
-export interface TayConfirmationProps {
+export interface CopilotConfirmationProps {
   content: string;
   createdItems: CreatedItemRef[];
   onItemClick?: (canonicalId: string) => void;
   className?: string;
 }
 
-export function TayConfirmation({
+export function CopilotConfirmation({
   content,
   createdItems,
   onItemClick,
   className,
-}: TayConfirmationProps) {
+}: CopilotConfirmationProps) {
   return (
     <div className={cn("flex items-start gap-2", className)}>
-      <TayAvatar />
+      <CopilotAvatar />
       <div className="max-w-[80%] rounded-2xl rounded-bl-md bg-white px-4 py-2.5 shadow-sm">
         <div className="flex items-center gap-1.5 text-sm text-green-700">
           <Icon name="check_circle" size={16} className="text-green-600" />
@@ -132,7 +132,7 @@ export function TayConfirmation({
 // Shared Avatar
 // ---------------------------------------------------------------------------
 
-function TayAvatar() {
+function CopilotAvatar() {
   return (
     <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blueprint-100 text-blueprint-600">
       <Icon name="chat_bubble" size={16} />

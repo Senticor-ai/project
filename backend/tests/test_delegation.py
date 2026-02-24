@@ -48,7 +48,7 @@ class TestCreateDelegatedToken:
         claims = jwt.decode(token, _TEST_SECRET, algorithms=["HS256"], audience="project-backend")
         assert claims["sub"] == "user-1"
         assert claims["org"] == "org-1"
-        assert claims["act"] == {"sub": "tay"}
+        assert claims["act"] == {"sub": "copilot"}
         assert claims["scope"] == "items:write"
         assert claims["token_type"] == "delegated"
         assert claims["iss"] == "project-backend"
@@ -109,7 +109,7 @@ class TestVerifyDelegatedToken:
 
         assert claims.sub == "user-1"
         assert claims.org == "org-1"
-        assert claims.actor_sub == "tay"
+        assert claims.actor_sub == "copilot"
         assert claims.scope == "items:write"
         assert claims.jti  # non-empty
 
@@ -125,7 +125,7 @@ class TestVerifyDelegatedToken:
             "exp": datetime.now(UTC) - timedelta(seconds=10),
             "iat": datetime.now(UTC) - timedelta(seconds=70),
             "jti": "expired-jti",
-            "act": {"sub": "tay"},
+            "act": {"sub": "copilot"},
             "org": "org-1",
             "scope": "items:write",
             "token_type": "delegated",
@@ -146,7 +146,7 @@ class TestVerifyDelegatedToken:
             "exp": datetime.now(UTC) + timedelta(seconds=60),
             "iat": datetime.now(UTC),
             "jti": "jti-1",
-            "act": {"sub": "tay"},
+            "act": {"sub": "copilot"},
             "org": "org-1",
             "scope": "items:write",
             "token_type": "delegated",
@@ -167,7 +167,7 @@ class TestVerifyDelegatedToken:
             "exp": datetime.now(UTC) + timedelta(seconds=60),
             "iat": datetime.now(UTC),
             "jti": "jti-1",
-            "act": {"sub": "tay"},
+            "act": {"sub": "copilot"},
             "org": "org-1",
             "scope": "items:write",
             "token_type": "delegated",
@@ -188,7 +188,7 @@ class TestVerifyDelegatedToken:
             "exp": datetime.now(UTC) + timedelta(seconds=60),
             "iat": datetime.now(UTC),
             "jti": "jti-1",
-            "act": {"sub": "tay"},
+            "act": {"sub": "copilot"},
             "org": "org-1",
             "scope": "items:write",
             "token_type": "session",  # Wrong type
@@ -230,7 +230,7 @@ class TestVerifyDelegatedToken:
             "exp": datetime.now(UTC) + timedelta(seconds=60),
             "iat": datetime.now(UTC),
             "jti": "jti-1",
-            "act": {"sub": "tay"},
+            "act": {"sub": "copilot"},
             "org": "org-1",
             "scope": "items:write",
             "token_type": "delegated",

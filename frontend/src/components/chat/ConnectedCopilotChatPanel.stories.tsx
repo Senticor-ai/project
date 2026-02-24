@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { http, HttpResponse } from "msw";
 import { expect, fn, waitFor } from "storybook/test";
-import { TayChatPanel } from "./TayChatPanel";
+import { CopilotChatPanel } from "./CopilotChatPanel";
 import { useChatState } from "@/hooks/use-chat-state";
 import { store, seedMixedBuckets } from "@/test/msw/fixtures";
 
@@ -10,12 +10,12 @@ import { store, seedMixedBuckets } from "@/test/msw/fixtures";
 // Wrapper: stateful panel with real chat hooks
 // ---------------------------------------------------------------------------
 
-function ConnectedTayChatPanelDemo() {
+function ConnectedCopilotChatPanelDemo() {
   const [isOpen, setIsOpen] = useState(true);
   const chat = useChatState();
 
   return (
-    <TayChatPanel
+    <CopilotChatPanel
       isOpen={isOpen}
       onClose={() => setIsOpen(false)}
       messages={chat.messages}
@@ -33,7 +33,7 @@ function ConnectedTayChatPanelDemo() {
 
 const meta = {
   title: "Chat/ConnectedCopilotChatPanel",
-  component: TayChatPanel,
+  component: CopilotChatPanel,
   tags: ["autodocs"],
   parameters: {
     layout: "fullscreen",
@@ -41,7 +41,7 @@ const meta = {
   beforeEach: () => {
     seedMixedBuckets();
   },
-} satisfies Meta<typeof TayChatPanel>;
+} satisfies Meta<typeof CopilotChatPanel>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
@@ -62,7 +62,7 @@ export const GreetingFlow: Story = {
     onAcceptSuggestion: fn(),
     onDismissSuggestion: fn(),
   },
-  render: () => <ConnectedTayChatPanelDemo />,
+  render: () => <ConnectedCopilotChatPanelDemo />,
   play: async ({ canvas, userEvent, step }) => {
     await step("Verify empty state shows welcome", async () => {
       await waitFor(() => {
@@ -109,7 +109,7 @@ export const BirthdaySuggestionAccept: Story = {
     onAcceptSuggestion: fn(),
     onDismissSuggestion: fn(),
   },
-  render: () => <ConnectedTayChatPanelDemo />,
+  render: () => <ConnectedCopilotChatPanelDemo />,
   play: async ({ canvas, userEvent, step }) => {
     await step("Send birthday message", async () => {
       const input = canvas.getByRole("textbox");
@@ -172,7 +172,7 @@ export const BirthdaySuggestionDismiss: Story = {
     onAcceptSuggestion: fn(),
     onDismissSuggestion: fn(),
   },
-  render: () => <ConnectedTayChatPanelDemo />,
+  render: () => <ConnectedCopilotChatPanelDemo />,
   play: async ({ canvas, userEvent, step }) => {
     await step("Send birthday message", async () => {
       const input = canvas.getByRole("textbox");
@@ -234,7 +234,7 @@ export const ApiError: Story = {
       ],
     },
   },
-  render: () => <ConnectedTayChatPanelDemo />,
+  render: () => <ConnectedCopilotChatPanelDemo />,
   play: async ({ canvas, userEvent, step }) => {
     await step("Send a message", async () => {
       const input = canvas.getByRole("textbox");
@@ -269,7 +269,7 @@ export const MultiTurnConversation: Story = {
     onAcceptSuggestion: fn(),
     onDismissSuggestion: fn(),
   },
-  render: () => <ConnectedTayChatPanelDemo />,
+  render: () => <ConnectedCopilotChatPanelDemo />,
   play: async ({ canvas, userEvent, step }) => {
     await step("Send greeting", async () => {
       const input = canvas.getByRole("textbox");

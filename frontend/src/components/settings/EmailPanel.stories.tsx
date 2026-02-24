@@ -177,16 +177,19 @@ export const MswMultiAccountSync: Story = {
       });
     });
 
-    await step("Syncing one account updates only that account's count", async () => {
-      const syncButtons = canvas.getAllByRole("button", {
-        name: /jetzt synchronisieren/i,
-      });
-      await userEvent.click(syncButtons[1]!);
+    await step(
+      "Syncing one account updates only that account's count",
+      async () => {
+        const syncButtons = canvas.getAllByRole("button", {
+          name: /jetzt synchronisieren/i,
+        });
+        await userEvent.click(syncButtons[1]!);
 
-      await waitFor(() => {
-        expect(canvas.getByText(/4 E-Mails/)).toBeInTheDocument();
-        expect(canvas.getByText(/12 E-Mails/)).toBeInTheDocument();
-      });
-    });
+        await waitFor(() => {
+          expect(canvas.getByText(/4 E-Mails/)).toBeInTheDocument();
+          expect(canvas.getByText(/12 E-Mails/)).toBeInTheDocument();
+        });
+      },
+    );
   },
 };

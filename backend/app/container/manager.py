@@ -144,7 +144,7 @@ def start_container(user_id: str) -> ContainerInfo:
 
             port = _allocate_port(cur)
             gateway_token = secrets.token_urlsafe(32)
-            container_name = f"tay-openclaw-{user_id[:8]}"
+            container_name = f"copilot-openclaw-{user_id[:8]}"
 
             # Mark as starting + reserve port
             cur.execute(
@@ -209,17 +209,17 @@ def start_container(user_id: str) -> ContainerInfo:
             "-e",
             f"OPENCLAW_GATEWAY_TOKEN={gateway_token}",
             "-e",
-            f"TAY_BACKEND_URL={_to_container_url(settings.backend_base_url)}",
+            f"COPILOT_BACKEND_URL={_to_container_url(settings.backend_base_url)}",
             "-e",
-            f"TAY_FRONTEND_URL={_to_container_url(settings.frontend_base_url)}",
+            f"COPILOT_FRONTEND_URL={_to_container_url(settings.frontend_base_url)}",
             "-e",
-            f"TAY_STORYBOOK_URL={_to_container_url(settings.storybook_url)}",
+            f"COPILOT_STORYBOOK_URL={_to_container_url(settings.storybook_url)}",
             "-e",
             "OPENCLAW_CONFIG_PATH=/openclaw.json",
             "--label",
-            f"tay.user_id={user_id}",
+            f"copilot.user_id={user_id}",
             "--label",
-            "tay.managed=true",
+            "copilot.managed=true",
             settings.openclaw_image,
         ]
     )

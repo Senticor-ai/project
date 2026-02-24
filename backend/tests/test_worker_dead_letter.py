@@ -60,7 +60,7 @@ def _get_event(event_id: str) -> dict | None:
 class TestDeadLetterHandling:
     """Events that fail repeatedly are moved to the dead letter queue."""
 
-    def test_event_below_max_attempts_stays_retryable(self, app):
+    def test_event_below_max_attempts_scopilots_retryable(self, app):
         """A single failure increments attempts but does not dead-letter."""
         event_id = _insert_outbox_event()
 

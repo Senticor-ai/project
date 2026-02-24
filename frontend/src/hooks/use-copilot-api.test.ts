@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook } from "@testing-library/react";
-import { useTayApi, readNdjsonStream } from "./use-tay-api";
+import { useCopilotApi, readNdjsonStream } from "./use-copilot-api";
 import type { StreamEvent } from "@/model/chat-types";
 
 const mockFetch = vi.fn();
@@ -137,13 +137,13 @@ describe("readNdjsonStream", () => {
 });
 
 // ---------------------------------------------------------------------------
-// useTayApi hook
+// useCopilotApi hook
 // ---------------------------------------------------------------------------
 
-describe("useTayApi", () => {
+describe("useCopilotApi", () => {
   it("sends POST to /chat/completions with message and conversationId", async () => {
     mockFetch.mockReturnValue(streamResponse([{ type: "done", text: "OK" }]));
-    const { result } = renderHook(() => useTayApi());
+    const { result } = renderHook(() => useCopilotApi());
 
     const events: StreamEvent[] = [];
     await result.current.sendMessageStreaming("Hallo", "conv-123", (e) =>
@@ -174,7 +174,7 @@ describe("useTayApi", () => {
         { type: "done", text: "Hello world" },
       ]),
     );
-    const { result } = renderHook(() => useTayApi());
+    const { result } = renderHook(() => useCopilotApi());
 
     const events: StreamEvent[] = [];
     await result.current.sendMessageStreaming("Test", "conv-1", (e) =>
@@ -207,7 +207,7 @@ describe("useTayApi", () => {
         { type: "done", text: "Vorschlag:" },
       ]),
     );
-    const { result } = renderHook(() => useTayApi());
+    const { result } = renderHook(() => useCopilotApi());
 
     const events: StreamEvent[] = [];
     await result.current.sendMessageStreaming("Erstelle", "conv-1", (e) =>
@@ -225,7 +225,7 @@ describe("useTayApi", () => {
     mockFetch.mockReturnValue(
       Promise.resolve({ ok: false, status: 500, body: null }),
     );
-    const { result } = renderHook(() => useTayApi());
+    const { result } = renderHook(() => useCopilotApi());
 
     await expect(
       result.current.sendMessageStreaming("Test", "conv-1", () => {}),
@@ -236,7 +236,7 @@ describe("useTayApi", () => {
     mockFetch.mockReturnValue(
       Promise.resolve({ ok: true, status: 200, body: null }),
     );
-    const { result } = renderHook(() => useTayApi());
+    const { result } = renderHook(() => useCopilotApi());
 
     await expect(
       result.current.sendMessageStreaming("Test", "conv-1", () => {}),
@@ -245,7 +245,7 @@ describe("useTayApi", () => {
 
   it("throws on network error", async () => {
     mockFetch.mockReturnValue(Promise.reject(new Error("Network error")));
-    const { result } = renderHook(() => useTayApi());
+    const { result } = renderHook(() => useCopilotApi());
 
     await expect(
       result.current.sendMessageStreaming("Test", "conv-1", () => {}),

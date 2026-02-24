@@ -1360,12 +1360,14 @@ describe("buildTriagePatch", () => {
     const item = createInboxItem({ name: "W-2.pdf" });
     const patch = buildTriagePatch(item, {
       targetBucket: "reference",
-      projectId: "urn:tay:project:tax2025" as CanonicalId,
+      projectId: "urn:copilot:project:tax2025" as CanonicalId,
     });
 
     expect(patch["@type"]).toBe("CreativeWork");
     expectPropertyValue(patch, "app:bucket", "reference");
-    expectPropertyValue(patch, "app:projectRefs", ["urn:tay:project:tax2025"]);
+    expectPropertyValue(patch, "app:projectRefs", [
+      "urn:copilot:project:tax2025",
+    ]);
   });
 
   it("omits projectRefs when triaging to reference without projectId", () => {
@@ -3029,7 +3031,7 @@ describe("buildReadActionTriagePatch", () => {
 describe("reference projectIds", () => {
   beforeEach(() => resetFactoryCounter());
 
-  const PROJECT_ID = "urn:tay:project:tax2025" as CanonicalId;
+  const PROJECT_ID = "urn:copilot:project:tax2025" as CanonicalId;
 
   it("fromJsonLd extracts projectIds from CreativeWork reference", () => {
     const record = wrapAsItemRecord({

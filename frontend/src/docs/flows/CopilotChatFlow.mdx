@@ -34,14 +34,14 @@ style CF fill:#e8f5e9,stroke:#2e7d32
 
 ## Phase 1: Open Panel
 
-**Component**: `TayChatToggle` (in `AppHeader`) → `TayChatPanel`
+**Component**: `CopilotChatToggle` (in `AppHeader`) → `CopilotChatPanel`
 
 **User story**: "I want to talk to Copilot about planning something. I click the sparkle icon in the header."
 
 **Flow**:
 
 1. User sees the `chat_bubble` icon button in `AppHeader` (between logo and hamburger menu)
-2. Clicks the button → `TayChatPanel` slides in from the right edge
+2. Clicks the button → `CopilotChatPanel` slides in from the right edge
 3. Panel is ~400px wide on desktop, full-screen on mobile
 4. Empty state shows a welcome message: "Hallo! Ich bin Copilot. Wie kann ich helfen?"
 5. `ChatInput` is focused and ready for typing
@@ -68,7 +68,7 @@ style CF fill:#e8f5e9,stroke:#2e7d32
 2. Presses Enter → message submitted
 3. `UserMessageBubble` appears right-aligned in `ChatMessageList`
 4. `ChatInput` clears, ready for next message
-5. `TayThinkingIndicator` appears (animated dots with `chat_bubble` avatar)
+5. `CopilotThinkingIndicator` appears (animated dots with `chat_bubble` avatar)
 6. Chat auto-scrolls to bottom
 
 **Keyboard shortcuts**:
@@ -82,28 +82,28 @@ style CF fill:#e8f5e9,stroke:#2e7d32
 
 ## Phase 3: Copilot Responds
 
-**Components**: `TayMessageBubble` → `TaySuggestionCard`
+**Components**: `CopilotMessageBubble` → `CopilotSuggestionCard`
 
 **User story**: "Copilot understands what I need and shows me a suggestion."
 
 **Flow**:
 
 1. API returns a response with text + optional tool calls
-2. `TayThinkingIndicator` is replaced by `TayMessageBubble` with text content
-3. If tool calls are present, a `TaySuggestionCard` renders below the text
+2. `CopilotThinkingIndicator` is replaced by `CopilotMessageBubble` with text content
+3. If tool calls are present, a `CopilotSuggestionCard` renders below the text
 4. The suggestion card shows a preview of the proposed items
 
 **Message types created**:
 
-- `TayTextMessage` — the conversational text
-- `TaySuggestionMessage` — the tool call rendered as a card (status: `"pending"`)
+- `CopilotTextMessage` — the conversational text
+- `CopilotSuggestionMessage` — the tool call rendered as a card (status: `"pending"`)
 
 **Example**: Copilot responds to "birthday party planning" with:
 
 ```
-TayMessageBubble: "Klingt nach einem Projekt! Hier ist mein Vorschlag:"
+CopilotMessageBubble: "Klingt nach einem Projekt! Hier ist mein Vorschlag:"
 
-TaySuggestionCard:
+CopilotSuggestionCard:
   ┌──────────────────────────────────────┐
   │ ✦ Geburtstagsfeier planen            │
   │   Ergebnis: Erfolgreiche Feier       │
@@ -124,7 +124,7 @@ TaySuggestionCard:
 
 ## Phase 4: Review & Edit
 
-**Component**: `TaySuggestionCard` (edit mode)
+**Component**: `CopilotSuggestionCard` (edit mode)
 
 **User story**: "I like the suggestion but want to tweak a few things before accepting."
 
@@ -148,7 +148,7 @@ TaySuggestionCard:
 
 ## Phase 5: Accept or Dismiss
 
-**Components**: `TaySuggestionCard` → `useTayActions` → `TayConfirmation`
+**Components**: `CopilotSuggestionCard` → `useCopilotActions` → `CopilotConfirmation`
 
 ### Accept path
 
@@ -157,19 +157,19 @@ TaySuggestionCard:
 **Flow**:
 
 1. User clicks [✓ Übernehmen]
-2. `useTayActions` orchestrates item creation using existing mutation hooks:
+2. `useCopilotActions` orchestrates item creation using existing mutation hooks:
    - `useCreateProject()` → creates the project
    - `useAddProjectAction()` → creates each action linked to the project
    - Item creation for references/documents as needed
 3. Suggestion card status changes to `"accepted"`
-4. Card transforms into a compact `TayConfirmation`:
+4. Card transforms into a compact `CopilotConfirmation`:
    - Success message: "Projekt erstellt mit N Aktionen"
    - Clickable chip for each created item (navigates to workspace)
 5. Items appear in workspace bucket views immediately (optimistic updates)
 
 **Data created**:
 
-- `Project` with `CaptureSource: { kind: "tay", conversationId: "..." }`
+- `Project` with `CaptureSource: { kind: "copilot", conversationId: "..." }`
 - N × `ActionItem` with `bucket: "next"`, linked to project via `projectIds`
 - Optional `ReferenceMaterial` for documents
 
@@ -204,20 +204,20 @@ TaySuggestionCard:
 
 <Mermaid chart={`
 graph TD
-  AH["AppHeader"] --> TT["TayChatToggle<br/><i>chat_bubble button</i>"]
-  TT -->|"onClick"| TCP["TayChatPanel<br/><i>right side panel</i>"]
+  AH["AppHeader"] --> TT["CopilotChatToggle<br/><i>chat_bubble button</i>"]
+  TT -->|"onClick"| TCP["CopilotChatPanel<br/><i>right side panel</i>"]
 
 TCP --> CML["ChatMessageList<br/><i>scrollable</i>"]
 CML --> UMB["UserMessageBubble"]
-CML --> TMB["TayMessageBubble"]
-CML --> TTI["TayThinkingIndicator"]
-CML --> TSC["TaySuggestionCard"]
-CML --> TC["TayConfirmation"]
+CML --> TMB["CopilotMessageBubble"]
+CML --> TTI["CopilotThinkingIndicator"]
+CML --> TSC["CopilotSuggestionCard"]
+CML --> TC["CopilotConfirmation"]
 
 TCP --> CI["ChatInput<br/><i>AutoGrowTextarea + send</i>"]
 CI -->|"onSend"| UCS["useChatState<br/><i>local state: messages[]</i>"]
-UCS --> UTA["useTayApi<br/><i>POST */chat/completions</i>"]
-UCS -->|"on accept"| UTAC["useTayActions"]
+UCS --> UTA["useCopilotApi<br/><i>POST */chat/completions</i>"]
+UCS -->|"on accept"| UTAC["useCopilotActions"]
 UTAC --> UCP["useCreateProject()"]
 UTAC --> UAPA["useAddProjectAction() x N"]
 UTAC --> UCI["useCaptureInbox()"]
@@ -237,8 +237,8 @@ style UTAC fill:#fff3e0,stroke:#ef6c00
 <Mermaid chart={`
 graph LR
   CS["<b>useChatState</b><br/>messages: ChatMessage[]"]
-  TA["<b>useTayApi</b><br/>POST */chat/completions"]
-  TAC["<b>useTayActions</b><br/>executeToolCall()"]
+  TA["<b>useCopilotApi</b><br/>POST */chat/completions"]
+  TAC["<b>useCopilotActions</b><br/>executeToolCall()"]
   MH["Mutation Hooks<br/><i>useCreateProject, etc.</i>"]
   IR["CreatedItemRef[]"]
 
@@ -264,10 +264,10 @@ The chat API spans two services. The backend acts as an authenticated proxy; the
 
 <Mermaid chart={`
 graph LR
-  FE["<b>Frontend</b><br/>useTayApi"]
+  FE["<b>Frontend</b><br/>useCopilotApi"]
   BP["<b>Backend Proxy</b><br/>app/chat/routes.py"]
   AS["<b>Agents Service</b><br/>agents/app.py :8002"]
-  HA["<b>Haystack Agent</b><br/>agents/tay.py"]
+  HA["<b>Haystack Agent</b><br/>agents/copilot.py"]
   OR["<b>OpenRouter API</b>"]
 
 FE -->|"POST /chat/completions"| BP
@@ -288,5 +288,5 @@ style OR fill:#fce4ec,stroke:#c62828
 
 - **Separate service** — agents run independently; the app works fully without AI (backend returns 503)
 - **No-op tools** — the agent's 3 tools return their arguments as JSON. Item creation happens client-side after user approval.
-- **Tool execution on frontend** — `useTayActions` maps tool calls to existing mutation hooks (`useCreateProject`, etc.)
+- **Tool execution on frontend** — `useCopilotActions` maps tool calls to existing mutation hooks (`useCreateProject`, etc.)
 - **German system prompt** — Copilot speaks German, helps organize tasks and projects, suggests but never executes

@@ -1,6 +1,6 @@
 import { Command } from "commander";
 
-import type { ItemRecord, OrgResponse, TayApi } from "../client/api.js";
+import type { ItemRecord, OrgResponse, CopilotApi } from "../client/api.js";
 import { itemType, readAdditionalProperty } from "../serializers/jsonld.js";
 import { createApi, printHuman } from "./context.js";
 import { printSuccessJson } from "./output.js";
@@ -41,7 +41,7 @@ function formatOrg(org: OrgResponse): Record<string, unknown> {
   };
 }
 
-async function resolveOrg(api: TayApi, idOrName: string): Promise<OrgResponse> {
+async function resolveOrg(api: CopilotApi, idOrName: string): Promise<OrgResponse> {
   const orgs = await api.listOrgs();
   const normalized = idOrName.trim().toLowerCase();
   const org = orgs.find((entry) => {
@@ -64,7 +64,7 @@ function itemName(item: ItemRecord): string | null {
   return typeof item.item.name === "string" ? item.item.name : null;
 }
 
-async function docsForOrg(api: TayApi, org: OrgResponse): Promise<Array<Record<string, unknown>>> {
+async function docsForOrg(api: CopilotApi, org: OrgResponse): Promise<Array<Record<string, unknown>>> {
   const all = await api.listAllItems({ completed: "all" });
 
   const matches = all.filter((item) => {

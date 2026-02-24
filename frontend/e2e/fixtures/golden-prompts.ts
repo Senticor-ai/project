@@ -1,9 +1,9 @@
 /**
- * Golden dataset for Tay chat evaluation.
+ * Golden dataset for Copilot chat evaluation.
  *
  * Single source of truth for known prompt-response scenarios used by:
- * - `tay-chat-mocked.spec.ts` (integration): deterministic tests with canned responses
- * - `tay-chat-llm.spec.ts` (E2E): real LLM tests with structural assertions
+ * - `copilot-chat-mocked.spec.ts` (integration): deterministic tests with canned responses
+ * - `copilot-chat-llm.spec.ts` (E2E): real LLM tests with structural assertions
  *
  * Adding a new scenario here automatically creates tests in both layers.
  */
@@ -29,13 +29,13 @@ export interface BucketAssertion {
   structural?: boolean;
 }
 
-/** A single golden prompt-response scenario for Tay chat. */
+/** A single golden prompt-response scenario for Copilot chat. */
 export interface GoldenScenario {
   /** Unique slug identifier (e.g. "birthday-planning"). */
   id: string;
   /** Human-readable description for test titles. */
   description: string;
-  /** German user message sent to Tay. */
+  /** German user message sent to Copilot. */
   prompt: string;
   /** Which tool the LLM should call (e.g. "create_project_with_actions"). */
   expectedToolCall: string;

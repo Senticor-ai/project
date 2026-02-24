@@ -63,8 +63,9 @@ export function ProjectTree({
   const [prevExpandProjectId, setPrevExpandProjectId] = useState<
     CanonicalId | null | undefined
   >(undefined);
-  const [prevExpandProjectRequest, setPrevExpandProjectRequest] =
-    useState<number | undefined>(undefined);
+  const [prevExpandProjectRequest, setPrevExpandProjectRequest] = useState<
+    number | undefined
+  >(undefined);
 
   // One-way sync for external "expand this project now" requests.
   if (

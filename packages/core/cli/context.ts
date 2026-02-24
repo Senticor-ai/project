@@ -1,6 +1,6 @@
 import { Command } from "commander";
 
-import { TayApi } from "../client/api.js";
+import { CopilotApi } from "../client/api.js";
 
 export type GlobalOptions = {
   host: string;
@@ -44,11 +44,11 @@ export function getGlobalOptions(command: Command): GlobalOptions {
 }
 
 export async function createApi(command: Command): Promise<{
-  api: TayApi;
+  api: CopilotApi;
   options: GlobalOptions;
 }> {
   const options = getGlobalOptions(command);
-  const api = await TayApi.create({
+  const api = await CopilotApi.create({
     host: options.host,
     orgId: options.orgId,
     token: options.token,
@@ -56,7 +56,7 @@ export async function createApi(command: Command): Promise<{
   return { api, options };
 }
 
-export async function resolveOrgId(api: TayApi, options: GlobalOptions): Promise<string> {
+export async function resolveOrgId(api: CopilotApi, options: GlobalOptions): Promise<string> {
   if (options.orgId) {
     return options.orgId;
   }
