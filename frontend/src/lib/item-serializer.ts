@@ -328,7 +328,7 @@ export function fromJsonLd(record: ItemRecord): AppItem {
     type === TYPE_MAP.action ||
     type === "Action" ||
     type === "ReadAction" ||
-    type.endsWith("Action")
+    ACTION_SUBTYPES.has(type)
   ) {
     const bucket = coerceActionBucket(
       getAdditionalProperty(props, "app:bucket") as ActionItemBucket,
