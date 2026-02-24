@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { AppMenu, type AppMenuSection } from "./AppMenu";
 import { Icon } from "@/components/ui/Icon";
+import { Tooltip } from "@/components/ui/Tooltip";
 import type { AppView } from "@/lib/route-utils";
 import type { Bucket } from "@/model/types";
 import type { BucketNavItemConfig } from "@/components/work/bucket-nav-items";
@@ -146,19 +147,21 @@ export function AppHeaderControls({
   return (
     <div className={cn("flex items-center gap-3", className)}>
       {onToggleChat && (
-        <button
-          onClick={onToggleChat}
-          aria-label={isChatOpen ? "Chat minimieren" : "Chat mit Copilot"}
-          aria-pressed={isChatOpen}
-          className={cn(
-            "flex h-8 w-8 items-center justify-center rounded-lg transition-colors",
-            isChatOpen
-              ? "bg-blueprint-100 text-blueprint-600"
-              : "text-text-muted hover:bg-paper-100",
-          )}
-        >
-          <Icon name="chat_bubble" size={20} />
-        </button>
+        <Tooltip>
+          <button
+            onClick={onToggleChat}
+            aria-label={isChatOpen ? "Chat minimieren" : "Chat mit Copilot"}
+            aria-pressed={isChatOpen}
+            className={cn(
+              "flex h-8 w-8 items-center justify-center rounded-lg transition-colors",
+              isChatOpen
+                ? "bg-blueprint-100 text-blueprint-600"
+                : "text-text-muted hover:bg-paper-100",
+            )}
+          >
+            <Icon name="chat_bubble" size={20} />
+          </button>
+        </Tooltip>
       )}
       <AppMenu sections={menuSections} />
     </div>

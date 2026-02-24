@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, within, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ProjectTree } from "./ProjectTree";
 import {
@@ -546,5 +546,59 @@ describe("ProjectTree", () => {
     await user.click(screen.getByText("No Edit"));
     await user.click(screen.getByText("No Edit"));
     expect(screen.queryByDisplayValue("No Edit")).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tooltip integration
+// ---------------------------------------------------------------------------
+
+describe("ProjectTree tooltip integration", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("shows tooltip on star button hover", async () => {
+    const project = makeProject({ name: "My Project" });
+    renderTree([project], []);
+
+    const wrapper = screen.getByLabelText("Star My Project").closest("span")!;
+    await userEvent.hover(wrapper);
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
+
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Star My Project");
+  });
+
+  it("shows tooltip on archive button hover", async () => {
+    const project = makeProject({ name: "Archivable" });
+    renderTree([project], [], { onArchiveProject: vi.fn() });
+
+    const wrapper = screen
+      .getByLabelText("Archive Archivable")
+      .closest("span")!;
+    await userEvent.hover(wrapper);
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
+
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Archive Archivable");
+  });
+
+  it("shows tooltip on create project button hover", async () => {
+    renderTree([], [], { onCreateProject: vi.fn() });
+
+    const wrapper = screen.getByLabelText("Create project").closest("span")!;
+    await userEvent.hover(wrapper);
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
+
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Create project");
   });
 });

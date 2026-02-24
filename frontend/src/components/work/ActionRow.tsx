@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
+import { Tooltip } from "@/components/ui/Tooltip";
 import { BucketBadge } from "@/components/paperclip/BucketBadge";
 import { EditableTitle } from "./EditableTitle";
 import { ItemEditor } from "./ItemEditor";
@@ -227,43 +228,51 @@ export function ActionRow({
         </span>
 
         {/* Complete checkbox */}
-        <button
-          onClick={() => onComplete(thing.id)}
-          aria-label={
-            isCompleted
-              ? `Completed: ${displayName}`
-              : `Complete ${displayName}`
-          }
-          className={cn(
-            "inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center",
-            isCompleted ? "text-text-muted" : "text-text-muted hover:text-text",
-          )}
-        >
-          <Icon
-            name={isCompleted ? "check_box" : "check_box_outline_blank"}
-            size={18}
-          />
-        </button>
+        <Tooltip>
+          <button
+            onClick={() => onComplete(thing.id)}
+            aria-label={
+              isCompleted
+                ? `Completed: ${displayName}`
+                : `Complete ${displayName}`
+            }
+            className={cn(
+              "inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center",
+              isCompleted
+                ? "text-text-muted"
+                : "text-text-muted hover:text-text",
+            )}
+          >
+            <Icon
+              name={isCompleted ? "check_box" : "check_box_outline_blank"}
+              size={18}
+            />
+          </button>
+        </Tooltip>
 
         {/* Focus star */}
-        <button
-          onClick={() => onToggleFocus(thing.id)}
-          aria-label={
-            thing.isFocused ? `Unfocus ${displayName}` : `Focus ${displayName}`
-          }
-          className={cn(
-            "inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center",
-            thing.isFocused
-              ? "text-app-focus"
-              : "text-text-muted hover:text-app-focus",
-          )}
-        >
-          <Icon
-            name={thing.isFocused ? "star" : "star_outline"}
-            size={18}
-            fill={thing.isFocused}
-          />
-        </button>
+        <Tooltip>
+          <button
+            onClick={() => onToggleFocus(thing.id)}
+            aria-label={
+              thing.isFocused
+                ? `Unfocus ${displayName}`
+                : `Focus ${displayName}`
+            }
+            className={cn(
+              "inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center",
+              thing.isFocused
+                ? "text-app-focus"
+                : "text-text-muted hover:text-app-focus",
+            )}
+          >
+            <Icon
+              name={thing.isFocused ? "star" : "star_outline"}
+              size={18}
+              fill={thing.isFocused}
+            />
+          </button>
+        </Tooltip>
 
         {/* Title + notes preview column */}
         <div className="flex min-w-0 flex-1 flex-col">
@@ -313,13 +322,15 @@ export function ActionRow({
 
         {/* Note indicator — only when expanded (collapsed shows text preview instead) */}
         {isExpanded && thing.description && (
-          <button
-            onClick={() => onToggleExpand?.()}
-            aria-label={`Hide notes for ${displayName}`}
-            className="shrink-0 text-text-subtle hover:text-text"
-          >
-            <Icon name="description" size={14} />
-          </button>
+          <Tooltip>
+            <button
+              onClick={() => onToggleExpand?.()}
+              aria-label={`Hide notes for ${displayName}`}
+              className="shrink-0 text-text-subtle hover:text-text"
+            >
+              <Icon name="description" size={14} />
+            </button>
+          </Tooltip>
         )}
 
         {/* Tag chips */}
@@ -363,27 +374,31 @@ export function ActionRow({
 
         {/* Edit/Collapse button (hover) */}
         {onToggleExpand && (
-          <button
-            onClick={() => onToggleExpand()}
-            aria-label={
-              isExpanded ? `Collapse ${displayName}` : `Edit ${displayName}`
-            }
-            className="shrink-0 text-text-subtle opacity-100 hover:text-text md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100"
-          >
-            <Icon name={isExpanded ? "expand_less" : "edit"} size={16} />
-          </button>
+          <Tooltip>
+            <button
+              onClick={() => onToggleExpand()}
+              aria-label={
+                isExpanded ? `Collapse ${displayName}` : `Edit ${displayName}`
+              }
+              className="shrink-0 text-text-subtle opacity-100 hover:text-text md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100"
+            >
+              <Icon name={isExpanded ? "expand_less" : "edit"} size={16} />
+            </button>
+          </Tooltip>
         )}
 
         {/* Move/more menu */}
         <div className="relative">
-          <button
-            onClick={() => setMenuOpen(!menuOpen)}
-            aria-label={`Move ${displayName}`}
-            aria-expanded={menuOpen}
-            className="shrink-0 text-text-subtle opacity-100 hover:text-text md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100"
-          >
-            <Icon name="more_vert" size={16} />
-          </button>
+          <Tooltip>
+            <button
+              onClick={() => setMenuOpen(!menuOpen)}
+              aria-label={`Move ${displayName}`}
+              aria-expanded={menuOpen}
+              className="shrink-0 text-text-subtle opacity-100 hover:text-text md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100"
+            >
+              <Icon name="more_vert" size={16} />
+            </button>
+          </Tooltip>
 
           {menuOpen && (
             <div

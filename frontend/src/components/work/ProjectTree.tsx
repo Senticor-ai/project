@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
+import { Tooltip } from "@/components/ui/Tooltip";
 import { AutoGrowTextarea } from "@/components/ui/AutoGrowTextarea";
 import { getFileUrl } from "@/lib/api-client";
 import { EditableTitle } from "./EditableTitle";
@@ -94,38 +95,42 @@ export function ProjectTree({
         </div>
         <div className="flex items-center gap-1">
           {nonActiveProjects.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setShowAll((prev) => !prev)}
-              aria-label={showAll ? "Show active only" : "Show all projects"}
-              aria-pressed={showAll}
-              className={cn(
-                "rounded-[var(--radius-md)] p-1.5 transition-colors duration-[var(--duration-fast)]",
-                showAll
-                  ? "bg-blueprint-50 text-blueprint-500"
-                  : "text-text-subtle hover:bg-paper-100 hover:text-text",
-              )}
-            >
-              <Icon
-                name={showAll ? "visibility" : "visibility_off"}
-                size={16}
-              />
-            </button>
+            <Tooltip>
+              <button
+                type="button"
+                onClick={() => setShowAll((prev) => !prev)}
+                aria-label={showAll ? "Show active only" : "Show all projects"}
+                aria-pressed={showAll}
+                className={cn(
+                  "rounded-[var(--radius-md)] p-1.5 transition-colors duration-[var(--duration-fast)]",
+                  showAll
+                    ? "bg-blueprint-50 text-blueprint-500"
+                    : "text-text-subtle hover:bg-paper-100 hover:text-text",
+                )}
+              >
+                <Icon
+                  name={showAll ? "visibility" : "visibility_off"}
+                  size={16}
+                />
+              </button>
+            </Tooltip>
           )}
           {onCreateProject && (
-            <button
-              type="button"
-              onClick={() => setShowCreateForm((prev) => !prev)}
-              aria-label="Create project"
-              className={cn(
-                "rounded-[var(--radius-md)] p-1.5 transition-colors duration-[var(--duration-fast)]",
-                showCreateForm
-                  ? "bg-blueprint-50 text-blueprint-500"
-                  : "text-text-subtle hover:bg-paper-100 hover:text-text",
-              )}
-            >
-              <Icon name="add" size={16} />
-            </button>
+            <Tooltip>
+              <button
+                type="button"
+                onClick={() => setShowCreateForm((prev) => !prev)}
+                aria-label="Create project"
+                className={cn(
+                  "rounded-[var(--radius-md)] p-1.5 transition-colors duration-[var(--duration-fast)]",
+                  showCreateForm
+                    ? "bg-blueprint-50 text-blueprint-500"
+                    : "text-text-subtle hover:bg-paper-100 hover:text-text",
+                )}
+              >
+                <Icon name="add" size={16} />
+              </button>
+            </Tooltip>
           )}
         </div>
       </div>
@@ -350,52 +355,60 @@ function ProjectRow({
 
         {/* Stalled indicator */}
         {stalled && (
-          <span
-            role="img"
-            aria-label="Needs next action"
-            className="shrink-0 text-status-warning"
-          >
-            <Icon name="warning" size={16} />
-          </span>
+          <Tooltip label="Needs next action">
+            <span
+              role="img"
+              aria-label="Needs next action"
+              className="shrink-0 text-status-warning"
+            >
+              <Icon name="warning" size={16} />
+            </span>
+          </Tooltip>
         )}
 
         {/* Archive */}
         {onArchiveProject && (
-          <button
-            type="button"
-            onClick={() => onArchiveProject(project.id)}
-            aria-label={`Archive ${project.name ?? "Untitled"}`}
-            className="shrink-0 rounded-[var(--radius-sm)] p-1 text-text-subtle hover:text-status-error"
-          >
-            <Icon name="archive" size={14} />
-          </button>
+          <Tooltip>
+            <button
+              type="button"
+              onClick={() => onArchiveProject(project.id)}
+              aria-label={`Archive ${project.name ?? "Untitled"}`}
+              className="shrink-0 rounded-[var(--radius-sm)] p-1 text-text-subtle hover:text-status-error"
+            >
+              <Icon name="archive" size={14} />
+            </button>
+          </Tooltip>
         )}
 
         {/* Rename */}
         {onUpdateTitle && (
-          <button
-            type="button"
-            onClick={handleStartRename}
-            aria-label={`Rename ${project.name ?? "Untitled"}`}
-            className="shrink-0 rounded-[var(--radius-sm)] p-1 text-text-subtle hover:text-blueprint-500"
-          >
-            <Icon name="edit" size={14} />
-          </button>
+          <Tooltip>
+            <button
+              type="button"
+              onClick={handleStartRename}
+              aria-label={`Rename ${project.name ?? "Untitled"}`}
+              className="shrink-0 rounded-[var(--radius-sm)] p-1 text-text-subtle hover:text-blueprint-500"
+            >
+              <Icon name="edit" size={14} />
+            </button>
+          </Tooltip>
         )}
 
         {/* Star toggle */}
-        <button
-          type="button"
-          onClick={() => onToggleFocus(project.id)}
-          aria-label={`${project.isFocused ? "Unstar" : "Star"} ${project.name ?? "Untitled"}`}
-          className="shrink-0 rounded-[var(--radius-sm)] p-1 text-text-subtle hover:text-blueprint-500"
-        >
-          <Icon
-            name={project.isFocused ? "star" : "star_outline"}
-            size={16}
-            className={project.isFocused ? "text-blueprint-500" : undefined}
-          />
-        </button>
+        <Tooltip>
+          <button
+            type="button"
+            onClick={() => onToggleFocus(project.id)}
+            aria-label={`${project.isFocused ? "Unstar" : "Star"} ${project.name ?? "Untitled"}`}
+            className="shrink-0 rounded-[var(--radius-sm)] p-1 text-text-subtle hover:text-blueprint-500"
+          >
+            <Icon
+              name={project.isFocused ? "star" : "star_outline"}
+              size={16}
+              className={project.isFocused ? "text-blueprint-500" : undefined}
+            />
+          </button>
+        </Tooltip>
       </div>
 
       {/* Expanded content */}
