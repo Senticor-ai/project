@@ -108,3 +108,50 @@ class TestJsonLdAliases:
         assert data["item"]["@type"] == "DigitalDocument"
         assert data["item"]["encodingFormat"] == "application/pdf"
         _assert_jsonld_aliases(data["item"], "POST /items (DigitalDocument)")
+
+    def test_action_subtypes_round_trip(self, auth_client):
+        """JSONB round-trip test: relationship fields must survive create → read cycle."""
+        # Create action with all relationship fields populated
+        relationship_fields = {
+            "object": {"@type": "Thing", "@id": "urn:example:document:123", "name": "Budget Report"},
+            "instrument": {"@type": "Thing", "@id": "urn:example:tool:excel", "name": "Excel"},
+            "agent": {"@type": "Person", "@id": "urn:example:person:alice", "name": "Alice"},
+            "participant": {"@type": "Person", "@id": "urn:example:person:bob", "name": "Bob"},
+            "result": {"@type": "Thing", "@id": "urn:example:output:summary", "name": "Summary"},
+            "location": {"@type": "Place", "@id": "urn:example:place:office", "name": "Office"},
+        }
+
+        item = {
+            "@id": f"urn:app:inbox:{uuid.uuid4()}",
+            "@type": "CreateAction",
+            "_schemaVersion": 2,
+            "name": "Create quarterly report",
+            "additionalProperty": [
+                {"@type": "PropertyValue", "propertyID": "app:bucket", "value": "inbox"},
+            ],
+            **relationship_fields,
+        }
+
+        # Create item
+        create_resp = auth_client.post("/items", json={"item": item, "source": "manual"})
+        assert create_resp.status_code == 201, f"Create failed: {create_resp.text}"
+        created_data = create_resp.json()
+        item_id = created_data["item_id"]
+
+        # Read item back
+        get_resp = auth_client.get(f"/items/{item_id}")
+        assert get_resp.status_code == 200, f"Read failed: {get_resp.text}"
+        retrieved_item = get_resp.json()["item"]
+
+        # Verify JSON-LD aliases
+        _assert_jsonld_aliases(retrieved_item, "Round-trip action")
+
+        # Verify all relationship fields preserved exactly
+        for field_name, expected_value in relationship_fields.items():
+            assert field_name in retrieved_item, f"Missing relationship field: {field_name}"
+            actual_value = retrieved_item[field_name]
+            assert actual_value == expected_value, (
+                f"Field {field_name} mismatch:\n"
+                f"  Expected: {expected_value}\n"
+                f"  Got: {actual_value}"
+            )
