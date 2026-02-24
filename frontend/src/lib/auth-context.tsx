@@ -14,7 +14,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showDisclaimerModal, setShowDisclaimerModal] = useState(false);
+  const showDisclaimerModal = Boolean(user && !user.disclaimer_acknowledged_at);
 
   // Restore session on mount
   useEffect(() => {
@@ -46,15 +46,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     return () => setSessionExpiredHandler(null);
   }, []);
-
-  // Show disclaimer modal when user is authenticated but hasn't acknowledged
-  useEffect(() => {
-    if (user && !user.disclaimer_acknowledged_at) {
-      setShowDisclaimerModal(true);
-    } else {
-      setShowDisclaimerModal(false);
-    }
-  }, [user]);
 
   const login = useCallback(async (email: string, password: string) => {
     setError(null);

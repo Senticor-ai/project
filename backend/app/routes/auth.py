@@ -231,8 +231,12 @@ def login(payload: AuthCredentials, request: Request, response: Response):
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, email, username, password_hash, created_at, default_org_id, disclaimer_acknowledged_at "
-                "FROM users WHERE email = %s",
+                """
+                SELECT id, email, username, password_hash, created_at, default_org_id,
+                       disclaimer_acknowledged_at
+                FROM users
+                WHERE email = %s
+                """,
                 (payload.email,),
             )
             user = cur.fetchone()
@@ -444,14 +448,33 @@ def me(current_user=Depends(get_current_user)):
     )
 
 
-@router.post("/acknowledge-disclaimer")
+@router.post("/acknowledge-disclaimer", response_model=UserResponse)
 def acknowledge_disclaimer(current_user=Depends(get_current_user)):
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "UPDATE users SET disclaimer_acknowledged_at = %s WHERE id = %s",
+                """
+                UPDATE users
+                SET disclaimer_acknowledged_at = %s
+                WHERE id = %s
+                RETURNING id, email, username, default_org_id, created_at,
+                          disclaimer_acknowledged_at
+                """,
                 (utc_now(), current_user["id"]),
             )
+            user = cur.fetchone()
         conn.commit()
 
-    return {"ok": True}
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    return UserResponse(
+        id=str(user["id"]),
+        email=user["email"],
+        username=user.get("username"),
+        default_org_id=str(user["default_org_id"]) if user.get("default_org_id") else None,
+        created_at=user["created_at"].isoformat(),
+        disclaimer_acknowledged_at=user["disclaimer_acknowledged_at"].isoformat()
+        if user.get("disclaimer_acknowledged_at")
+        else None,
+    )

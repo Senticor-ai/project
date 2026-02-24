@@ -7,12 +7,16 @@ export class DisclaimerPage {
   readonly banner: Locator;
 
   constructor(private page: Page) {
-    this.modal = page.getByRole("dialog", { name: /disclaimer/i });
+    this.modal = page.getByRole("dialog", {
+      name: /dev\/demo environment|entwicklungs-\/demo-umgebung/i,
+    });
     this.title = page.locator("#disclaimer-title");
     this.acknowledgeButton = page.getByRole("button", {
       name: /I understand|Ich verstehe/i,
     });
-    this.banner = page.getByText("Development/demo environment — not for production use");
+    this.banner = page.getByText(
+      /development\/demonstration environment|entwicklungs-\/demonstrationsumgebung/i,
+    );
   }
 
   async acknowledge() {
