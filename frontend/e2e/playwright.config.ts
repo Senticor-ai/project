@@ -27,7 +27,7 @@ export default defineConfig({
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
       testIgnore: [
-        "**/tay-chat-llm.spec.ts",
+        "**/copilot-chat-llm.spec.ts",
         "**/cv-enhancement-llm.spec.ts",
         "**/tax-prep-journey.spec.ts",
         "**/real-user-journey.spec.ts",
@@ -37,7 +37,7 @@ export default defineConfig({
       name: "webkit",
       use: { ...devices["Desktop Safari"] },
       testIgnore: [
-        "**/tay-chat-llm.spec.ts",
+        "**/copilot-chat-llm.spec.ts",
         "**/cv-enhancement-llm.spec.ts",
         "**/tax-prep-journey.spec.ts",
         "**/real-user-journey.spec.ts",
@@ -45,7 +45,7 @@ export default defineConfig({
     },
     {
       name: "llm",
-      testMatch: "**/tay-chat-llm.spec.ts",
+      testMatch: "**/copilot-chat-llm.spec.ts",
       use: { ...devices["Desktop Chrome"], actionTimeout: 60_000 },
     },
     {

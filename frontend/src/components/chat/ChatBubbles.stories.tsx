@@ -2,9 +2,9 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 import {
   UserMessageBubble,
-  TayMessageBubble,
-  TayThinkingIndicator,
-  TayConfirmation,
+  CopilotMessageBubble,
+  CopilotThinkingIndicator,
+  CopilotConfirmation,
 } from "./ChatBubbles";
 import type { CanonicalId } from "@/model/canonical-id";
 
@@ -39,36 +39,36 @@ export const LongMessage: UserStory = {
 };
 
 // ---------------------------------------------------------------------------
-// TayMessageBubble (separate story file would be better, but grouped for now)
+// CopilotMessageBubble (separate story file would be better, but grouped for now)
 // ---------------------------------------------------------------------------
 
-export const TayMessage: StoryObj<typeof TayMessageBubble> = {
+export const CopilotMessage: StoryObj<typeof CopilotMessageBubble> = {
   render: () => (
-    <TayMessageBubble content="Klingt nach einem Projekt! Hier ist mein Vorschlag für die Geburtstagsfeier:" />
+    <CopilotMessageBubble content="Klingt nach einem Projekt! Hier ist mein Vorschlag für die Geburtstagsfeier:" />
   ),
 };
 
-export const TayGreeting: StoryObj<typeof TayMessageBubble> = {
+export const CopilotGreeting: StoryObj<typeof CopilotMessageBubble> = {
   render: () => (
-    <TayMessageBubble content="Hallo! Ich bin Copilot, dein Assistent. Wie kann ich dir helfen?" />
+    <CopilotMessageBubble content="Hallo! Ich bin Copilot, dein Assistent. Wie kann ich dir helfen?" />
   ),
 };
 
 // ---------------------------------------------------------------------------
-// TayThinkingIndicator
+// CopilotThinkingIndicator
 // ---------------------------------------------------------------------------
 
-export const Thinking: StoryObj<typeof TayThinkingIndicator> = {
-  render: () => <TayThinkingIndicator />,
+export const Thinking: StoryObj<typeof CopilotThinkingIndicator> = {
+  render: () => <CopilotThinkingIndicator />,
 };
 
 // ---------------------------------------------------------------------------
-// TayConfirmation
+// CopilotConfirmation
 // ---------------------------------------------------------------------------
 
-export const Confirmation: StoryObj<typeof TayConfirmation> = {
+export const Confirmation: StoryObj<typeof CopilotConfirmation> = {
   render: () => (
-    <TayConfirmation
+    <CopilotConfirmation
       content="Projekt 'Geburtstagsfeier planen' erstellt mit 5 Aktionen."
       createdItems={[
         {
@@ -92,9 +92,9 @@ export const Confirmation: StoryObj<typeof TayConfirmation> = {
   ),
 };
 
-export const ConfirmationNoItems: StoryObj<typeof TayConfirmation> = {
+export const ConfirmationNoItems: StoryObj<typeof CopilotConfirmation> = {
   render: () => (
-    <TayConfirmation
+    <CopilotConfirmation
       content="Aktion 'Milch kaufen' erstellt."
       createdItems={[]}
     />

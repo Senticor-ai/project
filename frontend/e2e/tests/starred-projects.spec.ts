@@ -77,7 +77,7 @@ test.describe("Starred Projects in BucketNav", () => {
     authenticatedPage: page,
     apiSeed,
   }) => {
-    await apiSeed.createProject("Hidden Project", "Stays hidden", {
+    await apiSeed.createProject("Hidden Project", "Scopilots hidden", {
       isFocused: false,
     });
     await page.reload();

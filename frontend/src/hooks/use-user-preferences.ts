@@ -4,7 +4,7 @@ import {
   DEFAULT_PREFERENCES,
 } from "@/model/settings-types";
 
-const STORAGE_KEY = "tay-user-preferences";
+const STORAGE_KEY = "copilot-user-preferences";
 
 function loadPreferences(): UserPreferences {
   const stored = localStorage.getItem(STORAGE_KEY);

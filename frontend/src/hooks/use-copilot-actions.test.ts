@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
-import { useTayActions } from "./use-tay-actions";
-import type { TaySuggestion } from "@/model/chat-types";
+import { useCopilotActions } from "./use-copilot-actions";
+import type { CopilotSuggestion } from "@/model/chat-types";
 import type { CanonicalId } from "@/model/canonical-id";
 import type { ExecuteToolResponse } from "@/lib/api-client";
 
@@ -36,7 +36,7 @@ beforeEach(() => {
   mockInvalidateQueries.mockResolvedValue(undefined);
 });
 
-describe("useTayActions", () => {
+describe("useCopilotActions", () => {
   describe("calls ChatApi.executeTool with correct payload", () => {
     it("create_action", async () => {
       mockExecuteTool.mockResolvedValueOnce({
@@ -49,9 +49,9 @@ describe("useTayActions", () => {
         ],
       });
 
-      const { result } = renderHook(() => useTayActions());
+      const { result } = renderHook(() => useCopilotActions());
 
-      const suggestion: TaySuggestion = {
+      const suggestion: CopilotSuggestion = {
         type: "create_action",
         name: "Einkaufen",
         bucket: "next",
@@ -78,13 +78,13 @@ describe("useTayActions", () => {
         ],
       });
 
-      const suggestion: TaySuggestion = {
+      const suggestion: CopilotSuggestion = {
         type: "create_project_with_actions",
         project: { name: "Umzug", desiredOutcome: "Neue Wohnung" },
         actions: [{ name: "Kartons", bucket: "next" }],
       };
 
-      const { result } = renderHook(() => useTayActions());
+      const { result } = renderHook(() => useCopilotActions());
 
       await act(async () => {
         await result.current.executeSuggestion(suggestion, "conv-99");
@@ -110,12 +110,12 @@ describe("useTayActions", () => {
         ],
       });
 
-      const suggestion: TaySuggestion = {
+      const suggestion: CopilotSuggestion = {
         type: "create_reference",
         name: "Styleguide",
       };
 
-      const { result } = renderHook(() => useTayActions());
+      const { result } = renderHook(() => useCopilotActions());
 
       await act(async () => {
         await result.current.executeSuggestion(suggestion, "conv-7");
@@ -141,7 +141,7 @@ describe("useTayActions", () => {
         ],
       });
 
-      const suggestion: TaySuggestion = {
+      const suggestion: CopilotSuggestion = {
         type: "render_cv",
         sourceItemId: "urn:app:reference:md-cv-1" as CanonicalId,
         css: "body { font-family: Inter; }",
@@ -149,7 +149,7 @@ describe("useTayActions", () => {
         projectId: "urn:app:project:p1" as CanonicalId,
       };
 
-      const { result } = renderHook(() => useTayActions());
+      const { result } = renderHook(() => useCopilotActions());
 
       await act(async () => {
         await result.current.executeSuggestion(suggestion, "conv-cv");
@@ -168,7 +168,7 @@ describe("useTayActions", () => {
   it("passes conversationId to API", async () => {
     mockExecuteTool.mockResolvedValueOnce({ createdItems: [] });
 
-    const { result } = renderHook(() => useTayActions());
+    const { result } = renderHook(() => useCopilotActions());
 
     await act(async () => {
       await result.current.executeSuggestion(
@@ -208,7 +208,7 @@ describe("useTayActions", () => {
       ],
     });
 
-    const { result } = renderHook(() => useTayActions());
+    const { result } = renderHook(() => useCopilotActions());
     let created!: Awaited<ReturnType<typeof result.current.executeSuggestion>>;
 
     await act(async () => {
@@ -240,7 +240,7 @@ describe("useTayActions", () => {
   it("invalidates items cache after execution", async () => {
     mockExecuteTool.mockResolvedValueOnce({ createdItems: [] });
 
-    const { result } = renderHook(() => useTayActions());
+    const { result } = renderHook(() => useCopilotActions());
 
     await act(async () => {
       await result.current.executeSuggestion(
@@ -255,7 +255,7 @@ describe("useTayActions", () => {
   });
 
   it("onItemsChanged invalidates items cache", async () => {
-    const { result } = renderHook(() => useTayActions());
+    const { result } = renderHook(() => useCopilotActions());
 
     await act(async () => {
       await result.current.onItemsChanged();
@@ -269,7 +269,7 @@ describe("useTayActions", () => {
   it("propagates API errors", async () => {
     mockExecuteTool.mockRejectedValueOnce(new Error("Server error"));
 
-    const { result } = renderHook(() => useTayActions());
+    const { result } = renderHook(() => useCopilotActions());
 
     await expect(
       act(() =>

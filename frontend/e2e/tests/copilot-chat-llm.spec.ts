@@ -5,7 +5,7 @@ import { GOLDEN_SCENARIOS } from "../fixtures/golden-prompts";
 /**
  * Real E2E tests for Copilot Chat — uses actual LLM via OpenRouter.
  *
- * Unlike `tay-chat-mocked.spec.ts` (integration), these tests do NOT
+ * Unlike `copilot-chat-mocked.spec.ts` (integration), these tests do NOT
  * intercept any API calls. The full stack is exercised:
  *   frontend → backend → agents → OpenRouter LLM → tool execution → backend POST /items
  *

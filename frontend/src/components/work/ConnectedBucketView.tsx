@@ -1,4 +1,10 @@
-import { useCallback, useState, useEffect, useMemo, type ReactNode } from "react";
+import {
+  useCallback,
+  useState,
+  useEffect,
+  useMemo,
+  type ReactNode,
+} from "react";
 import { BucketView } from "./BucketView";
 import { useAllItems, useProjects, useReferences } from "@/hooks/use-items";
 import { useOrganizations } from "@/hooks/use-organizations";
@@ -79,9 +85,9 @@ export function ConnectedBucketView({
     };
   }, [isFetching, isLoading]);
 
-  const [backgroundUploads, setBackgroundUploads] = useState<BackgroundUpload[]>(
-    [],
-  );
+  const [backgroundUploads, setBackgroundUploads] = useState<
+    BackgroundUpload[]
+  >([]);
   const [uploadNoticeMinimized, setUploadNoticeMinimized] = useState(false);
 
   const activeBackgroundUploads = useMemo(

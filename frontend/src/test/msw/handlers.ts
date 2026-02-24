@@ -371,7 +371,7 @@ export function seedEmailConnection(
 }
 
 // ---------------------------------------------------------------------------
-// Chat handlers (Tay Copilot V1)
+// Chat handlers (Copilot V1)
 // ---------------------------------------------------------------------------
 
 const chatHandlers = [

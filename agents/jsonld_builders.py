@@ -1,4 +1,4 @@
-"""JSON-LD builders for Tay tool execution.
+"""JSON-LD builders for Copilot tool execution.
 
 Python equivalents of the frontend's item-serializer.ts builders.
 These produce the same JSON-LD structures that the backend's POST /items expects.
@@ -21,8 +21,8 @@ def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
 
-def _tay_capture_source(conversation_id: str) -> dict:
-    return {"kind": "tay", "conversationId": conversation_id}
+def _copilot_capture_source(conversation_id: str) -> dict:
+    return {"kind": "copilot", "conversationId": conversation_id}
 
 
 # ---------------------------------------------------------------------------
@@ -55,7 +55,7 @@ def build_project_jsonld(
             _pv("app:isFocused", False),
             _pv("app:needsEnrichment", False),
             _pv("app:confidence", "high"),
-            _pv("app:captureSource", _tay_capture_source(conversation_id)),
+            _pv("app:captureSource", _copilot_capture_source(conversation_id)),
             _pv("app:ports", []),
             _pv("app:typedReferences", []),
             _pv("app:provenanceHistory", [{"timestamp": now, "action": "created"}]),
@@ -93,7 +93,7 @@ def build_action_jsonld(
             _pv("app:rawCapture", name),
             _pv("app:needsEnrichment", False),
             _pv("app:confidence", "high"),
-            _pv("app:captureSource", _tay_capture_source(conversation_id)),
+            _pv("app:captureSource", _copilot_capture_source(conversation_id)),
             _pv("app:contexts", []),
             _pv("app:isFocused", False),
             _pv("app:ports", []),
@@ -135,7 +135,7 @@ def build_reference_jsonld(
             _pv("app:bucket", "reference"),
             _pv("app:needsEnrichment", False),
             _pv("app:confidence", "medium"),
-            _pv("app:captureSource", _tay_capture_source(conversation_id)),
+            _pv("app:captureSource", _copilot_capture_source(conversation_id)),
             _pv("app:origin", "captured"),
             _pv("app:ports", []),
             _pv("app:typedReferences", []),
@@ -174,7 +174,7 @@ def build_file_reference_jsonld(
             _pv("app:downloadUrl", f"/files/{file_id}"),
             _pv("app:needsEnrichment", False),
             _pv("app:confidence", "high"),
-            _pv("app:captureSource", _tay_capture_source(conversation_id)),
+            _pv("app:captureSource", _copilot_capture_source(conversation_id)),
             _pv("app:origin", "generated"),
             _pv("app:ports", []),
             _pv("app:typedReferences", []),

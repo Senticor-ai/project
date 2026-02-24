@@ -91,7 +91,7 @@ The suggestion card uses the same visual language as `ObjectCard` from the [Pape
 
 - Card collapses to a single muted line: "Vorschlag verworfen"
 - No interactive elements
-- Stays in chat history for context
+- Scopilots in chat history for context
 
 ---
 
@@ -100,13 +100,13 @@ The suggestion card uses the same visual language as `ObjectCard` from the [Pape
 Items created via suggestion acceptance carry provenance:
 
 ```typescript
-CaptureSource: { kind: "tay", conversationId: "conv-{uuid}" }
+CaptureSource: { kind: "copilot", conversationId: "conv-{uuid}" }
 ```
 
 The provenance history entry uses action `"created"` with a source string:
 
 ```typescript
-{ action: "created", source: "tay-suggestion", timestamp: "..." }
+{ action: "created", source: "copilot-suggestion", timestamp: "..." }
 ```
 
 This enables:
@@ -121,7 +121,7 @@ This enables:
 
 ### One suggestion per tool call
 
-Each tool call from Copilot renders as one `TaySuggestionCard`. If Copilot returns multiple tool calls in a single response, each gets its own card with an independent lifecycle.
+Each tool call from Copilot renders as one `CopilotSuggestionCard`. If Copilot returns multiple tool calls in a single response, each gets its own card with an independent lifecycle.
 
 ### Suggestions don't block conversation
 

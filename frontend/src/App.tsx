@@ -35,7 +35,7 @@ import { computeBucketCounts } from "./lib/bucket-counts";
 import { DevApi, EmailApi, downloadExport } from "./lib/api-client";
 import type { AuthUser } from "./lib/api-client";
 import { ConnectedBucketView } from "./components/work/ConnectedBucketView";
-import { TayChatPanel } from "./components/chat/TayChatPanel";
+import { CopilotChatPanel } from "./components/chat/CopilotChatPanel";
 import { useChatState } from "./hooks/use-chat-state";
 import { AppHeader } from "./components/shell/AppHeader";
 import type { MobileBucketNav } from "./components/shell/AppHeader";
@@ -429,7 +429,7 @@ function AuthenticatedApp({
       )}
 
       {/* Chat Panel */}
-      <TayChatPanel
+      <CopilotChatPanel
         isOpen={isChatOpen}
         onClose={() => setIsChatOpen(false)}
         messages={chat.messages}

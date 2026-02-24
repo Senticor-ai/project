@@ -94,57 +94,57 @@
   --ease-unfold: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Tay chat bubble prose — compact markdown styling */
-.tay-prose > :first-child {
+/* Copilot chat bubble prose — compact markdown styling */
+.copilot-prose > :first-child {
   margin-top: 0;
 }
-.tay-prose > :last-child {
+.copilot-prose > :last-child {
   margin-bottom: 0;
 }
-.tay-prose p {
+.copilot-prose p {
   margin: 0.25em 0;
 }
-.tay-prose strong {
+.copilot-prose strong {
   font-weight: 600;
 }
-.tay-prose ol {
+.copilot-prose ol {
   margin: 0.25em 0;
   padding-left: 1.25em;
   list-style-type: decimal;
 }
-.tay-prose ul {
+.copilot-prose ul {
   margin: 0.25em 0;
   padding-left: 1.25em;
   list-style-type: disc;
 }
-.tay-prose li {
+.copilot-prose li {
   margin: 0.15em 0;
 }
-.tay-prose li > p {
+.copilot-prose li > p {
   margin: 0;
 }
-.tay-prose code {
+.copilot-prose code {
   font-size: 0.85em;
   background-color: var(--color-paper-100);
   padding: 0.1em 0.3em;
   border-radius: 0.25rem;
 }
-.tay-prose pre {
+.copilot-prose pre {
   margin: 0.5em 0;
   padding: 0.5em 0.75em;
   background-color: var(--color-paper-100);
   border-radius: 0.375rem;
   overflow-x: auto;
 }
-.tay-prose pre code {
+.copilot-prose pre code {
   background: none;
   padding: 0;
 }
-.tay-prose a {
+.copilot-prose a {
   color: var(--color-blueprint-600);
   text-decoration: underline;
 }
-.tay-prose blockquote {
+.copilot-prose blockquote {
   margin: 0.5em 0;
   padding-left: 0.75em;
   border-left: 2px solid var(--color-paper-300);

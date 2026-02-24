@@ -106,7 +106,7 @@ type RequestJsonOptions = {
   retryOnAuth?: boolean;
 };
 
-export class TayHttpClient {
+export class CopilotHttpClient {
   private host: string;
   private orgId?: string;
   private delegatedToken?: string;
@@ -119,10 +119,10 @@ export class TayHttpClient {
     this.session = session;
   }
 
-  static async create(options: HttpClientOptions): Promise<TayHttpClient> {
+  static async create(options: HttpClientOptions): Promise<CopilotHttpClient> {
     const host = normalizeHost(options.host);
     const session = await loadSession(host);
-    return new TayHttpClient({ ...options, host }, session);
+    return new CopilotHttpClient({ ...options, host }, session);
   }
 
   getSession(): SessionState {

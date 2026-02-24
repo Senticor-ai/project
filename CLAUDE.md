@@ -69,7 +69,7 @@ Fallback markers (only when placeholder patterns aren't possible):
 ## Architecture
 
 - **Backend**: FastAPI + PostgreSQL (REST API, auth, proxy to agents)
-- **Agents**: Haystack + OpenRouter (separate FastAPI service on port 8002, Tay copilot)
+- **Agents**: Haystack + OpenRouter (separate FastAPI service on port 8002, Copilot copilot)
 - **Frontend**: React 19 + Vite + Tailwind v4 + shadcn/ui + Framer Motion
 - **LLM**: OpenRouter (model configurable via env)
 - **Observability**: OpenTelemetry -> Grafana (docker-otel-lgtm)
@@ -218,11 +218,11 @@ Storybook stories use MSW to intercept API requests in-browser, enabling "connec
 
 ## Dev Hostname
 
-Dev stack uses `${PROJECT_PREFIX}.localhost` (e.g. `tay.localhost`) as the hostname for browser-facing services (frontend, storybook, API). This gives each project a unique URL for 1Password and avoids cross-site cookie issues. All URLs derive from `PROJECT_PREFIX` in `.env`. Backend/agents server-to-server calls still use plain `localhost`.
+Dev stack uses `${PROJECT_PREFIX}.localhost` (e.g. `copilot.localhost`) as the hostname for browser-facing services (frontend, storybook, API). This gives each project a unique URL for 1Password and avoids cross-site cookie issues. All URLs derive from `PROJECT_PREFIX` in `.env`. Backend/agents server-to-server calls still use plain `localhost`.
 
 ## API Documentation
 
-- **OpenAPI UI**: `http://<PROJECT_PREFIX>.localhost:8000/docs` (e.g. `http://tay.localhost:8000/docs`)
+- **OpenAPI UI**: `http://<PROJECT_PREFIX>.localhost:8000/docs` (e.g. `http://copilot.localhost:8000/docs`)
 
 ## GitHub
 

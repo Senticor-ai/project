@@ -550,9 +550,9 @@ export const InboxWithEmail: Story = {
     });
 
     await step("Verify email sender is shown", async () => {
-      expect(canvas.getAllByText("h.schmidt@example.de").length).toBeGreaterThan(
-        0,
-      );
+      expect(
+        canvas.getAllByText("h.schmidt@example.de").length,
+      ).toBeGreaterThan(0);
       expect(canvas.getAllByText("sekretariat@bund.de").length).toBeGreaterThan(
         0,
       );

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { TaySuggestionCard } from "./TaySuggestionCard";
+import { CopilotSuggestionCard } from "./CopilotSuggestionCard";
 import type {
   CreateProjectWithActionsSuggestion,
   CreateActionSuggestion,
@@ -36,11 +36,11 @@ const referenceSuggestion: CreateReferenceSuggestion = {
   description: "Lieblingsrezepte für die Party",
 };
 
-describe("TaySuggestionCard", () => {
+describe("CopilotSuggestionCard", () => {
   describe("project suggestion (pending)", () => {
     it("renders project name", () => {
       render(
-        <TaySuggestionCard
+        <CopilotSuggestionCard
           suggestion={projectSuggestion}
           status="pending"
           onAccept={vi.fn()}
@@ -52,7 +52,7 @@ describe("TaySuggestionCard", () => {
 
     it("renders desired outcome", () => {
       render(
-        <TaySuggestionCard
+        <CopilotSuggestionCard
           suggestion={projectSuggestion}
           status="pending"
           onAccept={vi.fn()}
@@ -66,7 +66,7 @@ describe("TaySuggestionCard", () => {
 
     it("renders all actions", () => {
       render(
-        <TaySuggestionCard
+        <CopilotSuggestionCard
           suggestion={projectSuggestion}
           status="pending"
           onAccept={vi.fn()}
@@ -80,7 +80,7 @@ describe("TaySuggestionCard", () => {
 
     it("renders documents when present", () => {
       render(
-        <TaySuggestionCard
+        <CopilotSuggestionCard
           suggestion={projectSuggestion}
           status="pending"
           onAccept={vi.fn()}
@@ -92,7 +92,7 @@ describe("TaySuggestionCard", () => {
 
     it("renders accept and dismiss buttons", () => {
       render(
-        <TaySuggestionCard
+        <CopilotSuggestionCard
           suggestion={projectSuggestion}
           status="pending"
           onAccept={vi.fn()}
@@ -111,7 +111,7 @@ describe("TaySuggestionCard", () => {
       const user = userEvent.setup();
       const onAccept = vi.fn();
       render(
-        <TaySuggestionCard
+        <CopilotSuggestionCard
           suggestion={projectSuggestion}
           status="pending"
           onAccept={onAccept}
@@ -126,7 +126,7 @@ describe("TaySuggestionCard", () => {
       const user = userEvent.setup();
       const onDismiss = vi.fn();
       render(
-        <TaySuggestionCard
+        <CopilotSuggestionCard
           suggestion={projectSuggestion}
           status="pending"
           onAccept={vi.fn()}
@@ -141,7 +141,7 @@ describe("TaySuggestionCard", () => {
   describe("action suggestion", () => {
     it("renders action name", () => {
       render(
-        <TaySuggestionCard
+        <CopilotSuggestionCard
           suggestion={actionSuggestion}
           status="pending"
           onAccept={vi.fn()}
@@ -153,7 +153,7 @@ describe("TaySuggestionCard", () => {
 
     it("renders bucket label", () => {
       render(
-        <TaySuggestionCard
+        <CopilotSuggestionCard
           suggestion={actionSuggestion}
           status="pending"
           onAccept={vi.fn()}
@@ -167,7 +167,7 @@ describe("TaySuggestionCard", () => {
   describe("reference suggestion", () => {
     it("renders reference name and description", () => {
       render(
-        <TaySuggestionCard
+        <CopilotSuggestionCard
           suggestion={referenceSuggestion}
           status="pending"
           onAccept={vi.fn()}
@@ -192,7 +192,7 @@ describe("TaySuggestionCard", () => {
 
     it("renders filename", () => {
       render(
-        <TaySuggestionCard
+        <CopilotSuggestionCard
           suggestion={cvSuggestion}
           status="pending"
           onAccept={vi.fn()}
@@ -204,7 +204,7 @@ describe("TaySuggestionCard", () => {
 
     it("renders markdown reference indicator", () => {
       render(
-        <TaySuggestionCard
+        <CopilotSuggestionCard
           suggestion={cvSuggestion}
           status="pending"
           onAccept={vi.fn()}
@@ -220,7 +220,7 @@ describe("TaySuggestionCard", () => {
   describe("accepted state", () => {
     it("shows accepted label instead of buttons", () => {
       render(
-        <TaySuggestionCard
+        <CopilotSuggestionCard
           suggestion={projectSuggestion}
           status="accepted"
           onAccept={vi.fn()}
@@ -237,7 +237,7 @@ describe("TaySuggestionCard", () => {
   describe("dismissed state", () => {
     it("shows dismissed label", () => {
       render(
-        <TaySuggestionCard
+        <CopilotSuggestionCard
           suggestion={projectSuggestion}
           status="dismissed"
           onAccept={vi.fn()}

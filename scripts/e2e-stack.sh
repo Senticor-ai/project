@@ -244,7 +244,7 @@ done
 
 # ── Step 6b: Start outbox worker ──────────────────────────────────────
 # The worker processes outbox events (import jobs, search indexing, etc.).
-# Without it, import jobs stay in "queued" status forever.
+# Without it, import jobs scopilot in "queued" status forever.
 echo "[e2e] Starting outbox worker..."
 cd "$ROOT_DIR/backend"
 uv run --python 3.12 python -m app.worker --loop &
@@ -252,7 +252,7 @@ WORKER_PID=$!
 echo "[e2e] Worker started (PID $WORKER_PID)."
 
 # ── Step 6c: Start agents service ─────────────────────────────────
-# The agents service handles Tay chat tool execution. It calls the backend's
+# The agents service handles Copilot chat tool execution. It calls the backend's
 # POST /items to create items on behalf of the user.
 echo "[e2e] Starting agents service on :$AGENTS_PORT..."
 cd "$ROOT_DIR/agents"

@@ -5,7 +5,7 @@ import type { ActionItemBucket } from "./types";
 // Chat Message Base
 // ---------------------------------------------------------------------------
 
-export type ChatRole = "user" | "tay";
+export type ChatRole = "user" | "copilot";
 
 export interface ChatMessageBase {
   id: string;
@@ -24,27 +24,27 @@ export interface UserChatMessage extends ChatMessageBase {
 }
 
 // ---------------------------------------------------------------------------
-// Tay Messages
+// Copilot Messages
 // ---------------------------------------------------------------------------
 
-export interface TayTextMessage extends ChatMessageBase {
-  role: "tay";
+export interface CopilotTextMessage extends ChatMessageBase {
+  role: "copilot";
   kind: "text";
   content: string;
   isStreaming?: boolean;
 }
 
-export interface TayThinkingMessage extends ChatMessageBase {
-  role: "tay";
+export interface CopilotThinkingMessage extends ChatMessageBase {
+  role: "copilot";
   kind: "thinking";
 }
 
 export type SuggestionStatus = "pending" | "accepted" | "dismissed" | "editing";
 
-export interface TaySuggestionMessage extends ChatMessageBase {
-  role: "tay";
+export interface CopilotSuggestionMessage extends ChatMessageBase {
+  role: "copilot";
   kind: "suggestion";
-  suggestion: TaySuggestion;
+  suggestion: CopilotSuggestion;
   status: SuggestionStatus;
 }
 
@@ -54,26 +54,26 @@ export interface CreatedItemRef {
   type: "project" | "action" | "reference";
 }
 
-export interface TayConfirmationMessage extends ChatMessageBase {
-  role: "tay";
+export interface CopilotConfirmationMessage extends ChatMessageBase {
+  role: "copilot";
   kind: "confirmation";
   content: string;
   createdItems: CreatedItemRef[];
 }
 
-export interface TayErrorMessage extends ChatMessageBase {
-  role: "tay";
+export interface CopilotErrorMessage extends ChatMessageBase {
+  role: "copilot";
   kind: "error";
   content: string;
 }
 
 export type ChatMessage =
   | UserChatMessage
-  | TayTextMessage
-  | TayThinkingMessage
-  | TaySuggestionMessage
-  | TayConfirmationMessage
-  | TayErrorMessage;
+  | CopilotTextMessage
+  | CopilotThinkingMessage
+  | CopilotSuggestionMessage
+  | CopilotConfirmationMessage
+  | CopilotErrorMessage;
 
 // ---------------------------------------------------------------------------
 // Tool / Function Call Types (V1: 3 tools)
@@ -123,7 +123,7 @@ export interface CopilotCliSuggestion {
   argv: string[];
 }
 
-export type TaySuggestion =
+export type CopilotSuggestion =
   | CreateProjectWithActionsSuggestion
   | CreateActionSuggestion
   | CreateReferenceSuggestion
@@ -147,8 +147,8 @@ export interface ChatCompletionRequest {
 }
 
 export interface ChatToolCall {
-  name: TaySuggestion["type"];
-  arguments: TaySuggestion;
+  name: CopilotSuggestion["type"];
+  arguments: CopilotSuggestion;
 }
 
 export interface ChatCompletionResponse {

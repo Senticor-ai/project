@@ -188,7 +188,11 @@ export function AppHeader({
         aria-label="Go to Inbox"
         title="Senticor Project"
       >
-        <img src="/tay-logo.svg" alt="Senticor Project" className="h-8 w-8" />
+        <img
+          src="/copilot-logo.svg"
+          alt="Senticor Project"
+          className="h-8 w-8"
+        />
       </button>
       {showControls && (
         <AppHeaderControls

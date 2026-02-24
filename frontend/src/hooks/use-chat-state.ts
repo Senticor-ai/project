@@ -2,17 +2,17 @@ import { useState, useCallback } from "react";
 import type {
   ChatMessage,
   UserChatMessage,
-  TayTextMessage,
-  TayThinkingMessage,
-  TaySuggestionMessage,
-  TayConfirmationMessage,
-  TayErrorMessage,
-  TaySuggestion,
+  CopilotTextMessage,
+  CopilotThinkingMessage,
+  CopilotSuggestionMessage,
+  CopilotConfirmationMessage,
+  CopilotErrorMessage,
+  CopilotSuggestion,
   CreatedItemRef,
   StreamEvent,
 } from "@/model/chat-types";
-import { useTayApi } from "./use-tay-api";
-import { useTayActions } from "./use-tay-actions";
+import { useCopilotApi } from "./use-copilot-api";
+import { useCopilotActions } from "./use-copilot-actions";
 
 function generateId(): string {
   return `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -26,8 +26,8 @@ export function useChatState() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [conversationId, setConversationId] = useState(newConversationId);
-  const { sendMessageStreaming } = useTayApi();
-  const { executeSuggestion, onItemsChanged } = useTayActions();
+  const { sendMessageStreaming } = useCopilotApi();
+  const { executeSuggestion, onItemsChanged } = useCopilotActions();
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -39,9 +39,9 @@ export function useChatState() {
         timestamp: new Date().toISOString(),
       };
 
-      const thinkingMsg: TayThinkingMessage = {
+      const thinkingMsg: CopilotThinkingMessage = {
         id: generateId(),
-        role: "tay",
+        role: "copilot",
         kind: "thinking",
         timestamp: new Date().toISOString(),
       };
@@ -59,9 +59,9 @@ export function useChatState() {
               if (!streamingMsgId) {
                 // First text chunk — replace thinking indicator with streaming text
                 streamingMsgId = generateId();
-                const initialMsg: TayTextMessage = {
+                const initialMsg: CopilotTextMessage = {
                   id: streamingMsgId,
-                  role: "tay",
+                  role: "copilot",
                   kind: "text",
                   content: event.content,
                   isStreaming: true,
@@ -92,11 +92,11 @@ export function useChatState() {
               const newSuggestions: ChatMessage[] = [];
               for (const tc of event.toolCalls) {
                 const args = { ...tc.arguments, type: tc.name };
-                const suggestion: TaySuggestionMessage = {
+                const suggestion: CopilotSuggestionMessage = {
                   id: generateId(),
-                  role: "tay",
+                  role: "copilot",
                   kind: "suggestion",
-                  suggestion: args as TaySuggestion,
+                  suggestion: args as CopilotSuggestion,
                   status: "pending",
                   timestamp: new Date().toISOString(),
                 };
@@ -108,9 +108,9 @@ export function useChatState() {
 
             case "auto_executed": {
               // OpenClaw path: tool already executed, show confirmation directly
-              const confirmation: TayConfirmationMessage = {
+              const confirmation: CopilotConfirmationMessage = {
                 id: generateId(),
-                role: "tay",
+                role: "copilot",
                 kind: "confirmation",
                 content: buildConfirmationText(event.createdItems),
                 createdItems: event.createdItems,
@@ -143,9 +143,9 @@ export function useChatState() {
                 );
               } else if (event.text) {
                 // No streaming chunks received (e.g. cache hit) — show full text
-                const fullTextMsg: TayTextMessage = {
+                const fullTextMsg: CopilotTextMessage = {
                   id: generateId(),
-                  role: "tay",
+                  role: "copilot",
                   kind: "text",
                   content: event.text,
                   timestamp: new Date().toISOString(),
@@ -161,9 +161,9 @@ export function useChatState() {
             }
 
             case "error": {
-              const errorMsg: TayErrorMessage = {
+              const errorMsg: CopilotErrorMessage = {
                 id: generateId(),
-                role: "tay",
+                role: "copilot",
                 kind: "error",
                 content: event.detail,
                 timestamp: new Date().toISOString(),
@@ -188,9 +188,9 @@ export function useChatState() {
       } catch {
         setMessages((prev) => {
           const withoutThinking = prev.filter((m) => m.id !== thinkingMsg.id);
-          const errorMsg: TayErrorMessage = {
+          const errorMsg: CopilotErrorMessage = {
             id: generateId(),
-            role: "tay",
+            role: "copilot",
             kind: "error",
             content: "Es ist ein Fehler aufgetreten. Bitte versuche es erneut.",
             timestamp: new Date().toISOString(),
@@ -209,7 +209,7 @@ export function useChatState() {
       // Find the suggestion message
       const suggestionMsg = messages.find(
         (m) => m.id === messageId && m.kind === "suggestion",
-      ) as TaySuggestionMessage | undefined;
+      ) as CopilotSuggestionMessage | undefined;
 
       if (!suggestionMsg) return;
 
@@ -229,9 +229,9 @@ export function useChatState() {
         );
 
         // Add confirmation message
-        const confirmation: TayConfirmationMessage = {
+        const confirmation: CopilotConfirmationMessage = {
           id: generateId(),
-          role: "tay",
+          role: "copilot",
           kind: "confirmation",
           content: buildConfirmationText(createdItems),
           createdItems,

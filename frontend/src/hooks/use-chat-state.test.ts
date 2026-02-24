@@ -9,7 +9,7 @@ import { useChatState } from "./use-chat-state";
 import type {
   ChatMessage,
   StreamEvent,
-  TaySuggestionMessage,
+  CopilotSuggestionMessage,
 } from "@/model/chat-types";
 
 // ---------------------------------------------------------------------------
@@ -20,12 +20,12 @@ const mockSendMessageStreaming: ReturnType<typeof vi.fn> = vi.fn();
 const mockExecuteSuggestion: ReturnType<typeof vi.fn> = vi.fn();
 const mockOnItemsChanged: ReturnType<typeof vi.fn> = vi.fn();
 
-vi.mock("./use-tay-api", () => ({
-  useTayApi: () => ({ sendMessageStreaming: mockSendMessageStreaming }),
+vi.mock("./use-copilot-api", () => ({
+  useCopilotApi: () => ({ sendMessageStreaming: mockSendMessageStreaming }),
 }));
 
-vi.mock("./use-tay-actions", () => ({
-  useTayActions: () => ({
+vi.mock("./use-copilot-actions", () => ({
+  useCopilotActions: () => ({
     executeSuggestion: mockExecuteSuggestion,
     onItemsChanged: mockOnItemsChanged,
   }),
@@ -186,11 +186,12 @@ describe("useChatState", () => {
         0,
       );
 
-      const tayTexts = findByKind(hook.result.current.messages, "text").filter(
-        (m) => m.role === "tay",
-      );
-      expect(tayTexts).toHaveLength(1);
-      expect(tayTexts[0]!.content).toBe("Antwort");
+      const copilotTexts = findByKind(
+        hook.result.current.messages,
+        "text",
+      ).filter((m) => m.role === "copilot");
+      expect(copilotTexts).toHaveLength(1);
+      expect(copilotTexts[0]!.content).toBe("Antwort");
     });
 
     it("marks streaming message as not streaming after done event", async () => {
@@ -209,10 +210,11 @@ describe("useChatState", () => {
 
       await sendAndWait(hook, "Test");
 
-      const tayTexts = findByKind(hook.result.current.messages, "text").filter(
-        (m) => m.role === "tay",
-      );
-      expect(tayTexts[0]!.isStreaming).toBeFalsy();
+      const copilotTexts = findByKind(
+        hook.result.current.messages,
+        "text",
+      ).filter((m) => m.role === "copilot");
+      expect(copilotTexts[0]!.isStreaming).toBeFalsy();
     });
 
     it("adds suggestion cards when tool_calls event arrives", async () => {
@@ -245,11 +247,12 @@ describe("useChatState", () => {
 
       await sendAndWait(hook, "Erstelle");
 
-      const tayTexts = findByKind(hook.result.current.messages, "text").filter(
-        (m) => m.role === "tay",
-      );
-      expect(tayTexts).toHaveLength(1);
-      expect(tayTexts[0]!.content).toBe("Vorschlag:");
+      const copilotTexts = findByKind(
+        hook.result.current.messages,
+        "text",
+      ).filter((m) => m.role === "copilot");
+      expect(copilotTexts).toHaveLength(1);
+      expect(copilotTexts[0]!.content).toBe("Vorschlag:");
 
       const suggestions = findByKind(
         hook.result.current.messages,
@@ -330,10 +333,11 @@ describe("useChatState", () => {
 
       await sendAndWait(hook, "Action");
 
-      const tayTexts = findByKind(hook.result.current.messages, "text").filter(
-        (m) => m.role === "tay",
-      );
-      expect(tayTexts).toHaveLength(0);
+      const copilotTexts = findByKind(
+        hook.result.current.messages,
+        "text",
+      ).filter((m) => m.role === "copilot");
+      expect(copilotTexts).toHaveLength(0);
 
       const suggestions = findByKind(
         hook.result.current.messages,
@@ -359,11 +363,12 @@ describe("useChatState", () => {
 
       await sendAndWait(hook, "Test");
 
-      const tayTexts = findByKind(hook.result.current.messages, "text").filter(
-        (m) => m.role === "tay",
-      );
-      expect(tayTexts).toHaveLength(1);
-      expect(tayTexts[0]!.content).toBe("Cached response");
+      const copilotTexts = findByKind(
+        hook.result.current.messages,
+        "text",
+      ).filter((m) => m.role === "copilot");
+      expect(copilotTexts).toHaveLength(1);
+      expect(copilotTexts[0]!.content).toBe("Cached response");
       expect(findByKind(hook.result.current.messages, "thinking")).toHaveLength(
         0,
       );
@@ -444,11 +449,12 @@ describe("useChatState", () => {
       const userMsgs = hook.result.current.messages.filter(
         (m) => m.role === "user",
       );
-      const tayMsgs = findByKind(hook.result.current.messages, "text").filter(
-        (m) => m.role === "tay",
-      );
+      const copilotMsgs = findByKind(
+        hook.result.current.messages,
+        "text",
+      ).filter((m) => m.role === "copilot");
       expect(userMsgs).toHaveLength(2);
-      expect(tayMsgs).toHaveLength(2);
+      expect(copilotMsgs).toHaveLength(2);
     });
 
     it("passes conversationId to streaming API", async () => {
@@ -520,7 +526,7 @@ describe("useChatState", () => {
       await waitFor(() => {
         const s = hook.result.current.messages.find(
           (m) => m.id === suggestionId,
-        ) as TaySuggestionMessage;
+        ) as CopilotSuggestionMessage;
         expect(s.status).toBe("accepted");
       });
 
@@ -566,7 +572,7 @@ describe("useChatState", () => {
 
       const s = hook.result.current.messages.find(
         (m) => m.id === suggestionId,
-      ) as TaySuggestionMessage;
+      ) as CopilotSuggestionMessage;
       expect(s.status).toBe("pending");
     });
 
@@ -617,7 +623,7 @@ describe("useChatState", () => {
 
       const s = hook.result.current.messages.find(
         (m) => m.id === suggestionId,
-      ) as TaySuggestionMessage;
+      ) as CopilotSuggestionMessage;
       expect(s.status).toBe("dismissed");
     });
 
