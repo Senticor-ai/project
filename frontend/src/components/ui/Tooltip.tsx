@@ -48,7 +48,11 @@ export function Tooltip({
       const labeled = triggerRef.current.querySelector("[aria-label]");
       setDerivedLabel(labeled?.getAttribute("aria-label") ?? undefined);
     }
-    timeoutRef.current = setTimeout(() => setIsVisible(true), delay);
+    clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      timeoutRef.current = undefined;
+      setIsVisible(true);
+    }, delay);
   }, [delay, label]);
 
   const hide = useCallback(() => {

@@ -119,6 +119,37 @@ describe("Tooltip", () => {
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   });
 
+  it("clears older timer when show is triggered again", async () => {
+    render(
+      <Tooltip label="Help">
+        <button>btn</button>
+      </Tooltip>,
+    );
+
+    const trigger = screen.getByText("btn").closest("span")!;
+    const button = screen.getByText("btn");
+
+    await userEvent.hover(trigger);
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+
+    // Focus schedules show again; the previous timer should be replaced.
+    act(() => {
+      button.focus();
+    });
+
+    await userEvent.unhover(trigger);
+    act(() => {
+      button.blur();
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  });
+
   it("shows tooltip on focus and hides on blur", async () => {
     render(
       <Tooltip label="Help">
