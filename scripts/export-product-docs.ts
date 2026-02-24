@@ -38,7 +38,7 @@ const DOC_ORDER = [
   "EpicEditableTitle.mdx",
   "EpicExport.mdx",
   "EpicSchemaEnrichment.mdx",
-  "EpicPwaReadiness.mdx",
+  "CompletedEpics/EpicPwaReadiness.mdx",
   "EpicReleaseProcess.mdx",
   "EpicCollaboration.mdx",
   "EpicRenameToProcedere.mdx",

@@ -7,6 +7,7 @@ import types
 from fastapi import FastAPI
 
 from app import tracing
+from app.observability import anonymize_identifier
 
 
 def _package(name: str) -> types.ModuleType:
@@ -220,6 +221,10 @@ def test_authenticated_errors_include_user_uuid_in_logs_and_metrics(auth_client,
     caplog.set_level(logging.INFO)
     caplog.clear()
 
+    me = auth_client.get("/auth/me")
+    assert me.status_code == 200
+    user_id = me.json()["id"]
+
     missing_item_id = "00000000-0000-0000-0000-000000000000"
     response = auth_client.get(f"/items/{missing_item_id}")
     assert response.status_code == 404
@@ -234,13 +239,14 @@ def test_authenticated_errors_include_user_uuid_in_logs_and_metrics(auth_client,
     assert request_logs
     request_log = request_logs[-1]
 
-    user_id_anon = request_log.get("user_id_anon")
-    assert user_id_anon
-    assert user_id_anon != request_log.get("user_id")
+    assert request_log.get("user_id") == user_id
+    assert request_log.get("user_email") is None
+    assert request_log.get("user_id_anon") is None
     assert request_log.get("session_id")
     assert request_log.get("status_code") == 404
     assert request_log.get("error_reason") == "Item not found"
 
+    user_id_anon = anonymize_identifier(user_id, namespace="user")
     metrics_response = auth_client.get("/metrics")
     assert metrics_response.status_code == 200
     assert (

@@ -6,6 +6,8 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+.tmp/
+.tmp/preflight-local-cache/
 
 node_modules
 dist

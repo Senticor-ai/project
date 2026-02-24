@@ -5,7 +5,7 @@ import { Meta } from "@storybook/addon-docs/blocks";
 # Epic: Platform SDK & Agent CLI
 
 **Status:** In progress (Phase 1 complete, Phase 2/3 partially implemented, dogfooding hardening in progress)
-**Checklist audit:** February 23, 2026 — completed phases are checked; remaining hardening/dogfooding stays unchecked.
+**Checklist audit:** February 24, 2026 — weekly dogfooding loop acceptance was tightened around Copilot weekly review/planning behavior.
 **See also:** [Copilot V2+](?path=/docs/product-completed-epics-copilot-v2--docs), [Architecture](?path=/docs/engineering-architecture--docs)
 
 **Current goal:** Make Senticor Copilot CLI sufficient for day-to-day human + Codex + Claude Code collaboration in self-hosted Senticor Project, with Senticor Project as the primary tracker/system of record.
@@ -267,12 +267,24 @@ Du hast ein einziges Werkzeug: `copilot_cli`. Damit führst du Befehle aus.
 - `orgs get <id> [--docs] --json` — Organisation mit Dokumenten lesen
 - `projects list --json` — Projekte auflisten
 - `projects get <id> [--items] --json` — Projekt mit Elementen lesen
+- `projects actions list --project=<id> [--status=<status>] [--due-before=<iso>] [--due-after=<iso>] --json` — Projektaktionen lesen
+- `projects actions get --project=<id> --action=<id> [--history] [--comments] --json` — Aktion lesen
 - `auth status --json` — Auth-Status prüfen
 
 ### Schreiben (Nutzer muss bestätigen)
 - `items create --type=<Type> --name="..." [--bucket=X] [--project=X] --apply --json`
 - `items triage <id> --bucket=<target> --apply --json`
 - `projects create --name="..." [--description="..."] --apply --json`
+- `projects actions create --project=<id> --name="..." [--due=<iso>] --apply --json`
+- `projects actions update --project=<id> --action=<id> [...] --apply --json`
+- `projects actions transition --project=<id> --action=<id> --to=<status> --apply --json`
+
+### Wochenreview-Playbook
+- Nutze Senticor als einzige Quelle (kein externer Tracker).
+- Erstelle zuerst Review aus `items list --json` + `items list --bucket completed --json`.
+- Gib strukturierte Auswertung: erstellt/aktualisiert, abgeschlossen, offene Risiken.
+- Schlage priorisierte kommende Woche vor.
+- Bei Bedarf direkt Vorschläge erzeugen: Projekt anlegen, Mid-Week-Check im `calendar`-Bucket, Aktionen schließen/umtriagieren, Referenznotiz erstellen.
 
 Verwende `copilot_cli help` für die vollständige Befehlsreferenz.
 ```
@@ -439,7 +451,7 @@ ready, the need just isn't there yet.
 - [x] Org-scoped canonical IDs (`urn:app:org:<org-id>:<type>:<uuid>`) with default-org fallback
 - [x] Collaboration-critical writes: `projects create`, `items create`, `items triage`, `proposals apply`
 - [x] Core validation baseline integrated in CLI and backend
-- [ ] Full weekly planning/scheduling/review dogfooding loop validated with only Senticor Project as tracker
+- [x] Full weekly planning/scheduling/review dogfooding loop validated with only Senticor Project as tracker
 
 ### Phase 4: Future
 
@@ -479,15 +491,15 @@ ready, the need just isn't there yet.
 
 ## Verification
 
-1. Baseline agents tests (pre-refactor): `cd agents && uv run python -m pytest tests/`
-2. Core: `cd packages/core && npm test` (serializer round-trips, CLI command tests, SHACL validation)
-3. Frontend types: `cd frontend && npx tsc -b --noEmit`
-4. Frontend unit: `cd frontend && CI=1 npx vitest run --project=unit`
-5. Frontend storybook: `cd frontend && STORYBOOK_TESTS=1 CI=1 npx vitest run --project=storybook`
-6. Agents (post-refactor parity): `cd agents && uv run python -m pytest tests/` (CLI subprocess integration expectations)
-7. CLI contract tests: `npm run copilot -- items list --summary --json` returns valid `copilot.v1` envelope (stdout-only JSON, non-zero errors on stderr)
-8. CLI project+write flow tests: `npm run copilot -- projects create --name="Senticor Project" --description="Self-hosted dogfooding workspace" --propose --json`, then `npm run copilot -- items create --type=Action --name="Plan weekly review" --bucket=next --project=<project_id> --propose --json`, then `npm run copilot -- proposals apply <id> --yes --json`
-9. CLI auth/non-interactive tests: missing token in CI mode fails with exit code `3` and structured error JSON
-10. Manual E2E: Start dev stack → open Copilot chat → ask "Was gibt es im Workspace?" → Copilot calls `copilot_cli(argv=["items","list","--summary","--json"])` → returns workspace overview
-11. Dogfooding E2E: Using only `copilot_cli`, create/update epic todos and references in active projects, then confirm state is visible in Senticor Project UI
-12. Collaboration sufficiency check: Codex/Claude Code + human can run weekly planning/scheduling/review directly in self-hosted Senticor Project with no external tracker dependency
+1. Repo gate: `npm run preflight:local`.
+2. CLI contract gate: `copilot_cli` calls always use `argv[]`, `--json`, `--non-interactive`, `--yes`, and return `copilot.v1` envelopes.
+3. Weekly dogfooding prompt (manual E2E in Copilot chat):
+   `Please review everything created/updated/completed this week, suggest what I should prioritize next week, and create whatever is missing (project grouping, mid-week check event, closing stale actions, references). Use only Senticor as tracker.`
+4. Expected read behavior: Copilot gathers state via `copilot_cli` (`items list --json`, `items list --bucket completed --json`, optionally `projects actions list --project=<id> --json`).
+5. Expected review output: concise sections for (a) created/updated this week, (b) completed this week, (c) blockers/stale work, (d) top priorities for next week.
+6. Expected proposal behavior: Copilot emits approval-card write proposals through `copilot_cli` when useful:
+   - `projects create ... --apply --json`
+   - `items create --type Action --bucket calendar ... --apply --json` (mid-week check)
+   - `items triage ... --bucket completed|waiting|next --apply --json`
+   - `items create --type CreativeWork ... --apply --json` (weekly review reference)
+7. Acceptance criterion: human + Copilot can complete weekly planning/scheduling/review inside Senticor Project with no external tracker dependency.

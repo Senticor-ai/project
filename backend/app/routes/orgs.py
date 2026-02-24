@@ -137,3 +137,51 @@ def add_member(
         status=membership["status"],
         created_at=membership["created_at"].isoformat(),
     )
+
+
+@router.get(
+    "/{org_id}/members/{user_id}",
+    response_model=OrgMemberResponse,
+    summary="Lookup an org member by user id",
+)
+def get_member(
+    org_id: str,
+    user_id: str,
+    current_org=Depends(get_current_org),
+):
+    if current_org["org_id"] != org_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Org access denied")
+
+    if current_org["role"] not in {"owner", "admin"}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
+
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    m.org_id,
+                    m.user_id,
+                    m.role,
+                    m.status,
+                    m.created_at,
+                    u.email
+                FROM org_memberships m
+                JOIN users u ON u.id = m.user_id
+                WHERE m.org_id = %s AND m.user_id::text = %s
+                """,
+                (org_id, user_id),
+            )
+            membership = cur.fetchone()
+
+    if membership is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    return OrgMemberResponse(
+        org_id=str(membership["org_id"]),
+        user_id=str(membership["user_id"]),
+        email=membership["email"],
+        role=membership["role"],
+        status=membership["status"],
+        created_at=membership["created_at"].isoformat(),
+    )

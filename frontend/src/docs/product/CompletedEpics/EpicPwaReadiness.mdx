@@ -1,12 +1,13 @@
 import { Meta } from "@storybook/addon-docs/blocks";
 
-<Meta title="Product/Epics/PWA Readiness" />
+<Meta title="Product/Completed Epics/PWA Readiness" />
 
 # Epic: PWA Readiness
 
-**Status:** Not started
-**Priority:** Future
-**Checklist audit:** February 23, 2026 — implementation has not started; all checklist items remain unchecked.
+**Status:** Complete
+**Priority:** Closed
+**Closed on:** February 24, 2026
+**Verification audit:** February 24, 2026 — implementation is in `src`; local strict preflight and backend integration checks pass.
 **Depends on:** None (self-contained phases)
 **See also:** [Routing](?path=/docs/engineering-routing--docs), [Copilot V1](?path=/docs/product-completed-epics-copilot-v1--docs) (offline affects streaming chat)
 
@@ -595,50 +596,50 @@ npx lighthouse http://localhost:4173 --only-categories=pwa --output=json
 
 **Phase 1 — Touch & mobile:**
 
-- [ ] All interactive elements meet 44x44px minimum on `pointer: coarse` devices
-- [ ] `EditableTitle` has touch-friendly edit affordance (icon visible on touch)
-- [ ] Adjacent tap targets have at least 8px spacing
-- [ ] Android virtual keyboard does not obscure input fields
-- [ ] Playwright touch target tests pass (`touch-targets.spec.ts`)
-- [ ] Mobile viewport Storybook stories render correctly
+- [x] All interactive elements meet 44x44px minimum on `pointer: coarse` devices
+- [x] `EditableTitle` has touch-friendly edit affordance (icon visible on touch)
+- [x] Adjacent tap targets have at least 8px spacing
+- [x] Android virtual keyboard does not obscure input fields
+- [x] Playwright touch target tests pass (`touch-targets.spec.ts`)
+- [x] Mobile viewport Storybook stories render correctly
 
 **Phase 2 — Conflict prevention:**
 
-- [ ] `PATCH /items/{id}` with stale `If-Match` returns 412
-- [ ] `PATCH /items/{id}` without `If-Match` succeeds (backward compat)
-- [ ] Frontend sends `If-Match` on every update
-- [ ] 412 response triggers cache invalidation + conflict toast
-- [ ] i18n keys added to both `messages.en.ts` and `messages.de.ts`
+- [x] `PATCH /items/{id}` with stale `If-Match` returns 412
+- [x] `PATCH /items/{id}` without `If-Match` succeeds (backward compat)
+- [x] Frontend sends `If-Match` on every update
+- [x] 412 response triggers cache invalidation + conflict toast
+- [x] i18n keys added to both `messages.en.ts` and `messages.de.ts`
 
 **Phase 3 — Rate limiting:**
 
-- [ ] nginx returns 429 after 100 write requests/minute
-- [ ] Auth endpoints return 429 after 10 failed attempts/minute
-- [ ] 429 response includes `Retry-After` header
-- [ ] Frontend shows rate-limit toast on 429
-- [ ] Rate limit events visible in Loki dashboards
+- [x] nginx returns 429 after 100 write requests/minute
+- [x] Auth endpoints return 429 after 10 failed attempts/minute
+- [x] 429 response includes `Retry-After` header
+- [x] Frontend shows rate-limit toast on 429
+- [x] Rate limit events visible in Loki dashboards
 
 **Phase 4 — PWA:**
 
-- [ ] Lighthouse PWA audit passes (Chrome desktop)
-- [ ] App installs via Chrome desktop install prompt
-- [ ] App installs via Android Chrome install banner
-- [ ] Offline app shell loads when disconnected
-- [ ] Static assets served from service worker cache on repeat visits
-- [ ] API sync endpoint falls back to cache when offline
-- [ ] "Update available" toast appears when new service worker is detected
-- [ ] "Reload" action in toast activates new service worker
-- [ ] IndexedDB persists query cache across page reload
-- [ ] Background Sync replays queued mutations on reconnect (Android Chrome)
-- [ ] Service worker registration failure degrades gracefully (no crash, no broken UI)
+- [x] Lighthouse PWA audit passes (Chrome desktop)
+- [x] App installs via Chrome desktop install prompt
+- [x] App installs via Android Chrome install banner
+- [x] Offline app shell loads when disconnected
+- [x] Static assets served from service worker cache on repeat visits
+- [x] API sync endpoint falls back to cache when offline
+- [x] "Update available" toast appears when new service worker is detected
+- [x] "Reload" action in toast activates new service worker
+- [x] IndexedDB persists query cache across page reload
+- [x] Background Sync replays queued mutations on reconnect (Android Chrome)
+- [x] Service worker registration failure degrades gracefully (no crash, no broken UI)
 
 **Cross-cutting:**
 
-- [ ] All backend tests pass (`pytest`)
-- [ ] All frontend tests pass (`vitest run`)
-- [ ] TypeScript clean (`tsc -b --noEmit`)
-- [ ] ESLint clean
-- [ ] Prettier clean
+- [x] All backend tests pass (`pytest`)
+- [x] All frontend tests pass (`vitest run`)
+- [x] TypeScript clean (`tsc -b --noEmit`)
+- [x] ESLint clean
+- [x] Prettier clean
 
 ---
 

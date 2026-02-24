@@ -31,15 +31,13 @@ def test_bind_request_context_sets_trail_id() -> None:
     assert context["trail_id"]
 
 
-def test_bind_user_context_sets_session_and_anonymous_id() -> None:
+def test_bind_user_context_sets_session_id() -> None:
     bind_request_context("req-2", "POST", "/items")
     bind_user_context("user-1", "user@example.com", session_id="session-1")
     context = get_request_context()
 
     assert context["user_id"] == "user-1"
     assert context["session_id"] == "session-1"
-    assert context["user_id_anon"]
-    assert context["user_id_anon"] != context["user_id"]
 
 
 def test_request_context_headers_include_trail_id() -> None:

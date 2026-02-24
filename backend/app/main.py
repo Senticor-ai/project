@@ -117,7 +117,6 @@ def _bind_user_context_from_request_state(request: Request) -> None:
         return
     bind_user_context(
         str(user_id),
-        getattr(request.state, "user_email", None),
         session_id=getattr(request.state, "session_id", None),
     )
 

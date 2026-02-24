@@ -7,7 +7,7 @@ from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, ge
 from psycopg import errors as psycopg_errors
 
 from .db import db_conn
-from .observability import get_logger, get_request_context
+from .observability import anonymize_identifier, get_logger, get_request_context
 
 logger = get_logger("metrics")
 
@@ -147,7 +147,10 @@ def observe_http_request(
 
     if status_code is not None and status_code >= 400:
         context = get_request_context()
-        user_id_anon = str(context.get("user_id_anon") or "anonymous")
+        user_id = context.get("user_id")
+        user_id_anon = (
+            anonymize_identifier(str(user_id), namespace="user") if user_id else "anonymous"
+        )
         HTTP_SERVER_ERRORS_BY_USER_TOTAL.labels(
             method=method,
             route=route,

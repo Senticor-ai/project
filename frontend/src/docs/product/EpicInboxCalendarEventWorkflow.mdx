@@ -1,0 +1,141 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Product/Epics/Inbox to Calendar Event Workflow" />
+
+# Epic: Inbox to Calendar Event Workflow
+
+**Status:** Draft
+**Priority:** Current
+**Checklist audit:** February 24, 2026 -- newly created draft; all acceptance criteria are unchecked.
+**Last updated:** 2026-02-24
+**Depends on:** Calendar bucket UX, item serializer/event patch support, project association model
+
+## Context
+
+Current behavior is split:
+
+- Inbox triage can move an item to `calendar`, but the item remains `@type: "Action"`
+- Frontend event rendering exists for inbound `@type: "Event"`, but event creation from triage is not first-class
+- Calendar bucket currently uses list behavior; there is no dedicated calendar-grid interaction in the main work surface
+
+Requested direction:
+
+- Items moved from inbox to calendar become **events by default**
+- Calendar-bound items must receive a due date/date assignment
+- If user cannot set a due date, item should remain in inbox, or user can route it to Next as a thing/action
+- Calendar surface supports both **List** and **Calendar** views
+- Calendar supports project-based filtering
+- Both List and Calendar views support associating/disassociating events with projects
+
+## User Story
+
+> "When I move something from inbox to calendar, I want it treated as a real event with a date, and I want to manage project linkage in either list or calendar mode."
+
+## Goals
+
+1. Make inbox -> calendar triage deterministic: calendar items are `Event` by default.
+2. Enforce date assignment for calendar placement.
+3. Support two calendar surfaces: list and grid.
+4. Support project filtering and project association management from both surfaces.
+5. Preserve clear fallback when date cannot be set.
+
+## Scope
+
+### In scope
+
+- Triage rule: inbox -> calendar creates/patches `@type: "Event"` by default
+- Date guardrail: no calendar placement without date
+- Fallback paths:
+  - keep item in inbox
+  - route to `next` as actionable thing
+- Calendar page/view mode toggle: List and Calendar
+- Project filter in calendar scope
+- Associate/disassociate event-to-project links from both view modes
+
+### Out of scope (for this epic)
+
+- External provider sync behavior changes (Google/Outlook semantics)
+- Recurrence redesign
+- Multi-user scheduling conflict resolution
+
+## Proposed Product Behavior
+
+### 1) Inbox triage to calendar
+
+1. User selects **Move to Calendar**.
+2. Date is required before move is committed.
+3. On confirm with date:
+   - item is persisted as `@type: "Event"`
+   - bucket is `calendar`
+4. If date is not set:
+   - item remains in inbox, or
+   - user can explicitly move to Next instead.
+
+### 2) Calendar surface modes
+
+- **List mode:** chronological list of calendar events
+- **Calendar mode:** month/week/day grid (final granularity to confirm)
+- Both modes share:
+  - project filter
+  - event open/edit affordance
+  - project association/disassociation actions
+
+### 3) Project association in calendar
+
+- Add project association to an event
+- Remove project association from an event
+- Filter all calendar content by one or more projects
+
+## Data Modeling Notes (Needs decision)
+
+The system already supports:
+
+- `Event.startDate` and `Event.endDate` (schema.org-native)
+- `app:dueDate` on Action items (app-specific additionalProperty)
+
+For this epic, we need a single canonical rule for "due date" on events.
+
+## Delivery Phases
+
+### Phase 1: Spec lock
+
+- Finalize Event date semantics
+- Finalize project cardinality semantics for events (single vs multi-project)
+- Finalize calendar mode requirements and view-level parity
+
+### Phase 2: Data + API behavior
+
+- Serializer/patch support for inbox -> Event conversion
+- Guardrails for required date on calendar placement
+- Backward compatibility for existing calendar `Action` records
+
+### Phase 3: UI behavior
+
+- List/Calendar mode toggle
+- Project filter controls
+- Associate/disassociate project actions in both modes
+
+## Acceptance Criteria
+
+- [ ] Moving an inbox item to calendar produces `@type: "Event"` by default
+- [ ] Calendar placement requires a date; without date, move is blocked
+- [ ] User can leave item in inbox or route to Next when date is unavailable
+- [ ] Calendar supports both List and Calendar modes
+- [ ] Calendar supports filtering by project
+- [ ] User can associate/disassociate event-project links in both modes
+- [ ] Existing calendar actions are handled by migration or compatibility logic
+
+## Open Questions for Specification
+
+1. For event "due date", should we map to `startDate` (all-day), `endDate`, or both (`startDate` + inferred duration)?
+2. For date-only events, do we store local date (`YYYY-MM-DD`) or timezone-qualified datetime?
+3. Should inbox -> calendar always create all-day events first, with optional time later?
+4. If user clicks Calendar but cancels date entry, should UI offer explicit choices: "Keep in Inbox" and "Move to Next"?
+5. Should the system auto-convert existing `calendar` bucket `Action` items to `Event`, or support mixed rendering indefinitely?
+6. Should an event support one project or multiple projects (`app:projectRefs[]`)?
+7. In project filtering, do we need `Any selected` vs `All selected` semantics for multi-project events?
+8. Where should associate/disassociate live in calendar mode: event popover, side panel, or inline quick action?
+9. Does project disassociation ever move an event out of calendar, or only remove linkage?
+10. Which calendar grids are required for MVP: Month only, Month+Week, or Month+Week+Day?
+11. Do list mode and calendar mode require identical edit capabilities in MVP, or can one defer advanced edits?
+12. What is the rule for events without time when sorting list mode (start of day, end of day, or separate all-day section)?

@@ -279,7 +279,7 @@ class TestModelFallback:
     async def test_passes_runtime_llm_config_to_create_agent(self):
         """Per-request LLM config is forwarded to create_agent."""
         from app import MessagePayload, run_agent
-        from tay import RuntimeLlmConfig
+        from copilot import RuntimeLlmConfig
 
         reply = ChatMessage.from_assistant("Konfiguriert!")
         mock_agent = AsyncMock()

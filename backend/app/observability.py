@@ -124,14 +124,12 @@ def bind_user_context(
     email: str | None = None,
     session_id: str | None = None,
 ) -> None:
+    _ = email
     if user_id:
         normalized_user_id = str(user_id)
         bind_contextvars(
             user_id=normalized_user_id,
-            user_id_anon=anonymize_identifier(normalized_user_id, namespace="user"),
         )
-    if email:
-        bind_contextvars(user_email=email)
     if session_id:
         bind_contextvars(session_id=str(session_id))
 
@@ -145,7 +143,6 @@ def get_request_context() -> dict:
     return {
         "request_id": context.get("request_id"),
         "user_id": context.get("user_id"),
-        "user_id_anon": context.get("user_id_anon"),
         "session_id": context.get("session_id"),
         "trail_id": context.get("trail_id"),
     }

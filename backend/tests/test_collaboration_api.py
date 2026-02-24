@@ -214,3 +214,46 @@ def test_non_project_member_cannot_access_project_actions(app):
     forbidden = outsider_client.get(f"/projects/{project_id}/actions")
     assert forbidden.status_code == 403
     assert forbidden.json()["detail"] == "Project access denied"
+
+
+def test_org_owner_can_lookup_member_by_user_id(app):
+    owner_client = TestClient(app)
+    member_client = TestClient(app)
+
+    owner = _register_and_login(owner_client)
+    member = _register_and_login(member_client)
+
+    add_member = owner_client.post(
+        f"/orgs/{owner['org_id']}/members",
+        json={"email": member["email"], "role": "member"},
+    )
+    assert add_member.status_code == 201
+
+    lookup = owner_client.get(f"/orgs/{owner['org_id']}/members/{member['user_id']}")
+    assert lookup.status_code == 200
+
+    payload = lookup.json()
+    assert payload["org_id"] == owner["org_id"]
+    assert payload["user_id"] == member["user_id"]
+    assert payload["email"] == member["email"]
+    assert payload["role"] == "member"
+    assert payload["status"] == "active"
+
+
+def test_org_member_cannot_lookup_member_by_user_id(app):
+    owner_client = TestClient(app)
+    member_client = TestClient(app)
+
+    owner = _register_and_login(owner_client)
+    member = _register_and_login(member_client)
+
+    add_member = owner_client.post(
+        f"/orgs/{owner['org_id']}/members",
+        json={"email": member["email"], "role": "member"},
+    )
+    assert add_member.status_code == 201
+
+    member_client.headers.update({"X-Org-Id": owner["org_id"]})
+    forbidden = member_client.get(f"/orgs/{owner['org_id']}/members/{owner['user_id']}")
+    assert forbidden.status_code == 403
+    assert forbidden.json()["detail"] == "Insufficient role"

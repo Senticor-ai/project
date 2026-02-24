@@ -21,6 +21,9 @@ def test_system_prompt_rendered_from_template():
     assert "copilot_cli" in prompt
     assert "items create" in prompt
     assert "items list" in prompt
+    assert "projects actions create" in prompt
+    assert "Wochenplanung, Scheduling und Review" in prompt
+    assert "Senticor als einzige Quelle" in prompt
     # System time is injected
     assert "Systemzeit (UTC)" in prompt
 

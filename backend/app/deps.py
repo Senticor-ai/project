@@ -7,7 +7,7 @@ from .config import settings
 from .db import db_conn
 from .delegation import verify_delegated_token
 from .http import get_client_ip
-from .observability import anonymize_identifier, bind_user_context, get_logger
+from .observability import bind_user_context, get_logger
 
 ORG_ID_HEADER = "X-Org-Id"
 
@@ -28,13 +28,10 @@ def _set_request_user_state(
     request: Request,
     *,
     user_id: str,
-    email: str | None = None,
     session_id: str | None = None,
 ) -> None:
     request.state.user_id = user_id
-    request.state.user_email = email
     request.state.session_id = session_id
-    request.state.user_id_anon = anonymize_identifier(user_id, namespace="user")
 
 
 def _authenticate_via_delegated_jwt(token: str, request: Request) -> dict:
@@ -67,9 +64,8 @@ def _authenticate_via_delegated_jwt(token: str, request: Request) -> dict:
     _set_request_user_state(
         request,
         user_id=user_id,
-        email=row.get("email"),
     )
-    bind_user_context(user_id, row.get("email"))
+    bind_user_context(user_id)
 
     return {
         **row,
@@ -147,12 +143,10 @@ def get_current_user(
     _set_request_user_state(
         request,
         user_id=user_id,
-        email=row.get("email"),
         session_id=session_id,
     )
     bind_user_context(
         user_id,
-        row.get("email"),
         session_id=session_id,
     )
 

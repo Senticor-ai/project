@@ -23,7 +23,7 @@ from pydantic import BaseModel
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 from backend_client import AuthContext  # noqa: E402 — must load env before importing
-from copilot import MODELS, create_agent  # noqa: E402
+from copilot import MODELS, RuntimeLlmConfig, create_agent  # noqa: E402
 from tool_executor import ToolCallInput, execute_tool  # noqa: E402
 from tracing import configure_tracing, shutdown_tracing  # noqa: E402
 

@@ -1,0 +1,66 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Product/Completed Epics/Export Items" />
+
+# Epic: Export Items
+
+**Status:** Complete
+**Priority:** Current
+**Closed on:** February 24, 2026
+
+## Decision
+
+This epic is closed. Export is shipped as JSON, and CSV is intentionally out of scope.
+
+The Settings Import/Export flow also includes Nirvana import wiring and dialog integration.
+
+---
+
+## What shipped
+
+### Backend export endpoint
+
+`GET /items/export` is implemented and returns a streamed JSON export with:
+
+- `Content-Type: application/json`
+- `Content-Disposition: attachment; filename="items-export-{timestamp}.json"`
+- org-scoped filtering
+- default exclusion of archived and completed items
+- optional include flags:
+  - `include_archived=true`
+  - `include_completed=true`
+
+### Frontend wiring
+
+- Settings screen passes export handler:
+  - `onExport={downloadExport}`
+- Import/Export panel supports:
+  - Include archived checkbox
+  - Include completed checkbox
+  - Export JSON button
+- Download trigger builds query params and starts a browser download.
+
+### Nirvana wiring (same settings flow)
+
+- Settings screen passes Nirvana import handler:
+  - `onImportNirvana={() => setShowImport(true)}`
+- App renders `NirvanaImportDialog` for the import flow.
+
+### Files
+
+- `backend/app/routes/items.py` - export route
+- `backend/tests/test_export.py` - export route coverage
+- `frontend/src/lib/api-client.ts` - `downloadExport`
+- `frontend/src/components/settings/ImportExportPanel.tsx` - export UI + include flags
+- `frontend/src/App.tsx` - wiring for export and Nirvana import dialog
+
+## Verification checklist
+
+- [x] Authenticated `GET /items/export` returns JSON
+- [x] `Content-Disposition` uses timestamped `.json` filename
+- [x] Unauthenticated requests return `401`
+- [x] Default export excludes archived and completed items
+- [x] `include_archived=true` includes archived items
+- [x] `include_completed=true` includes completed items
+- [x] Frontend Export JSON button triggers download
+- [x] Nirvana import remains wired in Settings
