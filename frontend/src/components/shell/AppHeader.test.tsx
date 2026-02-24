@@ -129,6 +129,49 @@ describe("AppHeader", () => {
 
     expect(onInstall).toHaveBeenCalledOnce();
   });
+
+  describe("AppHeader chat toggle", () => {
+    it("renders chat toggle button when onToggleChat is provided", () => {
+      render(<AppHeader {...defaults} onToggleChat={vi.fn()} />);
+      expect(
+        screen.getByRole("button", { name: "Chat mit Copilot" }),
+      ).toBeInTheDocument();
+    });
+
+    it("fires onToggleChat when chat button is clicked", async () => {
+      const onToggleChat = vi.fn();
+      const user = userEvent.setup();
+      render(<AppHeader {...defaults} onToggleChat={onToggleChat} />);
+
+      await user.click(
+        screen.getByRole("button", { name: "Chat mit Copilot" }),
+      );
+
+      expect(onToggleChat).toHaveBeenCalledOnce();
+    });
+
+    it("shows minimize label when chat is open", () => {
+      render(
+        <AppHeader {...defaults} onToggleChat={vi.fn()} isChatOpen={true} />,
+      );
+      expect(
+        screen.getByRole("button", { name: "Chat minimieren" }),
+      ).toBeInTheDocument();
+    });
+
+    it("shows tooltip on hover", async () => {
+      const user = userEvent.setup();
+      render(<AppHeader {...defaults} onToggleChat={vi.fn()} />);
+
+      await user.hover(
+        screen.getByRole("button", { name: "Chat mit Copilot" }),
+      );
+
+      // Tooltip derives text from aria-label
+      const tooltip = await screen.findByRole("tooltip");
+      expect(tooltip).toHaveTextContent("Chat mit Copilot");
+    });
+  });
 });
 
 describe("AppHeader chat toggle", () => {

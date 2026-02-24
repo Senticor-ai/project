@@ -547,6 +547,59 @@ describe("ProjectTree", () => {
     await user.click(screen.getByText("No Edit"));
     expect(screen.queryByDisplayValue("No Edit")).not.toBeInTheDocument();
   });
+
+  // -----------------------------------------------------------------------
+  // ProjectTree tooltip integration
+  // -----------------------------------------------------------------------
+
+  it("wraps header action buttons with Tooltip", () => {
+    const project = makeProject({ name: "Tip Project" });
+    const completed = makeProject({ name: "Done", status: "completed" });
+
+    renderTree([project, completed], [], {
+      onCreateProject: noop,
+    });
+
+    // Show-all and create-project buttons should each be inside a Tooltip wrapper (inline-flex span)
+    const showAllBtn = screen.getByLabelText("Show all projects");
+    const showAllWrapper = showAllBtn.closest("span.inline-flex");
+    expect(showAllWrapper).toBeInTheDocument();
+
+    const createBtn = screen.getByLabelText("Create project");
+    const createWrapper = createBtn.closest("span.inline-flex");
+    expect(createWrapper).toBeInTheDocument();
+  });
+
+  it("wraps stalled indicator with Tooltip with explicit label", () => {
+    const project = makeProject({ name: "Stalled Tip" });
+
+    renderTree([project], []);
+
+    const row = screen
+      .getByText("Stalled Tip")
+      .closest("[data-project-id]")! as HTMLElement;
+    const stalledIcon = within(row).getByLabelText("Needs next action");
+    const tooltipWrapper = stalledIcon.closest("span.inline-flex");
+    expect(tooltipWrapper).toBeInTheDocument();
+  });
+
+  it("wraps archive, rename, and star buttons with Tooltip", () => {
+    const project = makeProject({ name: "Wrap Test" });
+
+    renderTree([project], [], {
+      onArchiveProject: noop,
+      onUpdateTitle: noop,
+    });
+
+    const archiveBtn = screen.getByLabelText(/archive wrap test/i);
+    expect(archiveBtn.closest("span.inline-flex")).toBeInTheDocument();
+
+    const renameBtn = screen.getByLabelText(/rename wrap test/i);
+    expect(renameBtn.closest("span.inline-flex")).toBeInTheDocument();
+
+    const starBtn = screen.getByLabelText(/star wrap test/i);
+    expect(starBtn.closest("span.inline-flex")).toBeInTheDocument();
+  });
 });
 
 // ---------------------------------------------------------------------------
