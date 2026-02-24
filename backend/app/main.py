@@ -259,7 +259,7 @@ async def security_headers_middleware(request: Request, call_next):
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
         if settings.hsts_enabled:
             response.headers["Strict-Transport-Security"] = (
-                f"max-age={settings.hsts_max_age}; includeSubDomains"
+                f"max-age={settings.hsts_max_age}; includeSubDomains; preload"
             )
         if settings.csp_policy:
             response.headers["Content-Security-Policy"] = settings.csp_policy

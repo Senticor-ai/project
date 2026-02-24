@@ -286,7 +286,9 @@ def load_settings() -> Settings:
         csp_policy=_get_env(
             "CSP_POLICY",
             "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
-            "img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'",
+            "img-src 'self' data:; font-src 'self'; connect-src 'self'; "
+            "object-src 'none'; base-uri 'self'; form-action 'self'; "
+            "frame-ancestors 'none'; upgrade-insecure-requests",
         ),
         cors_methods=[
             m.strip()
