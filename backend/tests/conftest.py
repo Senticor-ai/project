@@ -19,9 +19,6 @@ ROOT_DIR = Path(__file__).resolve().parents[2]
 load_dotenv(ROOT_DIR / ".env")
 sys.path.insert(0, str(ROOT_DIR / "backend"))
 
-# Set TESTING flag to disable rate limiting during tests
-os.environ["TESTING"] = "true"
-
 
 def _build_base_db_url() -> str | None:
     database_url = os.environ.get("DATABASE_URL")
@@ -221,6 +218,22 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
                         strict=True,
                     )
                 )
+
+
+@pytest.fixture(autouse=True)
+def _configure_rate_limiter_for_test(request):
+    """Disable limiter by default, but keep it enabled for rate-limit tests."""
+    from app.rate_limit import limiter
+
+    node_path = getattr(request.node, "path", None)
+    file_name = node_path.name if node_path is not None else os.path.basename(str(request.node.fspath))
+
+    original_enabled = limiter.enabled
+    limiter.enabled = file_name == "test_rate_limiting.py"
+    try:
+        yield
+    finally:
+        limiter.enabled = original_enabled
 
 
 @pytest.fixture(autouse=True)

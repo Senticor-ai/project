@@ -7,7 +7,7 @@ For production deployments with multiple instances, configure Redis storage
 backend via REDIS_URL environment variable. For local development, the in-memory
 storage backend is used by default.
 
-Rate limiting is automatically disabled during tests (when TESTING env var is set).
+Rate limiting can be disabled for tests by setting TESTING=true.
 """
 
 import os
@@ -15,9 +15,13 @@ import os
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-# Disable rate limiting during tests
 _enabled = os.environ.get("TESTING") != "true"
+_storage_uri = os.environ.get("REDIS_URL", "").strip() or "memory://"
 
-# Initialize limiter with IP-based rate limiting
-# Storage backend (Redis vs in-memory) is configured when attaching to app.state
-limiter = Limiter(key_func=get_remote_address, enabled=_enabled)
+# Initialize limiter with IP-based rate limiting.
+# Use Redis when REDIS_URL is configured so limits are shared across workers/instances.
+limiter = Limiter(
+    key_func=get_remote_address,
+    enabled=_enabled,
+    storage_uri=_storage_uri,
+)

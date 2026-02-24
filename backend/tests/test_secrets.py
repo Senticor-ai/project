@@ -19,19 +19,19 @@ from app.secrets import (
 
 
 @patch.dict(os.environ, {"VAULT_ADDR": "http://vault.test:8200", "VAULT_TOKEN": "test-token"})
-@patch("app.secrets.hvac")
-def test_vault_secrets_manager_initialization(mock_hvac):
+@patch("hvac.Client")
+def test_vault_secrets_manager_initialization(mock_hvac_client):
     """Test VaultSecretsManager initializes correctly with valid credentials."""
     # Mock the hvac Client
     mock_client = MagicMock()
     mock_client.is_authenticated.return_value = True
-    mock_hvac.Client.return_value = mock_client
+    mock_hvac_client.return_value = mock_client
 
     # Initialize VaultSecretsManager
     manager = VaultSecretsManager()
 
     # Verify Client was called with correct parameters
-    mock_hvac.Client.assert_called_once_with(
+    mock_hvac_client.assert_called_once_with(
         url="http://vault.test:8200", token="test-token"
     )
     mock_client.is_authenticated.assert_called_once()
@@ -42,8 +42,8 @@ def test_vault_secrets_manager_initialization(mock_hvac):
 
 
 @patch.dict(os.environ, {"VAULT_ADDR": "http://vault.test:8200", "VAULT_TOKEN": "test-token"})
-@patch("app.secrets.hvac")
-def test_vault_get_secret_success(mock_hvac):
+@patch("hvac.Client")
+def test_vault_get_secret_success(mock_hvac_client):
     """Test VaultSecretsManager retrieves secret successfully."""
     # Mock the hvac Client
     mock_client = MagicMock()
@@ -51,7 +51,7 @@ def test_vault_get_secret_success(mock_hvac):
     mock_client.secrets.kv.v2.read_secret_version.return_value = {
         "data": {"data": {"value": "secret-value-123"}}
     }
-    mock_hvac.Client.return_value = mock_client
+    mock_hvac_client.return_value = mock_client
 
     # Initialize manager and get secret
     manager = VaultSecretsManager()
@@ -65,8 +65,8 @@ def test_vault_get_secret_success(mock_hvac):
 
 
 @patch.dict(os.environ, {"VAULT_ADDR": "http://vault.test:8200", "VAULT_TOKEN": "test-token"})
-@patch("app.secrets.hvac")
-def test_vault_get_secret_caching(mock_hvac):
+@patch("hvac.Client")
+def test_vault_get_secret_caching(mock_hvac_client):
     """Test VaultSecretsManager caches secrets for 5 minutes."""
     # Mock the hvac Client
     mock_client = MagicMock()
@@ -74,7 +74,7 @@ def test_vault_get_secret_caching(mock_hvac):
     mock_client.secrets.kv.v2.read_secret_version.return_value = {
         "data": {"data": {"value": "cached-secret"}}
     }
-    mock_hvac.Client.return_value = mock_client
+    mock_hvac_client.return_value = mock_client
 
     # Initialize manager
     manager = VaultSecretsManager()
@@ -91,8 +91,8 @@ def test_vault_get_secret_caching(mock_hvac):
 
 
 @patch.dict(os.environ, {"VAULT_ADDR": "http://vault.test:8200", "VAULT_TOKEN": "test-token"})
-@patch("app.secrets.hvac")
-def test_vault_cache_expiration(mock_hvac):
+@patch("hvac.Client")
+def test_vault_cache_expiration(mock_hvac_client):
     """Test VaultSecretsManager cache expires after 5 minutes."""
     # Mock the hvac Client
     mock_client = MagicMock()
@@ -100,7 +100,7 @@ def test_vault_cache_expiration(mock_hvac):
     mock_client.secrets.kv.v2.read_secret_version.return_value = {
         "data": {"data": {"value": "secret-value"}}
     }
-    mock_hvac.Client.return_value = mock_client
+    mock_hvac_client.return_value = mock_client
 
     # Initialize manager with shorter TTL for testing
     manager = VaultSecretsManager()
@@ -120,8 +120,8 @@ def test_vault_cache_expiration(mock_hvac):
 
 
 @patch.dict(os.environ, {"VAULT_ADDR": "http://vault.test:8200", "VAULT_TOKEN": "test-token"})
-@patch("app.secrets.hvac")
-def test_vault_get_secrets_batch(mock_hvac):
+@patch("hvac.Client")
+def test_vault_get_secrets_batch(mock_hvac_client):
     """Test VaultSecretsManager retrieves multiple secrets."""
     # Mock the hvac Client
     mock_client = MagicMock()
@@ -130,7 +130,7 @@ def test_vault_get_secrets_batch(mock_hvac):
         {"data": {"data": {"value": "secret1"}}},
         {"data": {"data": {"value": "secret2"}}},
     ]
-    mock_hvac.Client.return_value = mock_client
+    mock_hvac_client.return_value = mock_client
 
     # Initialize manager and get batch
     manager = VaultSecretsManager()
@@ -142,13 +142,13 @@ def test_vault_get_secrets_batch(mock_hvac):
 
 
 @patch.dict(os.environ, {"VAULT_ADDR": "http://vault.test:8200", "VAULT_TOKEN": "test-token"})
-@patch("app.secrets.hvac")
-def test_vault_authentication_failure(mock_hvac):
+@patch("hvac.Client")
+def test_vault_authentication_failure(mock_hvac_client):
     """Test VaultSecretsManager raises error on authentication failure."""
     # Mock the hvac Client with failed authentication
     mock_client = MagicMock()
     mock_client.is_authenticated.return_value = False
-    mock_hvac.Client.return_value = mock_client
+    mock_hvac_client.return_value = mock_client
 
     # Should raise ConnectionError
     with pytest.raises(ConnectionError, match="Failed to authenticate with Vault"):
@@ -156,16 +156,16 @@ def test_vault_authentication_failure(mock_hvac):
 
 
 @patch.dict(os.environ, {"VAULT_ADDR": "http://vault.test:8200"}, clear=True)
-@patch("app.secrets.hvac")
-def test_vault_missing_token(mock_hvac):
+@patch("hvac.Client")
+def test_vault_missing_token(mock_hvac_client):
     """Test VaultSecretsManager raises error when VAULT_TOKEN is missing."""
     with pytest.raises(ValueError, match="VAULT_TOKEN environment variable required"):
         VaultSecretsManager()
 
 
 @patch.dict(os.environ, {"VAULT_ADDR": "http://vault.test:8200", "VAULT_TOKEN": "test-token"})
-@patch("app.secrets.hvac")
-def test_vault_get_secret_failure(mock_hvac):
+@patch("hvac.Client")
+def test_vault_get_secret_failure(mock_hvac_client):
     """Test VaultSecretsManager handles secret retrieval errors."""
     # Mock the hvac Client
     mock_client = MagicMock()
@@ -173,7 +173,7 @@ def test_vault_get_secret_failure(mock_hvac):
     mock_client.secrets.kv.v2.read_secret_version.side_effect = Exception(
         "Secret not found"
     )
-    mock_hvac.Client.return_value = mock_client
+    mock_hvac_client.return_value = mock_client
 
     # Initialize manager
     manager = VaultSecretsManager()
@@ -189,23 +189,18 @@ def test_vault_get_secret_failure(mock_hvac):
 
 
 @patch.dict(os.environ, {"AWS_DEFAULT_REGION": "us-west-2"})
-@patch("app.secrets.boto3")
-def test_aws_secrets_manager_initialization(mock_boto3):
+@patch("boto3.client")
+def test_aws_secrets_manager_initialization(mock_boto3_client):
     """Test AWSSecretsManager initializes correctly."""
     # Mock boto3 client
     mock_client = MagicMock()
-    mock_boto3.client.return_value = mock_client
-
-    # Mock ClientError
-    from botocore.exceptions import ClientError
-
-    mock_boto3.ClientError = ClientError
+    mock_boto3_client.return_value = mock_client
 
     # Initialize AWSSecretsManager
     manager = AWSSecretsManager()
 
     # Verify boto3 client was created with correct region
-    mock_boto3.client.assert_called_once_with(
+    mock_boto3_client.assert_called_once_with(
         "secretsmanager", region_name="us-west-2"
     )
 
@@ -215,15 +210,15 @@ def test_aws_secrets_manager_initialization(mock_boto3):
 
 
 @patch.dict(os.environ, {"AWS_DEFAULT_REGION": "us-east-1"})
-@patch("app.secrets.boto3")
-def test_aws_get_secret_success(mock_boto3):
+@patch("boto3.client")
+def test_aws_get_secret_success(mock_boto3_client):
     """Test AWSSecretsManager retrieves secret successfully."""
     # Mock boto3 client
     mock_client = MagicMock()
     mock_client.get_secret_value.return_value = {
         "SecretString": "my-secret-value"
     }
-    mock_boto3.client.return_value = mock_client
+    mock_boto3_client.return_value = mock_client
 
     # Initialize manager and get secret
     manager = AWSSecretsManager()
@@ -237,15 +232,15 @@ def test_aws_get_secret_success(mock_boto3):
 
 
 @patch.dict(os.environ, {"AWS_DEFAULT_REGION": "us-east-1"})
-@patch("app.secrets.boto3")
-def test_aws_get_secret_caching(mock_boto3):
+@patch("boto3.client")
+def test_aws_get_secret_caching(mock_boto3_client):
     """Test AWSSecretsManager caches secrets for 5 minutes."""
     # Mock boto3 client
     mock_client = MagicMock()
     mock_client.get_secret_value.return_value = {
         "SecretString": "cached-secret"
     }
-    mock_boto3.client.return_value = mock_client
+    mock_boto3_client.return_value = mock_client
 
     # Initialize manager
     manager = AWSSecretsManager()
@@ -262,15 +257,15 @@ def test_aws_get_secret_caching(mock_boto3):
 
 
 @patch.dict(os.environ, {"AWS_DEFAULT_REGION": "us-east-1"})
-@patch("app.secrets.boto3")
-def test_aws_cache_expiration(mock_boto3):
+@patch("boto3.client")
+def test_aws_cache_expiration(mock_boto3_client):
     """Test AWSSecretsManager cache expires after 5 minutes."""
     # Mock boto3 client
     mock_client = MagicMock()
     mock_client.get_secret_value.return_value = {
         "SecretString": "secret-value"
     }
-    mock_boto3.client.return_value = mock_client
+    mock_boto3_client.return_value = mock_client
 
     # Initialize manager with shorter TTL for testing
     manager = AWSSecretsManager()
@@ -290,8 +285,8 @@ def test_aws_cache_expiration(mock_boto3):
 
 
 @patch.dict(os.environ, {"AWS_DEFAULT_REGION": "us-east-1"})
-@patch("app.secrets.boto3")
-def test_aws_get_secrets_batch(mock_boto3):
+@patch("boto3.client")
+def test_aws_get_secrets_batch(mock_boto3_client):
     """Test AWSSecretsManager retrieves multiple secrets."""
     # Mock boto3 client
     mock_client = MagicMock()
@@ -299,7 +294,7 @@ def test_aws_get_secrets_batch(mock_boto3):
         {"SecretString": "secret1"},
         {"SecretString": "secret2"},
     ]
-    mock_boto3.client.return_value = mock_client
+    mock_boto3_client.return_value = mock_client
 
     # Initialize manager and get batch
     manager = AWSSecretsManager()
@@ -311,15 +306,15 @@ def test_aws_get_secrets_batch(mock_boto3):
 
 
 @patch.dict(os.environ, {"AWS_DEFAULT_REGION": "us-east-1"})
-@patch("app.secrets.boto3")
-def test_aws_binary_secret_error(mock_boto3):
+@patch("boto3.client")
+def test_aws_binary_secret_error(mock_boto3_client):
     """Test AWSSecretsManager raises error for binary secrets."""
     # Mock boto3 client returning binary secret
     mock_client = MagicMock()
     mock_client.get_secret_value.return_value = {
         "SecretBinary": b"binary-secret"
     }
-    mock_boto3.client.return_value = mock_client
+    mock_boto3_client.return_value = mock_client
 
     # Initialize manager
     manager = AWSSecretsManager()
@@ -330,8 +325,8 @@ def test_aws_binary_secret_error(mock_boto3):
 
 
 @patch.dict(os.environ, {"AWS_DEFAULT_REGION": "us-east-1"})
-@patch("app.secrets.boto3")
-def test_aws_resource_not_found(mock_boto3):
+@patch("boto3.client")
+def test_aws_resource_not_found(mock_boto3_client):
     """Test AWSSecretsManager handles ResourceNotFoundException."""
     from botocore.exceptions import ClientError
 
@@ -341,7 +336,7 @@ def test_aws_resource_not_found(mock_boto3):
     mock_client.get_secret_value.side_effect = ClientError(
         error_response, "GetSecretValue"
     )
-    mock_boto3.client.return_value = mock_client
+    mock_boto3_client.return_value = mock_client
 
     # Initialize manager
     manager = AWSSecretsManager()
@@ -353,8 +348,8 @@ def test_aws_resource_not_found(mock_boto3):
 
 
 @patch.dict(os.environ, {"AWS_DEFAULT_REGION": "us-east-1"})
-@patch("app.secrets.boto3")
-def test_aws_decryption_failure(mock_boto3):
+@patch("boto3.client")
+def test_aws_decryption_failure(mock_boto3_client):
     """Test AWSSecretsManager handles DecryptionFailure."""
     from botocore.exceptions import ClientError
 
@@ -364,7 +359,7 @@ def test_aws_decryption_failure(mock_boto3):
     mock_client.get_secret_value.side_effect = ClientError(
         error_response, "GetSecretValue"
     )
-    mock_boto3.client.return_value = mock_client
+    mock_boto3_client.return_value = mock_client
 
     # Initialize manager
     manager = AWSSecretsManager()
@@ -376,8 +371,8 @@ def test_aws_decryption_failure(mock_boto3):
 
 
 @patch.dict(os.environ, {"AWS_DEFAULT_REGION": "us-east-1"})
-@patch("app.secrets.boto3")
-def test_aws_internal_service_error(mock_boto3):
+@patch("boto3.client")
+def test_aws_internal_service_error(mock_boto3_client):
     """Test AWSSecretsManager handles InternalServiceError."""
     from botocore.exceptions import ClientError
 
@@ -387,7 +382,7 @@ def test_aws_internal_service_error(mock_boto3):
     mock_client.get_secret_value.side_effect = ClientError(
         error_response, "GetSecretValue"
     )
-    mock_boto3.client.return_value = mock_client
+    mock_boto3_client.return_value = mock_client
 
     # Initialize manager
     manager = AWSSecretsManager()
@@ -441,22 +436,22 @@ def test_get_secrets_manager_env():
 
 
 @patch.dict(os.environ, {"SECRETS_BACKEND": "vault", "VAULT_TOKEN": "test-token"})
-@patch("app.secrets.hvac")
-def test_get_secrets_manager_vault(mock_hvac):
+@patch("hvac.Client")
+def test_get_secrets_manager_vault(mock_hvac_client):
     """Test get_secrets_manager returns VaultSecretsManager for 'vault' backend."""
     mock_client = MagicMock()
     mock_client.is_authenticated.return_value = True
-    mock_hvac.Client.return_value = mock_client
+    mock_hvac_client.return_value = mock_client
 
     manager = get_secrets_manager()
     assert isinstance(manager, VaultSecretsManager)
 
 
 @patch.dict(os.environ, {"SECRETS_BACKEND": "aws"})
-@patch("app.secrets.boto3")
-def test_get_secrets_manager_aws(mock_boto3):
+@patch("boto3.client")
+def test_get_secrets_manager_aws(mock_boto3_client):
     """Test get_secrets_manager returns AWSSecretsManager for 'aws' backend."""
-    mock_boto3.client.return_value = MagicMock()
+    mock_boto3_client.return_value = MagicMock()
 
     manager = get_secrets_manager()
     assert isinstance(manager, AWSSecretsManager)

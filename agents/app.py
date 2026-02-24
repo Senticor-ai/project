@@ -38,14 +38,23 @@ secrets_manager: SecretsManager | None
 try:
     secrets_manager = get_secrets_manager()
 except Exception as e:
-    # Fail fast in production if secrets manager is unreachable
+    # Keep startup resilient when optional provider SDKs are not installed.
     backend = os.environ.get("SECRETS_BACKEND", "env").lower()
-    if backend != "env":
+    if backend in {"vault", "aws"} and isinstance(e, ImportError):
+        logger.warning(
+            "Secrets backend '%s' SDK unavailable, falling back to environment variables: %s",
+            backend,
+            e,
+        )
+        secrets_manager = None
+    elif backend != "env":
+        # Fail fast for configured non-env backends when dependencies are present
+        # but backend init/auth still fails.
         logger.error(f"Failed to initialize secrets manager ({backend}): {e}")
         raise
-    # For env backend, log warning and continue (dev environment)
-    logger.warning(f"Secrets manager initialization issue (using env fallback): {e}")
-    secrets_manager = None
+    else:
+        logger.warning(f"Secrets manager initialization issue (using env fallback): {e}")
+        secrets_manager = None
 
 
 def _enable_haystack_logging(*, enable_otel_tracing: bool) -> None:
