@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from ..db import db_conn, jsonb
+from ..db import db_conn
 from ..deps import get_current_org, get_current_user
 from ..models import OrgCreateRequest, OrgMemberAddRequest, OrgMemberResponse, OrgResponse
+from ..org_knowledge import create_org_knowledge_documents
 
 router = APIRouter(prefix="/orgs", tags=["orgs"], dependencies=[Depends(get_current_user)])
 
@@ -61,45 +62,14 @@ def create_org(payload: OrgCreateRequest, current_user=Depends(get_current_user)
             )
             org = cur.fetchone()
 
-            # Step 2: Create 4 document items
-            doc_ids = {}
-            for doc_type in ["GENERAL", "USER", "LOG", "AGENT"]:
-                cur.execute(
-                    """
-                    INSERT INTO items (
-                        org_id, created_by_user_id, canonical_id, schema_jsonld, source
-                    )
-                    VALUES (%s, %s, %s, %s, %s)
-                    RETURNING item_id
-                    """,
-                    (
-                        org["id"],
-                        current_user["id"],
-                        f"org:{org['id']}:knowledge:{doc_type.lower()}",
-                        jsonb(
-                            {
-                                "@type": "DigitalDocument",
-                                "name": f"Organization {doc_type.title()} Knowledge",
-                                "encodingFormat": "text/markdown",
-                                "text": "",
-                            }
-                        ),
-                        "system",
-                    ),
-                )
-                doc_ids[doc_type.lower()] = cur.fetchone()["item_id"]
-
-            # Step 3: Update org with doc IDs
-            cur.execute(
-                """
-                UPDATE organizations
-                SET general_doc_id = %s, user_doc_id = %s, log_doc_id = %s, agent_doc_id = %s
-                WHERE id = %s
-                """,
-                (doc_ids["general"], doc_ids["user"], doc_ids["log"], doc_ids["agent"], org["id"]),
+            # Step 2: Create and attach the 4 org knowledge documents.
+            doc_ids = create_org_knowledge_documents(
+                cur,
+                org_id=org["id"],
+                created_by_user_id=current_user["id"],
             )
 
-            # Step 4: Create membership (existing logic)
+            # Step 3: Create membership (existing logic)
             cur.execute(
                 """
                 INSERT INTO org_memberships (org_id, user_id, role, status)

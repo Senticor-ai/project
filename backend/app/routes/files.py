@@ -499,6 +499,7 @@ def get_file_content(
 def patch_file_content(
     file_id: str,
     payload: FilePatchContentRequest,
+    current_user=Depends(get_current_user),
     current_org=Depends(get_current_org),
 ):
     org_id = current_org["org_id"]
@@ -537,6 +538,15 @@ def patch_file_content(
             )
         conn.commit()
 
+    enqueue_job(
+        org_id=org_id,
+        entity_type="file",
+        entity_id=file_id,
+        action="upsert",
+        requested_by_user_id=str(current_user["id"]),
+    )
+    enqueue_event("file_uploaded", {"file_id": file_id, "org_id": org_id})
+
     return FileContentResponse(
         file_id=file_id,
         original_name=row["original_name"],
@@ -555,6 +565,7 @@ def patch_file_content(
 def append_file_content(
     file_id: str,
     payload: FileAppendContentRequest,
+    current_user=Depends(get_current_user),
     current_org=Depends(get_current_org),
 ):
     org_id = current_org["org_id"]
@@ -582,7 +593,14 @@ def append_file_content(
             detail="File data not found in storage",
         )
 
-    existing_content = local_path.read_text(encoding="utf-8")
+    try:
+        existing_content = local_path.read_bytes().decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Append only supports UTF-8 text files",
+        ) from exc
+
     new_content = existing_content + payload.text
     content_bytes = new_content.encode("utf-8")
     new_size = len(content_bytes)
@@ -601,6 +619,15 @@ def append_file_content(
                 (new_size, new_hash, datetime.now(UTC), file_id),
             )
         conn.commit()
+
+    enqueue_job(
+        org_id=org_id,
+        entity_type="file",
+        entity_id=file_id,
+        action="upsert",
+        requested_by_user_id=str(current_user["id"]),
+    )
+    enqueue_event("file_uploaded", {"file_id": file_id, "org_id": org_id})
 
     return FileContentResponse(
         file_id=file_id,

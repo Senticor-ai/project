@@ -9,6 +9,7 @@ from ..db import db_conn
 from ..deps import get_current_user
 from ..http import get_client_ip
 from ..models import AuthCredentials, RegistrationRequest, SessionRefreshResponse, UserResponse
+from ..org_knowledge import create_org_knowledge_documents
 from ..security import (
     generate_refresh_token,
     generate_session_token,
@@ -197,6 +198,12 @@ def register(payload: RegistrationRequest, request: Request, response: Response)
                 (org_name, user["id"]),
             )
             org = cur.fetchone()
+
+            create_org_knowledge_documents(
+                cur,
+                org_id=org["id"],
+                created_by_user_id=user["id"],
+            )
 
             cur.execute(
                 """
