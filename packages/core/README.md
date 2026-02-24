@@ -15,7 +15,10 @@ npm run copilot -- auth status --json
 
 - `auth register|login|status|logout`
 - `items list|get|create|triage`
-- `projects list|get`
+- `projects list|get|create`
+- `projects members list|add|remove`
+- `projects actions list|get|history|create|update|transition`
+- `projects actions comments add|reply`
 - `orgs list|get`
 - `proposals list|apply`
 

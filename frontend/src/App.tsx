@@ -32,7 +32,7 @@ import {
   useCreateOrganization,
 } from "./hooks/use-organizations";
 import { computeBucketCounts } from "./lib/bucket-counts";
-import { DevApi, EmailApi, downloadExport } from "./lib/api-client";
+import { ApiError, DevApi, EmailApi, downloadExport } from "./lib/api-client";
 import type { AuthUser } from "./lib/api-client";
 import { ConnectedBucketView } from "./components/work/ConnectedBucketView";
 import { TayChatPanel } from "./components/chat/TayChatPanel";
@@ -79,6 +79,19 @@ function LoadingFallback() {
       />
     </div>
   );
+}
+
+function getMutationErrorMessage(error: unknown): string | null {
+  if (!error) return null;
+  if (error instanceof ApiError) {
+    const detail = error.details as { detail?: unknown } | undefined;
+    if (typeof detail?.detail === "string" && detail.detail.trim().length > 0) {
+      return detail.detail;
+    }
+    return error.message;
+  }
+  if (error instanceof Error) return error.message;
+  return "Failed to save agent settings.";
 }
 
 function App() {
@@ -380,6 +393,14 @@ function AuthenticatedApp({
                       model: agentSettingsData.model,
                       containerStatus: agentSettingsData.containerStatus,
                       containerError: agentSettingsData.containerError,
+                      validationStatus: agentSettingsData.validationStatus ?? null,
+                      validationMessage: agentSettingsData.validationMessage ?? null,
+                      modelAvailable: agentSettingsData.modelAvailable ?? null,
+                      creditsRemainingUsd:
+                        agentSettingsData.creditsRemainingUsd ?? null,
+                      creditsUsedUsd: agentSettingsData.creditsUsedUsd ?? null,
+                      creditsLimitUsd: agentSettingsData.creditsLimitUsd ?? null,
+                      lastValidatedAt: agentSettingsData.lastValidatedAt ?? null,
                     }
                   : undefined
               }
@@ -388,6 +409,7 @@ function AuthenticatedApp({
               onAgentStopContainer={() => stopContainer.mutate()}
               onAgentRestartContainer={() => restartContainer.mutate()}
               agentSaving={updateAgentSettings.isPending}
+              agentSaveError={getMutationErrorMessage(updateAgentSettings.error)}
               isContainerActionPending={
                 stopContainer.isPending || restartContainer.isPending
               }

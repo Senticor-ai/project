@@ -276,6 +276,38 @@ class TestModelFallback:
         ca_mock.assert_called_once_with("model-a", auth=None, user_context=None)
 
     @pytest.mark.anyio
+    async def test_passes_runtime_llm_config_to_create_agent(self):
+        """Per-request LLM config is forwarded to create_agent."""
+        from app import MessagePayload, run_agent
+        from tay import RuntimeLlmConfig
+
+        reply = ChatMessage.from_assistant("Konfiguriert!")
+        mock_agent = AsyncMock()
+        mock_agent.run_async = AsyncMock(
+            return_value={"last_message": reply, "messages": [reply]},
+        )
+
+        llm_config = RuntimeLlmConfig(
+            provider="openai",
+            api_key="oa-key-user",
+            model="gpt-4o-mini",
+        )
+
+        with (
+            patch("app.MODELS", ["model-a"]),
+            patch("app.create_agent", return_value=mock_agent) as create_agent_mock,
+        ):
+            result = await run_agent(
+                [MessagePayload(role="user", content="Hallo")],
+                llm_config=llm_config,
+            )
+
+        assert result.text == "Konfiguriert!"
+        assert create_agent_mock.call_count == 1
+        kwargs = create_agent_mock.call_args.kwargs
+        assert kwargs["llm_config"] == llm_config
+
+    @pytest.mark.anyio
     async def test_tool_exit_extracts_assistant_message(self):
         """Agent exits on tool name — run_agent returns assistant msg, not tool result."""
         from app import MessagePayload, run_agent

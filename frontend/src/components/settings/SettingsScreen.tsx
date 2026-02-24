@@ -72,6 +72,7 @@ export interface SettingsScreenProps {
   onAgentStopContainer?: () => void;
   onAgentRestartContainer?: () => void;
   agentSaving?: boolean;
+  agentSaveError?: string | null;
   isContainerActionPending?: boolean;
   canInstall?: boolean;
   onInstall?: () => void;
@@ -108,6 +109,7 @@ export function SettingsScreen({
   onAgentStopContainer,
   onAgentRestartContainer,
   agentSaving,
+  agentSaveError,
   isContainerActionPending,
   canInstall,
   onInstall,
@@ -209,6 +211,7 @@ export function SettingsScreen({
               onStopContainer={onAgentStopContainer}
               onRestartContainer={onAgentRestartContainer}
               isSaving={agentSaving}
+              saveError={agentSaveError}
               isContainerActionPending={isContainerActionPending}
             />
           )}

@@ -210,6 +210,81 @@ class TestChatCompletions:
         assert messages[2]["role"] == "user"
         assert messages[2]["content"] == "Zweite Nachricht"
 
+    def test_forwards_user_llm_config_to_agents(self, auth_client, monkeypatch):
+        _patch_settings(monkeypatch, agents_url="http://localhost:8002")
+
+        from app.routes.agent_settings import UserLlmConfig
+
+        monkeypatch.setattr(
+            "app.chat.routes.get_user_llm_config",
+            lambda _user_id: UserLlmConfig(
+                provider="openrouter",
+                model="google/gemini-3-flash-preview",
+                api_key="or-key-user",
+            ),
+        )
+
+        captured_payloads: list[dict] = []
+
+        def capturing_stream(*args, **kwargs):
+            payload = kwargs.get("json") or (args[1] if len(args) > 1 else {})
+            if isinstance(payload, str):
+                payload = json.loads(payload)
+            captured_payloads.append(payload)
+            return _make_stream_response(
+                [
+                    {"type": "text_delta", "content": "ok"},
+                    {"type": "done", "text": "ok"},
+                ]
+            )(*args, **kwargs)
+
+        monkeypatch.setattr("app.chat.routes.httpx.stream", capturing_stream)
+
+        response = auth_client.post(
+            "/chat/completions",
+            json={"message": "Hallo", "conversationId": "conv-llm-payload"},
+        )
+        assert response.status_code == 200
+        assert len(captured_payloads) == 1
+        assert captured_payloads[0]["llm"] == {
+            "provider": "openrouter",
+            "model": "google/gemini-3-flash-preview",
+            "apiKey": "or-key-user",
+        }
+
+    def test_returns_error_for_anthropic_key_on_copilot(self, auth_client, monkeypatch):
+        _patch_settings(monkeypatch, agents_url="http://localhost:8002")
+
+        from app.routes.agent_settings import UserLlmConfig
+
+        monkeypatch.setattr(
+            "app.chat.routes.get_user_llm_config",
+            lambda _user_id: UserLlmConfig(
+                provider="anthropic",
+                model="claude-sonnet-4-5-20250929",
+                api_key="ant-key",
+            ),
+        )
+
+        called = {"stream": False}
+
+        def _unexpected_stream(*args, **kwargs):
+            called["stream"] = True
+            return _make_stream_response([])(*args, **kwargs)
+
+        monkeypatch.setattr("app.chat.routes.httpx.stream", _unexpected_stream)
+
+        response = auth_client.post(
+            "/chat/completions",
+            json={"message": "Hallo", "conversationId": "conv-anthropic-copilot"},
+        )
+
+        assert response.status_code == 200
+        assert called["stream"] is False
+        parsed = _parse_ndjson(response)
+        assert parsed[0]["type"] == "error"
+        assert "openrouter" in parsed[0]["detail"].lower()
+
     def test_streams_error_when_agents_down(self, auth_client, monkeypatch):
         _patch_settings(monkeypatch, agents_url="http://localhost:8002")
 

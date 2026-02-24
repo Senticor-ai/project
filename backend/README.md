@@ -273,6 +273,17 @@ uploads for a blob store without changing the client contract.
 - `POST /imports/nirvana/from-file` (queue async import job)
 - `GET /imports/jobs` (list current user's jobs; filter with `?status=queued&status=running`)
 - `GET /imports/jobs/{job_id}` (single job status for current user)
+- `GET /projects/{project_id}/workflow`
+- `GET /projects/{project_id}/members`
+- `POST /projects/{project_id}/members`
+- `DELETE /projects/{project_id}/members/{target_user_id}`
+- `GET /projects/{project_id}/actions` (filters: `status`, `tag`, `owner_user_id`, `due_before`, `due_after`)
+- `POST /projects/{project_id}/actions`
+- `GET /projects/{project_id}/actions/{action_id}`
+- `PATCH /projects/{project_id}/actions/{action_id}`
+- `POST /projects/{project_id}/actions/{action_id}/transition`
+- `POST /projects/{project_id}/actions/{action_id}/comments`
+- `GET /projects/{project_id}/actions/{action_id}/history`
 - `GET /search` (Meilisearch-backed)
 - `GET /push/vapid-public-key`
 - `POST /push/subscribe`

@@ -1184,7 +1184,7 @@ describe("fromJsonLd", () => {
   });
 
   describe("unknown @type", () => {
-    it("throws for unknown @type", () => {
+    it("falls back to ActionItem for unknown @type", () => {
       const record = wrapAsItemRecord({
         "@id": "urn:app:inbox:unknown-1",
         "@type": "SomeFutureType",
@@ -1202,9 +1202,9 @@ describe("fromJsonLd", () => {
         ],
       });
 
-      expect(() => fromJsonLd(record)).toThrow(
-        'Unsupported @type "SomeFutureType"',
-      );
+      const item = fromJsonLd(record) as ActionItem;
+      expect(item.bucket).toBe("inbox");
+      expect(item.name).toBe("Unknown thing");
     });
   });
 
@@ -2017,6 +2017,38 @@ describe("fromJsonLd — intake classification types in inbox", () => {
     expect("rawCapture" in item && item.rawCapture).toBe(
       "Sehr geehrte Frau Muller...",
     );
+  });
+
+  it("deserializes Person as reference item", () => {
+    const record = wrapAsItemRecord({
+      "@id": "urn:app:person:p1",
+      "@type": "Person",
+      _schemaVersion: 2,
+      name: "Steuerberater Schmidt",
+      description: "Kontaktperson",
+      keywords: [],
+      dateCreated: "2026-02-11T09:30:00Z",
+      dateModified: "2026-02-11T09:30:00Z",
+      additionalProperty: [
+        { "@type": "PropertyValue", propertyID: "app:bucket", value: "reference" },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:orgRef",
+          value: "{\"id\":\"org-nueva\",\"name\":\"Nueva Tierra\"}",
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:projectRefs",
+          value: ["urn:app:project:p1"],
+        },
+      ],
+    });
+
+    const item = fromJsonLd(record) as ReferenceMaterial;
+    expect(item.bucket).toBe("reference");
+    expect(item.name).toBe("Steuerberater Schmidt");
+    expect(item.orgRef).toEqual({ id: "org-nueva", name: "Nueva Tierra" });
+    expect(item.projectIds).toEqual(["urn:app:project:p1"]);
   });
 
   it("deserializes EmailMessage without captureSource using sender fallback", () => {

@@ -33,6 +33,20 @@ const TYPE_MAP = {
   event: "Event",
 } as const;
 
+const ACTION_BUCKET_SET = new Set<ActionItemBucket>([
+  "inbox",
+  "next",
+  "waiting",
+  "calendar",
+  "someday",
+]);
+
+function coerceActionBucket(value: unknown): ActionItemBucket {
+  return ACTION_BUCKET_SET.has(value as ActionItemBucket)
+    ? (value as ActionItemBucket)
+    : "inbox";
+}
+
 // ---------------------------------------------------------------------------
 // PropertyValue helpers
 // ---------------------------------------------------------------------------
@@ -298,10 +312,15 @@ export function fromJsonLd(record: ItemRecord): AppItem {
       undefined,
   };
 
-  if (type === TYPE_MAP.action || type === "Action" || type === "ReadAction") {
-    const bucket =
-      (getAdditionalProperty(props, "app:bucket") as ActionItemBucket) ??
-      "next";
+  if (
+    type === TYPE_MAP.action ||
+    type === "Action" ||
+    type === "ReadAction" ||
+    type.endsWith("Action")
+  ) {
+    const bucket = coerceActionBucket(
+      getAdditionalProperty(props, "app:bucket") as ActionItemBucket,
+    );
     const objectRef = t.object
       ? ((t.object as { "@id": string })["@id"] as CanonicalId)
       : undefined;
@@ -370,6 +389,24 @@ export function fromJsonLd(record: ItemRecord): AppItem {
     };
   }
 
+  if (type === "Person") {
+    return {
+      ...base,
+      bucket: "reference" as const,
+      projectIds:
+        (getAdditionalProperty(props, "app:projectRefs") as CanonicalId[]) ??
+        [],
+      encodingFormat: (t.encodingFormat as string) || undefined,
+      url: (t.url as string) || undefined,
+      origin:
+        (getAdditionalProperty(props, "app:origin") as
+          | "triaged"
+          | "captured"
+          | "file") || undefined,
+      orgRef: parseOrgRef(props),
+    };
+  }
+
   if (type === TYPE_MAP.event || type === "Event") {
     const startDate = (t.startDate as string) || undefined;
     return {
@@ -407,9 +444,9 @@ export function fromJsonLd(record: ItemRecord): AppItem {
   }
 
   if (type === "EmailMessage" || type === "DigitalDocument") {
-    const bucket =
-      (getAdditionalProperty(props, "app:bucket") as ActionItemBucket) ??
-      "inbox";
+    const bucket = coerceActionBucket(
+      getAdditionalProperty(props, "app:bucket") as ActionItemBucket,
+    );
     // For EmailMessage, extract sender info for captureSource if not already set
     const captureSource = (getAdditionalProperty(
       props,
@@ -435,9 +472,65 @@ export function fromJsonLd(record: ItemRecord): AppItem {
     };
   }
 
-  // No fallback — all valid types are handled above.
-  console.warn(`fromJsonLd: unknown @type "${type}" for item ${base.id}`);
-  throw new Error(`Unsupported @type "${type}" in item ${base.id}`);
+  const fallbackBucket = getAdditionalProperty(props, "app:bucket");
+  if (fallbackBucket === "project") {
+    return {
+      ...base,
+      bucket: "project" as const,
+      desiredOutcome:
+        (getAdditionalProperty(props, "app:desiredOutcome") as string) ?? "",
+      status:
+        (getAdditionalProperty(
+          props,
+          "app:projectStatus",
+        ) as Project["status"]) ?? "active",
+      reviewDate:
+        (getAdditionalProperty(props, "app:reviewDate") as string) || undefined,
+      completedAt: (t.endTime as string) || undefined,
+      isFocused:
+        (getAdditionalProperty(props, "app:isFocused") as boolean) ?? false,
+      orgRef: parseOrgRef(props),
+    };
+  }
+
+  if (fallbackBucket === "reference") {
+    return {
+      ...base,
+      bucket: "reference" as const,
+      projectIds:
+        (getAdditionalProperty(props, "app:projectRefs") as CanonicalId[]) ??
+        [],
+      encodingFormat: (t.encodingFormat as string) || undefined,
+      url: (t.url as string) || undefined,
+      origin:
+        (getAdditionalProperty(props, "app:origin") as
+          | "triaged"
+          | "captured"
+          | "file") || undefined,
+      orgRef: parseOrgRef(props),
+    };
+  }
+
+  // Forward-compat fallback: unknown @type still renders as actionable item.
+  const fallbackActionBucket = coerceActionBucket(
+    getAdditionalProperty(props, "app:bucket") as ActionItemBucket,
+  );
+  return {
+    ...base,
+    ...thingFields,
+    bucket: fallbackActionBucket,
+    rawCapture:
+      (getAdditionalProperty(props, "app:rawCapture") as string) ||
+      (fallbackActionBucket === "inbox" ? base.name : undefined),
+    nameProvenance:
+      (getAdditionalProperty(
+        props,
+        "app:nameProvenance",
+      ) as NameProvenance) || undefined,
+    objectRef: t.object
+      ? ((t.object as { "@id": string })["@id"] as CanonicalId)
+      : undefined,
+  };
 }
 
 // ---------------------------------------------------------------------------

@@ -4,9 +4,9 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 # Epic: Collaboration Workspace (Shared Projects + Kanban)
 
-**Status:** In progress (backend architecture + API integration tests complete)
-**Last updated:** 2026-02-23
-**Checklist audit:** February 23, 2026 — checked items reflect implemented backend/API slices; remaining work stays unchecked.
+**Status:** In progress (backend APIs + CLI/SDK collaboration contract complete; board UI slices pending)
+**Last updated:** 2026-02-24
+**Checklist audit:** February 24, 2026 — checked items reflect implemented backend/API/CLI slices; remaining work stays unchecked.
 **Priority:** Current
 **Design direction:** Board-first team workflow
 
@@ -238,7 +238,7 @@ Do not include in MVP:
 - [ ] Cards can move between columns and persist after page reload.
 - [ ] Board and list views stay consistent via shared `actionStatus` source.
 - [x] Both owner and member can collaborate on the same project without permission leakage.
-- [ ] Collaboration commands are available via `senticor-copilot` and `@project/core` SDK wrappers.
+- [x] Collaboration commands are available via `senticor-copilot` and `@project/core` SDK wrappers.
 - [ ] Copilot can complete the collaboration workflow using only `copilot_cli` (`argv[]`, `--json`, non-interactive).
 
 ---
@@ -287,8 +287,8 @@ Do not include in MVP:
 
 ### Phase 4: CLI/SDK + Copilot collaboration flows
 
-- [ ] Add collaboration command group(s) to CLI (`projects members`, `projects actions`, `projects workflow`)
-- [ ] Add matching `@project/core` SDK methods with typed request/response envelopes
+- [x] Add collaboration command group(s) to CLI (`projects members`, `projects actions`, workflow via `projects get --workflow`)
+- [x] Add matching `@project/core` SDK methods with typed request/response envelopes
 - [ ] Ensure write commands return projection + last-event metadata for deterministic agent follow-up
 - [ ] Add agent integration tests for create -> transition -> comment -> history flow through `copilot_cli`
 - [ ] Add non-interactive contract checks (`--json`, exit codes, structured errors, conflict handling)
@@ -395,9 +395,13 @@ Read operations (must be available as CLI + SDK wrappers):
 
 1. `projects list --json`
 2. `projects get <project_id> --members --workflow --json`
-3. `projects actions list --project=<project_id> [--status=<actionStatus>] [--tag=<tag>] [--assignee=<user_or_text>] [--due=overdue|today|upcoming] --json`
+3. `projects actions list --project=<project_id> [--status=<actionStatus>] [--tag=<tag>] [--assignee=<user_id>] [--due-before=<iso8601>] [--due-after=<iso8601>] --json`
 4. `projects actions get --project=<project_id> --action=<action_id> --comments --history --json`
 5. `projects members list --project=<project_id> --json`
+
+Schema compliance note:
+Use schema.org vocabulary at the data layer (`Action`, `actionStatus`) and ISO timestamps for temporal fields.
+Relative filters like `overdue|today|upcoming` are UX aliases, not schema vocabulary, so canonical CLI/API filters remain `due-before`/`due-after`.
 
 Write operations (must be available as CLI + SDK wrappers):
 

@@ -23,7 +23,7 @@ from pydantic import BaseModel
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 from backend_client import AuthContext  # noqa: E402 — must load env before importing
-from tay import MODELS, create_agent  # noqa: E402
+from tay import MODELS, RuntimeLlmConfig, create_agent  # noqa: E402
 from tool_executor import ToolCallInput, execute_tool  # noqa: E402
 from tracing import configure_tracing, shutdown_tracing  # noqa: E402
 
@@ -96,12 +96,21 @@ class UserContextPayload(BaseModel):
     localTime: str | None = None
 
 
+class ChatLlmPayload(BaseModel):
+    """Per-request LLM override from backend user settings."""
+
+    provider: str
+    apiKey: str
+    model: str | None = None
+
+
 class ChatCompletionRequest(BaseModel):
     messages: list[MessagePayload]
     conversationId: str
     stream: bool = False
     auth: ChatAuthPayload | None = None
     userContext: UserContextPayload | None = None
+    llm: ChatLlmPayload | None = None
 
 
 class ChatCompletionResponse(BaseModel):
@@ -208,10 +217,21 @@ def _build_auth_context(
     return AuthContext(token=auth_payload.token, org_id=auth_payload.orgId)
 
 
+def _build_llm_config(payload: ChatLlmPayload | None) -> RuntimeLlmConfig | None:
+    if payload is None:
+        return None
+    return RuntimeLlmConfig(
+        provider=payload.provider,
+        api_key=payload.apiKey,
+        model=payload.model,
+    )
+
+
 async def run_agent(
     messages: list[MessagePayload],
     auth: AuthContext | None = None,
     user_context: dict | None = None,
+    llm_config: RuntimeLlmConfig | None = None,
 ) -> ChatMessage:
     """Run the Haystack agent with model fallback.
 
@@ -223,7 +243,15 @@ async def run_agent(
 
     for model in MODELS:
         try:
-            agent = create_agent(model, auth=auth, user_context=user_context)
+            if llm_config is None:
+                agent = create_agent(model, auth=auth, user_context=user_context)
+            else:
+                agent = create_agent(
+                    model,
+                    auth=auth,
+                    user_context=user_context,
+                    llm_config=llm_config,
+                )
             result = await agent.run_async(messages=haystack_messages)
             return _find_assistant_message(result)
         except Exception as exc:
@@ -244,6 +272,7 @@ async def run_agent_streaming(
     messages: list[MessagePayload],
     auth: AuthContext | None = None,
     user_context: dict | None = None,
+    llm_config: RuntimeLlmConfig | None = None,
 ) -> AsyncGenerator[str, None]:
     """Run the agent and yield NDJSON events as text streams in.
 
@@ -263,7 +292,15 @@ async def run_agent_streaming(
         last_error: Exception | None = None
         for model in MODELS:
             try:
-                agent = create_agent(model, auth=auth, user_context=user_context)
+                if llm_config is None:
+                    agent = create_agent(model, auth=auth, user_context=user_context)
+                else:
+                    agent = create_agent(
+                        model,
+                        auth=auth,
+                        user_context=user_context,
+                        llm_config=llm_config,
+                    )
                 result = await agent.run_async(
                     messages=haystack_messages,
                     streaming_callback=streaming_callback,
@@ -331,15 +368,26 @@ async def run_agent_streaming(
 async def chat_completions(req: ChatCompletionRequest):
     auth = _build_auth_context(req.auth)
     uctx = req.userContext.model_dump() if req.userContext else None
+    llm = _build_llm_config(req.llm)
 
     if req.stream:
         return StreamingResponse(
-            run_agent_streaming(req.messages, auth=auth, user_context=uctx),
+            run_agent_streaming(
+                req.messages,
+                auth=auth,
+                user_context=uctx,
+                llm_config=llm,
+            ),
             media_type="application/x-ndjson",
         )
 
     try:
-        last_message = await run_agent(req.messages, auth=auth, user_context=uctx)
+        last_message = await run_agent(
+            req.messages,
+            auth=auth,
+            user_context=uctx,
+            llm_config=llm,
+        )
     except Exception as exc:
         logger.exception("Agent error")
         raise HTTPException(status_code=500, detail=str(exc)) from exc

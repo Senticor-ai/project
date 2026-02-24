@@ -7,7 +7,7 @@ from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, ge
 from psycopg import errors as psycopg_errors
 
 from .db import db_conn
-from .observability import get_logger
+from .observability import get_logger, get_request_context
 
 logger = get_logger("metrics")
 
@@ -26,6 +26,12 @@ HTTP_SERVER_REQUEST_DURATION_SECONDS = Histogram(
 HTTP_SERVER_IN_FLIGHT_REQUESTS = Gauge(
     "http_server_in_flight_requests",
     "Current number of in-flight HTTP requests.",
+)
+
+HTTP_SERVER_ERRORS_BY_USER_TOTAL = Counter(
+    "http_server_errors_by_user_total",
+    "Total HTTP error responses grouped by anonymized user id.",
+    ["method", "route", "status_code", "user_id_anon"],
 )
 
 APP_QUEUE_DEPTH = Gauge(
@@ -138,6 +144,16 @@ def observe_http_request(
         route=route,
         status_class=status,
     ).observe(duration)
+
+    if status_code is not None and status_code >= 400:
+        context = get_request_context()
+        user_id_anon = str(context.get("user_id_anon") or "anonymous")
+        HTTP_SERVER_ERRORS_BY_USER_TOTAL.labels(
+            method=method,
+            route=route,
+            status_code=str(status_code),
+            user_id_anon=user_id_anon,
+        ).inc()
 
 
 def _age_seconds(oldest: datetime | None) -> float:

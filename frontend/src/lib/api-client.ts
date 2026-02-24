@@ -28,9 +28,59 @@ export function getFileUrl(relativePath: string): string {
 }
 
 const REQUEST_ID_HEADER = "X-Request-ID";
+const TRAIL_ID_HEADER = "X-Trail-ID";
 const USER_ID_HEADER = "X-User-ID";
 const CSRF_HEADER = "X-CSRF-Token";
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS", "TRACE"]);
+const REQUEST_LOGS_ENABLED_RAW =
+  import.meta.env.VITE_REQUEST_LOGS_ENABLED ??
+  (import.meta.env.MODE === "test" ? "false" : "true");
+const REQUEST_LOGS_ENABLED = REQUEST_LOGS_ENABLED_RAW.toLowerCase() !== "false";
+
+type FrontendRequestLog = {
+  request_id: string;
+  user_id?: string;
+  method: string;
+  path: string;
+  status: number;
+  duration_ms: number;
+  route: string;
+  handler: string;
+  error_reason?: string;
+  retry: boolean;
+  server_request_id?: string;
+  server_trail_id?: string;
+};
+
+function nowMs() {
+  if (typeof performance !== "undefined" && typeof performance.now === "function") {
+    return performance.now();
+  }
+  return Date.now();
+}
+
+function currentRoutePath() {
+  if (typeof window === "undefined") {
+    return "unknown";
+  }
+  return window.location.pathname;
+}
+
+function logFrontendRequest(entry: FrontendRequestLog) {
+  if (!REQUEST_LOGS_ENABLED) {
+    return;
+  }
+
+  const payload = {
+    layer: "frontend",
+    ...entry,
+  };
+  if (entry.status >= 400) {
+    console.warn("[frontend.request]", payload);
+    return;
+  }
+  console.info("[frontend.request]", payload);
+}
 
 async function parseJson(response: Response) {
   const text = await response.text();
@@ -78,17 +128,20 @@ async function requestWithResponse<T>(
   path: string,
   init?: RequestInit,
   _isRetry = false,
+  _requestId?: string,
 ): Promise<ApiResponse<T>> {
   const headers = new Headers(init?.headers ?? {});
   const method = (init?.method ?? "GET").toUpperCase();
+  const requestId = _requestId ?? headers.get(REQUEST_ID_HEADER) ?? createRequestId();
+  headers.set(REQUEST_ID_HEADER, requestId);
+  const startMs = nowMs();
+  const uiRoute = currentRoutePath();
+
   const hasBody = typeof init?.body !== "undefined";
   const isFormData =
     typeof FormData !== "undefined" && init?.body instanceof FormData;
   if (hasBody && !isFormData && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
-  }
-  if (!headers.has(REQUEST_ID_HEADER)) {
-    headers.set(REQUEST_ID_HEADER, createRequestId());
   }
   if (currentUserId && !headers.has(USER_ID_HEADER)) {
     headers.set(USER_ID_HEADER, currentUserId);
@@ -106,6 +159,18 @@ async function requestWithResponse<T>(
       headers,
     });
   } catch {
+    logFrontendRequest({
+      request_id: requestId,
+      user_id: currentUserId ?? undefined,
+      method,
+      path,
+      status: 0,
+      duration_ms: intDurationMs(startMs),
+      route: uiRoute,
+      handler: "api-client.requestWithResponse",
+      error_reason: "Server is not reachable",
+      retry: _isRetry,
+    });
     throw new ApiError({
       message: "Server is not reachable. Please try again later.",
       status: 0,
@@ -113,6 +178,26 @@ async function requestWithResponse<T>(
   }
 
   if (!response.ok) {
+    const details = await parseJson(response);
+    const detailReason =
+      typeof details?.detail === "string"
+        ? details.detail
+        : `HTTP ${response.status}`;
+    logFrontendRequest({
+      request_id: requestId,
+      user_id: currentUserId ?? undefined,
+      method,
+      path,
+      status: response.status,
+      duration_ms: intDurationMs(startMs),
+      route: uiRoute,
+      handler: "api-client.requestWithResponse",
+      error_reason: detailReason,
+      retry: _isRetry,
+      server_request_id: response.headers.get(REQUEST_ID_HEADER) ?? undefined,
+      server_trail_id: response.headers.get(TRAIL_ID_HEADER) ?? undefined,
+    });
+
     // Attempt session refresh on 401 (once, and not for /auth/* paths)
     if (response.status === 401 && !_isRetry && !path.startsWith("/auth/")) {
       try {
@@ -120,7 +205,15 @@ async function requestWithResponse<T>(
           refreshPromise = AuthApi.refresh();
         }
         await refreshPromise;
-        return requestWithResponse<T>(path, init, true);
+        return requestWithResponse<T>(
+          path,
+          {
+            ...init,
+            headers,
+          },
+          true,
+          requestId,
+        );
       } catch {
         onSessionExpired?.();
         throw new ApiError({
@@ -146,7 +239,6 @@ async function requestWithResponse<T>(
       });
     }
 
-    const details = await parseJson(response);
     throw new ApiError({
       message: details?.detail ?? "Request failed",
       status: response.status,
@@ -154,10 +246,28 @@ async function requestWithResponse<T>(
     });
   }
 
+  logFrontendRequest({
+    request_id: requestId,
+    user_id: currentUserId ?? undefined,
+    method,
+    path,
+    status: response.status,
+    duration_ms: intDurationMs(startMs),
+    route: uiRoute,
+    handler: "api-client.requestWithResponse",
+    retry: _isRetry,
+    server_request_id: response.headers.get(REQUEST_ID_HEADER) ?? undefined,
+    server_trail_id: response.headers.get(TRAIL_ID_HEADER) ?? undefined,
+  });
+
   return {
     data: (await parseJson(response)) as T,
     headers: response.headers,
   };
+}
+
+function intDurationMs(startMs: number): number {
+  return Math.max(0, Math.round(nowMs() - startMs));
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -571,6 +681,13 @@ export type AgentSettingsResponse = {
   model: string;
   containerStatus: string | null;
   containerError: string | null;
+  validationStatus?: "ok" | "error" | "warning" | null;
+  validationMessage?: string | null;
+  modelAvailable?: boolean | null;
+  creditsRemainingUsd?: number | null;
+  creditsUsedUsd?: number | null;
+  creditsLimitUsd?: number | null;
+  lastValidatedAt?: string | null;
 };
 
 export type AgentContainerStatusResponse = {

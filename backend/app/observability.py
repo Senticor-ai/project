@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import contextvars
+import hashlib
+import hmac
 import logging
 import os
 import sys
@@ -14,8 +16,16 @@ from structlog.typing import EventDict, Processor
 
 REQUEST_ID_HEADER = "X-Request-ID"
 USER_ID_HEADER = "X-User-ID"
+TRAIL_ID_HEADER = "X-Trail-ID"
 REQUEST_ID_ENV = "REQUEST_ID"
 USER_ID_ENV = "USER_ID"
+TRAIL_ID_ENV = "TRAIL_ID"
+
+_ANONYMIZATION_SALT = (
+    os.environ.get("LOG_ANONYMIZATION_SALT")
+    or os.environ.get("JWT_SECRET")
+    or "dev-log-anonymization-salt"
+)
 
 
 def _add_otel_context(
@@ -81,15 +91,49 @@ def generate_request_id() -> str:
     return str(uuid.uuid4())
 
 
-def bind_request_context(request_id: str, method: str, path: str) -> None:
-    bind_contextvars(request_id=request_id, http_method=method, http_path=path)
+def generate_trail_id() -> str:
+    return str(uuid.uuid4())
 
 
-def bind_user_context(user_id: str | None, email: str | None = None) -> None:
+def bind_request_context(
+    request_id: str,
+    method: str,
+    path: str,
+    trail_id: str | None = None,
+) -> None:
+    bind_contextvars(
+        request_id=request_id,
+        http_method=method,
+        http_path=path,
+        trail_id=trail_id or generate_trail_id(),
+    )
+
+
+def anonymize_identifier(value: str, namespace: str = "user") -> str:
+    # Deterministic pseudonym for correlation without exposing the raw identifier.
+    digest = hmac.new(
+        _ANONYMIZATION_SALT.encode("utf-8"),
+        f"{namespace}:{value}".encode(),
+        hashlib.sha256,
+    ).hexdigest()
+    return str(uuid.UUID(digest[:32]))
+
+
+def bind_user_context(
+    user_id: str | None,
+    email: str | None = None,
+    session_id: str | None = None,
+) -> None:
     if user_id:
-        bind_contextvars(user_id=str(user_id))
+        normalized_user_id = str(user_id)
+        bind_contextvars(
+            user_id=normalized_user_id,
+            user_id_anon=anonymize_identifier(normalized_user_id, namespace="user"),
+        )
     if email:
         bind_contextvars(user_email=email)
+    if session_id:
+        bind_contextvars(session_id=str(session_id))
 
 
 def clear_request_context() -> None:
@@ -101,6 +145,9 @@ def get_request_context() -> dict:
     return {
         "request_id": context.get("request_id"),
         "user_id": context.get("user_id"),
+        "user_id_anon": context.get("user_id_anon"),
+        "session_id": context.get("session_id"),
+        "trail_id": context.get("trail_id"),
     }
 
 
@@ -116,6 +163,8 @@ def request_context_headers(
         merged[REQUEST_ID_HEADER] = str(context["request_id"])
     if context.get("user_id"):
         merged[USER_ID_HEADER] = str(context["user_id"])
+    if context.get("trail_id"):
+        merged[TRAIL_ID_HEADER] = str(context["trail_id"])
 
     return merged
 
@@ -132,6 +181,8 @@ def request_context_env(
         merged[REQUEST_ID_ENV] = str(context["request_id"])
     if context.get("user_id"):
         merged[USER_ID_ENV] = str(context["user_id"])
+    if context.get("trail_id"):
+        merged[TRAIL_ID_ENV] = str(context["trail_id"])
 
     return merged
 

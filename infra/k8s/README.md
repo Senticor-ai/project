@@ -149,7 +149,10 @@ The production overlay:
 - Sets `imagePullPolicy: Always` for application images
 - Uses `imagePullSecrets: stackit-registry` for application workloads
 - Provides production ConfigMap (HTTPS CORS, CSRF enabled, JSON logging, OTEL)
+- Keeps `DEV_TOOLS_ENABLED: "true"` for this demo tenant so `/settings/developer` actions work
 - Exposes Prometheus metrics: backend API on `:8000/metrics`, worker on `:9090/metrics`, push-worker on `:9091/metrics`, watch-worker on `:9092/metrics`
+
+Important: this tenant currently operates as a demo/dev system (destructive tools enabled).
 
 ### Ops-managed resources
 

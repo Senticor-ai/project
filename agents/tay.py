@@ -7,6 +7,7 @@ import json
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Optional  # noqa: UP035 — Haystack needs typing.Optional
@@ -78,6 +79,13 @@ def _parse_models() -> list[str]:
 
 MODELS = _parse_models()
 
+
+@dataclass(frozen=True)
+class RuntimeLlmConfig:
+    provider: str
+    api_key: str
+    model: str | None = None
+
 # ---------------------------------------------------------------------------
 # Tool definitions — no-op function that returns arguments
 # ---------------------------------------------------------------------------
@@ -138,6 +146,55 @@ def _run_async(coro) -> object:
     with ThreadPoolExecutor(max_workers=1) as pool:
         future = pool.submit(asyncio.run, coro)
         return future.result(timeout=30)
+
+
+def _normalize_model_for_provider(provider: str, model: str) -> str:
+    normalized = model.strip()
+    if provider == "openrouter" and normalized.startswith("openrouter/"):
+        return normalized.removeprefix("openrouter/")
+    if provider == "openai" and normalized.startswith("openai/"):
+        return normalized.removeprefix("openai/")
+    return normalized
+
+
+def _build_chat_generator(model: str, llm_config: RuntimeLlmConfig | None):
+    if llm_config is None:
+        return CachedTracedChatGenerator(
+            api_key=Secret.from_env_var("OPENROUTER_API_KEY"),
+            model=model,
+            api_base_url="https://openrouter.ai/api/v1",
+            generation_kwargs={
+                "extra_headers": {
+                    "HTTP-Referer": os.getenv("OPENROUTER_APP_URL", ""),
+                    "X-Title": os.getenv("OPENROUTER_APP_TITLE", "project"),
+                },
+            },
+        )
+
+    provider = llm_config.provider.strip().lower()
+    selected_model = _normalize_model_for_provider(
+        "openai" if provider == "openai" else "openrouter",
+        (llm_config.model or model),
+    )
+
+    # OpenAI uses native API endpoint, everything else routes via OpenRouter.
+    if provider == "openai":
+        return CachedTracedChatGenerator(
+            api_key=Secret.from_token(llm_config.api_key),
+            model=selected_model,
+        )
+
+    return CachedTracedChatGenerator(
+        api_key=Secret.from_token(llm_config.api_key),
+        model=selected_model,
+        api_base_url="https://openrouter.ai/api/v1",
+        generation_kwargs={
+            "extra_headers": {
+                "HTTP-Referer": os.getenv("OPENROUTER_APP_URL", ""),
+                "X-Title": os.getenv("OPENROUTER_APP_TITLE", "project"),
+            },
+        },
+    )
 
 
 def _build_read_tools(auth: AuthContext) -> list[Tool]:
@@ -230,6 +287,7 @@ def create_agent(
     model: Optional[str] = None,  # noqa: UP007, UP045
     auth: Optional[AuthContext] = None,  # noqa: UP007, UP045
     user_context: Optional[dict] = None,  # noqa: UP007, UP045
+    llm_config: Optional[RuntimeLlmConfig] = None,  # noqa: UP007, UP045
 ) -> Agent:
     """Build a Tay Haystack Agent for the given model.
 
@@ -243,17 +301,7 @@ def create_agent(
     """
     model = model or MODELS[0]
 
-    generator = CachedTracedChatGenerator(
-        api_key=Secret.from_env_var("OPENROUTER_API_KEY"),
-        model=model,
-        api_base_url="https://openrouter.ai/api/v1",
-        generation_kwargs={
-            "extra_headers": {
-                "HTTP-Referer": os.getenv("OPENROUTER_APP_URL", ""),
-                "X-Title": os.getenv("OPENROUTER_APP_TITLE", "project"),
-            },
-        },
-    )
+    generator = _build_chat_generator(model, llm_config)
 
     tools = list(TOOLS)
     if auth:

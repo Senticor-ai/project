@@ -1,6 +1,8 @@
+import json
 import os
 import time
 from contextlib import asynccontextmanager
+from http import HTTPStatus
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exception_handlers import (
@@ -28,12 +30,14 @@ from .metrics import (
 )
 from .observability import (
     REQUEST_ID_HEADER,
+    TRAIL_ID_HEADER,
     USER_ID_HEADER,
     bind_request_context,
     bind_user_context,
     clear_request_context,
     configure_logging,
     generate_request_id,
+    generate_trail_id,
     get_logger,
 )
 from .routes import (
@@ -54,6 +58,68 @@ from .tracing import configure_tracing, shutdown_tracing
 
 configure_logging()
 logger = get_logger("app")
+
+
+def _resolve_route_and_handler(request: Request) -> tuple[str | None, str | None]:
+    route_template: str | None = None
+    handler_name: str | None = None
+
+    route = request.scope.get("route")
+    if route is not None:
+        route_template = getattr(route, "path", None) or getattr(route, "path_format", None)
+
+    endpoint = request.scope.get("endpoint")
+    if callable(endpoint):
+        handler_name = (
+            getattr(endpoint, "__qualname__", None) or getattr(endpoint, "__name__", None)
+        )
+
+    return route_template, handler_name
+
+
+def _summarize_error_reason(detail: object) -> str:
+    if isinstance(detail, str):
+        return detail
+    if isinstance(detail, dict):
+        nested = detail.get("detail")
+        if isinstance(nested, str):
+            return nested
+    text = str(detail)
+    if len(text) <= 200:
+        return text
+    return f"{text[:200]}..."
+
+
+def _infer_error_reason_from_response(response: Response | None, status_code: int) -> str:
+    if response is not None:
+        body = getattr(response, "body", None)
+        if isinstance(body, (bytes, bytearray)) and body:
+            decoded = body.decode("utf-8", errors="replace")
+            try:
+                payload = json.loads(decoded)
+            except json.JSONDecodeError:
+                payload = decoded
+            if isinstance(payload, dict) and "detail" in payload:
+                return _summarize_error_reason(payload.get("detail"))
+            if isinstance(payload, str):
+                stripped = payload.strip()
+                if stripped:
+                    return _summarize_error_reason(stripped)
+    try:
+        return HTTPStatus(status_code).phrase
+    except ValueError:
+        return f"HTTP {status_code}"
+
+
+def _bind_user_context_from_request_state(request: Request) -> None:
+    user_id = getattr(request.state, "user_id", None)
+    if not user_id:
+        return
+    bind_user_context(
+        str(user_id),
+        getattr(request.state, "user_email", None),
+        session_id=getattr(request.state, "session_id", None),
+    )
 
 
 @asynccontextmanager
@@ -109,11 +175,14 @@ app.add_middleware(
 @app.middleware("http")
 async def request_context_middleware(request: Request, call_next):
     request_id = request.headers.get(REQUEST_ID_HEADER) or generate_request_id()
-    bind_request_context(request_id, request.method, request.url.path)
+    trail_id = request.headers.get(TRAIL_ID_HEADER) or generate_trail_id()
+    bind_request_context(request_id, request.method, request.url.path, trail_id=trail_id)
     user_id_header = request.headers.get(USER_ID_HEADER)
     if user_id_header:
         bind_user_context(user_id_header)
+        request.state.user_id = user_id_header
     request.state.request_id = request_id
+    request.state.trail_id = trail_id
     start = time.monotonic()
     skip_http_metrics = request.url.path == "/metrics"
     if not skip_http_metrics:
@@ -124,12 +193,26 @@ async def request_context_middleware(request: Request, call_next):
     try:
         response = await call_next(request)
         status_code = response.status_code
-    except Exception:
+    except Exception as exc:
         status_code = 500
-        logger.exception("request.failed")
+        request.state.error_reason = str(exc)
+        route_template, handler_name = _resolve_route_and_handler(request)
+        logger.exception(
+            "request.failed",
+            method=request.method,
+            path=request.url.path,
+            route=route_template,
+            handler=handler_name,
+            error_reason=str(exc),
+        )
         raise
     finally:
         duration_ms = int((time.monotonic() - start) * 1000)
+        route_template, handler_name = _resolve_route_and_handler(request)
+        error_reason = getattr(request.state, "error_reason", None)
+        if status_code is not None and status_code >= 400 and not error_reason:
+            error_reason = _infer_error_reason_from_response(response, status_code)
+        _bind_user_context_from_request_state(request)
         if not skip_http_metrics:
             observe_http_request(
                 request=request,
@@ -139,12 +222,18 @@ async def request_context_middleware(request: Request, call_next):
             dec_in_flight_requests()
         logger.info(
             "request.completed",
+            method=request.method,
+            path=request.url.path,
+            route=route_template,
+            handler=handler_name,
             status_code=status_code,
             duration_ms=duration_ms,
+            error_reason=error_reason,
         )
         clear_request_context()
 
     response.headers[REQUEST_ID_HEADER] = request_id
+    response.headers[TRAIL_ID_HEADER] = trail_id
     return response
 
 
@@ -183,8 +272,10 @@ if settings.security_headers_enabled:
 
 @app.exception_handler(HTTPException)
 async def http_exception_with_request_id(request: Request, exc: HTTPException):
+    request.state.error_reason = _summarize_error_reason(exc.detail)
     response = await http_exception_handler(request, exc)
     response.headers[REQUEST_ID_HEADER] = getattr(request.state, "request_id", "")
+    response.headers[TRAIL_ID_HEADER] = getattr(request.state, "trail_id", "")
     return response
 
 
@@ -193,18 +284,24 @@ async def validation_exception_with_request_id(
     request: Request,
     exc: RequestValidationError,
 ):
+    request.state.error_reason = "Request validation failed"
     response = await request_validation_exception_handler(request, exc)
     response.headers[REQUEST_ID_HEADER] = getattr(request.state, "request_id", "")
+    response.headers[TRAIL_ID_HEADER] = getattr(request.state, "trail_id", "")
     return response
 
 
 @app.exception_handler(Exception)
 async def unhandled_exception_with_request_id(request: Request, exc: Exception):
+    request.state.error_reason = "Internal Server Error"
     logger.exception("unhandled.exception")
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal Server Error"},
-        headers={REQUEST_ID_HEADER: getattr(request.state, "request_id", "")},
+        headers={
+            REQUEST_ID_HEADER: getattr(request.state, "request_id", ""),
+            TRAIL_ID_HEADER: getattr(request.state, "trail_id", ""),
+        },
     )
 
 
@@ -267,6 +364,16 @@ def custom_openapi():
             "Optional user id for log context only. Auth is always derived from the session cookie."
         ),
     }
+    parameters[TRAIL_ID_HEADER] = {
+        "name": TRAIL_ID_HEADER,
+        "in": "header",
+        "required": False,
+        "schema": {"type": "string", "format": "uuid"},
+        "description": (
+            "Optional trail id for end-to-end correlation across subsystems. "
+            "If omitted, the server generates one and echoes it back."
+        ),
+    }
     parameters[settings.csrf_header_name] = {
         "name": settings.csrf_header_name,
         "in": "header",
@@ -324,6 +431,8 @@ def custom_openapi():
                 parameters_list.append({"$ref": f"#/components/parameters/{REQUEST_ID_HEADER}"})
             if not _header_present(parameters_list, USER_ID_HEADER):
                 parameters_list.append({"$ref": f"#/components/parameters/{USER_ID_HEADER}"})
+            if not _header_present(parameters_list, TRAIL_ID_HEADER):
+                parameters_list.append({"$ref": f"#/components/parameters/{TRAIL_ID_HEADER}"})
             if not _header_present(parameters_list, ORG_ID_HEADER):
                 parameters_list.append({"$ref": f"#/components/parameters/{ORG_ID_HEADER}"})
             if (

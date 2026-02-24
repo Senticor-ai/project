@@ -7,7 +7,7 @@ from .config import settings
 from .db import db_conn
 from .delegation import verify_delegated_token
 from .http import get_client_ip
-from .observability import bind_user_context, get_logger
+from .observability import anonymize_identifier, bind_user_context, get_logger
 
 ORG_ID_HEADER = "X-Org-Id"
 
@@ -24,7 +24,20 @@ def _extract_bearer_token(authorization: str | None) -> str | None:
     return None
 
 
-def _authenticate_via_delegated_jwt(token: str) -> dict:
+def _set_request_user_state(
+    request: Request,
+    *,
+    user_id: str,
+    email: str | None = None,
+    session_id: str | None = None,
+) -> None:
+    request.state.user_id = user_id
+    request.state.user_email = email
+    request.state.session_id = session_id
+    request.state.user_id_anon = anonymize_identifier(user_id, namespace="user")
+
+
+def _authenticate_via_delegated_jwt(token: str, request: Request) -> dict:
     """Verify a delegated JWT and return a user dict with delegation metadata."""
     try:
         claims = verify_delegated_token(token)
@@ -50,7 +63,13 @@ def _authenticate_via_delegated_jwt(token: str) -> dict:
             detail="Delegated token user not found",
         )
 
-    bind_user_context(str(row["id"]), row.get("email"))
+    user_id = str(row["id"])
+    _set_request_user_state(
+        request,
+        user_id=user_id,
+        email=row.get("email"),
+    )
+    bind_user_context(user_id, row.get("email"))
 
     return {
         **row,
@@ -73,7 +92,7 @@ def get_current_user(
     # Path 1: Delegated JWT (agent-to-backend calls)
     bearer_token = _extract_bearer_token(authorization)
     if bearer_token:
-        return _authenticate_via_delegated_jwt(bearer_token)
+        return _authenticate_via_delegated_jwt(bearer_token, request)
 
     # Path 2: Session cookie (browser requests)
     if session_token is None:
@@ -123,6 +142,20 @@ def get_current_user(
                 detail="Session context changed",
             )
 
+    user_id = str(row["id"])
+    session_id = str(row["session_id"])
+    _set_request_user_state(
+        request,
+        user_id=user_id,
+        email=row.get("email"),
+        session_id=session_id,
+    )
+    bind_user_context(
+        user_id,
+        row.get("email"),
+        session_id=session_id,
+    )
+
     updates: dict[str, object] = {"last_seen_at": datetime.now(UTC)}
     if not row.get("ip_address") and client_ip:
         updates["ip_address"] = client_ip
@@ -149,7 +182,6 @@ def get_current_user(
                 )
             conn.commit()
 
-    bind_user_context(str(row["id"]), row.get("email"))
     return row
 
 

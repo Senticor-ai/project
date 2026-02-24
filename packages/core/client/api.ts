@@ -27,6 +27,142 @@ export type ItemContentRecord = {
   file_name: string | null;
 };
 
+export type WorkflowTransitionRecord = {
+  from_status: string;
+  to_status: string;
+};
+
+export type WorkflowDefinitionRecord = {
+  policy_mode: string;
+  default_status: string;
+  done_statuses: string[];
+  blocked_statuses: string[];
+  canonical_statuses: string[];
+  column_labels: Record<string, string>;
+  transitions: WorkflowTransitionRecord[];
+};
+
+export type ProjectMemberRecord = {
+  project_id: string;
+  user_id: string;
+  email: string;
+  role: string;
+  is_owner: boolean;
+  added_at: string;
+  added_by: string | null;
+};
+
+export type ProjectMemberDeleteRecord = {
+  ok: boolean;
+  project_id: string;
+  user_id: string;
+};
+
+export type ActionCommentRecord = {
+  id: string;
+  action_id: string;
+  author_id: string;
+  parent_comment_id: string | null;
+  body: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ActionRevisionRecord = {
+  id: number;
+  action_id: string;
+  actor_id: string;
+  diff: Record<string, unknown>;
+  created_at: string;
+};
+
+export type ActionTransitionEventRecord = {
+  id: number;
+  action_id: string;
+  ts: string;
+  actor_id: string;
+  from_status: string | null;
+  to_status: string;
+  reason: string | null;
+  payload: Record<string, unknown>;
+  correlation_id: string | null;
+};
+
+export type ProjectActionRecord = {
+  id: string;
+  canonical_id: string;
+  project_id: string;
+  name: string;
+  description: string | null;
+  action_status: string;
+  owner_user_id: string | null;
+  owner_text: string | null;
+  due_at: string | null;
+  tags: string[];
+  object_ref: Record<string, unknown> | null;
+  attributes: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+  last_event_id: number | null;
+  comment_count: number;
+};
+
+export type ProjectActionDetailRecord = ProjectActionRecord & {
+  comments: ActionCommentRecord[];
+  revisions: ActionRevisionRecord[];
+};
+
+export type ProjectActionHistoryRecord = {
+  transitions: ActionTransitionEventRecord[];
+  revisions: ActionRevisionRecord[];
+};
+
+export type ProjectActionListParams = {
+  status?: string[];
+  tag?: string;
+  ownerUserId?: string;
+  dueBefore?: string;
+  dueAfter?: string;
+};
+
+export type ProjectActionCreatePayload = {
+  canonical_id?: string;
+  name: string;
+  description?: string;
+  action_status?: string;
+  owner_user_id?: string;
+  owner_text?: string;
+  due_at?: string;
+  tags?: string[];
+  object_ref?: Record<string, unknown>;
+  attributes?: Record<string, unknown>;
+  correlation_id?: string;
+};
+
+export type ProjectActionUpdatePayload = {
+  name?: string;
+  description?: string;
+  owner_user_id?: string;
+  owner_text?: string;
+  due_at?: string;
+  tags?: string[];
+  object_ref?: Record<string, unknown> | null;
+  attributes?: Record<string, unknown>;
+};
+
+export type ProjectActionTransitionPayload = {
+  to_status: string;
+  reason?: string;
+  payload?: Record<string, unknown>;
+  correlation_id?: string;
+  expected_last_event_id?: number;
+};
+
+export type ProjectActionCommentPayload = {
+  body: string;
+  parent_comment_id?: string;
+};
+
 export type SyncResponse = {
   items: ItemRecord[];
   next_cursor: string | null;
@@ -192,5 +328,156 @@ export class TayApi {
     return this.client.requestJson<Array<Record<string, unknown>>>(`/items/by-project/${projectId}`, {
       method: "GET",
     });
+  }
+
+  // Collaboration
+  getProjectWorkflow(projectId: string) {
+    return this.client.requestJson<WorkflowDefinitionRecord>(`/projects/${projectId}/workflow`, {
+      method: "GET",
+    });
+  }
+
+  listProjectMembers(projectId: string) {
+    return this.client.requestJson<ProjectMemberRecord[]>(`/projects/${projectId}/members`, {
+      method: "GET",
+    });
+  }
+
+  addProjectMember(
+    projectId: string,
+    payload: {
+      email: string;
+      role?: string;
+    },
+  ) {
+    return this.client.requestJson<ProjectMemberRecord>(
+      `/projects/${projectId}/members`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      },
+      { retryOnAuth: true },
+    );
+  }
+
+  removeProjectMember(projectId: string, targetUserId: string) {
+    return this.client.requestJson<ProjectMemberDeleteRecord>(
+      `/projects/${projectId}/members/${targetUserId}`,
+      {
+        method: "DELETE",
+      },
+      { retryOnAuth: true },
+    );
+  }
+
+  listProjectActions(projectId: string, params?: ProjectActionListParams) {
+    const search = new URLSearchParams();
+    for (const status of params?.status ?? []) {
+      if (status) {
+        search.append("status", status);
+      }
+    }
+    if (params?.tag) {
+      search.set("tag", params.tag);
+    }
+    if (params?.ownerUserId) {
+      search.set("owner_user_id", params.ownerUserId);
+    }
+    if (params?.dueBefore) {
+      search.set("due_before", params.dueBefore);
+    }
+    if (params?.dueAfter) {
+      search.set("due_after", params.dueAfter);
+    }
+    const query = search.toString();
+    return this.client.requestJson<ProjectActionRecord[]>(
+      `/projects/${projectId}/actions${query ? `?${query}` : ""}`,
+      { method: "GET" },
+    );
+  }
+
+  getProjectAction(projectId: string, actionId: string) {
+    return this.client.requestJson<ProjectActionDetailRecord>(
+      `/projects/${projectId}/actions/${actionId}`,
+      {
+        method: "GET",
+      },
+    );
+  }
+
+  getProjectActionHistory(projectId: string, actionId: string) {
+    return this.client.requestJson<ProjectActionHistoryRecord>(
+      `/projects/${projectId}/actions/${actionId}/history`,
+      {
+        method: "GET",
+      },
+    );
+  }
+
+  createProjectAction(projectId: string, payload: ProjectActionCreatePayload) {
+    return this.client.requestJson<ProjectActionRecord>(
+      `/projects/${projectId}/actions`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      },
+      { retryOnAuth: true },
+    );
+  }
+
+  updateProjectAction(projectId: string, actionId: string, payload: ProjectActionUpdatePayload) {
+    return this.client.requestJson<ProjectActionRecord>(
+      `/projects/${projectId}/actions/${actionId}`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      },
+      { retryOnAuth: true },
+    );
+  }
+
+  transitionProjectAction(
+    projectId: string,
+    actionId: string,
+    payload: ProjectActionTransitionPayload,
+  ) {
+    return this.client.requestJson<ProjectActionRecord>(
+      `/projects/${projectId}/actions/${actionId}/transition`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      },
+      { retryOnAuth: true },
+    );
+  }
+
+  addProjectActionComment(
+    projectId: string,
+    actionId: string,
+    payload: ProjectActionCommentPayload,
+  ) {
+    return this.client.requestJson<ActionCommentRecord>(
+      `/projects/${projectId}/actions/${actionId}/comments`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      },
+      { retryOnAuth: true },
+    );
   }
 }

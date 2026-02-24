@@ -13,6 +13,8 @@ data:
   SESSION_BIND_IP: "false"
   TRUST_PROXY_HEADERS: "true"
   CSRF_ENABLED: "true"
+  # Demo/dev tenant: keep developer tools enabled for /settings/developer.
+  DEV_TOOLS_ENABLED: "true"
   FILE_STORAGE_PATH: /data/storage
   LOG_FORMAT: json
   # Gmail OAuth (non-secret config — secrets go in app-secrets)

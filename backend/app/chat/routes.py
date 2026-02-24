@@ -21,7 +21,7 @@ from ..config import settings
 from ..container.manager import ensure_running, write_token_file
 from ..delegation import create_delegated_token
 from ..deps import get_current_org, get_current_user
-from ..routes.agent_settings import get_user_agent_backend
+from ..routes.agent_settings import get_user_agent_backend, get_user_llm_config
 from .queries import (
     archive_conversation,
     get_conversation_messages,
@@ -339,6 +339,36 @@ def chat_completions(
     if not settings.agents_url:
         raise HTTPException(status_code=503, detail="Agents service not available")
 
+    llm_config = get_user_llm_config(user_id)
+    if settings.agent_require_user_api_key and llm_config is None:
+        detail = (
+            "Copilot ist noch nicht eingerichtet. "
+            "Bitte öffne Einstellungen → Agent Setup und hinterlege einen API-Schlüssel."
+        )
+        err = json.dumps({"type": "error", "detail": detail})
+
+        async def _config_error_stream() -> AsyncGenerator[bytes, None]:
+            yield (err + "\n").encode()
+
+        return StreamingResponse(
+            _config_error_stream(),
+            media_type="application/x-ndjson",
+        )
+    if llm_config and llm_config.provider == "anthropic":
+        detail = (
+            "Copilot unterstützt nur OpenRouter- oder OpenAI-Schlüssel. "
+            "Bitte aktualisiere den Provider in Einstellungen → Agent Setup."
+        )
+        err = json.dumps({"type": "error", "detail": detail})
+
+        async def _provider_error_stream() -> AsyncGenerator[bytes, None]:
+            yield (err + "\n").encode()
+
+        return StreamingResponse(
+            _provider_error_stream(),
+            media_type="application/x-ndjson",
+        )
+
     # Create delegated token so the agent can read items/files
     delegated_token = create_delegated_token(user_id=user_id, org_id=org_id)
 
@@ -362,6 +392,12 @@ def chat_completions(
         },
         "userContext": user_context,
     }
+    if llm_config:
+        agent_payload["llm"] = {
+            "provider": llm_config.provider,
+            "model": llm_config.model,
+            "apiKey": llm_config.api_key,
+        }
 
     return StreamingResponse(
         _stream_and_persist(settings.agents_url, agent_payload, conversation_id),

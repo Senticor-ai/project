@@ -6,10 +6,10 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 if [[ "${PREFLIGHT_CI_STRICT_BACKEND:-0}" == "1" ]]; then
   echo "[preflight] running local gate with backend integration"
-  bash "$ROOT_DIR/scripts/preflight-local.sh" --with-backend-integration
+  PREFLIGHT_SCOPE_MODE=all PREFLIGHT_CACHE_MODE=off bash "$ROOT_DIR/scripts/preflight-local.sh" --with-backend-integration
 else
   echo "[preflight] running local gate"
-  bash "$ROOT_DIR/scripts/preflight-local.sh"
+  PREFLIGHT_SCOPE_MODE=all PREFLIGHT_CACHE_MODE=off bash "$ROOT_DIR/scripts/preflight-local.sh"
 fi
 
 echo "[preflight] running frontend storybook tests"

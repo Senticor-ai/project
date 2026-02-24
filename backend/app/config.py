@@ -93,6 +93,7 @@ class Settings:
     cors_headers: list[str]
     # Agents service (Copilot agent)
     agents_url: str | None
+    agent_require_user_api_key: bool
     # OpenClaw (alternative agent backend)
     openclaw_url: str | None
     openclaw_token: str | None
@@ -268,6 +269,7 @@ def load_settings() -> Settings:
             if h.strip()
         ],
         agents_url=_get_env("AGENTS_URL"),
+        agent_require_user_api_key=_get_bool_env("AGENT_REQUIRE_USER_API_KEY", False),
         openclaw_url=_get_env("OPENCLAW_URL"),
         openclaw_token=_get_env("OPENCLAW_GATEWAY_TOKEN"),
         openclaw_image=_get_env("OPENCLAW_IMAGE", "ghcr.io/openclaw/openclaw:latest")

@@ -3,6 +3,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from ..config import settings
 from ..db import db_conn
 from ..deps import get_current_org, get_current_user
+from ..observability import get_logger
+
+logger = get_logger("routes.dev")
 
 router = APIRouter(
     prefix="/dev",
@@ -13,6 +16,10 @@ router = APIRouter(
 
 def _require_dev_tools() -> None:
     if not settings.dev_tools_enabled:
+        logger.warning(
+            "dev.flush.rejected",
+            reason="DEV_TOOLS_ENABLED is false",
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Not found",
@@ -76,4 +83,5 @@ def flush_org_data(
 
         conn.commit()
 
+    logger.info("dev.flush.completed", org_id=org_id, deleted=deleted)
     return {"ok": True, "deleted": deleted}
