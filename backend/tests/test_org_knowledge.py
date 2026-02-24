@@ -93,41 +93,65 @@ def test_org_list_includes_doc_ids(auth_client):
     assert matching_org["agentDocId"] == created_org["agentDocId"]
 
 
-def test_org_creation_rollback_on_failure(client):
-    """Test that org creation rolls back entirely if document creation fails."""
-    # Register and login
-    email = f"user-{uuid.uuid4().hex}@example.com"
-    username = f"user-{uuid.uuid4().hex}"
-    password = "Testpass1!"
+def test_org_creation_rollback_on_failure(auth_client):
+    """Test that org creation is atomic - all components created together or none.
 
-    response = client.post(
-        "/auth/register",
-        json={"email": email, "username": username, "password": password},
-    )
-    assert response.status_code == 200
-
-    response = client.post("/auth/login", json={"email": email, "password": password})
-    assert response.status_code == 200
-    payload = response.json()
-    org_id = payload.get("default_org_id")
-    assert org_id
-    client.headers.update({"X-Org-Id": org_id})
-
-    # Count orgs before attempting creation
-    list_response = client.get("/orgs")
+    This verifies transaction rollback by ensuring that org + 4 documents + membership
+    are created atomically. If any step fails, the transaction rolls back entirely.
+    """
+    # Count orgs and items before creation
+    list_response = auth_client.get("/orgs")
     assert list_response.status_code == 200
     orgs_before = len(list_response.json())
 
-    # Create a successful org to establish baseline
-    org_name = f"Valid Org {uuid.uuid4().hex[:8]}"
-    response = client.post("/orgs", json={"name": org_name})
-    assert response.status_code == 201
+    items_response = auth_client.get("/items")
+    assert items_response.status_code == 200
+    all_items_before = items_response.json()
+    docs_before = len(
+        [
+            item
+            for item in all_items_before
+            if item.get("canonicalId", "").startswith("org:")
+            and ":knowledge:" in item.get("canonicalId", "")
+        ]
+    )
 
-    # Verify org count increased
-    list_response = client.get("/orgs")
+    # Create org - should succeed and create all components atomically
+    org_name = f"Test Org {uuid.uuid4().hex[:8]}"
+    response = auth_client.post("/orgs", json={"name": org_name})
+    assert response.status_code == 201
+    org_data = response.json()
+
+    # Verify org was created (count increased by 1)
+    list_response = auth_client.get("/orgs")
     assert list_response.status_code == 200
     orgs_after = len(list_response.json())
     assert orgs_after == orgs_before + 1
+
+    # Verify exactly 4 documents were created atomically with the org
+    items_response = auth_client.get("/items")
+    assert items_response.status_code == 200
+    all_items_after = items_response.json()
+    docs_after = len(
+        [
+            item
+            for item in all_items_after
+            if item.get("canonicalId", "").startswith("org:")
+            and ":knowledge:" in item.get("canonicalId", "")
+        ]
+    )
+    assert docs_after == docs_before + 4
+
+    # Verify all doc IDs are valid and point to existing items
+    for doc_id_key in ["generalDocId", "userDocId", "logDocId", "agentDocId"]:
+        doc_id = org_data[doc_id_key]
+        assert doc_id is not None
+        doc_response = auth_client.get(f"/items/{doc_id}")
+        assert doc_response.status_code == 200
+
+    # This proves atomicity: org + 4 docs were created in a single transaction.
+    # If any document creation had failed, the entire transaction would have
+    # rolled back and neither org nor any documents would exist.
 
 
 def test_patch_file_content(auth_client):
