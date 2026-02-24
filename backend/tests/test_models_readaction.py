@@ -114,6 +114,75 @@ class TestActionItemJsonLd:
         assert "object_ref" not in dumped
 
 
+class TestActionRelationshipFields:
+    def test_create_action_with_all_relationships(self):
+        """Test creating an action with all 6 relationship fields set."""
+        data = {
+            "@id": "urn:app:test:relationships",
+            "@type": "CreateAction",
+            "_schemaVersion": 2,
+            "name": "Create document",
+            "additionalProperty": [
+                {"@type": "PropertyValue", "propertyID": "app:bucket", "value": "next"},
+            ],
+            "object": {"@id": "urn:app:reference:doc1"},
+            "instrument": {"@id": "urn:app:reference:tool1"},
+            "agent": {"@id": "urn:app:reference:user1"},
+            "participant": {"@id": "urn:app:reference:user2"},
+            "result": {"@id": "urn:app:reference:result1"},
+            "location": {"@id": "urn:app:reference:office"},
+        }
+        item = ActionItemJsonLd.model_validate(data)
+        assert item.type == "CreateAction"
+        assert item.object_ref == {"@id": "urn:app:reference:doc1"}
+        assert item.instrument == {"@id": "urn:app:reference:tool1"}
+        assert item.agent == {"@id": "urn:app:reference:user1"}
+        assert item.participant == {"@id": "urn:app:reference:user2"}
+        assert item.result == {"@id": "urn:app:reference:result1"}
+        assert item.location == {"@id": "urn:app:reference:office"}
+
+    def test_relationship_fields_serialize_with_aliases(self):
+        """Test that relationship fields serialize correctly with JSON-LD aliases."""
+        data = {
+            "@id": "urn:app:test:aliases",
+            "@type": "UpdateAction",
+            "_schemaVersion": 2,
+            "name": "Update file",
+            "additionalProperty": [],
+            "object": {"@id": "urn:app:reference:file1"},
+            "instrument": {"@id": "urn:app:reference:editor"},
+            "agent": {"@id": "urn:app:reference:author"},
+        }
+        item = ActionItemJsonLd.model_validate(data)
+        dumped = item.model_dump(by_alias=True)
+        # Verify object uses alias "object" not "object_ref"
+        assert dumped["object"] == {"@id": "urn:app:reference:file1"}
+        assert "object_ref" not in dumped
+        # Other relationship fields use their field names directly (no aliases)
+        assert dumped["instrument"] == {"@id": "urn:app:reference:editor"}
+        assert dumped["agent"] == {"@id": "urn:app:reference:author"}
+
+    def test_relationship_fields_optional(self):
+        """Test that relationship fields are optional and can be omitted."""
+        data = {
+            "@id": "urn:app:test:optional",
+            "@type": "SearchAction",
+            "_schemaVersion": 2,
+            "name": "Search query",
+            "additionalProperty": [
+                {"@type": "PropertyValue", "propertyID": "app:bucket", "value": "next"},
+            ],
+        }
+        item = ActionItemJsonLd.model_validate(data)
+        assert item.type == "SearchAction"
+        assert item.object_ref is None
+        assert item.instrument is None
+        assert item.agent is None
+        assert item.participant is None
+        assert item.result is None
+        assert item.location is None
+
+
 class TestItemPatchModel:
     def test_accepts_read_action_type(self):
         data = {
