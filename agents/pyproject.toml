@@ -4,7 +4,7 @@ version = "0.1.0"
 requires-python = ">=3.12"
 license = { text = "EUPL-1.2" }
 dependencies = [
-  "haystack-ai",
+  "haystack-ai>=2.24,<2.25",
   "fastapi",
   "uvicorn[standard]",
   "python-dotenv",
@@ -22,6 +22,7 @@ dev = [
   "mypy>=1.10.0",
   "pytest",
   "anyio",
+  "trio",
   "httpx",
 ]
 

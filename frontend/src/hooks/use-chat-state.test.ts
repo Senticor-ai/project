@@ -466,6 +466,7 @@ describe("useChatState", () => {
         "Test",
         hook.result.current.conversationId,
         expect.any(Function),
+        undefined,
       );
     });
 

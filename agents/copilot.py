@@ -18,7 +18,9 @@ from haystack.utils.auth import Secret
 from jinja2 import Environment, FileSystemLoader
 
 from backend_client import AuthContext, BackendClient
+from intent_contract import COPILOT_CLI_TOOL_PARAMETERS_SCHEMA
 from llm_cache import CachedTracedChatGenerator
+from web_tools import build_web_read_tools
 
 logger = logging.getLogger(__name__)
 
@@ -105,23 +107,10 @@ TOOLS = [
         name="copilot_cli",
         description=(
             "Fuehre Senticor-Copilot-CLI-Befehle aus. "
-            "Uebergib nur argv: string[] ohne Shell-Quoting."
+            "Uebergib entweder argv: string[] (ohne Shell-Quoting) "
+            "oder intent: object (draft v0 Intent-Schema)."
         ),
-        parameters={
-            "type": "object",
-            "properties": {
-                "argv": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "minItems": 1,
-                    "description": (
-                        'CLI argv ohne Shell-String, z.B. ["items","create","--type","Action",'
-                        '"--name","Steuerberater anrufen","--bucket","next","--apply"]'
-                    ),
-                },
-            },
-            "required": ["argv"],
-        },
+        parameters=COPILOT_CLI_TOOL_PARAMETERS_SCHEMA,
         function=_noop_copilot_cli,
     ),
 ]
@@ -197,7 +186,7 @@ def _build_chat_generator(model: str, llm_config: RuntimeLlmConfig | None):
     )
 
 
-def _build_read_tools(auth: AuthContext) -> list[Tool]:
+def _build_workspace_read_tools(auth: AuthContext) -> list[Tool]:
     """Build read-only tools that call the backend with the given auth.
 
     These are NOT exit conditions — the agent calls them inline
@@ -304,8 +293,9 @@ def create_agent(
     generator = _build_chat_generator(model, llm_config)
 
     tools = list(TOOLS)
+    tools.extend(build_web_read_tools())
     if auth:
-        tools.extend(_build_read_tools(auth))
+        tools.extend(_build_workspace_read_tools(auth))
 
     system_prompt = build_system_prompt(user_context)
 

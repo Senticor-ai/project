@@ -94,6 +94,12 @@ class UserContextPayload(BaseModel):
     timezone: str | None = None
     locale: str | None = None
     localTime: str | None = None
+    currentPath: str | None = None
+    currentUrl: str | None = None
+    appView: str | None = None
+    appSubView: str | None = None
+    activeBucket: str | None = None
+    visibleErrors: list[str] | None = None
 
 
 class ChatLlmPayload(BaseModel):

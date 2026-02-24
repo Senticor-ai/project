@@ -718,7 +718,9 @@ class TestUserContextIntegration:
         assert resp.status_code == 200
         ca_mock.assert_called_once()
         _, kwargs = ca_mock.call_args
-        assert kwargs["user_context"] == self.USER_CONTEXT
+        ctx = kwargs["user_context"]
+        for key, value in self.USER_CONTEXT.items():
+            assert ctx[key] == value
 
     def test_user_context_rendered_in_system_prompt(self, client: TestClient):
         """userContext ends up in the rendered system prompt passed to the Agent."""
@@ -825,4 +827,6 @@ class TestUserContextIntegration:
         assert resp.status_code == 200
         ca_mock.assert_called_once()
         _, kwargs = ca_mock.call_args
-        assert kwargs["user_context"] == self.USER_CONTEXT
+        ctx = kwargs["user_context"]
+        for key, value in self.USER_CONTEXT.items():
+            assert ctx[key] == value

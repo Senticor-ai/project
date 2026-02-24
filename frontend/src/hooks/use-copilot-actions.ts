@@ -15,7 +15,21 @@ export function useCopilotActions() {
     ): Promise<CreatedItemRef[]> => {
       const toolArguments =
         suggestion.type === "copilot_cli"
-          ? { argv: suggestion.argv }
+          ? (() => {
+              const args: Record<string, unknown> = {};
+              if (Array.isArray(suggestion.argv) && suggestion.argv.length > 0) {
+                args.argv = suggestion.argv;
+              }
+              if (suggestion.intent && typeof suggestion.intent === "object") {
+                args.intent = suggestion.intent;
+              }
+              if (Object.keys(args).length === 0) {
+                throw new Error(
+                  "copilot_cli suggestion requires argv[] or intent",
+                );
+              }
+              return args;
+            })()
           : (suggestion as unknown as Record<string, unknown>);
 
       const response = await ChatApi.executeTool({

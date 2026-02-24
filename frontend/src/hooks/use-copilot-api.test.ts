@@ -8,6 +8,8 @@ vi.stubGlobal("fetch", mockFetch);
 
 beforeEach(() => {
   vi.resetAllMocks();
+  document.body.innerHTML = "";
+  window.history.pushState({}, "", "/");
 });
 
 // ---------------------------------------------------------------------------
@@ -159,11 +161,43 @@ describe("useCopilotApi", () => {
     const body = JSON.parse(opts.body as string);
     expect(body.message).toBe("Hallo");
     expect(body.conversationId).toBe("conv-123");
-    expect(body.context).toEqual({
-      timezone: expect.any(String),
-      locale: expect.any(String),
-      localTime: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
-    });
+    expect(body.context).toEqual(
+      expect.objectContaining({
+        timezone: expect.any(String),
+        locale: expect.any(String),
+        localTime: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+        currentPath: expect.any(String),
+        currentUrl: expect.any(String),
+        appView: expect.any(String),
+        appSubView: expect.any(String),
+      }),
+    );
+    expect(Array.isArray(body.context.visibleErrors)).toBe(true);
+  });
+
+  it("includes page and visible error context from current UI", async () => {
+    window.history.pushState({}, "", "/settings/email?tab=sync");
+    document.body.innerHTML = `
+      <p class="text-status-error">OAuth token expired. Please reconnect.</p>
+      <div role="alert">Email sync failed for this connection.</div>
+    `;
+    mockFetch.mockReturnValue(streamResponse([{ type: "done", text: "OK" }]));
+    const { result } = renderHook(() => useCopilotApi());
+
+    await result.current.sendMessageStreaming("Was ist hier kaputt?", "conv-ui", () => {});
+
+    const [, opts] = mockFetch.mock.calls[0]!;
+    const body = JSON.parse(opts.body as string);
+    expect(body.context.appView).toBe("settings");
+    expect(body.context.appSubView).toBe("email");
+    expect(body.context.activeBucket).toBeNull();
+    expect(body.context.currentPath).toContain("/settings/email");
+    expect(body.context.visibleErrors).toEqual(
+      expect.arrayContaining([
+        "OAuth token expired. Please reconnect.",
+        "Email sync failed for this connection.",
+      ]),
+    );
   });
 
   it("delivers text_delta events via callback", async () => {

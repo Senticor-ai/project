@@ -206,6 +206,23 @@ function CopilotCliSuggestionContent({
 }: {
   suggestion: Extract<CopilotSuggestion, { type: "copilot_cli" }>;
 }) {
+  const commandPreview =
+    Array.isArray(suggestion.argv) && suggestion.argv.length > 0
+      ? suggestion.argv.join(" ")
+      : (() => {
+          const intent = suggestion.intent;
+          if (!intent || typeof intent !== "object") {
+            return "(kein CLI-Detail angegeben)";
+          }
+          const kind =
+            typeof intent.kind === "string" ? intent.kind : "unknown_intent";
+          const version =
+            typeof intent.schemaVersion === "string"
+              ? ` ${intent.schemaVersion}`
+              : "";
+          return `intent ${kind}${version}`;
+        })();
+
   return (
     <>
       <div className="flex items-center gap-1.5">
@@ -213,7 +230,7 @@ function CopilotCliSuggestionContent({
         <span className="text-sm font-medium">Senticor Copilot CLI</span>
       </div>
       <code className="mt-1 block rounded bg-paper-100 px-2 py-1 text-xs text-text">
-        {suggestion.argv.join(" ")}
+        {commandPreview}
       </code>
     </>
   );

@@ -47,6 +47,7 @@ import { navItems } from "./components/work/bucket-nav-items";
 import type { SettingsTab } from "./components/settings/SettingsScreen";
 import type { AppView } from "./lib/route-utils";
 import type { Bucket } from "./model/types";
+import type { ChatClientContext } from "./model/chat-types";
 
 const LoginPage = lazy(() =>
   import("./components/auth/LoginPage").then((m) => ({
@@ -128,7 +129,6 @@ function AuthenticatedApp({
   const [showImport, setShowImport] = useState(false);
   const [showNativeImport, setShowNativeImport] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
-  const chat = useChatState();
   const {
     jobs: importJobs,
     checkDuplicate,
@@ -141,8 +141,9 @@ function AuthenticatedApp({
   const { data: allItems = [] } = useAllItems();
   const { data: projects = [] } = useProjects();
   const { data: refs = [] } = useReferences();
+  const emailConnectionsQuery = useEmailConnections();
   const { data: emailConnections, isLoading: emailLoading } =
-    useEmailConnections();
+    emailConnectionsQuery;
   const triggerEmailSync = useTriggerEmailSync();
   const disconnectEmail = useDisconnectEmail();
   const updateEmailConnection = useUpdateEmailConnection();
@@ -168,6 +169,80 @@ function AuthenticatedApp({
   const deleteAgentApiKey = useDeleteAgentApiKey();
   const stopContainer = useStopContainer();
   const restartContainer = useRestartContainer();
+  const chatContext = useMemo<Partial<ChatClientContext>>(() => {
+    const rawErrors: string[] = [];
+
+    if (location.view === "settings" && location.sub === "email") {
+      const emailQueryError = getMutationErrorMessage(emailConnectionsQuery.error);
+      if (emailQueryError) rawErrors.push(emailQueryError);
+
+      for (const conn of emailConnections ?? []) {
+        if (
+          typeof conn.last_sync_error === "string" &&
+          conn.last_sync_error.trim().length > 0
+        ) {
+          rawErrors.push(conn.last_sync_error.trim());
+        }
+      }
+
+      const syncError = getMutationErrorMessage(triggerEmailSync.error);
+      if (syncError) rawErrors.push(syncError);
+
+      const disconnectError = getMutationErrorMessage(disconnectEmail.error);
+      if (disconnectError) rawErrors.push(disconnectError);
+
+      const updateError = getMutationErrorMessage(updateEmailConnection.error);
+      if (updateError) rawErrors.push(updateError);
+    }
+
+    if (location.view === "settings" && location.sub === "agent-setup") {
+      const agentSaveError = getMutationErrorMessage(updateAgentSettings.error);
+      if (agentSaveError) rawErrors.push(agentSaveError);
+      if (
+        typeof agentSettingsData?.containerError === "string" &&
+        agentSettingsData.containerError.trim().length > 0
+      ) {
+        rawErrors.push(agentSettingsData.containerError.trim());
+      }
+      if (
+        agentSettingsData?.validationStatus === "error" &&
+        typeof agentSettingsData.validationMessage === "string" &&
+        agentSettingsData.validationMessage.trim().length > 0
+      ) {
+        rawErrors.push(agentSettingsData.validationMessage.trim());
+      }
+    }
+
+    const seen = new Set<string>();
+    const visibleErrors: string[] = [];
+    for (const value of rawErrors) {
+      const normalized = value.replace(/\s+/g, " ").trim();
+      if (!normalized) continue;
+      if (seen.has(normalized)) continue;
+      seen.add(normalized);
+      visibleErrors.push(normalized);
+      if (visibleErrors.length >= 5) break;
+    }
+
+    return {
+      appView: location.view,
+      appSubView: location.sub,
+      activeBucket: location.view === "workspace" ? location.sub : null,
+      visibleErrors,
+    };
+  }, [
+    location.view,
+    location.sub,
+    emailConnectionsQuery.error,
+    emailConnections,
+    triggerEmailSync.error,
+    disconnectEmail.error,
+    updateEmailConnection.error,
+    updateAgentSettings.error,
+    agentSettingsData,
+  ]);
+  const getChatClientContext = useCallback(() => chatContext, [chatContext]);
+  const chat = useChatState({ getClientContext: getChatClientContext });
 
   const mobileBucketNav = useMemo<MobileBucketNav | undefined>(() => {
     if (!isMobile || location.view !== "workspace") return undefined;

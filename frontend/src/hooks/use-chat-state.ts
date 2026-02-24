@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import type {
   ChatMessage,
+  ChatClientContext,
   UserChatMessage,
   CopilotTextMessage,
   CopilotThinkingMessage,
@@ -22,12 +23,17 @@ function newConversationId(): string {
   return `conv-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-export function useChatState() {
+type ChatStateOptions = {
+  getClientContext?: () => Partial<ChatClientContext>;
+};
+
+export function useChatState(options: ChatStateOptions = {}) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [conversationId, setConversationId] = useState(newConversationId);
   const { sendMessageStreaming } = useCopilotApi();
   const { executeSuggestion, onItemsChanged } = useCopilotActions();
+  const getClientContext = options.getClientContext;
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -179,7 +185,12 @@ export function useChatState() {
           }
         };
 
-        await sendMessageStreaming(text, conversationId, onEvent);
+        await sendMessageStreaming(
+          text,
+          conversationId,
+          onEvent,
+          getClientContext?.(),
+        );
 
         // If no events arrived at all, remove thinking indicator
         if (!streamingMsgId) {
@@ -201,7 +212,7 @@ export function useChatState() {
         setIsLoading(false);
       }
     },
-    [sendMessageStreaming, onItemsChanged, conversationId],
+    [sendMessageStreaming, onItemsChanged, conversationId, getClientContext],
   );
 
   const acceptSuggestion = useCallback(

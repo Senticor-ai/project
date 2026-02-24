@@ -47,6 +47,12 @@ class ChatClientContext(BaseModel):
     timezone: str | None = None
     locale: str | None = None
     localTime: str | None = None
+    currentPath: str | None = None
+    currentUrl: str | None = None
+    appView: str | None = None
+    appSubView: str | None = None
+    activeBucket: str | None = None
+    visibleErrors: list[str] | None = None
 
 
 class ChatCompletionRequest(BaseModel):
@@ -378,7 +384,7 @@ def chat_completions(
     )
 
     messages = _build_agent_messages(history)
-    user_context: dict[str, str | None] = {
+    user_context: dict[str, object | None] = {
         "username": current_user.get("username"),
         "email": current_user.get("email"),
     }
@@ -386,6 +392,12 @@ def chat_completions(
         user_context["timezone"] = req.context.timezone
         user_context["locale"] = req.context.locale
         user_context["localTime"] = req.context.localTime
+        user_context["currentPath"] = req.context.currentPath
+        user_context["currentUrl"] = req.context.currentUrl
+        user_context["appView"] = req.context.appView
+        user_context["appSubView"] = req.context.appSubView
+        user_context["activeBucket"] = req.context.activeBucket
+        user_context["visibleErrors"] = req.context.visibleErrors
 
     agent_payload = {
         "messages": messages,

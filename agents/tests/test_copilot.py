@@ -19,6 +19,8 @@ def test_system_prompt_rendered_from_template():
     assert "**reference**" in prompt
     # Rules are present
     assert "copilot_cli" in prompt
+    assert "web_search" in prompt
+    assert "web_fetch" in prompt
     assert "items create" in prompt
     assert "Inline-Lese-Tools" in prompt
     assert "items focus" in prompt
@@ -40,12 +42,18 @@ def test_system_prompt_includes_user_context():
             "timezone": "Europe/Berlin",
             "locale": "de-DE",
             "localTime": "2026-02-13T15:30:00+01:00",
+            "currentPath": "/settings/email",
+            "appView": "settings",
+            "appSubView": "email",
+            "visibleErrors": ["OAuth token expired"],
         }
     )
     assert "Wolfgang" in prompt
     assert "Europe/Berlin" in prompt
     assert "de-DE" in prompt
     assert "2026-02-13T15:30:00+01:00" in prompt
+    assert "/settings/email" in prompt
+    assert "OAuth token expired" in prompt
 
 
 def test_system_prompt_without_user_context():
@@ -113,11 +121,13 @@ def test_parse_models_default():
 
 
 def test_system_prompt_includes_workspace_overview_tool():
-    """System prompt mentions list_workspace_overview tool."""
+    """System prompt mentions read tools."""
     from copilot import build_system_prompt
 
     prompt = build_system_prompt()
     assert "list_workspace_overview" in prompt
+    assert "web_search" in prompt
+    assert "web_fetch" in prompt
 
 
 def test_tools_defined():

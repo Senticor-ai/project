@@ -163,6 +163,35 @@ describe("useCopilotActions", () => {
         conversationId: "conv-cv",
       });
     });
+
+    it("copilot_cli intent payload", async () => {
+      mockExecuteTool.mockResolvedValueOnce({ createdItems: [] });
+
+      const suggestion: CopilotSuggestion = {
+        type: "copilot_cli",
+        intent: {
+          schemaVersion: "copilot.intent.v0",
+          kind: "weekly_review_plan",
+          focusOn: ["urn:app:action:a1"],
+        },
+      };
+
+      const { result } = renderHook(() => useCopilotActions());
+
+      await act(async () => {
+        await result.current.executeSuggestion(suggestion, "conv-intent");
+      });
+
+      expect(mockExecuteTool).toHaveBeenCalledWith({
+        toolCall: {
+          name: "copilot_cli",
+          arguments: {
+            intent: suggestion.intent,
+          },
+        },
+        conversationId: "conv-intent",
+      });
+    });
   });
 
   it("passes conversationId to API", async () => {

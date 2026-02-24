@@ -120,7 +120,8 @@ export interface RenderCvSuggestion {
 
 export interface CopilotCliSuggestion {
   type: "copilot_cli";
-  argv: string[];
+  argv?: string[];
+  intent?: Record<string, unknown>;
 }
 
 export type CopilotSuggestion =
@@ -138,6 +139,12 @@ export interface ChatClientContext {
   timezone: string;
   locale: string;
   localTime: string;
+  currentPath?: string;
+  currentUrl?: string;
+  appView?: "workspace" | "settings";
+  appSubView?: string;
+  activeBucket?: string | null;
+  visibleErrors?: string[];
 }
 
 export interface ChatCompletionRequest {

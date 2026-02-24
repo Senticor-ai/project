@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from backend_client import AuthContext, CreatedItemRef
+from intent_contract import compile_intent_to_argv
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CORE_DIR = REPO_ROOT / "packages" / "core"
@@ -50,30 +51,59 @@ def _resolve_cli_command() -> tuple[list[str], str]:
     )
 
 
-def _normalize_argv(tool_call: ToolCallInput, conversation_id: str) -> list[str]:
+def _with_required_cli_flags(argv: list[str], conversation_id: str) -> list[str]:
+    normalized = list(argv)
+
+    # Ensure JSON/non-interactive behavior for deterministic tool execution.
+    if "--json" not in normalized:
+        normalized.append("--json")
+    if "--non-interactive" not in normalized:
+        normalized.append("--non-interactive")
+    if "--yes" not in normalized:
+        normalized.append("--yes")
+
+    # Carry chat context for write capture metadata when supported.
+    if (
+        len(normalized) >= 2
+        and normalized[0] in {"items", "projects"}
+        and normalized[1] == "create"
+    ):
+        if "--conversation-id" not in normalized:
+            normalized.extend(["--conversation-id", conversation_id])
+
+    return normalized
+
+
+def _normalize_commands(tool_call: ToolCallInput, conversation_id: str) -> list[list[str]]:
     if tool_call.name != "copilot_cli":
         raise ValueError(f"Unknown tool: {tool_call.name}")
 
-    raw = tool_call.arguments.get("argv")
-    if not isinstance(raw, list) or not raw or not all(isinstance(v, str) and v for v in raw):
-        raise ValueError("copilot_cli requires non-empty argv: string[]")
+    raw_argv = tool_call.arguments.get("argv")
+    raw_intent = tool_call.arguments.get("intent")
 
-    argv = list(raw)
+    has_argv = raw_argv is not None
+    has_intent = raw_intent is not None
 
-    # Ensure JSON/non-interactive behavior for deterministic tool execution.
-    if "--json" not in argv:
-        argv.append("--json")
-    if "--non-interactive" not in argv:
-        argv.append("--non-interactive")
-    if "--yes" not in argv:
-        argv.append("--yes")
+    if has_argv == has_intent:
+        raise ValueError("copilot_cli requires exactly one of argv or intent")
 
-    # Carry chat context for write capture metadata when supported.
-    if len(argv) >= 2 and argv[0] == "items" and argv[1] == "create":
-        if "--conversation-id" not in argv:
-            argv.extend(["--conversation-id", conversation_id])
+    commands: list[list[str]]
+    if has_argv:
+        if (
+            not isinstance(raw_argv, list)
+            or not raw_argv
+            or not all(isinstance(v, str) and v for v in raw_argv)
+        ):
+            raise ValueError("copilot_cli requires non-empty argv: string[]")
+        commands = [list(raw_argv)]
+    else:
+        if not isinstance(raw_intent, dict):
+            raise ValueError("copilot_cli intent must be an object")
+        commands = compile_intent_to_argv(raw_intent)
+        if not commands:
+            raise ValueError("copilot_cli intent expanded to zero commands")
 
-    return argv
+    return [_with_required_cli_flags(command, conversation_id) for command in commands]
 
 
 def _parse_json_from_stdout(stdout: str) -> dict[str, Any]:
@@ -200,6 +230,20 @@ def _created_items_from_cli_payload(payload: dict[str, Any]) -> list[CreatedItem
     return out
 
 
+def _merge_created_items(created_lists: list[list[CreatedItemRef]]) -> list[CreatedItemRef]:
+    out: list[CreatedItemRef] = []
+    seen: set[str] = set()
+
+    for created in created_lists:
+        for item in created:
+            if item.canonical_id in seen:
+                continue
+            seen.add(item.canonical_id)
+            out.append(item)
+
+    return out
+
+
 async def execute_tool(
     tool_call: ToolCallInput,
     conversation_id: str,
@@ -208,7 +252,7 @@ async def execute_tool(
 ) -> list[CreatedItemRef]:
     """Execute a single approved copilot_cli tool call via subprocess."""
     del client
-    argv = _normalize_argv(tool_call, conversation_id)
+    commands = _normalize_commands(tool_call, conversation_id)
     cli_base, cwd = _resolve_cli_command()
 
     env = os.environ.copy()
@@ -217,22 +261,31 @@ async def execute_tool(
         env["COPILOT_ORG_ID"] = auth.org_id
     env.setdefault("COPILOT_HOST", os.getenv("BACKEND_URL", "http://localhost:8000"))
 
-    process = await asyncio.create_subprocess_exec(
-        *cli_base,
-        *argv,
-        cwd=cwd,
-        env=env,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    stdout_bytes, stderr_bytes = await process.communicate()
+    created_batches: list[list[CreatedItemRef]] = []
 
-    stdout = stdout_bytes.decode("utf-8", errors="replace")
-    stderr = stderr_bytes.decode("utf-8", errors="replace")
+    for argv in commands:
+        process = await asyncio.create_subprocess_exec(
+            *cli_base,
+            *argv,
+            cwd=cwd,
+            env=env,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout_bytes, stderr_bytes = await process.communicate()
 
-    if process.returncode != 0:
-        detail = stderr.strip() or stdout.strip() or "unknown error"
-        raise RuntimeError(f"copilot_cli failed with exit code {process.returncode}: {detail}")
+        stdout = stdout_bytes.decode("utf-8", errors="replace")
+        stderr = stderr_bytes.decode("utf-8", errors="replace")
 
-    payload = _parse_json_from_stdout(stdout)
-    return _created_items_from_cli_payload(payload)
+        if process.returncode != 0:
+            detail = stderr.strip() or stdout.strip() or "unknown error"
+            command = " ".join(argv[:4])
+            raise RuntimeError(
+                f"copilot_cli failed with exit code {process.returncode} "
+                f"while running '{command}...': {detail}"
+            )
+
+        payload = _parse_json_from_stdout(stdout)
+        created_batches.append(_created_items_from_cli_payload(payload))
+
+    return _merge_created_items(created_batches)

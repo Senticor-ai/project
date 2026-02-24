@@ -210,6 +210,56 @@ class TestChatCompletions:
         assert messages[2]["role"] == "user"
         assert messages[2]["content"] == "Zweite Nachricht"
 
+    def test_forwards_extended_ui_context_to_agents(self, auth_client, monkeypatch):
+        _patch_settings(
+            monkeypatch,
+            agents_url="http://localhost:8002",
+            agent_require_user_api_key=False,
+        )
+        monkeypatch.setattr("app.chat.routes.get_user_agent_backend", lambda _user_id: "haystack")
+
+        captured_payloads: list[dict] = []
+
+        def capturing_stream(*args, **kwargs):
+            payload = kwargs.get("json") or (args[1] if len(args) > 1 else {})
+            if isinstance(payload, str):
+                payload = json.loads(payload)
+            captured_payloads.append(payload)
+            return _make_stream_response(
+                [
+                    {"type": "text_delta", "content": "ok"},
+                    {"type": "done", "text": "ok"},
+                ]
+            )(*args, **kwargs)
+
+        monkeypatch.setattr("app.chat.routes.httpx.stream", capturing_stream)
+
+        response = auth_client.post(
+            "/chat/completions",
+            json={
+                "message": "Was ist hier los?",
+                "conversationId": "conv-ui-context",
+                "context": {
+                    "timezone": "Europe/Berlin",
+                    "locale": "de-DE",
+                    "localTime": "2026-02-24T14:00:00+01:00",
+                    "currentPath": "/settings/email",
+                    "currentUrl": "http://project.localhost:5173/settings/email",
+                    "appView": "settings",
+                    "appSubView": "email",
+                    "activeBucket": None,
+                    "visibleErrors": ["OAuth token expired"],
+                },
+            },
+        )
+        assert response.status_code == 200
+        assert len(captured_payloads) == 1
+        user_context = captured_payloads[0]["userContext"]
+        assert user_context["currentPath"] == "/settings/email"
+        assert user_context["appView"] == "settings"
+        assert user_context["appSubView"] == "email"
+        assert user_context["visibleErrors"] == ["OAuth token expired"]
+
     def test_forwards_user_llm_config_to_agents(self, auth_client, monkeypatch):
         _patch_settings(monkeypatch, agents_url="http://localhost:8002")
 
