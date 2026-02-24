@@ -8,7 +8,8 @@ app:ActionShape a sh:NodeShape ;
   sh:property [
     sh:path app:bucket ;
     sh:minCount 1 ;
-    sh:in ("inbox" "next" "waiting" "someday" "calendar" "reference" "completed")
+    sh:datatype xsd:string ;
+    sh:in ("inbox" "next" "waiting" "someday" "calendar" "reference" "completed" "project")
   ] ;
   sh:property [
     sh:path app:rawCapture ;
@@ -34,10 +35,20 @@ app:ReferenceShape a sh:NodeShape ;
 
 app:PersonShape a sh:NodeShape ;
   sh:targetClass schema:Person ;
-  sh:property [ sh:path schema:name ; sh:minCount 1 ] ;
-  sh:property [ sh:path app:orgRef ; sh:minCount 1 ] ;
+  sh:property [
+    sh:path schema:name ;
+    sh:minCount 1 ;
+    sh:datatype xsd:string
+  ] ;
+  sh:property [
+    sh:path app:orgRef ;
+    sh:minCount 1 ;
+    sh:datatype xsd:string
+  ] ;
   sh:property [
     sh:path app:orgRole ;
+    sh:minCount 1 ;
+    sh:datatype xsd:string ;
     sh:in ("member" "founder" "accountant" "advisor" "interest")
   ] .
 
