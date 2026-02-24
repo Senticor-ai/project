@@ -99,9 +99,8 @@ describe("LoginPage", () => {
 
       const disclaimer = screen.getByRole("status");
       expect(disclaimer).toBeInTheDocument();
-      expect(disclaimer).toHaveTextContent(
-        "Development/demo environment — not for production use",
-      );
+      // Check for a distinctive word that appears in both en/de translations
+      expect(disclaimer).toHaveTextContent(/demo|Demo/i);
     });
 
     it("renders dev/demo disclaimer in register mode", async () => {
@@ -113,9 +112,8 @@ describe("LoginPage", () => {
 
       const disclaimer = screen.getByRole("status");
       expect(disclaimer).toBeInTheDocument();
-      expect(disclaimer).toHaveTextContent(
-        "Development/demo environment — not for production use",
-      );
+      // Check for a distinctive word that appears in both en/de translations
+      expect(disclaimer).toHaveTextContent(/demo|Demo/i);
     });
 
     it("applies correct warning styling to disclaimer", () => {

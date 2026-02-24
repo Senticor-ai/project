@@ -81,29 +81,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!user) return;
 
     try {
-      // Call the backend endpoint to persist the acknowledgment
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
-      const response = await fetch(`${API_BASE_URL}/auth/acknowledge-disclaimer`, {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to acknowledge disclaimer");
-      }
-
-      // Update the user state with the current timestamp
-      const updatedUser: AuthUser = {
-        ...user,
-        disclaimer_acknowledged_at: new Date().toISOString(),
-      };
+      const updatedUser = await AuthApi.acknowledgeDisclaimer();
       setUser(updatedUser);
       setFaroUser(updatedUser);
     } catch (err) {
-      // If the API call fails, still close the modal but log the error
       console.error("Failed to acknowledge disclaimer:", err);
     }
   }, [user]);

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
+import { getMessage } from "@/lib/messages";
 
 export interface LoginPageProps {
   onLogin: (email: string, password: string) => Promise<void>;
@@ -129,7 +130,7 @@ export function LoginPage({
           >
             <Icon name="warning" size={16} className="shrink-0" />
             <span>
-              Development/demo environment — not for production use
+              {getMessage("disclaimer.dev.banner")}
             </span>
           </div>
 
