@@ -27,6 +27,7 @@ from ..models import (
     SearchIndexStatusResponse,
 )
 from ..outbox import enqueue_event
+from ..rate_limit import limiter
 from ..search.jobs import enqueue_job, get_job, serialize_job
 from ..storage import get_storage
 from ..text_extractor import extract_file_text
@@ -41,6 +42,7 @@ router = APIRouter(prefix="/files", tags=["files"], dependencies=[Depends(get_cu
     description="Returns an upload URL and chunk sizing for resumable uploads.",
     status_code=status.HTTP_201_CREATED,
 )
+@limiter.limit("10/minute")
 def initiate_upload(
     payload: FileInitiateRequest,
     idempotency_key: str | None = Header(
@@ -132,6 +134,7 @@ def initiate_upload(
     summary="Upload a chunk",
     description="Send raw bytes with `X-Chunk-Index` and `X-Chunk-Total` headers.",
 )
+@limiter.limit("10/minute")
 async def upload_chunk(
     upload_id: str,
     request: Request,
