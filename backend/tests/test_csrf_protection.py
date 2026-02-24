@@ -253,8 +253,15 @@ def test_delete_without_csrf_token_returns_403(authenticated_session):
 
 def test_csrf_disabled_allows_post_without_token():
     """When CSRF_ENABLED=false, POST should work without token."""
-    # Temporarily set CSRF to disabled
-    with patch("app.config.settings.csrf_enabled", False):
+    # Temporarily set CSRF to disabled via environment variable
+    with patch.dict(os.environ, {"CSRF_ENABLED": "false"}):
+        # Reload config to pick up the environment variable change
+        import importlib
+
+        import app.config
+
+        importlib.reload(app.config)
+
         # Create a new client with CSRF disabled
         from app.main import app
 
