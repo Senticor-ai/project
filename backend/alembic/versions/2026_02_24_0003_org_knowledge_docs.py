@@ -17,13 +17,59 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # Add columns first without constraints
     op.execute(
         """
         ALTER TABLE organizations
-          ADD COLUMN IF NOT EXISTS general_doc_id UUID REFERENCES items(item_id),
-          ADD COLUMN IF NOT EXISTS user_doc_id UUID REFERENCES items(item_id),
-          ADD COLUMN IF NOT EXISTS log_doc_id UUID REFERENCES items(item_id),
-          ADD COLUMN IF NOT EXISTS agent_doc_id UUID REFERENCES items(item_id);
+          ADD COLUMN IF NOT EXISTS general_doc_id UUID,
+          ADD COLUMN IF NOT EXISTS user_doc_id UUID,
+          ADD COLUMN IF NOT EXISTS log_doc_id UUID,
+          ADD COLUMN IF NOT EXISTS agent_doc_id UUID;
+        """
+    )
+
+    # Add deferred foreign key constraints
+    # (DEFERRABLE INITIALLY DEFERRED allows circular dependencies within a transaction)
+    op.execute(
+        """
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_constraint WHERE conname = 'fk_organizations_general_doc_id'
+            ) THEN
+                ALTER TABLE organizations
+                ADD CONSTRAINT fk_organizations_general_doc_id
+                FOREIGN KEY (general_doc_id) REFERENCES items(item_id)
+                DEFERRABLE INITIALLY DEFERRED;
+            END IF;
+
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_constraint WHERE conname = 'fk_organizations_user_doc_id'
+            ) THEN
+                ALTER TABLE organizations
+                ADD CONSTRAINT fk_organizations_user_doc_id
+                FOREIGN KEY (user_doc_id) REFERENCES items(item_id)
+                DEFERRABLE INITIALLY DEFERRED;
+            END IF;
+
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_constraint WHERE conname = 'fk_organizations_log_doc_id'
+            ) THEN
+                ALTER TABLE organizations
+                ADD CONSTRAINT fk_organizations_log_doc_id
+                FOREIGN KEY (log_doc_id) REFERENCES items(item_id)
+                DEFERRABLE INITIALLY DEFERRED;
+            END IF;
+
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_constraint WHERE conname = 'fk_organizations_agent_doc_id'
+            ) THEN
+                ALTER TABLE organizations
+                ADD CONSTRAINT fk_organizations_agent_doc_id
+                FOREIGN KEY (agent_doc_id) REFERENCES items(item_id)
+                DEFERRABLE INITIALLY DEFERRED;
+            END IF;
+        END $$;
         """
     )
 

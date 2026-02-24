@@ -83,7 +83,7 @@ def create_org(payload: OrgCreateRequest, current_user=Depends(get_current_user)
                         "system",
                     ),
                 )
-                doc_ids[doc_type.lower()] = str(cur.fetchone()["item_id"])
+                doc_ids[doc_type.lower()] = cur.fetchone()["item_id"]
 
             # Step 3: Update org with doc IDs
             cur.execute(
@@ -116,10 +116,10 @@ def create_org(payload: OrgCreateRequest, current_user=Depends(get_current_user)
         name=org["name"],
         role="owner",
         created_at=org["created_at"].isoformat(),
-        general_doc_id=doc_ids["general"],
-        user_doc_id=doc_ids["user"],
-        log_doc_id=doc_ids["log"],
-        agent_doc_id=doc_ids["agent"],
+        general_doc_id=str(doc_ids["general"]),
+        user_doc_id=str(doc_ids["user"]),
+        log_doc_id=str(doc_ids["log"]),
+        agent_doc_id=str(doc_ids["agent"]),
     )
 
 
