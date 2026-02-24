@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(DATABASE_URL=\"\" POSTGRES_PASSWORD=\"\" uv run pytest:*)"
+      "Bash(DATABASE_URL=\"\" POSTGRES_PASSWORD=\"\" uv run pytest:*)",
+      "Bash(git pull:*)"
     ]
   }
 }
