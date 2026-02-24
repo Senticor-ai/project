@@ -60,6 +60,11 @@ def _bucket(item: dict) -> str:
     return value.strip() if isinstance(value, str) else ""
 
 
+def _is_action_type(item_type: str) -> bool:
+    local_type = item_type.split(":")[-1]
+    return local_type == "EmailMessage" or local_type.endswith("Action")
+
+
 def _item_to_rdf_graph(item: dict) -> Graph:
     """Convert item dict to RDF graph for SHACL validation.
 
@@ -79,10 +84,8 @@ def _item_to_rdf_graph(item: dict) -> Graph:
     # Add @type as rdf:type
     item_type = _normalize_type(item.get("@type"))
     if item_type:
-        # Map to schema.org class
-        if item_type == "Action" or item_type.endswith(":Action"):
-            g.add((subject, RDF_TYPE, SCHEMA.Action))
-        elif item_type == "ReadAction":
+        # Map action-like types to schema:Action so SHACL action constraints apply.
+        if _is_action_type(item_type):
             g.add((subject, RDF_TYPE, SCHEMA.Action))
         elif item_type == "Project":
             g.add((subject, RDF_TYPE, SCHEMA.Project))
@@ -194,7 +197,7 @@ def validate_item_create(item: dict) -> list[dict[str, object]]:
         # Fallback to hardcoded validation if pyshacl not available
         logger.warning("pyshacl not available, using hardcoded validation")
 
-        if item_type in {"Action", "ReadAction"} or item_type.endswith(":Action"):
+        if _is_action_type(item_type):
             if bucket not in ACTION_BUCKETS:
                 issues.append({
                     "source": "shacl",

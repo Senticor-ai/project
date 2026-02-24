@@ -4,7 +4,6 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag
 
-
 # Schema.org Action subtypes for validation
 ACTION_SUBTYPES = frozenset({
     "Action",
@@ -435,12 +434,21 @@ class ItemPatchModel(BaseModel):
     type: (
         Literal[
             "Action",
+            "ReadAction",
+            "EmailMessage",
+            "CreateAction",
+            "UpdateAction",
+            "DeleteAction",
+            "SearchAction",
+            "FindAction",
+            "CheckAction",
+            "ConfirmAction",
+            "InformAction",
+            "PlanAction",
             "Project",
             "CreativeWork",
             "DigitalDocument",
             "Event",
-            "EmailMessage",
-            "ReadAction",
         ]
         | None
     ) = Field(
@@ -469,9 +477,9 @@ class ItemPatchModel(BaseModel):
         default=None,
         description="schema.org result (ThingRef for outcome/product).",
     )
-    location: dict | None = Field(
+    location: dict[str, Any] | str | None = Field(
         default=None,
-        description="schema.org location (ThingRef for place).",
+        description="schema.org location (ThingRef for action items, string for event items).",
     )
     schemaVersion: int | None = Field(default=None, alias="_schemaVersion")
     name: str | None = None
@@ -487,7 +495,6 @@ class ItemPatchModel(BaseModel):
     startDate: str | None = None
     endDate: str | None = None
     duration: str | None = None
-    location: str | None = None
     additionalProperty: list[PropertyValueModel] | None = None
     sourceMetadata: ItemSourceMetadata | None = None
 

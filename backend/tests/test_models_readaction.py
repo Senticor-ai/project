@@ -205,3 +205,19 @@ class TestItemPatchModel:
         dumped = patch.model_dump(by_alias=True, exclude_none=True)
         assert dumped["object"] == {"@id": "urn:app:reference:y"}
         assert "object_ref" not in dumped
+
+    def test_patch_accepts_action_location_object(self):
+        data = {
+            "@type": "CreateAction",
+            "location": {"@id": "urn:app:reference:office"},
+        }
+        patch = ItemPatchModel.model_validate(data)
+        assert patch.location == {"@id": "urn:app:reference:office"}
+
+    def test_patch_accepts_event_location_string(self):
+        data = {
+            "@type": "Event",
+            "location": "Conference Room A",
+        }
+        patch = ItemPatchModel.model_validate(data)
+        assert patch.location == "Conference Room A"
