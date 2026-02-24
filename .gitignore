@@ -7,7 +7,7 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 .tmp/
-.tmp/preflight-local-cache/
+
 
 node_modules
 dist
@@ -62,6 +62,4 @@ frontend/coverage/
 
 # Exported documentation
 exports/
-
-
 frontend/dev-dist/
