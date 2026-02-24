@@ -198,6 +198,77 @@ def test_inbox_triage_scenario(client: TestClient):
     assert "triage" in tc["arguments"]["argv"]
 
 
+def test_review_triage_scenario(client: TestClient):
+    """Test review/triage flow: user reviews items, agent suggests actions.
+
+    Simulates:
+    1. User asks to review what needs attention
+    2. Agent responds with copilot_cli tool calls to list and triage items
+    3. Verify only copilot_cli is used (no external trackers)
+    """
+    tool_calls = [
+        ToolCall(
+            tool_name="copilot_cli",
+            arguments={
+                "argv": [
+                    "items",
+                    "list",
+                    "--bucket",
+                    "next",
+                    "--apply",
+                ]
+            },
+        ),
+        ToolCall(
+            tool_name="copilot_cli",
+            arguments={
+                "argv": [
+                    "items",
+                    "update",
+                    "--id",
+                    "item-123",
+                    "--bucket",
+                    "someday",
+                    "--apply",
+                ]
+            },
+        ),
+    ]
+    reply = ChatMessage.from_assistant(
+        "Ich zeige dir deine aktuellen Aufgaben und verschiebe niedrig-priorisierte Items.",
+        tool_calls=tool_calls,
+    )
+
+    with patch("app.run_agent", new_callable=AsyncMock, return_value=reply):
+        resp = client.post(
+            "/chat/completions",
+            json={
+                "messages": _msgs("Zeig mir, was ich reviewen muss"),
+                "conversationId": "dogfood-review-1",
+            },
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+
+    # Verify response structure
+    assert body["text"] == "Ich zeige dir deine aktuellen Aufgaben und verschiebe niedrig-priorisierte Items."
+    assert len(body["toolCalls"]) == 2
+
+    # Verify all tool calls are copilot_cli (no external trackers)
+    for tc in body["toolCalls"]:
+        assert tc["name"] == "copilot_cli"
+        assert "items" in tc["arguments"]["argv"]
+        assert "--apply" in tc["arguments"]["argv"]
+
+    # Verify first call is list
+    assert body["toolCalls"][0]["arguments"]["argv"][1] == "list"
+
+    # Verify second call is update/triage
+    assert body["toolCalls"][1]["arguments"]["argv"][1] == "update"
+    assert "--bucket" in body["toolCalls"][1]["arguments"]["argv"]
+
+
 # ---------------------------------------------------------------------------
 # Scheduling Scenario
 # ---------------------------------------------------------------------------
