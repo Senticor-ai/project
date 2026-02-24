@@ -7,6 +7,7 @@ import {
 } from "./api-client";
 import type { AuthUser } from "./api-client";
 import { AuthContext } from "./auth-types";
+import { setFaroUser } from "./faro";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -20,6 +21,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .then((u) => {
         if (!controller.signal.aborted) {
           setUser(u);
+          setFaroUser(u);
           return refreshCsrfToken();
         }
       })
@@ -36,7 +38,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Register session-expired handler for automatic 401 recovery
   useEffect(() => {
-    setSessionExpiredHandler(() => setUser(null));
+    setSessionExpiredHandler(() => {
+      setUser(null);
+      setFaroUser(null);
+    });
     return () => setSessionExpiredHandler(null);
   }, []);
 
@@ -44,18 +49,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setError(null);
     const u = await AuthApi.login(email, password);
     setUser(u);
+    setFaroUser(u);
   }, []);
 
   const register = useCallback(async (email: string, password: string) => {
     setError(null);
     const u = await AuthApi.register(email, password);
     setUser(u);
+    setFaroUser(u);
     await refreshCsrfToken();
   }, []);
 
   const logout = useCallback(async () => {
     await AuthApi.logout();
     setUser(null);
+    setFaroUser(null);
   }, []);
 
   return (
