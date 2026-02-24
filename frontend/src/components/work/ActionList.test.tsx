@@ -4,7 +4,11 @@ import userEvent from "@testing-library/user-event";
 import { createElement } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ActionList } from "./ActionList";
-import { createActionItem, resetFactoryCounter } from "@/model/factories";
+import {
+  createActionItem,
+  resetFactoryCounter,
+  computationPort,
+} from "@/model/factories";
 import type { CanonicalId } from "@/model/canonical-id";
 
 // dnd-kit stub (ActionRow uses useDraggable)
@@ -30,6 +34,7 @@ vi.mock("@/hooks/use-items", () => ({
 beforeEach(() => {
   resetFactoryCounter();
   _completedData = [];
+  sessionStorage.clear();
 });
 
 function createWrapper() {
@@ -793,6 +798,336 @@ describe("ActionList", () => {
     await user.click(screen.getByLabelText("Clear context filters"));
     expect(screen.getByText("Phone task")).toBeInTheDocument();
     expect(screen.getByText("Computer task")).toBeInTheDocument();
+  });
+
+  it("shows energy and time filters even when no contexts are available", async () => {
+    const user = userEvent.setup();
+    const items = [
+      createActionItem({
+        name: "High no context",
+        bucket: "next",
+        ports: [computationPort({ energyLevel: "high" })],
+      }),
+      createActionItem({
+        name: "Low no context",
+        bucket: "next",
+        ports: [computationPort({ energyLevel: "low" })],
+      }),
+    ];
+    renderActionList({ bucket: "next", items });
+
+    expect(
+      screen.queryByRole("group", { name: "Filter by context" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("group", { name: "Filter by energy" }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Time available")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("radio", { name: "high" }));
+    expect(screen.getByText("High no context")).toBeInTheDocument();
+    expect(screen.queryByText("Low no context")).not.toBeInTheDocument();
+  });
+
+  // -------------------------------------------------------------------------
+  // Energy filter integration
+  // -------------------------------------------------------------------------
+
+  it("energy filter shows only items matching selected energy level", async () => {
+    const user = userEvent.setup();
+    const items = [
+      createActionItem({
+        name: "High energy task",
+        bucket: "next",
+        contexts: ["@office"] as unknown as CanonicalId[],
+        ports: [computationPort({ energyLevel: "high" })],
+      }),
+      createActionItem({
+        name: "Low energy task",
+        bucket: "next",
+        contexts: ["@office"] as unknown as CanonicalId[],
+        ports: [computationPort({ energyLevel: "low" })],
+      }),
+      createActionItem({
+        name: "No energy task",
+        bucket: "next",
+        contexts: ["@office"] as unknown as CanonicalId[],
+      }),
+    ];
+    renderActionList({ bucket: "next", items });
+
+    expect(screen.getByText("High energy task")).toBeInTheDocument();
+    expect(screen.getByText("Low energy task")).toBeInTheDocument();
+    expect(screen.getByText("No energy task")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("radio", { name: "high" }));
+
+    expect(screen.getByText("High energy task")).toBeInTheDocument();
+    expect(screen.queryByText("Low energy task")).not.toBeInTheDocument();
+    expect(screen.queryByText("No energy task")).not.toBeInTheDocument();
+  });
+
+  it("clicking selected energy level deselects it (shows all items again)", async () => {
+    const user = userEvent.setup();
+    const items = [
+      createActionItem({
+        name: "High task",
+        bucket: "next",
+        contexts: ["@office"] as unknown as CanonicalId[],
+        ports: [computationPort({ energyLevel: "high" })],
+      }),
+      createActionItem({
+        name: "Low task",
+        bucket: "next",
+        contexts: ["@office"] as unknown as CanonicalId[],
+        ports: [computationPort({ energyLevel: "low" })],
+      }),
+    ];
+    renderActionList({ bucket: "next", items });
+
+    await user.click(screen.getByRole("radio", { name: "high" }));
+    expect(screen.queryByText("Low task")).not.toBeInTheDocument();
+
+    // Click again to deselect
+    await user.click(screen.getByRole("radio", { name: "high" }));
+    expect(screen.getByText("High task")).toBeInTheDocument();
+    expect(screen.getByText("Low task")).toBeInTheDocument();
+  });
+
+  // -------------------------------------------------------------------------
+  // Time filter integration
+  // -------------------------------------------------------------------------
+
+  it("time filter shows items with timeEstimate <= threshold", async () => {
+    const user = userEvent.setup();
+    const items = [
+      createActionItem({
+        name: "Quick task",
+        bucket: "next",
+        contexts: ["@office"] as unknown as CanonicalId[],
+        ports: [computationPort({ timeEstimate: "15min" })],
+      }),
+      createActionItem({
+        name: "Long task",
+        bucket: "next",
+        contexts: ["@office"] as unknown as CanonicalId[],
+        ports: [computationPort({ timeEstimate: "2hr" })],
+      }),
+      createActionItem({
+        name: "No time task",
+        bucket: "next",
+        contexts: ["@office"] as unknown as CanonicalId[],
+      }),
+    ];
+    renderActionList({ bucket: "next", items });
+
+    expect(screen.getByText("Quick task")).toBeInTheDocument();
+    expect(screen.getByText("Long task")).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText("Time available"), "30min");
+
+    expect(screen.getByText("Quick task")).toBeInTheDocument();
+    expect(screen.queryByText("Long task")).not.toBeInTheDocument();
+    // Items without timeEstimate are excluded when filter is active
+    expect(screen.queryByText("No time task")).not.toBeInTheDocument();
+  });
+
+  // -------------------------------------------------------------------------
+  // Combined filters
+  // -------------------------------------------------------------------------
+
+  it("combined context + energy + time filters work together", async () => {
+    const user = userEvent.setup();
+    const items = [
+      createActionItem({
+        name: "Phone high quick",
+        bucket: "next",
+        contexts: ["@phone"] as unknown as CanonicalId[],
+        ports: [computationPort({ energyLevel: "high", timeEstimate: "15min" })],
+      }),
+      createActionItem({
+        name: "Phone low quick",
+        bucket: "next",
+        contexts: ["@phone"] as unknown as CanonicalId[],
+        ports: [computationPort({ energyLevel: "low", timeEstimate: "5min" })],
+      }),
+      createActionItem({
+        name: "Computer high quick",
+        bucket: "next",
+        contexts: ["@computer"] as unknown as CanonicalId[],
+        ports: [computationPort({ energyLevel: "high", timeEstimate: "15min" })],
+      }),
+      createActionItem({
+        name: "Phone high long",
+        bucket: "next",
+        contexts: ["@phone"] as unknown as CanonicalId[],
+        ports: [computationPort({ energyLevel: "high", timeEstimate: "2hr" })],
+      }),
+    ];
+    renderActionList({ bucket: "next", items });
+
+    // Filter by @phone context
+    await user.click(screen.getByRole("checkbox", { name: /@phone/ }));
+    // Filter by high energy
+    await user.click(screen.getByRole("radio", { name: "high" }));
+    // Filter by 30min time
+    await user.selectOptions(screen.getByLabelText("Time available"), "30min");
+
+    // Only "Phone high quick" matches all three filters
+    expect(screen.getByText("Phone high quick")).toBeInTheDocument();
+    expect(screen.queryByText("Phone low quick")).not.toBeInTheDocument();
+    expect(screen.queryByText("Computer high quick")).not.toBeInTheDocument();
+    expect(screen.queryByText("Phone high long")).not.toBeInTheDocument();
+  });
+
+  it("clearing context filters keeps energy and time filters active", async () => {
+    const user = userEvent.setup();
+    const items = [
+      createActionItem({
+        name: "Phone high quick",
+        bucket: "next",
+        contexts: ["@phone"] as unknown as CanonicalId[],
+        ports: [computationPort({ energyLevel: "high", timeEstimate: "15min" })],
+      }),
+      createActionItem({
+        name: "Computer high quick",
+        bucket: "next",
+        contexts: ["@computer"] as unknown as CanonicalId[],
+        ports: [computationPort({ energyLevel: "high", timeEstimate: "15min" })],
+      }),
+      createActionItem({
+        name: "Phone low quick",
+        bucket: "next",
+        contexts: ["@phone"] as unknown as CanonicalId[],
+        ports: [computationPort({ energyLevel: "low", timeEstimate: "15min" })],
+      }),
+      createActionItem({
+        name: "Computer high long",
+        bucket: "next",
+        contexts: ["@computer"] as unknown as CanonicalId[],
+        ports: [computationPort({ energyLevel: "high", timeEstimate: "2hr" })],
+      }),
+    ];
+    renderActionList({ bucket: "next", items });
+
+    await user.click(screen.getByRole("checkbox", { name: /@phone/ }));
+    await user.click(screen.getByRole("radio", { name: "high" }));
+    await user.selectOptions(screen.getByLabelText("Time available"), "30min");
+
+    expect(screen.getByText("Phone high quick")).toBeInTheDocument();
+    expect(screen.queryByText("Computer high quick")).not.toBeInTheDocument();
+    expect(screen.queryByText("Phone low quick")).not.toBeInTheDocument();
+    expect(screen.queryByText("Computer high long")).not.toBeInTheDocument();
+
+    await user.click(screen.getByLabelText("Clear context filters"));
+
+    expect(screen.getByText("Phone high quick")).toBeInTheDocument();
+    expect(screen.getByText("Computer high quick")).toBeInTheDocument();
+    expect(screen.queryByText("Phone low quick")).not.toBeInTheDocument();
+    expect(screen.queryByText("Computer high long")).not.toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "high" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    expect(screen.getByLabelText("Time available")).toHaveValue("30min");
+  });
+
+  // -------------------------------------------------------------------------
+  // Filter-specific empty state
+  // -------------------------------------------------------------------------
+
+  it("shows filter-specific empty state when all items filtered out", async () => {
+    const user = userEvent.setup();
+    const items = [
+      createActionItem({
+        name: "Low energy only",
+        bucket: "next",
+        contexts: ["@phone"] as unknown as CanonicalId[],
+        ports: [computationPort({ energyLevel: "low" })],
+      }),
+    ];
+    renderActionList({ bucket: "next", items });
+
+    // Select high energy — no items match
+    await user.click(screen.getByRole("radio", { name: "high" }));
+
+    expect(
+      screen.getByText("No actions match your filters"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Clear filters")).toBeInTheDocument();
+  });
+
+  it("Clear filters button in empty state resets all filters", async () => {
+    const user = userEvent.setup();
+    const items = [
+      createActionItem({
+        name: "Low energy only",
+        bucket: "next",
+        contexts: ["@phone"] as unknown as CanonicalId[],
+        ports: [computationPort({ energyLevel: "low" })],
+      }),
+    ];
+    renderActionList({ bucket: "next", items });
+
+    await user.click(screen.getByRole("radio", { name: "high" }));
+    expect(screen.queryByText("Low energy only")).not.toBeInTheDocument();
+
+    await user.click(screen.getByText("Clear filters"));
+    expect(screen.getByText("Low energy only")).toBeInTheDocument();
+  });
+
+  // -------------------------------------------------------------------------
+  // Filter state persists across bucket change (sessionStorage)
+  // -------------------------------------------------------------------------
+
+  it("filter state persists across bucket change via sessionStorage", async () => {
+    const user = userEvent.setup();
+    const items = [
+      createActionItem({
+        name: "Next phone high",
+        bucket: "next",
+        contexts: ["@phone"] as unknown as CanonicalId[],
+        ports: [computationPort({ energyLevel: "high" })],
+      }),
+      createActionItem({
+        name: "Next phone low",
+        bucket: "next",
+        contexts: ["@phone"] as unknown as CanonicalId[],
+        ports: [computationPort({ energyLevel: "low" })],
+      }),
+      createActionItem({
+        name: "Waiting task",
+        bucket: "waiting",
+        contexts: ["@office"] as unknown as CanonicalId[],
+      }),
+    ];
+    const wrapper = createWrapper();
+    const { rerender } = render(
+      <ActionList
+        {...defaultProps({ bucket: "next", items, onEdit: vi.fn() })}
+      />,
+      { wrapper },
+    );
+
+    // Select high energy filter on next bucket
+    await user.click(screen.getByRole("radio", { name: "high" }));
+    expect(screen.queryByText("Next phone low")).not.toBeInTheDocument();
+
+    // Switch to waiting bucket
+    rerender(
+      <ActionList
+        {...defaultProps({ bucket: "waiting", items, onEdit: vi.fn() })}
+      />,
+    );
+
+    // Switch back to next — filter should be restored from sessionStorage
+    rerender(
+      <ActionList
+        {...defaultProps({ bucket: "next", items, onEdit: vi.fn() })}
+      />,
+    );
+    expect(screen.getByText("Next phone high")).toBeInTheDocument();
+    expect(screen.queryByText("Next phone low")).not.toBeInTheDocument();
   });
 
   // -------------------------------------------------------------------------

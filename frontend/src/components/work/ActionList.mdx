@@ -4,26 +4,37 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 # ActionList
 
-> **Status**: Spec — not yet implemented
+> **Status**: Implemented
 
-Filtered list of next actions with tab bar and context/energy/time filters.
+Filtered list of next actions with context/energy/time filters per bucket.
 
 Embodies **Principle 3: Gravity Creates Focus** — filters narrow by attraction,
 never hiding context, and **Principle 8: Speed Over Ceremony** — instant filtering
 with zero-friction interaction.
 
+## Component Composition
+
+```
+ActionList
+├── ContextFilterBar      toggle buttons (checkbox role), multi-select
+├── EnergyFilterBar       radio button group, single-select with toggle-off
+├── TimeFilterDropdown    <select> dropdown for max time estimate
+└── ActionItem[]          filtered + sorted action cards
+```
+
+The `useActionFilters` hook manages all filter state, applies filters sequentially,
+and handles sessionStorage persistence.
+
 ## Visual Structure
 
 ```
 ┌──────────────────────────────────────────────┐
-│ [All] [Today] [This Week] [Overdue] [+ Tab]  │  ← tab bar
-├──────────────────────────────────────────────┤
-│ 🏷️ @phone  🏷️ @computer  🏷️ @errands  [✕]  │  ← context filter chips
-│ ⚡ Energy: [Low] [Med] [High]               │  ← energy toggle
-│ ⏱️ Time: [Any ▾]                             │  ← time dropdown
+│ 🏷️ @phone (4)  @computer (7)  @errands (2) [✕]│  ← context filter chips
+│ ⚡ Energy: (Low) (Med) (High)                │  ← energy radio group
+│ ⏱️ Time: [Any ▾]                              │  ← time dropdown
 ├──────────────────────────────────────────────┤
 │  ┌────────────────────────────────────────┐  │
-│  │ ⚡ Call insurance company    ★  @phone │  │  ← focused item
+│  │ ⚡ Call insurance company    ★  @phone │  │  ← action item
 │  └────────────────────────────────────────┘  │
 │  ┌────────────────────────────────────────┐  │
 │  │ ⚡ Review contract draft     @computer │  │
@@ -38,12 +49,30 @@ with zero-friction interaction.
 
 ## Filter Behavior
 
-- **Context chips**: multi-select OR logic (show actions matching ANY selected context)
-- **Energy**: single-select, filters by `ComputationPort.energyLevel`
-- **Time**: "I have X minutes" — shows actions with `timeEstimate <= X`
-- **Tab + filters combine**: tab sets the base query, filters narrow it
-- **URL-synced**: filter state reflects in URL for deep linking
+Three independent filter dimensions combined with AND logic:
+
+- **Context chips**: multi-select OR logic (show actions matching ANY selected context).
+  Dynamically populated from available items, with per-context action counts.
+  Clear button appears only when filters are active.
+- **Energy**: single-select radio group (`low` / `medium` / `high`).
+  Click selected level again to deselect. Filters by `computationPort.energyLevel`.
+- **Time**: dropdown select (5 min, 15 min, 30 min, 1 hr, 2 hr, half-day).
+  Shows actions with `computationPort.timeEstimate ≤ selected`. Items without a
+  time estimate are excluded when this filter is active.
+
+Filter bars render conditionally — only when contexts exist or filters are active.
+
+## Persistence
+
+Filter state is persisted to **sessionStorage** per bucket:
+
+- **Key pattern**: `action-filters:{bucket}` (e.g. `action-filters:next`)
+- **Stored shape**: `{ selectedContexts, selectedEnergy, maxTimeEstimate }`
+- **Bucket-scoped**: each bucket maintains independent filter state; switching
+  buckets saves current state and restores the target bucket's previous state.
+- **Derived-state pattern**: state is loaded at render time (no `useEffect`),
+  with silent fallback if sessionStorage is unavailable.
 
 ## Empty State
 
-"No actions match your filters" with a "Clear filters" button.
+"No actions match your filters" with a "Clear filters" button that calls `clearAll()`.
