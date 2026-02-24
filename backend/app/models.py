@@ -299,10 +299,23 @@ class ItemJsonLdBase(BaseModel):
 class ActionItemJsonLd(ItemJsonLdBase):
     """schema:Action — all action-type items (inbox, next, waiting, calendar, someday)."""
 
-    type: Literal["Action", "EmailMessage", "ReadAction"] = Field(
+    type: Literal[
+        "Action",
+        "ReadAction",
+        "EmailMessage",
+        "CreateAction",
+        "UpdateAction",
+        "DeleteAction",
+        "SearchAction",
+        "FindAction",
+        "CheckAction",
+        "ConfirmAction",
+        "InformAction",
+        "PlanAction",
+    ] = Field(
         ...,
         alias="@type",
-        description="schema.org Action (also accepts 'EmailMessage', 'ReadAction').",
+        description="schema.org Action subtype (CreateAction, UpdateAction, etc.).",
     )
     startTime: str | None = Field(
         default=None,
