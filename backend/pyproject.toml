@@ -9,6 +9,7 @@ dependencies = [
   "psycopg[binary]",
   "python-dotenv",
   "python-multipart",
+  "python-magic",
   "pypdf",
   "pywebpush",
   "pyshacl",
