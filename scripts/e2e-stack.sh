@@ -208,6 +208,11 @@ echo "[e2e] Schema applied."
 export DATABASE_URL="postgresql://${PG_USER}:${PG_PASSWORD}@${PG_HOST}:${PG_PORT}/${E2E_DB}"
 mkdir -p "$ROOT_DIR/storage-e2e"
 
+# Log directory for backend/worker/agents output.
+# Keeps Playwright output readable — check these on failure.
+E2E_LOG_DIR="$ROOT_DIR/frontend/test-results/logs"
+mkdir -p "$E2E_LOG_DIR"
+
 # Kill stale processes on E2E ports (uvicorn workers may survive parent kill)
 for port in "$BACKEND_PORT" "$AGENTS_PORT" "$FRONTEND_PORT"; do
   stale_pids=$(lsof -ti ":$port" 2>/dev/null || true)
@@ -220,12 +225,13 @@ done
 
 # ── Step 6: Start backend ────────────────────────────────────────────
 echo "[e2e] Starting backend on :$BACKEND_PORT..."
+echo "[e2e] Logs → $E2E_LOG_DIR/backend.log"
 cd "$ROOT_DIR/backend"
 uv run --python 3.12 python -m uvicorn app.main:app \
   --host 127.0.0.1 \
   --port "$BACKEND_PORT" \
   --log-level warning \
-  &
+  > "$E2E_LOG_DIR/backend.log" 2>&1 &
 BACKEND_PID=$!
 
 # Wait for backend health
@@ -247,7 +253,8 @@ done
 # Without it, import jobs scopilot in "queued" status forever.
 echo "[e2e] Starting outbox worker..."
 cd "$ROOT_DIR/backend"
-uv run --python 3.12 python -m app.worker --loop &
+uv run --python 3.12 python -m app.worker --loop \
+  > "$E2E_LOG_DIR/worker.log" 2>&1 &
 WORKER_PID=$!
 echo "[e2e] Worker started (PID $WORKER_PID)."
 
@@ -261,7 +268,7 @@ BACKEND_URL="http://localhost:$BACKEND_PORT" \
     --host 127.0.0.1 \
     --port "$AGENTS_PORT" \
     --log-level warning \
-    &
+    > "$E2E_LOG_DIR/agents.log" 2>&1 &
 AGENTS_PID=$!
 
 echo "[e2e] Waiting for agents health..."
@@ -284,7 +291,8 @@ cd "$ROOT_DIR/frontend"
 # Tell vite.config.ts to proxy /api to the E2E backend port
 export VITE_BACKEND_PORT="$BACKEND_PORT"
 
-npx vite --port "$FRONTEND_PORT" --strictPort &
+npx vite --port "$FRONTEND_PORT" --strictPort \
+  > "$E2E_LOG_DIR/frontend.log" 2>&1 &
 FRONTEND_PID=$!
 
 # Wait for frontend
@@ -304,6 +312,7 @@ done
 # ── Step 8: Run tests or keep running ────────────────────────────────
 if [ "$RUN_TESTS" = true ]; then
   echo "[e2e] Running Playwright tests..."
+  echo "[e2e] Service logs: $E2E_LOG_DIR/"
   cd "$ROOT_DIR/frontend"
   E2E_BASE_URL="http://localhost:$FRONTEND_PORT" \
     npx playwright test --config e2e/playwright.config.ts "${PW_ARGS[@]+"${PW_ARGS[@]}"}"
@@ -314,6 +323,7 @@ else
   echo "[e2e]   Backend:  http://localhost:$BACKEND_PORT"
   echo "[e2e]   Agents:   http://localhost:$AGENTS_PORT"
   echo "[e2e]   API docs: http://localhost:$BACKEND_PORT/docs"
+  echo "[e2e]   Logs:     $E2E_LOG_DIR/"
   echo ""
   wait
 fi

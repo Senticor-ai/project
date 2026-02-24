@@ -52,7 +52,14 @@ export class WorkspacePage {
 
   async captureInboxItem(text: string) {
     await this.captureInput.fill(text);
+    // Wait for the POST /items response so the server-assigned item_id
+    // replaces the optimistic temp-* id in the cache.  Without this,
+    // a fast triage right after capture sends PATCH /items/temp-… → 500.
+    const responsePromise = this.page.waitForResponse(
+      (r) => r.url().includes("/items") && r.request().method() === "POST",
+    );
     await this.captureInput.press("Enter");
+    await responsePromise;
   }
 
   // ----- Triage buttons -----

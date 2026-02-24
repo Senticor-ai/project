@@ -884,7 +884,7 @@ describe("useMoveAction", () => {
     });
   });
 
-  it("promotes @type to CreativeWork when moving inbox item to reference", async () => {
+  it("promotes @type to CreativeWork and derives name from rawCapture when moving inbox item to reference", async () => {
     mocked.update.mockResolvedValue(apiResponse(REFERENCE_RECORD));
 
     const { result } = renderHook(() => useMoveAction(), {
@@ -901,6 +901,39 @@ describe("useMoveAction", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     const [, patch] = mocked.update.mock.calls[0]!;
     expect(patch["@type"]).toBe("CreativeWork");
+    // Backend requires name for CreativeWork; should be derived from app:rawCapture
+    expect(patch.name).toBe("Inbox thought");
+  });
+
+  it("sets name in optimistic cache when promoting inbox item to reference", async () => {
+    // Delay the API response so we can observe the optimistic state
+    let resolveApi!: (value: ApiResponse<ItemRecord>) => void;
+    mocked.update.mockReturnValue(
+      new Promise((resolve) => {
+        resolveApi = resolve;
+      }),
+    );
+
+    const { qc, wrapper } = createWrapperWithClient([INBOX_RECORD]);
+    const { result } = renderHook(() => useMoveAction(), { wrapper });
+
+    act(() =>
+      result.current.mutate({
+        canonicalId: "urn:app:inbox:1" as CanonicalId,
+        bucket: "reference",
+      }),
+    );
+
+    // Before API resolves, cache should have the optimistic update with name derived
+    await waitFor(() => {
+      const cache = qc.getQueryData<ItemRecord[]>(ACTIVE_KEY) ?? [];
+      const record = cache.find((r) => r.canonical_id === "urn:app:inbox:1");
+      expect(record?.item["@type"]).toBe("CreativeWork");
+      expect(record?.item.name).toBe("Inbox thought");
+    });
+
+    resolveApi(apiResponse(REFERENCE_RECORD));
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
   });
 
   it("includes projectRefs when moving to reference with projectId", async () => {

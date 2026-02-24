@@ -136,4 +136,36 @@ describe("ToastProvider", () => {
       expect(screen.getByRole("alert")).toHaveTextContent("Mutation failed!");
     });
   });
+
+  it("shows readable message when mutation error.message is not a string", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    // Simulates FastAPI validation errors where detail is an array,
+    // causing Error(message) to produce "[object Object]"
+    function ObjectErrorTrigger() {
+      const mutation = useMutation({
+        mutationFn: async () => {
+          const err = new Error();
+          // Force .message to a non-string value (mimics ApiError with object detail)
+          (err as unknown as Record<string, unknown>).message = {
+            detail: [{ type: "missing", loc: ["body", "name"] }],
+          };
+          throw err;
+        },
+      });
+      return (
+        <button onClick={() => mutation.mutate()}>Trigger object error</button>
+      );
+    }
+
+    renderWithProviders(<ObjectErrorTrigger />);
+    await user.click(screen.getByText("Trigger object error"));
+
+    await waitFor(() => {
+      const alert = screen.getByRole("alert");
+      expect(alert.textContent).not.toContain("[object Object]");
+      expect(alert).toHaveTextContent("An operation failed");
+    });
+  });
 });

@@ -243,8 +243,9 @@ async function requestWithResponse<T>(
       });
     }
 
+    const detail = details?.detail;
     throw new ApiError({
-      message: details?.detail ?? "Request failed",
+      message: typeof detail === "string" ? detail : "Request failed",
       status: response.status,
       details,
     });
