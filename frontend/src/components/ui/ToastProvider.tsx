@@ -19,7 +19,12 @@ function MutationErrorBridge({
     const unsubscribe = cache.subscribe((event) => {
       if (event.type === "updated" && event.mutation.state.status === "error") {
         const err = event.mutation.state.error;
-        onError(err?.message ?? "An operation failed");
+        const raw = err?.message;
+        const message =
+          typeof raw === "string" && raw.length > 0
+            ? raw
+            : "An operation failed";
+        onError(message);
       }
     });
     return unsubscribe;

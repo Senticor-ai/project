@@ -491,15 +491,9 @@ priority — they erode team confidence in the suite.
 
 ### Inbox Triage Order
 
-The inbox sorts items by `provenance.createdAt` **descending** (newest first). Which item gets
-triaged first depends on how items were created:
-
-| Scenario                     | First triaged item      | Why                                                  |
-| ---------------------------- | ----------------------- | ---------------------------------------------------- |
-| **UI capture** (no reload)   | First captured (oldest) | Auto-expand fires when first item arrives; stays set |
-| **API seed + `page.reload`** | Newest (last created)   | Fresh state — auto-expand picks `sorted[0]`          |
-
-After the first triage, **auto-advance always picks the newest remaining** item (`sorted[0]`).
+The inbox sorts items by `provenance.createdAt` **descending** (newest first). Auto-expand
+always picks the newest item (`sorted[0]`), and auto-advance after triage also picks the
+newest remaining item. This is true regardless of how items were created (UI capture or API seed).
 
 When writing triage tests with `apiSeed.createInboxItems(...)`, create items in **reverse
 order** so the test reads naturally (newest item = first triaged = first in the array):
@@ -567,6 +561,55 @@ Mutation `onSettled` callbacks must `await` the `invalidateQueries()` call. With
 the query refetch races with the next user action. This manifests as items "flickering back"
 in E2E tests after triage or archive — the stale server response briefly overwrites the
 optimistic update.
+
+### Capture Must Await Server Response
+
+When creating items via the UI (not `apiSeed`), the frontend assigns a temporary `temp-*`
+item ID for the optimistic cache entry. The server response replaces it with a real UUID.
+If a subsequent action (triage, complete, etc.) fires before the response arrives, the PATCH
+request targets the temp ID and the backend returns 500 (invalid UUID).
+
+The `WorkspacePage.captureInboxItem()` method already handles this by calling
+`page.waitForResponse()`. If you add similar capture helpers, always wait for the POST
+response before continuing.
+
+---
+
+## E2E Troubleshooting
+
+### 401 After `page.reload()` (User-Agent Binding)
+
+**Symptom:** `/items/sync` returns 401 after `page.reload()`, but `/auth/me` succeeds.
+
+**Cause:** Playwright's `page.request` API (used by `ApiSeed`) and the browser page send
+different User-Agent strings. If the backend has `SESSION_BIND_USER_AGENT=true` (default),
+the session is invalidated when the UA changes between requests.
+
+**Fix:** `.env.e2e` sets `SESSION_BIND_USER_AGENT=false`. If you see 401s after reload,
+verify this setting is present. To diagnose which binding check fails, temporarily add
+`logger.warning("auth.<reason>")` to `backend/app/deps.py:get_current_user()`.
+
+### Service Logs
+
+`e2e-stack.sh` redirects backend, worker, agents, and frontend output to
+`frontend/test-results/logs/`. When a test fails, check these files for server-side errors:
+
+```bash
+# Check for 500s or stack traces
+grep -i "error\|traceback\|500" frontend/test-results/logs/backend.log
+```
+
+### Debugging a Single Failing Test
+
+```bash
+# Run one test with headed browser + verbose output
+bash scripts/e2e-stack.sh --headed --grep "capture → triage"
+
+# Or run against an already-running stack
+E2E_BASE_URL=http://localhost:5174 \
+  npx playwright test --config e2e/playwright.config.ts --project=chromium \
+  --grep "capture → triage" --headed
+```
 
 ---
 

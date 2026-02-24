@@ -211,7 +211,7 @@ async function updateWithEtag(
     nameSource,
     etag,
   );
-  const newEtag = result.headers.get("ETag");
+  const newEtag = result.headers?.get("ETag");
   if (newEtag) setEtag(itemId, newEtag);
   return result.data;
 }
@@ -298,8 +298,29 @@ function applyOptimisticMove(qc: QueryClient, plan: MovePlan) {
 
   updateBucketInCache(qc, plan.canonicalId, plan.bucket);
   if (!plan.shouldSplit && plan.needsPromotion) {
-    promoteTypeInCache(qc, plan.canonicalId, targetTypeForBucket(plan.bucket));
+    const targetType = targetTypeForBucket(plan.bucket);
+    promoteTypeInCache(qc, plan.canonicalId, targetType);
+    // Ensure name is set when promoting to CreativeWork (inbox items only have rawCapture)
+    if (targetType === "CreativeWork") {
+      deriveNameFromRawCapture(qc, plan.canonicalId);
+    }
   }
+}
+
+/** Set name from app:rawCapture when the item has no name (e.g. inbox items promoted to CreativeWork). */
+function deriveNameFromRawCapture(qc: QueryClient, canonicalId: CanonicalId) {
+  qc.setQueryData<ItemRecord[]>(ACTIVE_KEY, (old) =>
+    old?.map((r) => {
+      if (!recordMatchesCanonicalId(r, canonicalId)) return r;
+      if (r.item.name) return r; // already has a name
+      const props = r.item.additionalProperty as AdditionalProp[] | undefined;
+      const rawCapture = props?.find(
+        (p) => p.propertyID === "app:rawCapture",
+      )?.value;
+      if (typeof rawCapture !== "string") return r;
+      return { ...r, item: { ...r.item, name: rawCapture } };
+    }),
+  );
 }
 
 /** Promote @type to the appropriate type in the active cache. */
@@ -763,6 +784,7 @@ export function useMoveAction() {
         record?: ItemRecord;
         actionItem?: ActionItem;
         projectId?: CanonicalId;
+        derivedName?: string;
       }
     >(),
   );
@@ -834,12 +856,35 @@ export function useMoveAction() {
       };
       if (needsPromotion) {
         patch["@type"] = targetTypeForBucket(bucket);
+        // CreativeWork requires a name — inbox items only have app:rawCapture.
+        // Use the name derived in onMutate (before optimistic cache update).
+        if (meta?.derivedName) {
+          patch.name = meta.derivedName;
+        }
       }
       return updateWithEtag(itemId, patch);
     },
     onMutate: async ({ canonicalId, bucket, projectId }) => {
       const itemId = findItemId(qc, canonicalId);
       const plan = computeMovePlan(qc, canonicalId, bucket, projectId);
+
+      // Derive name from rawCapture before the optimistic update changes the cache
+      let derivedName: string | undefined;
+      if (
+        plan.needsPromotion &&
+        targetTypeForBucket(bucket) === "CreativeWork"
+      ) {
+        const record = findRecord(qc, canonicalId);
+        if (record && !record.item.name) {
+          const props = record.item.additionalProperty as
+            | AdditionalProp[]
+            | undefined;
+          const rawCapture = props?.find(
+            (p) => p.propertyID === "app:rawCapture",
+          )?.value;
+          if (typeof rawCapture === "string") derivedName = rawCapture;
+        }
+      }
 
       if (itemId)
         savedMeta.current.set(canonicalId, {
@@ -849,6 +894,7 @@ export function useMoveAction() {
           record: plan.record,
           actionItem: plan.actionItem,
           projectId,
+          derivedName,
         });
 
       const prev = await snapshotActive(qc);

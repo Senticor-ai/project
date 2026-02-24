@@ -249,17 +249,16 @@ export function ActionList({
     });
   }, [contextFiltered, isInbox]);
 
-  // Auto-expand the first inbox item when nothing is expanded yet
-  if (bucket === "inbox" && sorted.length > 0 && expandedId === null) {
-    setExpandedId(sorted[0]?.id ?? null);
-  }
-
-  // Auto-advance to next inbox item when current is triaged away
-  if (bucket === "inbox" && sorted.length > 0 && expandedId !== null) {
-    if (!sorted.some((t) => t.id === expandedId)) {
-      setExpandedId(sorted[0]?.id ?? null);
-    }
-  }
+  // Derive the effective expanded ID: for inbox, auto-expand the first item
+  // when nothing is expanded, or advance to the newest remaining item after
+  // the currently expanded item is triaged away.  Pure derivation avoids the
+  // stale-data issue that render-time setState had with optimistic updates.
+  const effectiveExpandedId = useMemo(() => {
+    if (bucket !== "inbox" || sorted.length === 0) return expandedId;
+    if (expandedId === null) return sorted[0]?.id ?? null;
+    if (!sorted.some((t) => t.id === expandedId)) return sorted[0]?.id ?? null;
+    return expandedId;
+  }, [bucket, sorted, expandedId]);
 
   // Explorer-style selection: click = exclusive, Ctrl/Cmd = toggle, Shift = range
   const handleItemClick = useCallback(
@@ -578,7 +577,7 @@ export function ActionList({
           )}
         </>
       }
-      expandedId={expandedId}
+      expandedId={effectiveExpandedId}
       onExpandedIdChange={setExpandedId}
       className={className}
     />
