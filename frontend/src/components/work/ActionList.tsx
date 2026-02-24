@@ -10,9 +10,18 @@ import { Icon } from "@/components/ui/Icon";
 import { ItemList } from "./ItemList";
 import { ActionRow } from "./ActionRow";
 import { ContextFilterBar } from "./ContextFilterBar";
+import { EnergyFilterBar } from "./EnergyFilterBar";
+import { TimeFilterDropdown } from "./TimeFilterDropdown";
 import { FileDropZone } from "./FileDropZone";
 import { useAllCompletedItems } from "@/hooks/use-items";
-import type { ActionItem, Project, ItemEditableFields } from "@/model/types";
+import { useActionFilters } from "@/hooks/use-action-filters";
+import type {
+  ActionItem,
+  Project,
+  ItemEditableFields,
+  ComputationPort,
+  TimeEstimate,
+} from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
 
 // ---------------------------------------------------------------------------
@@ -56,6 +65,26 @@ const bucketMeta: Record<
 };
 
 // ---------------------------------------------------------------------------
+// Time estimate ordering (for <= comparison)
+// ---------------------------------------------------------------------------
+
+const TIME_ESTIMATE_ORDER: Record<TimeEstimate, number> = {
+  "5min": 1,
+  "15min": 2,
+  "30min": 3,
+  "1hr": 4,
+  "2hr": 5,
+  "half-day": 6,
+  "full-day": 7,
+};
+
+function getComputationPort(item: ActionItem): ComputationPort | undefined {
+  return item.ports.find((p) => p.kind === "computation") as
+    | ComputationPort
+    | undefined;
+}
+
+// ---------------------------------------------------------------------------
 // Props
 // ---------------------------------------------------------------------------
 
@@ -97,7 +126,16 @@ export function ActionList({
   className,
 }: ActionListProps) {
   const [expandedId, setExpandedId] = useState<CanonicalId | null>(null);
-  const [selectedContexts, setSelectedContexts] = useState<string[]>([]);
+  const {
+    selectedContexts,
+    selectedEnergy,
+    maxTimeEstimate,
+    toggleContext,
+    clearAll,
+    setEnergy,
+    setMaxTime,
+    hasActiveFilters,
+  } = useActionFilters(bucket);
   const [selectedIds, setSelectedIds] = useState<Set<CanonicalId>>(new Set());
   const lastSelectedIndexRef = useRef<number | null>(null);
   const [prevBucket, setPrevBucket] = useState(bucket);
@@ -229,16 +267,51 @@ export function ActionList({
         )
       : filtered;
 
+  // Apply energy filter
+  const energyFiltered =
+    selectedEnergy !== null
+      ? contextFiltered.filter((t) => {
+          const cp = getComputationPort(t);
+          return cp?.energyLevel === selectedEnergy;
+        })
+      : contextFiltered;
+
+  // Apply time filter
+  const timeFiltered =
+    maxTimeEstimate !== null
+      ? energyFiltered.filter((t) => {
+          const cp = getComputationPort(t);
+          if (!cp?.timeEstimate) return false;
+          return (
+            TIME_ESTIMATE_ORDER[cp.timeEstimate] <=
+            TIME_ESTIMATE_ORDER[maxTimeEstimate]
+          );
+        })
+      : energyFiltered;
+
+  // Compute energy counts from filtered items (after context + time filters)
+  // Energy counts — computed for potential future badge display
+  void useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const item of timeFiltered) {
+      const cp = getComputationPort(item);
+      if (cp?.energyLevel) {
+        counts[cp.energyLevel] = (counts[cp.energyLevel] ?? 0) + 1;
+      }
+    }
+    return counts;
+  }, [timeFiltered]);
+
   // Sort
   const sorted = useMemo(() => {
     if (isInbox) {
-      return [...contextFiltered].sort(
+      return [...timeFiltered].sort(
         (a, b) =>
           new Date(b.provenance.createdAt).getTime() -
           new Date(a.provenance.createdAt).getTime(),
       );
     }
-    return [...contextFiltered].sort((a, b) => {
+    return [...timeFiltered].sort((a, b) => {
       if (a.isFocused !== b.isFocused) return a.isFocused ? -1 : 1;
       if (a.sequenceOrder != null && b.sequenceOrder != null)
         return a.sequenceOrder - b.sequenceOrder;
@@ -247,7 +320,7 @@ export function ActionList({
         new Date(a.provenance.createdAt).getTime()
       );
     });
-  }, [contextFiltered, isInbox]);
+  }, [timeFiltered, isInbox]);
 
   // Derive the effective expanded ID: for inbox, auto-expand the first item
   // when nothing is expanded, or advance to the newest remaining item after
@@ -560,20 +633,30 @@ export function ActionList({
               maxSizeMb={25}
             />
           )}
-          {availableContexts.length > 0 && (
-            <ContextFilterBar
-              contexts={availableContexts}
-              selectedContexts={selectedContexts}
-              actionCounts={contextCounts}
-              onToggleContext={(ctx) =>
-                setSelectedContexts((prev) =>
-                  prev.includes(ctx)
-                    ? prev.filter((c) => c !== ctx)
-                    : [...prev, ctx],
-                )
-              }
-              onClearAll={() => setSelectedContexts([])}
-            />
+          {(availableContexts.length > 0 || hasActiveFilters) && (
+            <div className="flex flex-col gap-1.5">
+              {availableContexts.length > 0 && (
+                <ContextFilterBar
+                  contexts={availableContexts}
+                  selectedContexts={selectedContexts}
+                  actionCounts={contextCounts}
+                  onToggleContext={toggleContext}
+                  onClearAll={clearAll}
+                />
+              )}
+              <div className="flex items-center gap-3">
+                <EnergyFilterBar
+                  selectedEnergy={selectedEnergy}
+                  onToggleEnergy={(level) =>
+                    setEnergy(selectedEnergy === level ? null : level)
+                  }
+                />
+                <TimeFilterDropdown
+                  maxTimeEstimate={maxTimeEstimate}
+                  onChangeMaxTime={setMaxTime}
+                />
+              </div>
+            </div>
           )}
         </>
       }

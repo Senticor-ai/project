@@ -30,6 +30,7 @@ vi.mock("@/hooks/use-items", () => ({
 beforeEach(() => {
   resetFactoryCounter();
   _completedData = [];
+  sessionStorage.clear();
 });
 
 function createWrapper() {
