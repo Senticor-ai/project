@@ -370,7 +370,12 @@ def chat_completions(
         )
 
     # Create delegated token so the agent can read items/files
-    delegated_token = create_delegated_token(user_id=user_id, org_id=org_id)
+    delegated_token = create_delegated_token(
+        user_id=user_id,
+        org_id=org_id,
+        scope="items:read items:write",
+        ttl_seconds=300,
+    )
 
     messages = _build_agent_messages(history)
     user_context: dict[str, str | None] = {
@@ -421,7 +426,12 @@ async def execute_tool_endpoint(
     user_id = str(current_user["id"])
     org_id = current_org["org_id"]
 
-    delegated_token = create_delegated_token(user_id=user_id, org_id=org_id)
+    delegated_token = create_delegated_token(
+        user_id=user_id,
+        org_id=org_id,
+        scope="items:read items:write",
+        ttl_seconds=300,
+    )
 
     # Semantic tool names are handled locally — no agents service needed
     tool_name = req.toolCall.name

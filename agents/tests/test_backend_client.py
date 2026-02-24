@@ -154,15 +154,38 @@ class TestListWorkspaceOverview:
                     "@id": "urn:app:project:p1",
                     "@type": "Project",
                     "name": "Tax 2024",
-                    "app:desiredOutcome": "File taxes",
+                    "additionalProperty": [
+                        {
+                            "@type": "PropertyValue",
+                            "propertyID": "app:desiredOutcome",
+                            "value": "File taxes",
+                        }
+                    ],
                 },
             },
             {
                 "item": {
                     "@id": "urn:app:action:a1",
                     "@type": "Action",
-                    "name": "Buy milk",
-                    "app:bucket": "next",
+                    "name": "",
+                    "endTime": None,
+                    "additionalProperty": [
+                        {
+                            "@type": "PropertyValue",
+                            "propertyID": "app:bucket",
+                            "value": "next",
+                        },
+                        {
+                            "@type": "PropertyValue",
+                            "propertyID": "app:rawCapture",
+                            "value": "Buy milk",
+                        },
+                        {
+                            "@type": "PropertyValue",
+                            "propertyID": "app:isFocused",
+                            "value": True,
+                        },
+                    ],
                 },
             },
             {
@@ -170,7 +193,13 @@ class TestListWorkspaceOverview:
                     "@id": "urn:app:reference:r1",
                     "@type": "DigitalDocument",
                     "name": "CV.pdf",
-                    "app:bucket": "reference",
+                    "additionalProperty": [
+                        {
+                            "@type": "PropertyValue",
+                            "propertyID": "app:bucket",
+                            "value": "reference",
+                        }
+                    ],
                 },
             },
         ]
@@ -194,6 +223,9 @@ class TestListWorkspaceOverview:
         assert "reference" in result["items_by_bucket"]
         assert result["bucket_counts"]["next"] == 1
         assert result["bucket_counts"]["reference"] == 1
+        assert len(result["focused_items"]) == 1
+        assert result["focused_items"][0]["name"] == "Buy milk"
+        assert result["focused_items"][0]["is_focused"] is True
 
     @pytest.mark.anyio
     async def test_caps_items_per_bucket(self, auth_ctx):
@@ -204,7 +236,13 @@ class TestListWorkspaceOverview:
                     "@id": f"urn:app:action:a{i}",
                     "@type": "Action",
                     "name": f"Action {i}",
-                    "app:bucket": "next",
+                    "additionalProperty": [
+                        {
+                            "@type": "PropertyValue",
+                            "propertyID": "app:bucket",
+                            "value": "next",
+                        }
+                    ],
                 },
             }
             for i in range(30)

@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { buildBucketPatch, buildCreateItemJsonLd, readAdditionalProperty } from "./jsonld.js";
+import {
+  buildBucketPatch,
+  buildCreateItemJsonLd,
+  buildFocusPatch,
+  readAdditionalProperty,
+} from "./jsonld.js";
 
 describe("buildCreateItemJsonLd", () => {
   it("builds Action payload with bucket + project refs", () => {
@@ -56,6 +61,21 @@ describe("buildBucketPatch", () => {
           "@type": "PropertyValue",
           propertyID: "app:bucket",
           value: "waiting",
+        },
+      ],
+    });
+  });
+});
+
+describe("buildFocusPatch", () => {
+  it("builds patch object for app:isFocused", () => {
+    const patch = buildFocusPatch(false);
+    expect(patch).toEqual({
+      additionalProperty: [
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:isFocused",
+          value: false,
         },
       ],
     });

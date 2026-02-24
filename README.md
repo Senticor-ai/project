@@ -96,3 +96,11 @@ npm run preflight:ci
 ## API
 
 - **OpenAPI UI**: http://localhost:8000/docs
+
+## License
+
+Copyright (c) 2026 Wolfgang Ihloff  
+Licensed under the European Union Public Licence v1.2 (EUPL-1.2)  
+SPDX-License-Identifier: EUPL-1.2
+
+See [LICENSE](LICENSE) for the full EUPL-1.2 text.

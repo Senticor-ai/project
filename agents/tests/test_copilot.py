@@ -20,7 +20,8 @@ def test_system_prompt_rendered_from_template():
     # Rules are present
     assert "copilot_cli" in prompt
     assert "items create" in prompt
-    assert "items list" in prompt
+    assert "Inline-Lese-Tools" in prompt
+    assert "items focus" in prompt
     assert "projects actions create" in prompt
     assert "Wochenplanung, Scheduling und Review" in prompt
     assert "Senticor als einzige Quelle" in prompt

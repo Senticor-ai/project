@@ -346,4 +346,70 @@ export function registerItemsCommands(program: Command): void {
       }
     });
 
+  items
+    .command("focus")
+    .description("Set focus state on an item (proposal by default)")
+    .argument("<id>", "Item id, canonical id, or name")
+    .option("--on", "Set app:isFocused=true (default)")
+    .option("--off", "Set app:isFocused=false")
+    .option("--propose", "Store as proposal (default)")
+    .option("--apply", "Apply immediately (requires --yes)")
+    .action(async function focusAction(this: Command, id: string) {
+      const { api, options } = await createApi(this);
+      const cmdOpts = this.opts<{
+        on?: boolean;
+        off?: boolean;
+        propose?: boolean;
+        apply?: boolean;
+      }>();
+
+      if (cmdOpts.on && cmdOpts.off) {
+        throw new Error("Use either --on or --off, not both");
+      }
+      if (cmdOpts.apply && cmdOpts.propose) {
+        throw new Error("Use either --propose or --apply, not both");
+      }
+
+      const payload = {
+        id,
+        focused: cmdOpts.off ? false : true,
+      };
+
+      const shouldApply = Boolean(cmdOpts.apply);
+      if (!shouldApply) {
+        const proposal = await addProposal("items.focus", payload);
+        if (options.json) {
+          printSuccessJson({
+            mode: "proposal",
+            proposal: {
+              id: proposal.id,
+              operation: proposal.operation,
+              preview: payload,
+            },
+          });
+        } else {
+          printHuman(`Proposal created: ${proposal.id}`);
+        }
+        return;
+      }
+
+      if (!options.yes) {
+        throw new Error("--apply requires --yes");
+      }
+
+      const applied = await executeProposal(api, {
+        id: "inline",
+        operation: "items.focus",
+        status: "pending",
+        createdAt: new Date().toISOString(),
+        payload,
+      });
+
+      if (options.json) {
+        printSuccessJson({ mode: "applied", result: applied });
+      } else {
+        printHuman("Item updated");
+      }
+    });
+
 }

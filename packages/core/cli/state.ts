@@ -20,7 +20,7 @@ export type SessionState = {
 
 export type ProposalState = {
   id: string;
-  operation: "items.create" | "items.triage";
+  operation: "items.create" | "items.triage" | "items.focus";
   status: "pending" | "applied";
   createdAt: string;
   appliedAt?: string;

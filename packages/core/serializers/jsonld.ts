@@ -196,6 +196,18 @@ export function buildBucketPatch(targetBucket: string): Record<string, unknown> 
   };
 }
 
+export function buildFocusPatch(isFocused: boolean): Record<string, unknown> {
+  return {
+    additionalProperty: [
+      {
+        "@type": "PropertyValue",
+        propertyID: "app:isFocused",
+        value: isFocused,
+      },
+    ],
+  };
+}
+
 export function readAdditionalProperty(
   item: Record<string, unknown> | null | undefined,
   propertyID: string,

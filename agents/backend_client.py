@@ -14,6 +14,47 @@ import httpx
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 
 
+def _additional_property_value(item_jsonld: dict, property_id: str):
+    """Read app:* values from either top-level alias or additionalProperty."""
+    direct = item_jsonld.get(property_id)
+    if direct is not None:
+        return direct
+
+    props = item_jsonld.get("additionalProperty")
+    if not isinstance(props, list):
+        return None
+
+    for entry in props:
+        if (
+            isinstance(entry, dict)
+            and entry.get("propertyID") == property_id
+            and "value" in entry
+        ):
+            return entry.get("value")
+    return None
+
+
+def _item_name(item_jsonld: dict) -> str:
+    name = item_jsonld.get("name")
+    if isinstance(name, str) and name.strip():
+        return name.strip()
+
+    raw_capture = _additional_property_value(item_jsonld, "app:rawCapture")
+    if isinstance(raw_capture, str) and raw_capture.strip():
+        return raw_capture.strip()
+
+    return ""
+
+
+def _item_type(item_jsonld: dict) -> str:
+    raw_type = item_jsonld.get("@type", "Unknown")
+    if isinstance(raw_type, str):
+        return raw_type
+    if isinstance(raw_type, list) and raw_type and isinstance(raw_type[0], str):
+        return raw_type[0]
+    return "Unknown"
+
+
 @dataclass
 class AuthContext:
     """Auth context forwarded from the backend proxy (delegated JWT)."""
@@ -111,41 +152,65 @@ class BackendClient:
         projects: list[dict] = []
         items_by_bucket: dict[str, list[dict]] = {}
         bucket_counts: dict[str, int] = {}
+        focused_items: list[dict] = []
 
         for item in items:
             jsonld = item.get("item", {})
-            item_type = jsonld.get("@type", "Unknown")
+            if not isinstance(jsonld, dict):
+                continue
+
+            item_type = _item_type(jsonld)
 
             # Collect projects
             if item_type == "Project":
+                desired_outcome = _additional_property_value(jsonld, "app:desiredOutcome")
                 projects.append(
                     {
                         "id": jsonld.get("@id", ""),
-                        "name": jsonld.get("name", ""),
-                        "desiredOutcome": jsonld.get("app:desiredOutcome", ""),
+                        "name": _item_name(jsonld),
+                        "desiredOutcome": (
+                            desired_outcome if isinstance(desired_outcome, str) else ""
+                        ),
                     }
                 )
                 continue
 
             # Group by bucket
-            bucket = jsonld.get("app:bucket", "unknown")
+            bucket_value = _additional_property_value(jsonld, "app:bucket")
+            bucket = bucket_value if isinstance(bucket_value, str) and bucket_value else "unknown"
             bucket_counts[bucket] = bucket_counts.get(bucket, 0) + 1
             if bucket not in items_by_bucket:
                 items_by_bucket[bucket] = []
+
+            focus_value = _additional_property_value(jsonld, "app:isFocused")
+            is_focused = focus_value is True or (
+                isinstance(focus_value, str) and focus_value.strip().lower() == "true"
+            )
+            project_refs_raw = _additional_property_value(jsonld, "app:projectRefs")
+            project_refs = (
+                [ref for ref in project_refs_raw if isinstance(ref, str)]
+                if isinstance(project_refs_raw, list)
+                else []
+            )
+            entry = {
+                "id": jsonld.get("@id", ""),
+                "name": _item_name(jsonld),
+                "type": item_type,
+                "bucket": bucket,
+                "is_focused": is_focused,
+                "is_completed": bool(jsonld.get("endTime")),
+                "project_refs": project_refs[:5],
+            }
             # Cap 20 items per bucket to scopilot within LLM token budget
             if len(items_by_bucket[bucket]) < 20:
-                items_by_bucket[bucket].append(
-                    {
-                        "id": jsonld.get("@id", ""),
-                        "name": jsonld.get("name", ""),
-                        "type": item_type,
-                        "bucket": bucket,
-                    }
-                )
+                items_by_bucket[bucket].append(entry)
+            if is_focused and len(focused_items) < 50:
+                focused_items.append(entry)
 
         return {
             "projects": projects,
             "items_by_bucket": items_by_bucket,
+            "focused_items": focused_items,
             "total_items": len(items),
             "bucket_counts": bucket_counts,
         }

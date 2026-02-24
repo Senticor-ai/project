@@ -1,5 +1,5 @@
 import type { ItemRecord, CopilotApi } from "../client/api.js";
-import { buildBucketPatch, buildCreateItemJsonLd } from "../serializers/jsonld.js";
+import { buildBucketPatch, buildCreateItemJsonLd, buildFocusPatch } from "../serializers/jsonld.js";
 import { throwIfInvalid, validateCreateItem, validateTriageTransition } from "../validation/index.js";
 import type { ProposalState } from "./state.js";
 
@@ -22,6 +22,11 @@ export type TriageProposalPayload = {
   bucket: string;
 };
 
+export type FocusProposalPayload = {
+  id: string;
+  focused: boolean;
+};
+
 export function isCreatePayload(payload: unknown): payload is CreateProposalPayload {
   return Boolean(
     payload &&
@@ -37,6 +42,15 @@ export function isTriagePayload(payload: unknown): payload is TriageProposalPayl
       typeof payload === "object" &&
       typeof (payload as { id?: unknown }).id === "string" &&
       typeof (payload as { bucket?: unknown }).bucket === "string",
+  );
+}
+
+export function isFocusPayload(payload: unknown): payload is FocusProposalPayload {
+  return Boolean(
+    payload &&
+      typeof payload === "object" &&
+      typeof (payload as { id?: unknown }).id === "string" &&
+      typeof (payload as { focused?: unknown }).focused === "boolean",
   );
 }
 
@@ -98,6 +112,22 @@ export async function executeProposal(api: CopilotApi, proposal: ProposalState):
       "Triage payload failed validation",
     );
     const patched = await api.patchItem(item.item_id, buildBucketPatch(proposal.payload.bucket), {
+      source: "senticor-copilot-cli",
+    });
+
+    return {
+      operation: proposal.operation,
+      updated: patched,
+    };
+  }
+
+  if (proposal.operation === "items.focus") {
+    if (!isFocusPayload(proposal.payload)) {
+      throw new Error("Invalid focus proposal payload");
+    }
+
+    const item = await findItemByIdentifier(api, proposal.payload.id);
+    const patched = await api.patchItem(item.item_id, buildFocusPatch(proposal.payload.focused), {
       source: "senticor-copilot-cli",
     });
 
