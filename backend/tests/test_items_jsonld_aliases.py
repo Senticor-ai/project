@@ -155,3 +155,95 @@ class TestJsonLdAliases:
                 f"  Expected: {expected_value}\n"
                 f"  Got: {actual_value}"
             )
+
+    def test_relationship_null_vs_missing(self, auth_client):
+        """Edge case: explicit null vs omitted fields must be handled consistently.
+
+        JSON-LD allows both patterns:
+        - Explicit null: {"object": null} — field present but empty
+        - Omitted: {} — field not present at all
+
+        Both should be accepted and round-trip correctly. The key requirement is
+        that the system doesn't crash or reject either pattern, and retrieval
+        preserves the original semantics where possible.
+        """
+        # Test 1: Explicit null values for relationship fields
+        item_with_nulls = {
+            "@id": f"urn:app:inbox:{uuid.uuid4()}",
+            "@type": "UpdateAction",
+            "_schemaVersion": 2,
+            "name": "Update with explicit nulls",
+            "additionalProperty": [
+                {"@type": "PropertyValue", "propertyID": "app:bucket", "value": "inbox"},
+            ],
+            "object": None,
+            "instrument": None,
+            "agent": None,
+        }
+
+        # Create item with explicit nulls
+        create_resp = auth_client.post("/items", json={"item": item_with_nulls, "source": "manual"})
+        assert create_resp.status_code == 201, f"Create with nulls failed: {create_resp.text}"
+        item_id_nulls = create_resp.json()["item_id"]
+
+        # Read back and verify nulls are handled (either preserved or omitted consistently)
+        get_resp = auth_client.get(f"/items/{item_id_nulls}")
+        assert get_resp.status_code == 200, f"Read with nulls failed: {get_resp.text}"
+        retrieved_nulls = get_resp.json()["item"]
+        _assert_jsonld_aliases(retrieved_nulls, "Item with explicit nulls")
+
+        # Test 2: Completely omitted relationship fields
+        item_without_fields = {
+            "@id": f"urn:app:inbox:{uuid.uuid4()}",
+            "@type": "UpdateAction",
+            "_schemaVersion": 2,
+            "name": "Update with omitted fields",
+            "additionalProperty": [
+                {"@type": "PropertyValue", "propertyID": "app:bucket", "value": "inbox"},
+            ],
+            # No object, instrument, agent, participant, result, location
+        }
+
+        # Create item without relationship fields
+        create_resp = auth_client.post("/items", json={"item": item_without_fields, "source": "manual"})
+        assert create_resp.status_code == 201, f"Create without fields failed: {create_resp.text}"
+        item_id_missing = create_resp.json()["item_id"]
+
+        # Read back and verify omitted fields are handled
+        get_resp = auth_client.get(f"/items/{item_id_missing}")
+        assert get_resp.status_code == 200, f"Read without fields failed: {get_resp.text}"
+        retrieved_missing = get_resp.json()["item"]
+        _assert_jsonld_aliases(retrieved_missing, "Item with omitted fields")
+
+        # Test 3: Mixed pattern - some fields present, some null, some omitted
+        item_mixed = {
+            "@id": f"urn:app:inbox:{uuid.uuid4()}",
+            "@type": "CreateAction",
+            "_schemaVersion": 2,
+            "name": "Create with mixed pattern",
+            "additionalProperty": [
+                {"@type": "PropertyValue", "propertyID": "app:bucket", "value": "inbox"},
+            ],
+            "object": {"@type": "Thing", "@id": "urn:example:doc:456", "name": "Document"},
+            "instrument": None,  # Explicit null
+            # agent omitted entirely
+            "participant": {"@type": "Person", "@id": "urn:example:person:charlie", "name": "Charlie"},
+            "result": None,  # Explicit null
+            # location omitted entirely
+        }
+
+        # Create item with mixed pattern
+        create_resp = auth_client.post("/items", json={"item": item_mixed, "source": "manual"})
+        assert create_resp.status_code == 201, f"Create with mixed pattern failed: {create_resp.text}"
+        item_id_mixed = create_resp.json()["item_id"]
+
+        # Read back and verify all patterns handled correctly
+        get_resp = auth_client.get(f"/items/{item_id_mixed}")
+        assert get_resp.status_code == 200, f"Read with mixed pattern failed: {get_resp.text}"
+        retrieved_mixed = get_resp.json()["item"]
+        _assert_jsonld_aliases(retrieved_mixed, "Item with mixed pattern")
+
+        # Verify populated field is preserved exactly
+        assert "object" in retrieved_mixed, "Populated object field should be present"
+        assert retrieved_mixed["object"]["@id"] == "urn:example:doc:456"
+        assert retrieved_mixed["participant"]["@id"] == "urn:example:person:charlie"
