@@ -16,6 +16,9 @@ permissions:
 env:
   STACKIT_REGISTRY: registry.onstackit.cloud
   STACKIT_IMAGE_PREFIX: registry.onstackit.cloud/senticor/project
+  PLAYWRIGHT_BROWSERS_PATH: ~/.cache/ms-playwright
+  UV_CACHE_DIR: ~/.cache/uv
+  PIP_CACHE_DIR: ~/.cache/pip
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -38,6 +41,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            backend/pyproject.toml
+            backend/uv.lock
       - name: Install uv
         run: python -m pip install --upgrade pip uv
       - name: Check migration policy
@@ -82,6 +89,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            backend/pyproject.toml
+            backend/uv.lock
+      - name: Cache backend uv downloads
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.UV_CACHE_DIR }}
+          key: ${{ runner.os }}-uv-backend-${{ hashFiles('backend/uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-backend-
       - name: Install uv
         run: python -m pip install --upgrade pip uv
       - name: Lint backend
@@ -97,6 +115,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            backend/pyproject.toml
+            backend/uv.lock
+      - name: Cache backend uv downloads
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.UV_CACHE_DIR }}
+          key: ${{ runner.os }}-uv-backend-${{ hashFiles('backend/uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-backend-
       - name: Install uv
         run: python -m pip install --upgrade pip uv
       - name: Typecheck backend
@@ -113,6 +142,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            agents/pyproject.toml
+            agents/uv.lock
+      - name: Cache agents uv downloads
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.UV_CACHE_DIR }}
+          key: ${{ runner.os }}-uv-agents-${{ hashFiles('agents/uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-agents-
       - name: Install uv
         run: python -m pip install --upgrade pip uv
       - name: Lint agents
@@ -128,6 +168,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            agents/pyproject.toml
+            agents/uv.lock
+      - name: Cache agents uv downloads
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.UV_CACHE_DIR }}
+          key: ${{ runner.os }}-uv-agents-${{ hashFiles('agents/uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-agents-
       - name: Install uv
         run: python -m pip install --upgrade pip uv
       - name: Typecheck agents
@@ -185,6 +236,13 @@ jobs:
           node-version-file: .node-version
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
+          key: ${{ runner.os }}-playwright-${{ hashFiles('frontend/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
       - name: Install frontend dependencies
         run: |
           cd frontend
@@ -205,6 +263,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            backend/pyproject.toml
+            backend/uv.lock
+      - name: Cache backend uv downloads
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.UV_CACHE_DIR }}
+          key: ${{ runner.os }}-uv-backend-${{ hashFiles('backend/uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-backend-
       - name: Install uv
         run: python -m pip install --upgrade pip uv
       - name: Run backend unit tests
@@ -220,6 +289,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            agents/pyproject.toml
+            agents/uv.lock
+      - name: Cache agents uv downloads
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.UV_CACHE_DIR }}
+          key: ${{ runner.os }}-uv-agents-${{ hashFiles('agents/uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-agents-
       - name: Install uv
         run: python -m pip install --upgrade pip uv
       - name: Run agents unit tests
@@ -256,6 +336,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            backend/pyproject.toml
+            backend/uv.lock
+      - name: Cache backend uv downloads
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.UV_CACHE_DIR }}
+          key: ${{ runner.os }}-uv-backend-${{ hashFiles('backend/uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-backend-
       - name: Install uv
         run: python -m pip install --upgrade pip uv
       - name: Run backend integration tests
@@ -280,11 +371,22 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            backend/pyproject.toml
+            backend/uv.lock
       - uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      - name: Cache backend uv downloads
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.UV_CACHE_DIR }}
+          key: ${{ runner.os }}-uv-backend-${{ hashFiles('backend/uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-backend-
       - name: Install uv
         run: python -m pip install --upgrade pip uv
       - name: Run frontend contract tests
