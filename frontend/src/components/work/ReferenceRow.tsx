@@ -139,6 +139,12 @@ export function ReferenceRow({
   return (
     <div className={cn(isDragging && "opacity-50", className)}>
       <div
+        data-copilot-item="true"
+        data-copilot-item-id={reference.id}
+        data-copilot-item-type="reference"
+        data-copilot-item-bucket="reference"
+        data-copilot-item-name={reference.name ?? "Untitled"}
+        data-copilot-item-focused="false"
         className={cn(
           "group flex items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5",
           "transition-colors duration-[var(--duration-fast)]",

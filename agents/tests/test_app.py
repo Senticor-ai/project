@@ -273,7 +273,12 @@ class TestModelFallback:
 
         assert result.text == "Sofort!"
         # create_agent called only once (for model-a)
-        ca_mock.assert_called_once_with("model-a", auth=None, user_context=None)
+        ca_mock.assert_called_once_with(
+            "model-a",
+            auth=None,
+            user_context=None,
+            trace_context=None,
+        )
 
     @pytest.mark.anyio
     async def test_passes_runtime_llm_config_to_create_agent(self):
@@ -830,3 +835,37 @@ class TestUserContextIntegration:
         ctx = kwargs["user_context"]
         for key, value in self.USER_CONTEXT.items():
             assert ctx[key] == value
+
+    def test_trace_context_passed_to_create_agent(self, client: TestClient):
+        """traceContext from request payload reaches create_agent."""
+        reply = ChatMessage.from_assistant("Hallo!")
+
+        with patch("app.create_agent") as ca_mock:
+            mock_agent = AsyncMock()
+            mock_agent.run_async = AsyncMock(
+                return_value={"last_message": reply, "messages": [reply]},
+            )
+            ca_mock.return_value = mock_agent
+
+            resp = client.post(
+                "/chat/completions",
+                json={
+                    "messages": _msgs("Hallo"),
+                    "conversationId": "conv-trace-1",
+                    "traceContext": {
+                        "externalConversationId": "conv-trace-1",
+                        "dbConversationId": "db-conv-1",
+                        "userId": "user-1",
+                        "orgId": "org-1",
+                        "sessionId": "session-1",
+                        "requestId": "req-1",
+                        "trailId": "trail-1",
+                    },
+                },
+            )
+
+        assert resp.status_code == 200
+        _, kwargs = ca_mock.call_args
+        trace_ctx = kwargs["trace_context"]
+        assert trace_ctx["sessionId"] == "session-1"
+        assert trace_ctx["dbConversationId"] == "db-conv-1"

@@ -76,7 +76,7 @@ export const CvSample: Story = {
 
 ### Product Manager — Startup GmbH (2015–2018)
 - Built MVP for task management SaaS from 0 to 5,000 paying users
-- Defined product roadmap aligned with GTD methodology
+- Defined product roadmap aligned with agile methodology
 
 ## Ausbildung
 

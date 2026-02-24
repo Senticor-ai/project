@@ -4,6 +4,8 @@ import type {
   ConversationMessageResponse,
   ConversationSummary,
   StreamEvent,
+  VisibleWorkspaceItem,
+  VisibleWorkspaceSnapshot,
 } from "@/model/chat-types";
 import { isValidBucket, parsePathname } from "@/lib/route-utils";
 
@@ -43,6 +45,72 @@ function collectVisibleErrors(maxCount = 5): string[] {
   return out;
 }
 
+function isInViewport(node: HTMLElement): boolean {
+  if (node.closest("[hidden],[aria-hidden='true']")) return false;
+  const rect = node.getBoundingClientRect();
+
+  // JSDOM fallback: no layout metrics available.
+  if (rect.width === 0 && rect.height === 0) return true;
+
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+  const viewportHeight =
+    window.innerHeight || document.documentElement.clientHeight;
+  return (
+    rect.bottom > 0 &&
+    rect.right > 0 &&
+    rect.top < viewportHeight &&
+    rect.left < viewportWidth
+  );
+}
+
+function collectVisibleWorkspaceSnapshot(
+  activeBucket: string | null,
+  maxItems = 50,
+): VisibleWorkspaceSnapshot | undefined {
+  if (typeof document === "undefined" || typeof window === "undefined") return undefined;
+
+  const contentRoot = document.querySelector<HTMLElement>(
+    'main[aria-label="Bucket content"]',
+  );
+  if (!contentRoot) return undefined;
+
+  const title = contentRoot.querySelector("h1")?.textContent?.trim();
+  const items = Array.from(
+    document.querySelectorAll<HTMLElement>('[data-copilot-item="true"]'),
+  );
+
+  const visibleItems: VisibleWorkspaceItem[] = [];
+  for (const node of items) {
+    if (!isInViewport(node)) continue;
+    const rect = node.getBoundingClientRect();
+    visibleItems.push({
+      id: node.dataset.copilotItemId,
+      type: node.dataset.copilotItemType,
+      bucket: node.dataset.copilotItemBucket,
+      name: node.dataset.copilotItemName,
+      focused: node.dataset.copilotItemFocused === "true",
+      top: Number.isFinite(rect.top) ? Math.round(rect.top) : undefined,
+    });
+  }
+  visibleItems.sort((a, b) => (a.top ?? 0) - (b.top ?? 0));
+
+  const bucketNav = Array.from(
+    document.querySelectorAll<HTMLElement>('[data-copilot-bucket-nav-item="true"]'),
+  ).map((node) => ({
+    bucket: node.dataset.copilotBucket ?? "unknown",
+    count: Number.parseInt(node.dataset.copilotBucketCount ?? "0", 10) || 0,
+    active: node.dataset.copilotBucketActive === "true",
+  }));
+
+  return {
+    activeBucket,
+    ...(title ? { viewTitle: title } : {}),
+    totalVisibleItems: visibleItems.length,
+    visibleItems: visibleItems.slice(0, maxItems),
+    ...(bucketNav.length > 0 ? { bucketNav } : {}),
+  };
+}
+
 function getClientContext(
   extraContext?: Partial<ChatClientContext>,
 ): ChatClientContext {
@@ -65,6 +133,7 @@ function getClientContext(
     appSubView: parsed.sub,
     activeBucket,
     visibleErrors: collectVisibleErrors(),
+    visibleWorkspaceSnapshot: collectVisibleWorkspaceSnapshot(activeBucket),
     ...extraContext,
   };
 }

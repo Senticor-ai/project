@@ -146,11 +146,16 @@ def _normalize_model_for_provider(provider: str, model: str) -> str:
     return normalized
 
 
-def _build_chat_generator(model: str, llm_config: RuntimeLlmConfig | None):
+def _build_chat_generator(
+    model: str,
+    llm_config: RuntimeLlmConfig | None,
+    trace_context: dict | None = None,
+):
     if llm_config is None:
         return CachedTracedChatGenerator(
             api_key=Secret.from_env_var("OPENROUTER_API_KEY"),
             model=model,
+            trace_context=trace_context,
             api_base_url="https://openrouter.ai/api/v1",
             generation_kwargs={
                 "extra_headers": {
@@ -171,11 +176,13 @@ def _build_chat_generator(model: str, llm_config: RuntimeLlmConfig | None):
         return CachedTracedChatGenerator(
             api_key=Secret.from_token(llm_config.api_key),
             model=selected_model,
+            trace_context=trace_context,
         )
 
     return CachedTracedChatGenerator(
         api_key=Secret.from_token(llm_config.api_key),
         model=selected_model,
+        trace_context=trace_context,
         api_base_url="https://openrouter.ai/api/v1",
         generation_kwargs={
             "extra_headers": {
@@ -220,19 +227,93 @@ def _build_workspace_read_tools(auth: AuthContext) -> list[Tool]:
             logger.warning("list_workspace_overview failed: %s", exc)
             return json.dumps({"error": str(exc)})
 
+    def _list_bucket_items(**kwargs) -> str:
+        bucket = kwargs.get("bucket")
+        project_id = kwargs.get("projectId")
+        try:
+            limit = int(kwargs.get("limit", 50))
+        except (TypeError, ValueError):
+            limit = 50
+        try:
+            offset = int(kwargs.get("offset", 0))
+        except (TypeError, ValueError):
+            offset = 0
+        sort = str(kwargs.get("sort", "latest"))
+        completed = str(kwargs.get("completed", "false"))
+        try:
+            result = _run_async(
+                client.list_bucket_items(
+                    auth,
+                    bucket=bucket,
+                    project_id=project_id,
+                    limit=limit,
+                    offset=offset,
+                    sort=sort,
+                    completed=completed,
+                )
+            )
+            return json.dumps(result, ensure_ascii=False)
+        except Exception as exc:
+            logger.warning("list_bucket_items failed: %s", exc)
+            return json.dumps({"error": str(exc)})
+
     return [
         Tool(
             name="list_workspace_overview",
             description=(
-                "Zeige eine Übersicht aller Projekte und Elemente im Workspace. "
-                "Nutze dies, um herauszufinden, was der Nutzer hat, bevor du "
-                "auf spezifische Elemente zugreifst."
+                "Zeige eine Übersicht des Workspaces via paginiertem /items/sync "
+                "(CLI-äquivalenter Datenpfad): Projekte, Buckets, Fokus, Counts."
             ),
             parameters={
                 "type": "object",
                 "properties": {},
             },
             function=_list_workspace_overview,
+        ),
+        Tool(
+            name="list_bucket_items",
+            description=(
+                "Liste Elemente in einem Bucket oder Projekt mit Pagination. "
+                "Default: neueste 50, inkl. total/has_more/next_offset."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "bucket": {
+                        "type": "string",
+                        "description": (
+                            "Bucket-Name "
+                            "(inbox,next,waiting,calendar,someday,reference,focus)"
+                        ),
+                    },
+                    "projectId": {
+                        "type": "string",
+                        "description": "Optionale Projekt-ID für projektspezifische Liste",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 200,
+                        "default": 50,
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "default": 0,
+                    },
+                    "sort": {
+                        "type": "string",
+                        "enum": ["latest", "oldest", "updated"],
+                        "default": "latest",
+                    },
+                    "completed": {
+                        "type": "string",
+                        "enum": ["false", "true", "all"],
+                        "default": "false",
+                    },
+                },
+            },
+            function=_list_bucket_items,
         ),
         Tool(
             name="read_item_content",
@@ -277,6 +358,7 @@ def create_agent(
     auth: Optional[AuthContext] = None,  # noqa: UP007, UP045
     user_context: Optional[dict] = None,  # noqa: UP007, UP045
     llm_config: Optional[RuntimeLlmConfig] = None,  # noqa: UP007, UP045
+    trace_context: Optional[dict] = None,  # noqa: UP007, UP045
 ) -> Agent:
     """Build a Copilot Haystack Agent for the given model.
 
@@ -284,13 +366,18 @@ def create_agent(
         model: OpenRouter model ID (e.g. "openai/gpt-4o-mini").
                Defaults to the first model in MODELS.
         auth: Delegated auth context. When provided, enables read tools
-              (read_item_content, list_project_items) that call the backend.
+              (list_workspace_overview, list_bucket_items,
+              read_item_content, list_project_items) that call the backend.
         user_context: User context dict (username, email, timezone, locale,
                       localTime) for prompt personalization.
     """
     model = model or MODELS[0]
 
-    generator = _build_chat_generator(model, llm_config)
+    generator = _build_chat_generator(
+        model,
+        llm_config,
+        trace_context=trace_context,
+    )
 
     tools = list(TOOLS)
     tools.extend(build_web_read_tools())

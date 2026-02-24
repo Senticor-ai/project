@@ -126,6 +126,7 @@ def test_system_prompt_includes_workspace_overview_tool():
 
     prompt = build_system_prompt()
     assert "list_workspace_overview" in prompt
+    assert "list_bucket_items" in prompt
     assert "web_search" in prompt
     assert "web_fetch" in prompt
 
@@ -136,6 +137,18 @@ def test_tools_defined():
 
     names = [t.name for t in TOOLS]
     assert names == ["copilot_cli"]
+
+
+def test_workspace_read_tools_include_bucket_listing():
+    """Workspace read toolset contains list_bucket_items."""
+    from backend_client import AuthContext
+    from copilot import _build_workspace_read_tools
+
+    tools = _build_workspace_read_tools(AuthContext(token="tok", org_id="org-1"))
+    names = [t.name for t in tools]
+    assert "list_workspace_overview" in names
+    assert "list_bucket_items" in names
+    assert "read_item_content" in names
 
 
 def test_run_async_from_sync_context():

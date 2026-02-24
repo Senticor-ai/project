@@ -51,6 +51,10 @@ function BucketNavItem({
     <button
       ref={setNodeRef}
       onClick={onSelect}
+      data-copilot-bucket-nav-item="true"
+      data-copilot-bucket={bucket}
+      data-copilot-bucket-count={count ?? 0}
+      data-copilot-bucket-active={isActive ? "true" : "false"}
       className={cn(
         "flex w-full min-h-11 items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm",
         "transition-colors duration-[var(--duration-fast)]",
@@ -95,6 +99,9 @@ function ProjectNavItem({
     <button
       ref={setNodeRef}
       onClick={() => onSelect?.(project.id)}
+      data-copilot-project-nav-item="true"
+      data-copilot-project-id={project.id}
+      data-copilot-project-name={project.name}
       className={cn(
         "flex w-full min-h-11 items-center gap-2 rounded-[var(--radius-md)] py-1.5 pl-8 pr-3 text-xs",
         "text-text-muted transition-colors duration-[var(--duration-fast)]",

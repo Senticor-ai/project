@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import time
 import uuid
 from datetime import UTC, datetime
 
@@ -10,6 +11,9 @@ from conftest import ROOT_DIR
 from app.db import db_conn
 from app.storage import get_storage
 from app.worker import process_batch
+
+_MAX_WORKER_DRAIN_ATTEMPTS = 20
+_WORKER_DRAIN_SLEEP_SECONDS = 0.05
 
 
 def _create_file_record(
@@ -78,14 +82,29 @@ def _create_failed_job(auth_client, file_id: str) -> str:
                 """,
                 (datetime.now(UTC), datetime.now(UTC), job_id),
             )
-            # Clean up outbox event so worker doesn't pick it up
-            cur.execute(
-                "DELETE FROM outbox_events WHERE payload->>'job_id' = %s",
-                (job_id,),
-            )
         conn.commit()
 
     return job_id
+
+
+def _get_job_status(job_id: str) -> str | None:
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT status FROM import_jobs WHERE job_id = %s", (job_id,))
+            row = cur.fetchone()
+    if row is None:
+        return None
+    return row["status"]
+
+
+def _drain_worker_until_status(job_id: str, expected_status: str) -> None:
+    for _ in range(_MAX_WORKER_DRAIN_ATTEMPTS):
+        process_batch(limit=10)
+        status = _get_job_status(job_id)
+        if status == expected_status:
+            return
+        time.sleep(_WORKER_DRAIN_SLEEP_SECONDS)
+    raise AssertionError(f"job {job_id} did not reach status={expected_status}")
 
 
 def _create_completed_job(auth_client, file_id: str) -> str:
@@ -101,15 +120,7 @@ def _create_completed_job(auth_client, file_id: str) -> str:
     assert queued.status_code == 202
     job_id = queued.json()["job_id"]
 
-    with db_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "DELETE FROM outbox_events WHERE payload->>'job_id' IS DISTINCT FROM %s",
-                (job_id,),
-            )
-        conn.commit()
-
-    process_batch(limit=10)
+    _drain_worker_until_status(job_id, "completed")
     return job_id
 
 
@@ -227,16 +238,7 @@ def test_retried_job_completes_via_worker(auth_client):
     assert retry_resp.status_code == 202
     new_job_id = retry_resp.json()["job_id"]
 
-    # Clean up unrelated outbox events
-    with db_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "DELETE FROM outbox_events WHERE payload->>'job_id' IS DISTINCT FROM %s",
-                (new_job_id,),
-            )
-        conn.commit()
-
-    process_batch(limit=10)
+    _drain_worker_until_status(new_job_id, "completed")
 
     job = auth_client.get(f"/imports/jobs/{new_job_id}").json()
     assert job["status"] == "completed"

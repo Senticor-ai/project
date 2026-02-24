@@ -127,6 +127,8 @@ def _write_trace(
     response: dict[str, Any],
     duration_ms: float,
     cache_hit: bool,
+    trace_context: dict[str, Any] | None = None,
+    error: str | None = None,
 ) -> None:
     TRACES_DIR.mkdir(parents=True, exist_ok=True)
     ts = datetime.now(UTC)
@@ -138,6 +140,7 @@ def _write_trace(
         "model": model,
         "duration_ms": round(duration_ms, 1),
         "cache_hit": cache_hit,
+        "context": trace_context or {},
         "request": {
             "messages": _serialize_messages(messages),
             "tools": _serialize_tools(tools),
@@ -146,6 +149,8 @@ def _write_trace(
             "replies": [r.to_dict() for r in response.get("replies", [])],
         },
     }
+    if error:
+        trace["error"] = error
 
     try:
         (TRACES_DIR / filename).write_text(json.dumps(trace, indent=2, ensure_ascii=False))
@@ -171,6 +176,15 @@ class CachedTracedChatGenerator(OpenAIChatGenerator):
     ``run_async`` exclusively — the synchronous ``run`` is only used when
     calling the generator outside an Agent.
     """
+
+    def __init__(
+        self,
+        *args: Any,
+        trace_context: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self._trace_context = trace_context or {}
 
     def _resolve_tools(
         self,
@@ -200,6 +214,7 @@ class CachedTracedChatGenerator(OpenAIChatGenerator):
                 response=cached,
                 duration_ms=0,
                 cache_hit=True,
+                trace_context=self._trace_context,
             )
         return cached
 
@@ -218,6 +233,7 @@ class CachedTracedChatGenerator(OpenAIChatGenerator):
             response=result,
             duration_ms=duration_ms,
             cache_hit=False,
+            trace_context=self._trace_context,
         )
         _write_cache(self.model, messages, tool_list, result)
 
@@ -242,13 +258,26 @@ class CachedTracedChatGenerator(OpenAIChatGenerator):
             return cached
 
         start = time.monotonic()
-        result = super().run(
-            messages=messages,
-            streaming_callback=streaming_callback,
-            generation_kwargs=generation_kwargs,
-            tools=tools,
-            tools_strict=tools_strict,
-        )
+        try:
+            result = super().run(
+                messages=messages,
+                streaming_callback=streaming_callback,
+                generation_kwargs=generation_kwargs,
+                tools=tools,
+                tools_strict=tools_strict,
+            )
+        except Exception as exc:
+            _write_trace(
+                model=self.model,
+                messages=messages,
+                tools=tool_list,
+                response={"replies": []},
+                duration_ms=(time.monotonic() - start) * 1000,
+                cache_hit=False,
+                trace_context=self._trace_context,
+                error=str(exc),
+            )
+            raise
         self._record_result(messages, tool_list, result, (time.monotonic() - start) * 1000)
         return result
 
@@ -273,12 +302,25 @@ class CachedTracedChatGenerator(OpenAIChatGenerator):
             return cached
 
         start = time.monotonic()
-        result = await super().run_async(
-            messages=messages,
-            streaming_callback=streaming_callback,
-            generation_kwargs=generation_kwargs,
-            tools=tools,
-            tools_strict=tools_strict,
-        )
+        try:
+            result = await super().run_async(
+                messages=messages,
+                streaming_callback=streaming_callback,
+                generation_kwargs=generation_kwargs,
+                tools=tools,
+                tools_strict=tools_strict,
+            )
+        except Exception as exc:
+            _write_trace(
+                model=self.model,
+                messages=messages,
+                tools=tool_list,
+                response={"replies": []},
+                duration_ms=(time.monotonic() - start) * 1000,
+                cache_hit=False,
+                trace_context=self._trace_context,
+                error=str(exc),
+            )
+            raise
         self._record_result(messages, tool_list, result, (time.monotonic() - start) * 1000)
         return result

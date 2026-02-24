@@ -200,6 +200,53 @@ describe("useCopilotApi", () => {
     );
   });
 
+  it("captures visible workspace snapshot from current viewport", async () => {
+    window.history.pushState({}, "", "/workspace/next");
+    document.body.innerHTML = `
+      <main aria-label="Bucket content">
+        <h1>Next</h1>
+      </main>
+      <div
+        data-copilot-item="true"
+        data-copilot-item-id="urn:app:action:a1"
+        data-copilot-item-type="action"
+        data-copilot-item-bucket="next"
+        data-copilot-item-name="Ship release notes"
+        data-copilot-item-focused="true"
+      ></div>
+      <button
+        data-copilot-bucket-nav-item="true"
+        data-copilot-bucket="next"
+        data-copilot-bucket-count="12"
+        data-copilot-bucket-active="true"
+      ></button>
+    `;
+
+    mockFetch.mockReturnValue(streamResponse([{ type: "done", text: "OK" }]));
+    const { result } = renderHook(() => useCopilotApi());
+
+    await result.current.sendMessageStreaming("Was ist sichtbar?", "conv-view", () => {});
+
+    const [, opts] = mockFetch.mock.calls[0]!;
+    const body = JSON.parse(opts.body as string);
+    expect(body.context.visibleWorkspaceSnapshot).toEqual(
+      expect.objectContaining({
+        activeBucket: "next",
+        viewTitle: "Next",
+        totalVisibleItems: 1,
+      }),
+    );
+    expect(body.context.visibleWorkspaceSnapshot.visibleItems[0]).toEqual(
+      expect.objectContaining({
+        id: "urn:app:action:a1",
+        type: "action",
+        bucket: "next",
+        name: "Ship release notes",
+        focused: true,
+      }),
+    );
+  });
+
   it("delivers text_delta events via callback", async () => {
     mockFetch.mockReturnValue(
       streamResponse([

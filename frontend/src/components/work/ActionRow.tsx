@@ -207,6 +207,12 @@ export function ActionRow({
   return (
     <div className={className}>
       <div
+        data-copilot-item="true"
+        data-copilot-item-id={thing.id}
+        data-copilot-item-type="action"
+        data-copilot-item-bucket={thing.bucket}
+        data-copilot-item-name={displayName}
+        data-copilot-item-focused={thing.isFocused ? "true" : "false"}
         className={cn(
           "group flex items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5",
           "transition-colors duration-[var(--duration-fast)]",

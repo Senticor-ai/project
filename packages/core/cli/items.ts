@@ -53,9 +53,40 @@ function getDisplayName(record: ItemRecord): string | null {
   return null;
 }
 
+function getProjectRefs(record: ItemRecord): string[] {
+  const refs = readAdditionalProperty(record.item, "app:projectRefs");
+  if (!Array.isArray(refs)) return [];
+  return refs.filter((ref): ref is string => typeof ref === "string");
+}
+
+function normalizeSort(sort: string | undefined): "latest" | "oldest" | "updated" {
+  if (sort === "oldest" || sort === "updated") return sort;
+  return "latest";
+}
+
+function sortItems(
+  records: ItemRecord[],
+  sort: "latest" | "oldest" | "updated",
+): ItemRecord[] {
+  const copy = [...records];
+  copy.sort((a, b) => {
+    const left =
+      sort === "updated"
+        ? Date.parse(a.updated_at)
+        : Date.parse(a.created_at);
+    const right =
+      sort === "updated"
+        ? Date.parse(b.updated_at)
+        : Date.parse(b.created_at);
+    if (left === right) return a.item_id.localeCompare(b.item_id);
+    if (sort === "oldest") return left - right;
+    return right - left;
+  });
+  return copy;
+}
+
 function formatItem(record: ItemRecord): Record<string, unknown> {
   const orgRef = parseOrgRef(readAdditionalProperty(record.item, "app:orgRef"));
-  const projectRefs = readAdditionalProperty(record.item, "app:projectRefs");
   return {
     item_id: record.item_id,
     canonical_id: record.canonical_id,
@@ -63,7 +94,7 @@ function formatItem(record: ItemRecord): Record<string, unknown> {
     name: getDisplayName(record),
     bucket: getBucket(record) ?? null,
     org_ref: orgRef,
-    project_refs: Array.isArray(projectRefs) ? projectRefs : [],
+    project_refs: getProjectRefs(record),
     created_at: record.created_at,
     updated_at: record.updated_at,
   };
@@ -89,25 +120,39 @@ export function registerItemsCommands(program: Command): void {
     .command("list")
     .description("List items")
     .option("--bucket <bucket>", "Filter by app:bucket")
+    .option("--project <projectId>", "Filter by app:projectRefs")
     .option("--org <org>", "Filter by app:orgRef.id or app:orgRef.name")
+    .option("--sort <mode>", "Sort by latest|oldest|updated", "latest")
+    .option("--offset <n>", "Start offset after filtering/sorting", "0")
     .option("--summary", "Return summary counts")
-    .option("--limit <n>", "Max records to return", "100")
+    .option("--limit <n>", "Max records to return", "50")
     .action(async function listAction(this: Command) {
       const { api, options } = await createApi(this);
       const cmdOpts = this.opts<{
         bucket?: string;
+        project?: string;
         org?: string;
+        sort?: string;
+        offset: string;
         summary?: boolean;
         limit: string;
       }>();
 
       const limit = Number.parseInt(cmdOpts.limit, 10);
+      const offset = Number.parseInt(cmdOpts.offset, 10);
+      const pageLimit = Number.isFinite(limit) && limit > 0 ? limit : 50;
+      const pageOffset = Number.isFinite(offset) && offset > 0 ? offset : 0;
+      const sort = normalizeSort(cmdOpts.sort);
       const all = await api.listAllItems({ completed: "all" });
 
       let filtered = all;
       if (cmdOpts.bucket) {
         const bucketFilter = cmdOpts.bucket.toLowerCase();
         filtered = filtered.filter((item) => (getBucket(item) ?? "").toLowerCase() === bucketFilter);
+      }
+      if (cmdOpts.project) {
+        const projectId = cmdOpts.project;
+        filtered = filtered.filter((item) => getProjectRefs(item).includes(projectId));
       }
       if (cmdOpts.org) {
         const orgFilter = cmdOpts.org.toLowerCase();
@@ -121,12 +166,17 @@ export function registerItemsCommands(program: Command): void {
         });
       }
 
-      const sliced = Number.isFinite(limit) && limit > 0 ? filtered.slice(0, limit) : filtered;
+      const sorted = sortItems(filtered, sort);
+      const total = sorted.length;
+      const sliced = sorted.slice(pageOffset, pageOffset + pageLimit);
+      const returned = sliced.length;
+      const hasMore = pageOffset + returned < total;
+      const nextOffset = hasMore ? pageOffset + returned : null;
 
       if (cmdOpts.summary) {
         const bucketCounts: Record<string, number> = {};
         const typeCounts: Record<string, number> = {};
-        for (const record of sliced) {
+        for (const record of sorted) {
           const bucket = getBucket(record) ?? "unknown";
           bucketCounts[bucket] = (bucketCounts[bucket] ?? 0) + 1;
           const type = itemType(record.item);
@@ -134,7 +184,13 @@ export function registerItemsCommands(program: Command): void {
         }
 
         const data = {
-          total: sliced.length,
+          total,
+          returned,
+          offset: pageOffset,
+          limit: pageLimit,
+          has_more: hasMore,
+          next_offset: nextOffset,
+          sort,
           bucket_counts: bucketCounts,
           type_counts: typeCounts,
         };
@@ -142,6 +198,9 @@ export function registerItemsCommands(program: Command): void {
           printSuccessJson(data);
         } else {
           printHuman(`Total: ${data.total}`);
+          printHuman(
+            `Page: offset=${data.offset} limit=${data.limit} returned=${data.returned} has_more=${data.has_more}`,
+          );
           printHuman(`Buckets: ${JSON.stringify(data.bucket_counts)}`);
           printHuman(`Types: ${JSON.stringify(data.type_counts)}`);
         }
@@ -150,9 +209,21 @@ export function registerItemsCommands(program: Command): void {
 
       const formatted = sliced.map(formatItem);
       if (options.json) {
-        printSuccessJson({ items: formatted });
+        printSuccessJson({
+          items: formatted,
+          total,
+          returned,
+          offset: pageOffset,
+          limit: pageLimit,
+          has_more: hasMore,
+          next_offset: nextOffset,
+          sort,
+        });
       } else {
         printItemLines(sliced);
+        printHuman(
+          `Page: offset=${pageOffset} limit=${pageLimit} returned=${returned} total=${total} has_more=${hasMore}`,
+        );
       }
     });
 

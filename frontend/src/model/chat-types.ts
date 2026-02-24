@@ -145,6 +145,28 @@ export interface ChatClientContext {
   appSubView?: string;
   activeBucket?: string | null;
   visibleErrors?: string[];
+  visibleWorkspaceSnapshot?: VisibleWorkspaceSnapshot;
+}
+
+export interface VisibleWorkspaceItem {
+  id?: string;
+  type?: string;
+  bucket?: string;
+  name?: string;
+  focused?: boolean;
+  top?: number;
+}
+
+export interface VisibleWorkspaceSnapshot {
+  activeBucket: string | null;
+  viewTitle?: string;
+  totalVisibleItems: number;
+  visibleItems: VisibleWorkspaceItem[];
+  bucketNav?: Array<{
+    bucket: string;
+    count: number;
+    active: boolean;
+  }>;
 }
 
 export interface ChatCompletionRequest {

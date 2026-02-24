@@ -249,6 +249,18 @@ class TestChatCompletions:
                     "appSubView": "email",
                     "activeBucket": None,
                     "visibleErrors": ["OAuth token expired"],
+                    "visibleWorkspaceSnapshot": {
+                        "activeBucket": "next",
+                        "visibleItems": [
+                            {
+                                "id": "urn:app:action:a1",
+                                "type": "Action",
+                                "bucket": "next",
+                                "name": "Ship release notes",
+                                "focused": True,
+                            }
+                        ],
+                    },
                 },
             },
         )
@@ -259,6 +271,16 @@ class TestChatCompletions:
         assert user_context["appView"] == "settings"
         assert user_context["appSubView"] == "email"
         assert user_context["visibleErrors"] == ["OAuth token expired"]
+        assert user_context["visibleWorkspaceSnapshot"]["activeBucket"] == "next"
+        assert (
+            user_context["visibleWorkspaceSnapshot"]["visibleItems"][0]["name"]
+            == "Ship release notes"
+        )
+        trace_context = captured_payloads[0]["traceContext"]
+        assert trace_context["externalConversationId"] == "conv-ui-context"
+        assert trace_context["userId"] is not None
+        assert trace_context["orgId"] is not None
+        assert trace_context["dbConversationId"] is not None
 
     def test_forwards_user_llm_config_to_agents(self, auth_client, monkeypatch):
         _patch_settings(monkeypatch, agents_url="http://localhost:8002")

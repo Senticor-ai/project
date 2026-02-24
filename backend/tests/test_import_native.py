@@ -1,4 +1,5 @@
 import hashlib
+import time
 import uuid
 
 from conftest import ROOT_DIR
@@ -6,6 +7,9 @@ from conftest import ROOT_DIR
 from app.db import db_conn
 from app.storage import get_storage
 from app.worker import process_batch
+
+_MAX_JOB_DRAIN_ATTEMPTS = 30
+_JOB_DRAIN_SLEEP_SECONDS = 0.05
 
 
 def _get_prop(item: dict, property_id: str):
@@ -59,6 +63,20 @@ def _create_file_record(
         conn.commit()
 
     return file_id
+
+
+def _drain_worker_until_completed(auth_client, job_id: str) -> dict:
+    last_status = None
+    for _ in range(_MAX_JOB_DRAIN_ATTEMPTS):
+        process_batch(limit=25)
+        response = auth_client.get(f"/imports/jobs/{job_id}")
+        assert response.status_code == 200
+        payload = response.json()
+        last_status = payload.get("status")
+        if last_status == "completed":
+            return payload
+        time.sleep(_JOB_DRAIN_SLEEP_SECONDS)
+    raise AssertionError(f"job {job_id} did not complete (last status: {last_status})")
 
 
 # ---------------------------------------------------------------------------
@@ -127,24 +145,7 @@ def test_native_import_from_file_creates_items(auth_client):
     assert queued.status_code == 202
     job_id = queued.json()["job_id"]
 
-    # Remove any unrelated outbox events so only our job event is processed
-    with db_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                DELETE FROM outbox_events
-                WHERE payload->>'job_id' IS DISTINCT FROM %s
-                """,
-                (job_id,),
-            )
-        conn.commit()
-
-    processed = process_batch(limit=10)
-    assert processed >= 1
-
-    job = auth_client.get(f"/imports/jobs/{job_id}")
-    assert job.status_code == 200
-    payload = job.json()
+    payload = _drain_worker_until_completed(auth_client, job_id)
     assert payload["status"] == "completed"
     assert payload["summary"]["total"] == 6
     assert payload["summary"]["created"] == 6
@@ -203,15 +204,7 @@ def test_native_import_preserves_source_provenance(auth_client):
     assert queued.status_code == 202
     job_id = queued.json()["job_id"]
 
-    with db_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "DELETE FROM outbox_events WHERE payload->>'job_id' IS DISTINCT FROM %s",
-                (job_id,),
-            )
-        conn.commit()
-
-    process_batch(limit=10)
+    _drain_worker_until_completed(auth_client, job_id)
 
     items = {row["canonical_id"]: row for row in auth_client.get("/items?limit=1000").json()}
 
@@ -240,17 +233,7 @@ def test_native_import_reimport_is_idempotent(auth_client):
     assert queued1.status_code == 202
     job_id_1 = queued1.json()["job_id"]
 
-    with db_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "DELETE FROM outbox_events WHERE payload->>'job_id' IS DISTINCT FROM %s",
-                (job_id_1,),
-            )
-        conn.commit()
-
-    process_batch(limit=10)
-
-    job1 = auth_client.get(f"/imports/jobs/{job_id_1}").json()
+    job1 = _drain_worker_until_completed(auth_client, job_id_1)
     assert job1["status"] == "completed"
     assert job1["summary"]["created"] == 6
 
@@ -267,17 +250,7 @@ def test_native_import_reimport_is_idempotent(auth_client):
     assert queued2.status_code == 202
     job_id_2 = queued2.json()["job_id"]
 
-    with db_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "DELETE FROM outbox_events WHERE payload->>'job_id' IS DISTINCT FROM %s",
-                (job_id_2,),
-            )
-        conn.commit()
-
-    process_batch(limit=10)
-
-    job2 = auth_client.get(f"/imports/jobs/{job_id_2}").json()
+    job2 = _drain_worker_until_completed(auth_client, job_id_2)
     assert job2["status"] == "completed"
     assert job2["summary"]["created"] == 0
     assert job2["summary"]["unchanged"] == 6  # all unchanged on re-import
@@ -310,17 +283,7 @@ def test_native_import_legacy_thing_format(auth_client):
     assert queued.status_code == 202
     job_id = queued.json()["job_id"]
 
-    with db_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "DELETE FROM outbox_events WHERE payload->>'job_id' IS DISTINCT FROM %s",
-                (job_id,),
-            )
-        conn.commit()
-
-    process_batch(limit=10)
-
-    job = auth_client.get(f"/imports/jobs/{job_id}").json()
+    job = _drain_worker_until_completed(auth_client, job_id)
     assert job["status"] == "completed"
     assert job["summary"]["total"] == 2
     assert job["summary"]["created"] == 2
@@ -354,17 +317,7 @@ def test_native_import_legacy_exclude_completed(auth_client):
     assert queued.status_code == 202
     job_id = queued.json()["job_id"]
 
-    with db_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "DELETE FROM outbox_events WHERE payload->>'job_id' IS DISTINCT FROM %s",
-                (job_id,),
-            )
-        conn.commit()
-
-    process_batch(limit=10)
-
-    job = auth_client.get(f"/imports/jobs/{job_id}").json()
+    job = _drain_worker_until_completed(auth_client, job_id)
     assert job["status"] == "completed"
     assert job["summary"]["created"] == 1  # only LEGACY-001 (active)
     assert job["summary"]["skipped"] == 1  # LEGACY-002 (completed, skipped)

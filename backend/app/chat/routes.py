@@ -13,7 +13,7 @@ import logging
 from collections.abc import AsyncGenerator, Generator
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -53,6 +53,7 @@ class ChatClientContext(BaseModel):
     appSubView: str | None = None
     activeBucket: str | None = None
     visibleErrors: list[str] | None = None
+    visibleWorkspaceSnapshot: dict | None = None
 
 
 class ChatCompletionRequest(BaseModel):
@@ -268,6 +269,7 @@ async def _stream_openclaw(
 
 @router.post("/completions")
 def chat_completions(
+    request: Request,
     req: ChatCompletionRequest,
     current_user: dict = Depends(get_current_user),  # noqa: B008
     current_org: dict = Depends(get_current_org),  # noqa: B008
@@ -398,6 +400,23 @@ def chat_completions(
         user_context["appSubView"] = req.context.appSubView
         user_context["activeBucket"] = req.context.activeBucket
         user_context["visibleErrors"] = req.context.visibleErrors
+        user_context["visibleWorkspaceSnapshot"] = req.context.visibleWorkspaceSnapshot
+
+    trace_context: dict[str, str] = {
+        "externalConversationId": req.conversationId,
+        "dbConversationId": conversation_id,
+        "userId": user_id,
+        "orgId": org_id,
+    }
+    session_id = current_user.get("session_id")
+    if session_id:
+        trace_context["sessionId"] = str(session_id)
+    request_id = getattr(request.state, "request_id", None)
+    if request_id:
+        trace_context["requestId"] = str(request_id)
+    trail_id = getattr(request.state, "trail_id", None)
+    if trail_id:
+        trace_context["trailId"] = str(trail_id)
 
     agent_payload = {
         "messages": messages,
@@ -408,6 +427,7 @@ def chat_completions(
             "orgId": org_id,
         },
         "userContext": user_context,
+        "traceContext": trace_context,
     }
     if llm_config:
         agent_payload["llm"] = {

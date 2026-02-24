@@ -150,6 +150,8 @@ class TestListWorkspaceOverview:
         """list_workspace_overview groups items by bucket and extracts projects."""
         items_response = [
             {
+                "created_at": "2026-01-01T00:00:00Z",
+                "updated_at": "2026-01-01T00:00:00Z",
                 "item": {
                     "@id": "urn:app:project:p1",
                     "@type": "Project",
@@ -164,6 +166,8 @@ class TestListWorkspaceOverview:
                 },
             },
             {
+                "created_at": "2026-01-02T00:00:00Z",
+                "updated_at": "2026-01-02T00:00:00Z",
                 "item": {
                     "@id": "urn:app:action:a1",
                     "@type": "Action",
@@ -189,6 +193,8 @@ class TestListWorkspaceOverview:
                 },
             },
             {
+                "created_at": "2026-01-03T00:00:00Z",
+                "updated_at": "2026-01-03T00:00:00Z",
                 "item": {
                     "@id": "urn:app:reference:r1",
                     "@type": "DigitalDocument",
@@ -204,7 +210,11 @@ class TestListWorkspaceOverview:
             },
         ]
         resp = MagicMock(spec=httpx.Response)
-        resp.json.return_value = items_response
+        resp.json.return_value = {
+            "items": items_response,
+            "next_cursor": None,
+            "has_more": False,
+        }
         resp.raise_for_status = MagicMock()
 
         mock_client = AsyncMock()
@@ -226,12 +236,15 @@ class TestListWorkspaceOverview:
         assert len(result["focused_items"]) == 1
         assert result["focused_items"][0]["name"] == "Buy milk"
         assert result["focused_items"][0]["is_focused"] is True
+        assert result["source"] == "items/sync (paginated)"
 
     @pytest.mark.anyio
     async def test_caps_items_per_bucket(self, auth_ctx):
         """list_workspace_overview caps at 20 items per bucket."""
         items_response = [
             {
+                "created_at": f"2026-01-01T00:00:{i:02d}Z",
+                "updated_at": f"2026-01-01T00:00:{i:02d}Z",
                 "item": {
                     "@id": f"urn:app:action:a{i}",
                     "@type": "Action",
@@ -248,7 +261,11 @@ class TestListWorkspaceOverview:
             for i in range(30)
         ]
         resp = MagicMock(spec=httpx.Response)
-        resp.json.return_value = items_response
+        resp.json.return_value = {
+            "items": items_response,
+            "next_cursor": None,
+            "has_more": False,
+        }
         resp.raise_for_status = MagicMock()
 
         mock_client = AsyncMock()
@@ -263,3 +280,149 @@ class TestListWorkspaceOverview:
         assert len(result["items_by_bucket"]["next"]) == 20
         assert result["bucket_counts"]["next"] == 30
         assert result["total_items"] == 30
+
+    @pytest.mark.anyio
+    async def test_follows_sync_pagination(self, auth_ctx):
+        page1 = MagicMock(spec=httpx.Response)
+        page1.raise_for_status = MagicMock()
+        page1.json.return_value = {
+            "items": [
+                {
+                    "created_at": "2026-01-01T00:00:00Z",
+                    "updated_at": "2026-01-01T00:00:00Z",
+                    "item": {
+                        "@id": "urn:app:action:a1",
+                        "@type": "Action",
+                        "name": "A1",
+                        "additionalProperty": [
+                            {
+                                "@type": "PropertyValue",
+                                "propertyID": "app:bucket",
+                                "value": "next",
+                            }
+                        ],
+                    },
+                }
+            ],
+            "next_cursor": "cursor-1",
+            "has_more": True,
+        }
+        page2 = MagicMock(spec=httpx.Response)
+        page2.raise_for_status = MagicMock()
+        page2.json.return_value = {
+            "items": [
+                {
+                    "created_at": "2026-01-02T00:00:00Z",
+                    "updated_at": "2026-01-02T00:00:00Z",
+                    "item": {
+                        "@id": "urn:app:action:a2",
+                        "@type": "Action",
+                        "name": "A2",
+                        "additionalProperty": [
+                            {
+                                "@type": "PropertyValue",
+                                "propertyID": "app:bucket",
+                                "value": "next",
+                            }
+                        ],
+                    },
+                }
+            ],
+            "next_cursor": None,
+            "has_more": False,
+        }
+
+        mock_client = AsyncMock()
+        mock_client.get.side_effect = [page1, page2]
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("backend_client.httpx.AsyncClient", return_value=mock_client):
+            client = BackendClient(base_url="http://test:8000")
+            result = await client.list_workspace_overview(auth_ctx)
+
+        assert result["total_items"] == 2
+        assert result["bucket_counts"]["next"] == 2
+        assert mock_client.get.call_count == 2
+
+
+class TestListBucketItems:
+    @pytest.mark.anyio
+    async def test_filters_bucket_and_returns_pagination_metadata(self, auth_ctx):
+        resp = MagicMock(spec=httpx.Response)
+        resp.raise_for_status = MagicMock()
+        resp.json.return_value = {
+            "items": [
+                {
+                    "created_at": "2026-01-01T00:00:00Z",
+                    "updated_at": "2026-01-01T00:00:00Z",
+                    "item": {
+                        "@id": "urn:app:action:a1",
+                        "@type": "Action",
+                        "name": "Alpha",
+                        "additionalProperty": [
+                            {
+                                "@type": "PropertyValue",
+                                "propertyID": "app:bucket",
+                                "value": "next",
+                            }
+                        ],
+                    },
+                },
+                {
+                    "created_at": "2026-01-02T00:00:00Z",
+                    "updated_at": "2026-01-02T00:00:00Z",
+                    "item": {
+                        "@id": "urn:app:action:a2",
+                        "@type": "Action",
+                        "name": "Beta",
+                        "additionalProperty": [
+                            {
+                                "@type": "PropertyValue",
+                                "propertyID": "app:bucket",
+                                "value": "next",
+                            }
+                        ],
+                    },
+                },
+                {
+                    "created_at": "2026-01-03T00:00:00Z",
+                    "updated_at": "2026-01-03T00:00:00Z",
+                    "item": {
+                        "@id": "urn:app:action:a3",
+                        "@type": "Action",
+                        "name": "Gamma",
+                        "additionalProperty": [
+                            {
+                                "@type": "PropertyValue",
+                                "propertyID": "app:bucket",
+                                "value": "waiting",
+                            }
+                        ],
+                    },
+                },
+            ],
+            "next_cursor": None,
+            "has_more": False,
+        }
+
+        mock_client = AsyncMock()
+        mock_client.get.return_value = resp
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("backend_client.httpx.AsyncClient", return_value=mock_client):
+            client = BackendClient(base_url="http://test:8000")
+            result = await client.list_bucket_items(
+                auth_ctx,
+                bucket="next",
+                limit=1,
+                offset=0,
+                sort="latest",
+            )
+
+        assert result["total"] == 2
+        assert result["returned"] == 1
+        assert result["has_more"] is True
+        assert result["next_offset"] == 1
+        assert result["items"][0]["name"] == "Beta"

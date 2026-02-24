@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncGenerator  # noqa: UP035 — keep for 3.12 compat
@@ -30,15 +31,41 @@ from tracing import configure_tracing, shutdown_tracing  # noqa: E402
 logger = logging.getLogger(__name__)
 
 
-def _enable_haystack_logging():
-    """Enable Haystack's real-time pipeline logging to stdout."""
+def _enable_haystack_logging(*, enable_otel_tracing: bool) -> None:
+    """Enable Haystack logging and tracing integration."""
     import logging as stdlib_logging
 
     from haystack import tracing
+    from haystack.logging import configure_logging as configure_haystack_logging
     from haystack.tracing.logging_tracer import LoggingTracer
 
-    stdlib_logging.getLogger("haystack").setLevel(stdlib_logging.DEBUG)
+    use_json_env = os.getenv("HAYSTACK_LOG_JSON")
+    use_json: bool | None = None
+    if use_json_env is not None:
+        use_json = use_json_env.lower() in {"1", "true", "yes"}
+    configure_haystack_logging(use_json=use_json)
+
+    level_name = os.getenv("HAYSTACK_LOG_LEVEL", "INFO").upper()
+    level = getattr(stdlib_logging, level_name, stdlib_logging.INFO)
+    stdlib_logging.getLogger("haystack").setLevel(level)
+
     tracing.tracer.is_content_tracing_enabled = True
+
+    if enable_otel_tracing:
+        try:
+            from haystack.tracing.opentelemetry import OpenTelemetryTracer
+            from opentelemetry import trace as otel_trace
+
+            tracing.enable_tracing(
+                OpenTelemetryTracer(
+                    otel_trace.get_tracer("senticor.agents.haystack"),
+                )
+            )
+            logger.info("Haystack OpenTelemetryTracer enabled")
+            return
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Failed to enable Haystack OpenTelemetry tracer: %s", exc)
+
     tracing.enable_tracing(
         LoggingTracer(
             tags_color_strings={
@@ -47,13 +74,13 @@ def _enable_haystack_logging():
             }
         )
     )
-    logger.info("Haystack LoggingTracer enabled (content tracing ON)")
+    logger.info("Haystack LoggingTracer enabled")
 
 
 @asynccontextmanager
 async def lifespan(application: FastAPI):
-    _enable_haystack_logging()
     tracer_provider = configure_tracing(application)
+    _enable_haystack_logging(enable_otel_tracing=tracer_provider is not None)
     yield
     shutdown_tracing(tracer_provider)
 
@@ -100,6 +127,17 @@ class UserContextPayload(BaseModel):
     appSubView: str | None = None
     activeBucket: str | None = None
     visibleErrors: list[str] | None = None
+    visibleWorkspaceSnapshot: dict | None = None
+
+
+class TraceContextPayload(BaseModel):
+    externalConversationId: str | None = None
+    dbConversationId: str | None = None
+    userId: str | None = None
+    orgId: str | None = None
+    sessionId: str | None = None
+    requestId: str | None = None
+    trailId: str | None = None
 
 
 class ChatLlmPayload(BaseModel):
@@ -116,6 +154,7 @@ class ChatCompletionRequest(BaseModel):
     stream: bool = False
     auth: ChatAuthPayload | None = None
     userContext: UserContextPayload | None = None
+    traceContext: TraceContextPayload | None = None
     llm: ChatLlmPayload | None = None
 
 
@@ -237,6 +276,7 @@ async def run_agent(
     messages: list[MessagePayload],
     auth: AuthContext | None = None,
     user_context: dict | None = None,
+    trace_context: dict | None = None,
     llm_config: RuntimeLlmConfig | None = None,
 ) -> ChatMessage:
     """Run the Haystack agent with model fallback.
@@ -250,12 +290,18 @@ async def run_agent(
     for model in MODELS:
         try:
             if llm_config is None:
-                agent = create_agent(model, auth=auth, user_context=user_context)
+                agent = create_agent(
+                    model,
+                    auth=auth,
+                    user_context=user_context,
+                    trace_context=trace_context,
+                )
             else:
                 agent = create_agent(
                     model,
                     auth=auth,
                     user_context=user_context,
+                    trace_context=trace_context,
                     llm_config=llm_config,
                 )
             result = await agent.run_async(messages=haystack_messages)
@@ -278,6 +324,7 @@ async def run_agent_streaming(
     messages: list[MessagePayload],
     auth: AuthContext | None = None,
     user_context: dict | None = None,
+    trace_context: dict | None = None,
     llm_config: RuntimeLlmConfig | None = None,
 ) -> AsyncGenerator[str, None]:
     """Run the agent and yield NDJSON events as text streams in.
@@ -299,12 +346,18 @@ async def run_agent_streaming(
         for model in MODELS:
             try:
                 if llm_config is None:
-                    agent = create_agent(model, auth=auth, user_context=user_context)
+                    agent = create_agent(
+                        model,
+                        auth=auth,
+                        user_context=user_context,
+                        trace_context=trace_context,
+                    )
                 else:
                     agent = create_agent(
                         model,
                         auth=auth,
                         user_context=user_context,
+                        trace_context=trace_context,
                         llm_config=llm_config,
                     )
                 result = await agent.run_async(
@@ -374,6 +427,9 @@ async def run_agent_streaming(
 async def chat_completions(req: ChatCompletionRequest):
     auth = _build_auth_context(req.auth)
     uctx = req.userContext.model_dump() if req.userContext else None
+    trace_ctx = req.traceContext.model_dump(exclude_none=True) if req.traceContext else {}
+    if req.conversationId and "externalConversationId" not in trace_ctx:
+        trace_ctx["externalConversationId"] = req.conversationId
     llm = _build_llm_config(req.llm)
 
     if req.stream:
@@ -382,6 +438,7 @@ async def chat_completions(req: ChatCompletionRequest):
                 req.messages,
                 auth=auth,
                 user_context=uctx,
+                trace_context=trace_ctx,
                 llm_config=llm,
             ),
             media_type="application/x-ndjson",
@@ -392,6 +449,7 @@ async def chat_completions(req: ChatCompletionRequest):
             req.messages,
             auth=auth,
             user_context=uctx,
+            trace_context=trace_ctx,
             llm_config=llm,
         )
     except Exception as exc:

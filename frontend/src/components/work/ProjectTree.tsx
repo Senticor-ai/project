@@ -305,7 +305,16 @@ function ProjectRow({
   };
 
   return (
-    <div data-project-id={project.id} className="rounded-lg">
+    <div
+      data-project-id={project.id}
+      data-copilot-item="true"
+      data-copilot-item-id={project.id}
+      data-copilot-item-type="project"
+      data-copilot-item-bucket="project"
+      data-copilot-item-name={project.name ?? "Untitled"}
+      data-copilot-item-focused={project.isFocused ? "true" : "false"}
+      className="rounded-lg"
+    >
       {/* Project header */}
       <div className="flex items-center gap-0.5 rounded-[var(--radius-md)] transition-colors duration-[var(--duration-fast)] hover:bg-paper-100">
         {/* Expand/collapse chevron */}

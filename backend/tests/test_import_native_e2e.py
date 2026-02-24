@@ -15,6 +15,9 @@ from app.db import db_conn
 from app.storage import get_storage
 from app.worker import process_batch
 
+_MAX_WORKER_DRAIN_ATTEMPTS = 30
+_WORKER_DRAIN_SLEEP_SECONDS = 0.05
+
 
 def _get_prop(item: dict, property_id: str):
     for pv in item.get("additionalProperty", []):
@@ -97,26 +100,14 @@ def _run_import_job(
     assert queued.status_code == 202
     job_id = queued.json()["job_id"]
 
-    with db_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "DELETE FROM outbox_events WHERE payload->>'job_id' IS DISTINCT FROM %s",
-                (job_id,),
-            )
-        conn.commit()
-
-    # Process remaining events — may be 0 if already consumed by another test
-    process_batch(limit=10)
-
-    # Poll job status with retry — worker may have already processed it
-    for _ in range(20):
+    # Poll job status with retry — another worker may already be consuming events.
+    for _ in range(_MAX_WORKER_DRAIN_ATTEMPTS):
+        process_batch(limit=25)
         job = auth_client.get(f"/imports/jobs/{job_id}")
         assert job.status_code == 200
         if job.json()["status"] in ("completed", "failed"):
             return job.json()
-        # Retry processing in case event wasn't consumed yet
-        process_batch(limit=10)
-        time.sleep(0.25)
+        time.sleep(_WORKER_DRAIN_SLEEP_SECONDS)
 
     raise AssertionError(f"Job {job_id} did not complete within timeout")
 
@@ -518,15 +509,20 @@ def test_import_with_emit_events_processes_item_upserted(app):
     assert queued.status_code == 202
     job_id = queued.json()["job_id"]
 
-    # First batch: processes native_import_job → creates items + item_upserted events
-    batch1 = process_batch(limit=10)
-    assert batch1 >= 1
+    # Wait until native_import_job completes (it may be processed by another worker).
+    import_payload = None
+    for _ in range(_MAX_WORKER_DRAIN_ATTEMPTS):
+        process_batch(limit=25)
+        job = client_b.get(f"/imports/jobs/{job_id}")
+        assert job.status_code == 200
+        import_payload = job.json()
+        if import_payload["status"] == "completed":
+            break
+        time.sleep(_WORKER_DRAIN_SLEEP_SECONDS)
+    else:
+        raise AssertionError(f"Import job {job_id} did not complete")
 
-    # Verify import job completed
-    job = client_b.get(f"/imports/jobs/{job_id}")
-    assert job.status_code == 200
-    assert job.json()["status"] == "completed"
-    assert job.json()["summary"]["created"] == 3
+    assert import_payload["summary"]["created"] == 3
 
     # Check what item_upserted events were created and whether items exist
     with db_conn() as conn:
@@ -554,8 +550,25 @@ def test_import_with_emit_events_processes_item_upserted(app):
                     f"but no such item exists in the database"
                 )
 
-    # Second batch: processes the item_upserted events emitted during import
-    batch2 = process_batch(limit=50)
+    # Drain item_upserted events emitted during import.
+    unprocessed = None
+    for _ in range(_MAX_WORKER_DRAIN_ATTEMPTS):
+        process_batch(limit=50)
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT event_id, event_type, payload, last_error
+                    FROM outbox_events
+                    WHERE processed_at IS NULL
+                      AND dead_lettered_at IS NULL
+                      AND event_type = 'item_upserted'
+                    """
+                )
+                unprocessed = cur.fetchall()
+        if not unprocessed:
+            break
+        time.sleep(_WORKER_DRAIN_SLEEP_SECONDS)
 
     # Verify no dead-lettered events remain
     with db_conn() as conn:
@@ -574,26 +587,11 @@ def test_import_with_emit_events_processes_item_upserted(app):
         f"{[(dl['event_type'], dl['last_error']) for dl in dead_letters]}"
     )
 
-    # Verify no unprocessed item_upserted events remain
-    with db_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT event_id, event_type, payload, last_error
-                FROM outbox_events
-                WHERE processed_at IS NULL
-                  AND dead_lettered_at IS NULL
-                  AND event_type = 'item_upserted'
-                """
-            )
-            unprocessed = cur.fetchall()
-
-    # All item_upserted events should have been processed (or at least attempted)
-    if batch2 > 0:
-        assert unprocessed == [], (
-            f"Unprocessed item_upserted events: "
-            f"{[(u['event_type'], u.get('last_error')) for u in unprocessed]}"
-        )
+    # All item_upserted events should have been processed (or consumed elsewhere).
+    assert unprocessed == [], (
+        f"Unprocessed item_upserted events: "
+        f"{[(u['event_type'], u.get('last_error')) for u in unprocessed or []]}"
+    )
 
 
 def test_item_upserted_events_from_api_also_processed(app):
@@ -647,9 +645,29 @@ def test_item_upserted_events_from_api_also_processed(app):
     event_item_id = events[0]["payload"]["item_id"]
     assert event_item_id == created_item_id
 
-    # Process the event
-    processed = process_batch(limit=10)
-    assert processed >= 1
+    # Process the event (or wait until another worker consumed it).
+    for _ in range(_MAX_WORKER_DRAIN_ATTEMPTS):
+        process_batch(limit=10)
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT processed_at, dead_lettered_at
+                    FROM outbox_events
+                    WHERE event_id = %s
+                    """,
+                    (events[0]["event_id"],),
+                )
+                state = cur.fetchone()
+        if state is None:
+            break
+        if state["processed_at"] is not None:
+            break
+        if state["dead_lettered_at"] is not None:
+            raise AssertionError("item_upserted event was dead-lettered")
+        time.sleep(_WORKER_DRAIN_SLEEP_SECONDS)
+    else:
+        raise AssertionError("item_upserted event did not process within timeout")
 
     # Verify no failures
     with db_conn() as conn:
