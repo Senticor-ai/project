@@ -334,6 +334,13 @@ export const AuthApi = {
     await refreshCsrfToken();
     return session;
   },
+  acknowledgeDisclaimer: async () => {
+    const user = await request<AuthUser>("/auth/acknowledge-disclaimer", {
+      method: "POST",
+    });
+    setUserContext(user);
+    return user;
+  },
 };
 
 // ---------------------------------------------------------------------------
