@@ -248,18 +248,30 @@ def validate_item_create(item: dict) -> list[dict[str, object]]:
                     ),
                 })
 
-    # CEL rules (hardcoded for now, to be replaced in phase 4)
-    if bucket and bucket not in ACTION_BUCKETS:
-        issues.append({
-            "source": "cel",
-            "code": "BUCKET_ENUM",
-            "field": "additionalProperty.app:bucket",
-            "rule": "item.bucket.enum",
-            "message": (
-                "Bucket must be one of "
-                "inbox,next,waiting,someday,calendar,reference,project,completed."
-            ),
-        })
+    # CEL rules using cel-python
+    try:
+        from app.validation.cel_evaluator import evaluate_rules
+
+        cel_context = {
+            "operation": "create",
+            "bucket": bucket,
+        }
+        cel_violations = evaluate_rules(cel_context)
+        issues.extend(cel_violations)
+    except ImportError:
+        # Fallback to hardcoded CEL if cel-python not available
+        logger.warning("cel-python not available, using hardcoded CEL validation")
+        if bucket and bucket not in ACTION_BUCKETS:
+            issues.append({
+                "source": "cel",
+                "code": "BUCKET_ENUM",
+                "field": "additionalProperty.app:bucket",
+                "rule": "item.bucket.enum",
+                "message": (
+                    "Bucket must be one of "
+                    "inbox,next,waiting,someday,calendar,reference,project,completed."
+                ),
+            })
 
     return issues
 
@@ -269,32 +281,50 @@ def validate_item_update(existing_item: dict, next_item: dict) -> list[dict[str,
     source_bucket = _bucket(existing_item)
     target_bucket = _bucket(next_item)
 
-    if source_bucket == "completed":
-        issues.append(
-            {
-                "source": "cel",
-                "code": "COMPLETED_IMMUTABLE",
-                "field": "item",
-                "rule": "item.completed.immutable",
-                "message": "Completed items are immutable.",
-            }
-        )
+    # CEL rules using cel-python
+    try:
+        from app.validation.cel_evaluator import evaluate_rules
 
-    if (
-        source_bucket == "inbox"
-        and target_bucket
-        and target_bucket != source_bucket
-        and target_bucket not in INBOX_TRIAGE_TARGETS
-    ):
-        issues.append(
-            {
-                "source": "cel",
-                "code": "TRIAGE_INBOX_TARGET_INVALID",
-                "field": "additionalProperty.app:bucket",
-                "rule": "triage.inbox.targets",
-                "message": "Inbox items can only move to next,waiting,someday,calendar,reference.",
-            }
-        )
+        # Determine operation type (triage if bucket changed, otherwise update)
+        operation = "triage" if source_bucket != target_bucket else "update"
+
+        cel_context = {
+            "operation": operation,
+            "source": {"bucket": source_bucket},
+            "target": {"bucket": target_bucket},
+            "bucket": target_bucket,
+        }
+        cel_violations = evaluate_rules(cel_context)
+        issues.extend(cel_violations)
+    except ImportError:
+        # Fallback to hardcoded CEL if cel-python not available
+        logger.warning("cel-python not available, using hardcoded CEL validation")
+        if source_bucket == "completed":
+            issues.append(
+                {
+                    "source": "cel",
+                    "code": "COMPLETED_IMMUTABLE",
+                    "field": "item",
+                    "rule": "item.completed.immutable",
+                    "message": "Completed items are immutable.",
+                }
+            )
+
+        if (
+            source_bucket == "inbox"
+            and target_bucket
+            and target_bucket != source_bucket
+            and target_bucket not in INBOX_TRIAGE_TARGETS
+        ):
+            issues.append(
+                {
+                    "source": "cel",
+                    "code": "TRIAGE_INBOX_TARGET_INVALID",
+                    "field": "additionalProperty.app:bucket",
+                    "rule": "triage.inbox.targets",
+                    "message": "Inbox items can only move to next,waiting,someday,calendar,reference.",
+                }
+            )
 
     return issues
 
