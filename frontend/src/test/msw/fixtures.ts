@@ -345,6 +345,88 @@ export function seedMixedBucketsWithFiles(): ItemRecord[] {
   return records;
 }
 
+export function seedActionSubtypes(): ItemRecord[] {
+  const refCanonicalId = "urn:app:reference:action-ref-1" as CanonicalId;
+  const records = [
+    // Generic Action
+    createItemRecord({
+      item_id: "action-generic",
+      bucket: "next",
+      type: "Action",
+      name: "Complete task",
+    }),
+    // ReadAction with reference
+    createItemRecord({
+      item_id: "action-read",
+      bucket: "next",
+      type: "ReadAction",
+      name: "Review specification document",
+      objectRef: refCanonicalId,
+    }),
+    // PlanAction
+    createItemRecord({
+      item_id: "action-plan",
+      bucket: "next",
+      type: "PlanAction",
+      name: "Plan Q2 roadmap",
+    }),
+    // BuyAction
+    createItemRecord({
+      item_id: "action-buy",
+      bucket: "next",
+      type: "BuyAction",
+      name: "Order office supplies",
+    }),
+    // CommunicateAction
+    createItemRecord({
+      item_id: "action-communicate",
+      bucket: "next",
+      type: "CommunicateAction",
+      name: "Call vendor about contract",
+    }),
+    // ReviewAction
+    createItemRecord({
+      item_id: "action-review",
+      bucket: "next",
+      type: "ReviewAction",
+      name: "Review team deliverables",
+    }),
+    // CreateAction
+    createItemRecord({
+      item_id: "action-create",
+      bucket: "next",
+      type: "CreateAction",
+      name: "Draft presentation slides",
+    }),
+    // SendAction
+    createItemRecord({
+      item_id: "action-send",
+      bucket: "next",
+      type: "SendAction",
+      name: "Send quarterly report to board",
+    }),
+    // CheckAction
+    createItemRecord({
+      item_id: "action-check",
+      bucket: "next",
+      type: "CheckAction",
+      name: "Verify invoice details",
+    }),
+    // Reference item for ReadAction
+    createItemRecord({
+      item_id: "action-ref-1",
+      canonical_id: refCanonicalId,
+      bucket: "reference",
+      type: "DigitalDocument",
+      name: "Specification.pdf",
+      encodingFormat: "application/pdf",
+      origin: "triaged",
+    }),
+  ];
+  store.seed(records);
+  return records;
+}
+
 // ---------------------------------------------------------------------------
 // SyncResponse builder
 // ---------------------------------------------------------------------------
