@@ -2,6 +2,9 @@ import argparse
 import time
 from datetime import UTC, datetime
 
+import psycopg
+from psycopg import sql
+
 from .config import settings
 from .db import db_conn, jsonb
 from .email.sync import (
@@ -13,6 +16,7 @@ from .email.sync import (
 )
 from .metrics import APP_IMPORTS_COMPLETED_TOTAL, APP_IMPORTS_FAILED_TOTAL
 from .observability import configure_logging, get_logger
+from .outbox import OUTBOX_NOTIFY_CHANNEL
 from .push_events import enqueue_push_payload
 from .search.indexer import delete_item, index_file, index_item
 from .search.jobs import mark_failed, mark_processing, mark_skipped, mark_succeeded
@@ -598,6 +602,40 @@ def process_batch(limit: int = 25) -> int:
         return processed
 
 
+def _outbox_notify_channel() -> str:
+    channel = (settings.outbox_notify_channel or OUTBOX_NOTIFY_CHANNEL).strip()
+    return channel or OUTBOX_NOTIFY_CHANNEL
+
+
+def _open_outbox_listener() -> psycopg.Connection | None:
+    channel = _outbox_notify_channel()
+    try:
+        listener_conn = psycopg.connect(settings.database_url, autocommit=True)
+        with listener_conn.cursor() as cur:
+            cur.execute(sql.SQL("LISTEN {}").format(sql.Identifier(channel)))
+        logger.info("outbox.listen_ready", channel=channel)
+        return listener_conn
+    except Exception:  # noqa: BLE001
+        logger.warning("outbox.listen_start_failed", channel=channel, exc_info=True)
+        return None
+
+
+def _wait_for_outbox_signal(listener_conn: psycopg.Connection, timeout: float) -> bool | None:
+    timeout_seconds = max(0.1, float(timeout))
+    try:
+        for notification in listener_conn.notifies(timeout=timeout_seconds, stop_after=1):
+            logger.debug(
+                "outbox.notified",
+                channel=notification.channel,
+                payload=notification.payload,
+            )
+            return True
+        return False
+    except Exception:  # noqa: BLE001
+        logger.warning("outbox.listen_wait_failed", exc_info=True)
+        return None
+
+
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Process outbox events")
     parser.add_argument(
@@ -615,7 +653,25 @@ def _parse_args() -> argparse.Namespace:
         "--interval",
         type=float,
         default=settings.outbox_worker_poll_seconds,
-        help="Poll interval in seconds when looping.",
+        help=(
+            "Poll interval in seconds when looping without LISTEN/NOTIFY. "
+            "Also used as reconnect backoff when LISTEN/NOTIFY is unavailable."
+        ),
+    )
+    parser.add_argument(
+        "--idle-wait",
+        type=float,
+        default=settings.outbox_worker_notify_fallback_seconds,
+        help=(
+            "When LISTEN/NOTIFY is enabled, max seconds to block waiting for wakeups "
+            "before running a fallback poll."
+        ),
+    )
+    parser.add_argument(
+        "--listen-notify",
+        action=argparse.BooleanOptionalAction,
+        default=settings.outbox_worker_listen_notify,
+        help="Use Postgres LISTEN/NOTIFY wakeups for near-zero idle polling.",
     )
     return parser.parse_args()
 
@@ -624,16 +680,23 @@ def main() -> None:
     args = _parse_args()
     batch_size = max(1, args.batch_size)
     interval = max(0.1, float(args.interval))
+    idle_wait = max(0.1, float(args.idle_wait))
+    use_listen_notify = bool(args.listen_notify)
 
     if not args.loop:
         count = process_batch(limit=batch_size)
         logger.info("outbox.processed", count=count, batch_size=batch_size)
         return
 
+    listener_conn: psycopg.Connection | None = None
+    if use_listen_notify:
+        listener_conn = _open_outbox_listener()
+
+    health_poll_interval = idle_wait if use_listen_notify else interval
     _name = "projection-worker"
     health_state = WorkerHealthState(
         _name,
-        poll_interval=interval,
+        poll_interval=health_poll_interval,
         staleness_multiplier=settings.worker_health_staleness_multiplier,
     )
     start_health_server(health_state, settings.worker_health_port)
@@ -652,7 +715,14 @@ def main() -> None:
     except Exception:
         logger.warning("outbox.startup_sync_failed", exc_info=True)
 
-    logger.info("outbox.loop_started", batch_size=batch_size, interval_seconds=interval)
+    logger.info(
+        "outbox.loop_started",
+        batch_size=batch_size,
+        interval_seconds=interval,
+        idle_wait_seconds=idle_wait,
+        listen_notify=use_listen_notify,
+        notify_channel=_outbox_notify_channel(),
+    )
     try:
         while True:
             batch_start = time.monotonic()
@@ -690,11 +760,33 @@ def main() -> None:
                     logger.warning("container.reap_failed", exc_info=True)
                 last_container_reap = now
 
-            # If we did not fill a full batch, pause briefly before polling again.
+            # When we don't fill the entire batch, either block on LISTEN/NOTIFY
+            # (plus periodic fallback polling) or sleep before polling again.
             if count < batch_size:
-                time.sleep(interval)
+                if use_listen_notify:
+                    if listener_conn is None:
+                        listener_conn = _open_outbox_listener()
+                        if listener_conn is None:
+                            time.sleep(interval)
+                            continue
+                    wait_result = _wait_for_outbox_signal(listener_conn, idle_wait)
+                    if wait_result is None:
+                        try:
+                            listener_conn.close()
+                        except Exception:  # noqa: BLE001
+                            logger.debug("outbox.listen_close_failed", exc_info=True)
+                        listener_conn = None
+                        time.sleep(interval)
+                else:
+                    time.sleep(interval)
     except KeyboardInterrupt:
         logger.info("outbox.loop_stopped")
+    finally:
+        if listener_conn is not None:
+            try:
+                listener_conn.close()
+            except Exception:  # noqa: BLE001
+                logger.debug("outbox.listen_close_failed", exc_info=True)
 
 
 if __name__ == "__main__":

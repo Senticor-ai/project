@@ -5,8 +5,12 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
+import httpx
+from google.auth.exceptions import TransportError
+
 from app.email.pubsub import PubSubMessage
 from app.email.watch_worker import (
+    _is_transient_pull_error,
     process_notifications,
     renew_expiring_watches,
 )
@@ -164,3 +168,27 @@ class TestRenewExpiringWatches:
         # Only 1 succeeded, the other failed gracefully
         assert result == 1
         assert mock_register.call_count == 2
+
+
+class TestTransientPullError:
+    def _http_status_error(self, status_code: int) -> httpx.HTTPStatusError:
+        request = httpx.Request("POST", "https://pubsub.googleapis.com/v1/pull")
+        response = httpx.Response(status_code=status_code, request=request)
+        return httpx.HTTPStatusError(
+            message=f"error {status_code}",
+            request=request,
+            response=response,
+        )
+
+    def test_treats_connect_timeout_and_transport_as_transient(self):
+        assert _is_transient_pull_error(httpx.ConnectError("dns failure"))
+        assert _is_transient_pull_error(httpx.TimeoutException("timed out"))
+        assert _is_transient_pull_error(TransportError("oauth token endpoint failed"))
+
+    def test_treats_transient_http_statuses_as_transient(self):
+        for status in (408, 429, 500, 502, 503, 504):
+            assert _is_transient_pull_error(self._http_status_error(status))
+
+    def test_does_not_treat_non_transient_errors_as_transient(self):
+        assert not _is_transient_pull_error(self._http_status_error(400))
+        assert not _is_transient_pull_error(RuntimeError("boom"))

@@ -19,6 +19,9 @@ import logging
 import time
 from datetime import UTC, datetime, timedelta
 
+import httpx
+from google.auth.exceptions import TransportError
+
 from ..config import settings
 from ..db import db_conn
 from ..outbox import enqueue_event
@@ -34,6 +37,16 @@ from .pubsub import PubSubClient, PubSubMessage
 from .sync import register_watch
 
 logger = logging.getLogger(__name__)
+
+
+def _is_transient_pull_error(exc: Exception) -> bool:
+    """Whether pull/ack failures should be treated as temporary outages."""
+    if isinstance(exc, (httpx.ConnectError, httpx.TimeoutException, TransportError)):
+        return True
+    if isinstance(exc, httpx.HTTPStatusError):
+        status = exc.response.status_code if exc.response else None
+        return status in {408, 429, 500, 502, 503, 504}
+    return False
 
 
 def _find_connection_by_email(email_address: str) -> dict | None:
@@ -230,6 +243,7 @@ def run_loop(
         interval,
         subscription_id,
     )
+    pull_unavailable = False
 
     try:
         while True:
@@ -237,11 +251,23 @@ def run_loop(
             enqueued = 0
             try:
                 enqueued = process_notifications(client)
+                if pull_unavailable:
+                    logger.info("watch_worker.pull_recovered")
+                    pull_unavailable = False
                 if enqueued:
                     logger.info("watch_worker.batch enqueued=%d", enqueued)
-            except Exception:
+            except Exception as exc:
                 WORKER_ERRORS_TOTAL.labels(worker=_name).inc()
-                logger.exception("watch_worker.pull_failed")
+                if _is_transient_pull_error(exc):
+                    if not pull_unavailable:
+                        logger.warning(
+                            "watch_worker.pull_unavailable error=%s; retrying",
+                            str(exc),
+                        )
+                    pull_unavailable = True
+                else:
+                    pull_unavailable = False
+                    logger.exception("watch_worker.pull_failed")
 
             # Periodic watch renewal check
             now = time.monotonic()
