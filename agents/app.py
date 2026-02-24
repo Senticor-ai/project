@@ -25,10 +25,24 @@ load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 from backend_client import AuthContext  # noqa: E402 — must load env before importing
 from copilot import MODELS, RuntimeLlmConfig, create_agent  # noqa: E402
+from secrets import get_secrets_manager  # noqa: E402
 from tool_executor import ToolCallInput, execute_tool  # noqa: E402
 from tracing import configure_tracing, shutdown_tracing  # noqa: E402
 
 logger = logging.getLogger(__name__)
+
+# Initialize secrets manager (env fallback for dev, Vault/AWS for production)
+try:
+    secrets_manager = get_secrets_manager()
+except Exception as e:
+    # Fail fast in production if secrets manager is unreachable
+    backend = os.environ.get("SECRETS_BACKEND", "env").lower()
+    if backend != "env":
+        logger.error(f"Failed to initialize secrets manager ({backend}): {e}")
+        raise
+    # For env backend, log warning and continue (dev environment)
+    logger.warning(f"Secrets manager initialization issue (using env fallback): {e}")
+    secrets_manager = None
 
 
 def _enable_haystack_logging(*, enable_otel_tracing: bool) -> None:
