@@ -1,0 +1,71 @@
+=== AUTO-BUILD PROGRESS ===
+
+Project: Add Tooltip Component and Integrate Across UI
+Spec: 004
+PR: #34 (feat/tooltip-and-component-improvements → main)
+Started: 2026-02-24
+
+Workflow Type: feature
+Rationale: New reusable UI component (Tooltip) added to the design system with broad integration across 5 existing components. Pure additive frontend feature.
+
+Session 1 (Planner):
+- Completed deep codebase investigation
+- Read 15+ source files to understand patterns
+- Created implementation_plan.json (7 phases, 9 subtasks)
+- Created context.json with file mappings and patterns
+- Created init.sh for environment setup
+
+Phase Summary:
+- Phase 1 (Core Tooltip Component): 2 subtasks, no dependencies
+  - subtask-1-1: Create Tooltip.tsx + Tooltip.test.tsx (8 unit tests)
+  - subtask-1-2: Create Tooltip.stories.tsx (4 stories)
+- Phase 2 (ActionRow Integration): 1 subtask, depends on Phase 1
+  - subtask-2-1: Wrap 5 buttons, add 5 integration tests
+- Phase 3 (ProjectTree Integration): 1 subtask, depends on Phase 1
+  - subtask-3-1: Wrap 6 elements (incl. stalled indicator special case), add 3 tests
+- Phase 4 (ReferenceRow Integration): 1 subtask, depends on Phase 1
+  - subtask-4-1: Wrap 7 elements (no test changes)
+- Phase 5 (AppHeader & ChatInput): 2 subtasks, depends on Phase 1
+  - subtask-5-1: Wrap AppHeader chat toggle, add 4 tests
+  - subtask-5-2: Wrap ChatInput send button
+- Phase 6 (Housekeeping): 1 subtask, depends on Phase 1
+  - subtask-6-1: MDX doc, .gitignore, .claude/settings.json
+- Phase 7 (Final Verification): 1 subtask, depends on all other phases
+  - subtask-7-1: Full preflight check suite
+
+Services Involved:
+- frontend: New Tooltip component, integration into 5 existing components, tests, stories
+
+Files to Create (4):
+- frontend/src/components/ui/Tooltip.tsx
+- frontend/src/components/ui/Tooltip.test.tsx
+- frontend/src/components/ui/Tooltip.stories.tsx
+- frontend/src/docs/product/EpicEmailPreviewEnhancements.mdx
+
+Files to Modify (10):
+- frontend/src/components/work/ActionRow.tsx + test
+- frontend/src/components/work/ProjectTree.tsx + test
+- frontend/src/components/work/ReferenceRow.tsx
+- frontend/src/components/shell/AppHeader.tsx + test
+- frontend/src/components/chat/ChatInput.tsx
+- .gitignore
+- .claude/settings.json
+
+Parallelism Analysis:
+- Max parallel phases: 4 (phases 2-5 can run concurrently)
+- Recommended workers: 1 (single frontend service, sequential safer)
+- Parallel groups: [phase-2, phase-3, phase-4, phase-5] — all depend only on phase-1
+
+Key Patterns Documented:
+- UI Component: Icon.tsx pattern (props interface, JSDoc, cn(), design tokens)
+- Tests: vitest + RTL, vi.useFakeTimers for tooltip delay testing
+- Stories: @storybook/react-vite, Primitives/ title prefix
+- Integration: <Tooltip> wraps <button>, hover wrapping <span>, 400ms delay
+
+=== STARTUP COMMAND ===
+
+To continue building this spec, run:
+
+  source auto-claude/.venv/bin/activate && python auto-claude/run.py --spec 004 --parallel 1
+
+=== END SESSION 1 ===

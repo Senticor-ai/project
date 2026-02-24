@@ -1,0 +1,116 @@
+{
+  "session_number": 4,
+  "timestamp": "2026-02-24T11:03:41.976493+00:00",
+  "subtasks_completed": [
+    "subtask-3-1"
+  ],
+  "discoveries": {
+    "file_insights": {
+      "ProjectTree.tsx": {
+        "changes_type": "Enhancement - UI wrapping",
+        "lines_modified": 97,
+        "key_modifications": [
+          "Added Tooltip import from @/components/ui/Tooltip",
+          "Wrapped 6 interactive elements with Tooltip component",
+          "Elements wrapped: show-all button, create-project button, stalled indicator, archive button, rename button, star button",
+          "Stalled indicator uses explicit Tooltip label prop: 'Needs next action'",
+          "Other elements use implicit labels via aria-label attributes"
+        ],
+        "code_structure": "Wrapper pattern applied consistently throughout ProjectRow and header sections"
+      },
+      "ProjectTree.test.tsx": {
+        "changes_type": "Test coverage addition",
+        "lines_added": 53,
+        "test_block": "ProjectTree tooltip integration",
+        "test_count": 3,
+        "test_names": [
+          "wraps header action buttons with Tooltip",
+          "wraps stalled indicator with Tooltip with explicit label",
+          "wraps archive, rename, and star buttons with Tooltip"
+        ]
+      }
+    },
+    "patterns_discovered": [
+      {
+        "pattern": "Tooltip wrapper verification pattern",
+        "description": "Tests verify tooltip wrapping by checking for span.inline-flex wrapper element",
+        "code_example": "button.closest('span.inline-flex')"
+      },
+      {
+        "pattern": "Explicit label vs implicit label usage",
+        "description": "Stalled indicator uses explicit Tooltip label prop, while buttons rely on aria-label attributes",
+        "note": "Two different tooltip configuration patterns in same component"
+      },
+      {
+        "pattern": "Icon button accessibility",
+        "description": "All wrapped elements maintain aria-label for screen readers",
+        "consistency": "High - labels follow pattern of action + element name"
+      }
+    ],
+    "gotchas_discovered": [
+      {
+        "gotcha": "Star button conditional placement",
+        "description": "Star button Tooltip wrapping is placed outside the onUpdateTitle conditional but contains the button itself",
+        "impact": "Minor - still functions correctly but structure is slightly unconventional",
+        "observation": "Other buttons follow if(onXxx) { <Tooltip><button/></Tooltip> } pattern, but star button differs"
+      },
+      {
+        "gotcha": "Stalled indicator tooltip requires explicit label",
+        "description": "Tooltip component requires label prop for the stalled indicator icon",
+        "reason": "Icon elements are not buttons and don't have natural text content for tooltip fallback",
+        "test_validation": "Explicitly tests that label='Needs next action' is present"
+      },
+      {
+        "gotcha": "Test selector specificity",
+        "description": "Tests assume Tooltip wrapper renders as span.inline-flex",
+        "risk": "Medium - if Tooltip component changes its wrapper element class, tests will break",
+        "observation": "Tight coupling between test selectors and Tooltip implementation details"
+      }
+    ],
+    "approach_outcome": {
+      "status": "SUCCESS",
+      "subtask_id": "subtask-3-1",
+      "completion_metrics": {
+        "elements_wrapped": 6,
+        "tests_added": 3,
+        "test_coverage": "Complete - covers header buttons, stalled indicator, and action buttons"
+      },
+      "implementation_quality": "High",
+      "test_quality": "Moderate - verifies wrapper presence but doesn't test tooltip visibility/behavior"
+    },
+    "recommendations": [
+      {
+        "category": "Test Enhancement",
+        "suggestion": "Add tests that verify tooltip actually displays on hover/focus",
+        "rationale": "Current tests only verify wrapper existence, not tooltip functionality"
+      },
+      {
+        "category": "Documentation",
+        "suggestion": "Document the Tooltip component's wrapper element (span.inline-flex) as part of API contract",
+        "rationale": "Tests rely on this implementation detail; documentation would reduce brittleness"
+      },
+      {
+        "category": "Code Consistency",
+        "suggestion": "Standardize star button conditional placement to match other buttons",
+        "rationale": "Currently star button Tooltip is outside conditional while others are inside - inconsistent pattern"
+      },
+      {
+        "category": "Accessibility Testing",
+        "suggestion": "Add test verifying all tooltip labels are accessible to screen readers",
+        "rationale": "Critical for a11y compliance across all 6 wrapped elements"
+      }
+    ],
+    "subtask_id": "subtask-3-1",
+    "session_num": 4,
+    "success": true,
+    "changed_files": [
+      "frontend/src/components/work/ProjectTree.test.tsx",
+      "frontend/src/components/work/ProjectTree.tsx"
+    ]
+  },
+  "what_worked": [
+    "Implemented subtask: subtask-3-1"
+  ],
+  "what_failed": [],
+  "recommendations_for_next_session": []
+}

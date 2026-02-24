@@ -1,0 +1,105 @@
+{
+  "subtasks": {
+    "subtask-1-1": {
+      "attempts": [
+        {
+          "session": 1,
+          "timestamp": "2026-02-24T10:55:54.043090+00:00",
+          "approach": "Implemented: Create Tooltip component (Tooltip.tsx) with portal rendering, delay, placement, aria-label derivatio",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-1-2": {
+      "attempts": [
+        {
+          "session": 2,
+          "timestamp": "2026-02-24T10:57:42.254792+00:00",
+          "approach": "Implemented: Create Tooltip Storybook stories (Tooltip.stories.tsx) with 4 variants: Default, DerivedFromAriaLabe",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-2-1": {
+      "attempts": [
+        {
+          "session": 3,
+          "timestamp": "2026-02-24T11:00:52.130564+00:00",
+          "approach": "Implemented: Wrap ActionRow icon buttons with Tooltip (complete, focus, edit/collapse, move menu) and add 'Action",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-3-1": {
+      "attempts": [
+        {
+          "session": 4,
+          "timestamp": "2026-02-24T11:03:26.246709+00:00",
+          "approach": "Implemented: Wrap ProjectTree elements with Tooltip (show all, create project, stalled indicator with explicit la",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-4-1": {
+      "attempts": [
+        {
+          "session": 5,
+          "timestamp": "2026-02-24T11:05:10.542550+00:00",
+          "approach": "Implemented: Wrap ReferenceRow icon buttons/links with Tooltip (notes indicator, external link, view file, downlo",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-5-1": {
+      "attempts": [
+        {
+          "session": 6,
+          "timestamp": "2026-02-24T11:06:45.481245+00:00",
+          "approach": "Implemented: Wrap AppHeader chat toggle button with Tooltip and add 'AppHeader chat toggle' test block with 4 tes",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-5-2": {
+      "attempts": [
+        {
+          "session": 7,
+          "timestamp": "2026-02-24T11:08:12.368743+00:00",
+          "approach": "Implemented: Wrap ChatInput send button with Tooltip",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-6-1": {
+      "attempts": [
+        {
+          "session": 8,
+          "timestamp": "2026-02-24T11:09:59.002904+00:00",
+          "approach": "Implemented: Create EpicEmailPreviewEnhancements.mdx product doc and update .gitignore (remove auto-claude entrie",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    }
+  },
+  "stuck_subtasks": [],
+  "metadata": {
+    "created_at": "2026-02-24T10:54:26.751195+00:00",
+    "last_updated": "2026-02-24T11:09:59.002917+00:00"
+  }
+}

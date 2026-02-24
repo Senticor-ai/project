@@ -1,0 +1,66 @@
+{
+  "task_description": "Resolve PR #34: Add Tooltip component and integrate across UI. Create a portal-based Tooltip component with delay, placement, and aria-label derivation. Integrate into ActionRow (5 buttons), ProjectTree (6 elements), ReferenceRow (7 elements), AppHeader (1 button), ChatInput (1 button).",
+  "scoped_services": ["frontend"],
+  "files_to_modify": {
+    "frontend": [
+      "frontend/src/components/work/ActionRow.tsx",
+      "frontend/src/components/work/ActionRow.test.tsx",
+      "frontend/src/components/work/ProjectTree.tsx",
+      "frontend/src/components/work/ProjectTree.test.tsx",
+      "frontend/src/components/work/ReferenceRow.tsx",
+      "frontend/src/components/shell/AppHeader.tsx",
+      "frontend/src/components/shell/AppHeader.test.tsx",
+      "frontend/src/components/chat/ChatInput.tsx"
+    ],
+    "root": [
+      ".gitignore",
+      ".claude/settings.json"
+    ]
+  },
+  "files_to_create": {
+    "frontend": [
+      "frontend/src/components/ui/Tooltip.tsx",
+      "frontend/src/components/ui/Tooltip.test.tsx",
+      "frontend/src/components/ui/Tooltip.stories.tsx",
+      "frontend/src/docs/product/EpicEmailPreviewEnhancements.mdx"
+    ]
+  },
+  "files_to_reference": [
+    "frontend/src/components/ui/Icon.tsx",
+    "frontend/src/components/ui/Icon.test.tsx",
+    "frontend/src/components/ui/Icon.stories.tsx",
+    "frontend/src/components/work/ActionRow.tsx",
+    "frontend/src/components/work/ActionRow.test.tsx"
+  ],
+  "patterns": {
+    "ui_component_pattern": "Export props interface with JSDoc, functional component, cn() from @/lib/utils for className composition, design token CSS vars (--radius-sm, --shadow-card), semantic color classes (bg-text, text-surface)",
+    "test_pattern": "describe/it blocks, @testing-library/react, screen.getByRole/getByLabelText/getByText, vi.fn() for callbacks, userEvent.setup() for interactions",
+    "story_pattern": "Meta/StoryObj types from @storybook/react-vite, satisfies Meta<>, args pattern, render functions for complex stories, title: 'Primitives/ComponentName'",
+    "tooltip_integration_pattern": "Wrap <button> with <Tooltip> (no explicit label prop needed when child has aria-label). Hover wrapping <span> (.closest('span')!) in tests, use vi.useFakeTimers({ shouldAdvanceTime: true }), advance 400ms, assert with screen.getByRole('tooltip')",
+    "import_style": "import { cn } from '@/lib/utils'; import { Icon } from '@/components/ui/Icon'; path aliases with @/",
+    "test_helper_pattern": "renderRow/renderTree helper functions wrapping render() with default props and vi.fn() callbacks"
+  },
+  "existing_implementations": {
+    "description": "No existing Tooltip component. UI components live in frontend/src/components/ui/. Existing components: Icon, AutoGrowTextarea, OfflineBanner, Tabs, MarkdownViewer, ToastContainer, ToastProvider. All follow similar props interface + functional component pattern.",
+    "relevant_files": [
+      "frontend/src/components/ui/Icon.tsx",
+      "frontend/src/components/ui/OfflineBanner.tsx",
+      "frontend/src/lib/utils.ts"
+    ]
+  },
+  "technology": {
+    "framework": "React 19",
+    "build": "Vite",
+    "styling": "Tailwind CSS v4 with @theme design tokens",
+    "testing": "Vitest + React Testing Library + @testing-library/user-event",
+    "storybook": "@storybook/react-vite",
+    "design_tokens": {
+      "radius": "--radius-sm (0.25rem), --radius-md (0.5rem)",
+      "shadow": "--shadow-card",
+      "duration": "--duration-fast (150ms), --duration-slow (400ms)",
+      "colors": "bg-text, text-surface, text-text-muted"
+    }
+  },
+  "created_at": "2026-02-24T10:42:53.777141",
+  "updated_at": "2026-02-24T11:00:00.000000"
+}
