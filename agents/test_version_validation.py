@@ -33,7 +33,7 @@ def test_version_validation():
                 'ok': True,
                 'meta': {}
             })
-            print(f"  ✗ FAILED: Validation did not reject copilot.v2")
+            print("  ✗ FAILED: Validation did not reject copilot.v2")
             return False
         except Exception as e:
             print(f"  ✓ ValidationError raised correctly: {type(e).__name__}")

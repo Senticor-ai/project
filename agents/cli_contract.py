@@ -192,7 +192,8 @@ Error Response:
         "ok": false,
         "error": {
             "code": "INVALID_BUCKET",
-            "message": "Bucket 'invalid' does not exist. Valid buckets: inbox, next, waiting, someday, calendar"
+            "message": "Bucket 'invalid' does not exist. Valid buckets: inbox, next,
+            waiting, someday, calendar"
         },
         "meta": {}
     }
@@ -310,7 +311,9 @@ _CopilotV1EnvelopeAdapter = TypeAdapter[CopilotV1Success | CopilotV1Error](
 class _CopilotV1EnvelopeMeta(type):
     """Metaclass to add model_validate() to CopilotV1Envelope union type."""
 
-    def model_validate(cls, obj: Any, *, strict: bool | None = None) -> CopilotV1Success | CopilotV1Error:
+    def model_validate(
+        cls, obj: Any, *, strict: bool | None = None
+    ) -> CopilotV1Success | CopilotV1Error:
         """Validate and parse envelope data using the discriminated union."""
         return _CopilotV1EnvelopeAdapter.validate_python(obj, strict=strict)
 
