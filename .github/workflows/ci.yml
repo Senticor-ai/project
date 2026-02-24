@@ -306,7 +306,7 @@ jobs:
         run: |
           cd agents
           uv sync --quiet
-          uv run pytest tests/ -q
+          uv run pytest tests/ -q --ignore=tests/test_dogfooding.py
 
   agents-dogfooding:
     # Dogfooding tests are informational (non-blocking) until stability is proven
