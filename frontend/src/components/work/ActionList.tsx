@@ -458,13 +458,27 @@ export function ActionList({
         </div>
       )}
       emptyMessage={
-        isInbox
-          ? "Inbox is empty"
-          : isFocusView
-            ? "No focused actions"
-            : "No actions here yet"
+        hasActiveFilters && filtered.length > 0
+          ? "No actions match your filters"
+          : isInbox
+            ? "Inbox is empty"
+            : isFocusView
+              ? "No focused actions"
+              : "No actions here yet"
       }
-      emptyHint={isInbox ? "Capture a thought to get started" : undefined}
+      emptyHint={
+        hasActiveFilters && filtered.length > 0 ? (
+          <button
+            type="button"
+            onClick={clearAll}
+            className="text-xs text-accent underline underline-offset-2 hover:text-accent-hover"
+          >
+            Clear filters
+          </button>
+        ) : isInbox ? (
+          "Capture a thought to get started"
+        ) : undefined
+      }
       footer={{
         formatCount: (count) =>
           isInbox
