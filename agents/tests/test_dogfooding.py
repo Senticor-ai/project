@@ -199,6 +199,68 @@ def test_inbox_triage_scenario(client: TestClient):
 
 
 # ---------------------------------------------------------------------------
+# Scheduling Scenario
+# ---------------------------------------------------------------------------
+
+
+def test_scheduling_scenario(client: TestClient):
+    """Test scheduling flow: agent schedules tasks with due dates using copilot_cli.
+
+    Simulates:
+    1. User asks to schedule a task
+    2. Agent creates scheduled item with due date using copilot_cli
+    3. Verify only copilot_cli is used (no external trackers)
+    """
+    tool_calls = [
+        ToolCall(
+            tool_name="copilot_cli",
+            arguments={
+                "argv": [
+                    "items",
+                    "create",
+                    "--type",
+                    "Action",
+                    "--name",
+                    "Team-Meeting vorbereiten",
+                    "--bucket",
+                    "next",
+                    "--due",
+                    "2026-02-28",
+                    "--apply",
+                ]
+            },
+        ),
+    ]
+    reply = ChatMessage.from_assistant(
+        "Ich habe das Team-Meeting für Ende der Woche eingeplant.",
+        tool_calls=tool_calls,
+    )
+
+    with patch("app.run_agent", new_callable=AsyncMock, return_value=reply):
+        resp = client.post(
+            "/chat/completions",
+            json={
+                "messages": _msgs("Plane das Team-Meeting für Ende der Woche"),
+                "conversationId": "dogfood-schedule-1",
+            },
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+
+    # Verify response structure
+    assert body["text"] == "Ich habe das Team-Meeting für Ende der Woche eingeplant."
+    assert len(body["toolCalls"]) == 1
+
+    # Verify tool call is copilot_cli with scheduling
+    tc = body["toolCalls"][0]
+    assert tc["name"] == "copilot_cli"
+    assert "create" in tc["arguments"]["argv"]
+    assert "--due" in tc["arguments"]["argv"]
+    assert "2026-02-28" in tc["arguments"]["argv"]
+
+
+# ---------------------------------------------------------------------------
 # Workspace Overview (Read-Only)
 # ---------------------------------------------------------------------------
 
