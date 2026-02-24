@@ -49,11 +49,25 @@ function pv(propertyID: string, value: unknown) {
 // ItemRecord factory
 // ---------------------------------------------------------------------------
 
+// Action subtypes recognized by the serializer (schema.org types)
+const ACTION_SUBTYPES = new Set([
+  "Action",
+  "ReadAction",
+  "PlanAction",
+  "BuyAction",
+  "CommunicateAction",
+  "ReviewAction",
+  "CreateAction",
+  "SendAction",
+  "CheckAction",
+]);
+
 let counter = 0;
 
 export function createItemRecord(
   overrides: Partial<ItemRecord> & {
     bucket?: string;
+    /** Schema.org type - can be Action subtypes like BuyAction, CreateAction, etc. */
     type?: string;
     name?: string;
     isFocused?: boolean;
@@ -107,7 +121,7 @@ export function createItemRecord(
     dateModified: now,
   };
 
-  if (type === "Action" || type === "ReadAction") {
+  if (ACTION_SUBTYPES.has(type)) {
     base.startTime = null;
     base.endTime = overrides.completedAt ?? null;
     if (overrides.objectRef) {
