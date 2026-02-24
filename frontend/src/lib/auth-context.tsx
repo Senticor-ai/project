@@ -8,11 +8,13 @@ import {
 import type { AuthUser } from "./api-client";
 import { AuthContext } from "./auth-types";
 import { setFaroUser } from "./faro";
+import { FirstLoginDisclaimerModal } from "@/components/auth/FirstLoginDisclaimerModal";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showDisclaimerModal, setShowDisclaimerModal] = useState(false);
 
   // Restore session on mount
   useEffect(() => {
@@ -45,6 +47,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => setSessionExpiredHandler(null);
   }, []);
 
+  // Show disclaimer modal when user is authenticated but hasn't acknowledged
+  useEffect(() => {
+    if (user && !user.disclaimer_acknowledged_at) {
+      setShowDisclaimerModal(true);
+    } else {
+      setShowDisclaimerModal(false);
+    }
+  }, [user]);
+
   const login = useCallback(async (email: string, password: string) => {
     setError(null);
     const u = await AuthApi.login(email, password);
@@ -66,11 +77,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setFaroUser(null);
   }, []);
 
+  const acknowledgeDisclaimer = useCallback(async () => {
+    if (!user) return;
+
+    try {
+      // Call the backend endpoint to persist the acknowledgment
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
+      const response = await fetch(`${API_BASE_URL}/auth/acknowledge-disclaimer`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to acknowledge disclaimer");
+      }
+
+      // Update the user state with the current timestamp
+      const updatedUser: AuthUser = {
+        ...user,
+        disclaimer_acknowledged_at: new Date().toISOString(),
+      };
+      setUser(updatedUser);
+      setFaroUser(updatedUser);
+    } catch (err) {
+      // If the API call fails, still close the modal but log the error
+      console.error("Failed to acknowledge disclaimer:", err);
+    }
+  }, [user]);
+
   return (
     <AuthContext.Provider
       value={{ user, isLoading, error, login, register, logout }}
     >
       {children}
+      <FirstLoginDisclaimerModal
+        isOpen={showDisclaimerModal}
+        onAcknowledge={acknowledgeDisclaimer}
+      />
     </AuthContext.Provider>
   );
 }
