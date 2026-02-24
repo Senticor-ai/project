@@ -2032,11 +2032,15 @@ describe("fromJsonLd — intake classification types in inbox", () => {
       dateCreated: "2026-02-11T09:30:00Z",
       dateModified: "2026-02-11T09:30:00Z",
       additionalProperty: [
-        { "@type": "PropertyValue", propertyID: "app:bucket", value: "reference" },
+        {
+          "@type": "PropertyValue",
+          propertyID: "app:bucket",
+          value: "reference",
+        },
         {
           "@type": "PropertyValue",
           propertyID: "app:orgRef",
-          value: "{\"id\":\"org-nueva\",\"name\":\"Nueva Tierra\"}",
+          value: '{"id":"org-nueva","name":"Nueva Tierra"}',
         },
         {
           "@type": "PropertyValue",

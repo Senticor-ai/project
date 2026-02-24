@@ -393,14 +393,18 @@ function AuthenticatedApp({
                       model: agentSettingsData.model,
                       containerStatus: agentSettingsData.containerStatus,
                       containerError: agentSettingsData.containerError,
-                      validationStatus: agentSettingsData.validationStatus ?? null,
-                      validationMessage: agentSettingsData.validationMessage ?? null,
+                      validationStatus:
+                        agentSettingsData.validationStatus ?? null,
+                      validationMessage:
+                        agentSettingsData.validationMessage ?? null,
                       modelAvailable: agentSettingsData.modelAvailable ?? null,
                       creditsRemainingUsd:
                         agentSettingsData.creditsRemainingUsd ?? null,
                       creditsUsedUsd: agentSettingsData.creditsUsedUsd ?? null,
-                      creditsLimitUsd: agentSettingsData.creditsLimitUsd ?? null,
-                      lastValidatedAt: agentSettingsData.lastValidatedAt ?? null,
+                      creditsLimitUsd:
+                        agentSettingsData.creditsLimitUsd ?? null,
+                      lastValidatedAt:
+                        agentSettingsData.lastValidatedAt ?? null,
                     }
                   : undefined
               }
@@ -409,7 +413,9 @@ function AuthenticatedApp({
               onAgentStopContainer={() => stopContainer.mutate()}
               onAgentRestartContainer={() => restartContainer.mutate()}
               agentSaving={updateAgentSettings.isPending}
-              agentSaveError={getMutationErrorMessage(updateAgentSettings.error)}
+              agentSaveError={getMutationErrorMessage(
+                updateAgentSettings.error,
+              )}
               isContainerActionPending={
                 stopContainer.isPending || restartContainer.isPending
               }

@@ -523,10 +523,8 @@ export function fromJsonLd(record: ItemRecord): AppItem {
       (getAdditionalProperty(props, "app:rawCapture") as string) ||
       (fallbackActionBucket === "inbox" ? base.name : undefined),
     nameProvenance:
-      (getAdditionalProperty(
-        props,
-        "app:nameProvenance",
-      ) as NameProvenance) || undefined,
+      (getAdditionalProperty(props, "app:nameProvenance") as NameProvenance) ||
+      undefined,
     objectRef: t.object
       ? ((t.object as { "@id": string })["@id"] as CanonicalId)
       : undefined,

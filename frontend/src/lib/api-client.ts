@@ -53,7 +53,10 @@ type FrontendRequestLog = {
 };
 
 function nowMs() {
-  if (typeof performance !== "undefined" && typeof performance.now === "function") {
+  if (
+    typeof performance !== "undefined" &&
+    typeof performance.now === "function"
+  ) {
     return performance.now();
   }
   return Date.now();
@@ -132,7 +135,8 @@ async function requestWithResponse<T>(
 ): Promise<ApiResponse<T>> {
   const headers = new Headers(init?.headers ?? {});
   const method = (init?.method ?? "GET").toUpperCase();
-  const requestId = _requestId ?? headers.get(REQUEST_ID_HEADER) ?? createRequestId();
+  const requestId =
+    _requestId ?? headers.get(REQUEST_ID_HEADER) ?? createRequestId();
   headers.set(REQUEST_ID_HEADER, requestId);
   const startMs = nowMs();
   const uiRoute = currentRoutePath();
