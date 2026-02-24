@@ -134,6 +134,128 @@ in the inbox. Both sit there until the user triages them to their final bucket.
 
 ---
 
+## Action Subtypes
+
+The app supports **schema.org action subtypes** to provide semantic specificity while maintaining a simple UX.
+All action subtypes share the same base properties and bucket mapping behavior — they are simply specialized
+variants of `schema:Action` that provide additional context about what kind of action is being performed.
+
+**Implementation:** `frontend/src/lib/item-serializer.ts` — serializer recognizes all action subtypes in the
+`ACTION_SUBTYPES` constant and treats them as standard actions.
+
+### Supported Action Subtypes
+
+The frontend serializer recognizes the following schema.org action types:
+
+| `@type`                  | Use Case                                     | Example                                         |
+| ------------------------ | -------------------------------------------- | ----------------------------------------------- |
+| `schema:Action`          | Generic action (default)                     | "Review quarterly report"                       |
+| `schema:PlanAction`      | Planned or future action                     | "Plan team offsite for Q2"                      |
+| `schema:BuyAction`       | Purchase or procurement task                 | "Buy apples for party"                          |
+| `schema:CommunicateAction` | Communication task (email, call, message) | "Email contract to legal team"                  |
+| `schema:ReviewAction`    | Review or approval task                      | "Review and approve design mockups"             |
+| `schema:CreateAction`    | Content creation task (document, design)     | "Create shopping list for husband"              |
+| `schema:SendAction`      | Send or deliver task                         | "Send invoice to client"                        |
+| `schema:CheckAction`     | Verification or validation task              | "Check inventory levels before ordering"        |
+| `schema:ReadAction`      | Reading or research task                     | "Read proposal document"                        |
+
+### Bucket Mapping for Subtypes
+
+**All action subtypes respect the `app:bucket` property** — there is no special bucket mapping based on subtype.
+The bucket assignment is determined by the `app:bucket` property value (or falls back to `"inbox"` if missing or invalid).
+
+| Bucket      | Applies to                                                              |
+| ----------- | ----------------------------------------------------------------------- |
+| `inbox`     | All action subtypes (default when `app:bucket` is missing or invalid)  |
+| `next`      | All action subtypes (when explicitly assigned)                          |
+| `waiting`   | All action subtypes (when explicitly assigned)                          |
+| `calendar`  | All action subtypes (when explicitly assigned)                          |
+| `someday`   | All action subtypes (when explicitly assigned)                          |
+
+**Rule of thumb:** The subtype provides semantic meaning about what kind of action it is, but does not affect
+where the action is stored or displayed. Bucket assignment is independent of action subtype.
+
+### Examples
+
+#### BuyAction in "next" bucket
+
+```json
+{
+  "@id": "urn:app:action:buy-apples",
+  "@type": "schema:BuyAction",
+  "name": "Buy apples for party",
+  "description": "Get 5kg of apples from the supermarket",
+  "additionalProperty": [
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:bucket",
+      "value": "next"
+    }
+  ]
+}
+```
+
+#### CreateAction in "someday" bucket
+
+```json
+{
+  "@id": "urn:app:action:create-list",
+  "@type": "schema:CreateAction",
+  "name": "Create shopping list",
+  "description": "Write shopping list for husband",
+  "additionalProperty": [
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:bucket",
+      "value": "someday"
+    }
+  ]
+}
+```
+
+#### ReviewAction in "waiting" bucket
+
+```json
+{
+  "@id": "urn:app:action:review-contract",
+  "@type": "schema:ReviewAction",
+  "name": "Review contract",
+  "description": "Waiting for legal team to send contract draft",
+  "additionalProperty": [
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:bucket",
+      "value": "waiting"
+    },
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:delegatedTo",
+      "value": "Legal Team"
+    }
+  ]
+}
+```
+
+#### PlanAction in "calendar" bucket
+
+```json
+{
+  "@id": "urn:app:action:plan-offsite",
+  "@type": "schema:PlanAction",
+  "name": "Plan team offsite",
+  "startTime": "2026-03-15T10:00:00Z",
+  "additionalProperty": [
+    {
+      "@type": "PropertyValue",
+      "propertyID": "app:bucket",
+      "value": "calendar"
+    }
+  ]
+}
+```
+
+---
+
 ## Canonical IDs
 
 **File**: `frontend/src/model/canonical-id.ts`
