@@ -1,4 +1,5 @@
 import celRules from "./cel/rules.json" with { type: "json" };
+import { validateWithShacl } from "./shacl/validator.js";
 
 const ACTION_BUCKETS = new Set([
   "inbox",
@@ -72,84 +73,67 @@ function bucketFromItem(item: Record<string, unknown>): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+/**
+ * Maps generic SHACL error codes to specific application error codes
+ * for backward compatibility with existing tests and error handling
+ */
+function mapShaclErrorCode(issue: ValidationIssue, item: Record<string, unknown>): ValidationIssue {
+  const type = normalizeType(item["@type"]);
+
+  // Map REQUIRED_PROPERTY_MISSING to specific entity-based codes
+  if (issue.code === "REQUIRED_PROPERTY_MISSING") {
+    if (issue.field === "schema:name" || issue.field === "name") {
+      if (type === "Project") {
+        return { ...issue, code: "PROJECT_NAME_REQUIRED", message: "Project items require a non-empty name." };
+      }
+      if (type === "CreativeWork" || type === "DigitalDocument") {
+        return { ...issue, code: "REFERENCE_NAME_REQUIRED", message: "Reference items require a non-empty name." };
+      }
+      if (type === "Person") {
+        return { ...issue, code: "PERSON_NAME_REQUIRED", message: "Person items require a non-empty name." };
+      }
+    }
+    if (issue.field === "app:orgRef" || issue.field?.includes("orgRef")) {
+      return { ...issue, code: "PERSON_ORGREF_REQUIRED", message: "Person items require app:orgRef.", field: "additionalProperty.app:orgRef" };
+    }
+  }
+
+  // Map INVALID_VALUE to specific entity-based codes
+  if (issue.code === "INVALID_VALUE") {
+    if (issue.field === "app:bucket" || issue.field?.includes("bucket")) {
+      if (type === "Action" || type.endsWith(":Action") || type === "ReadAction") {
+        return {
+          ...issue,
+          code: "ACTION_BUCKET_INVALID",
+          message: "Action bucket must be one of inbox,next,waiting,someday,calendar,reference,completed.",
+          field: "additionalProperty.app:bucket"
+        };
+      }
+    }
+    if (issue.field === "app:orgRole" || issue.field?.includes("orgRole")) {
+      return {
+        ...issue,
+        code: "PERSON_ORGROLE_INVALID",
+        message: "Person app:orgRole must be one of member,founder,accountant,advisor,interest.",
+        field: "additionalProperty.app:orgRole"
+      };
+    }
+  }
+
+  return issue;
+}
+
 export function validateCreateItem(item: Record<string, unknown>): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
-  const type = normalizeType(item["@type"]);
   const bucket = bucketFromItem(item);
 
-  if (!type) {
-    issues.push({
-      source: "shacl",
-      code: "TYPE_REQUIRED",
-      field: "@type",
-      message: "@type is required.",
-    });
-    return issues;
-  }
+  // SHACL validation (schema and shape constraints)
+  const shaclIssues = validateWithShacl(item, true);
+  // Map generic SHACL codes to specific application codes for backward compatibility
+  const mappedShaclIssues = shaclIssues.map(issue => mapShaclErrorCode(issue, item));
+  issues.push(...mappedShaclIssues);
 
-  if (type === "Action" || type.endsWith(":Action") || type === "ReadAction") {
-    if (!ACTION_BUCKETS.has(bucket)) {
-      issues.push({
-        source: "shacl",
-        code: "ACTION_BUCKET_INVALID",
-        field: "additionalProperty.app:bucket",
-        message:
-          "Action bucket must be one of inbox,next,waiting,someday,calendar,reference,completed.",
-      });
-    }
-  }
-
-  if (type === "Project") {
-    if (!trimString(item.name)) {
-      issues.push({
-        source: "shacl",
-        code: "PROJECT_NAME_REQUIRED",
-        field: "name",
-        message: "Project items require a non-empty name.",
-      });
-    }
-  }
-
-  if (type === "CreativeWork" || type === "DigitalDocument") {
-    if (!trimString(item.name)) {
-      issues.push({
-        source: "shacl",
-        code: "REFERENCE_NAME_REQUIRED",
-        field: "name",
-        message: "Reference items require a non-empty name.",
-      });
-    }
-  }
-
-  if (type === "Person") {
-    if (!trimString(item.name)) {
-      issues.push({
-        source: "shacl",
-        code: "PERSON_NAME_REQUIRED",
-        field: "name",
-        message: "Person items require a non-empty name.",
-      });
-    }
-    const orgRef = readAdditionalProperty(item, "app:orgRef");
-    if (!orgRef) {
-      issues.push({
-        source: "shacl",
-        code: "PERSON_ORGREF_REQUIRED",
-        field: "additionalProperty.app:orgRef",
-        message: "Person items require app:orgRef.",
-      });
-    }
-    const role = trimString(readAdditionalProperty(item, "app:orgRole"));
-    if (!PERSON_ROLES.has(role)) {
-      issues.push({
-        source: "shacl",
-        code: "PERSON_ORGROLE_INVALID",
-        field: "additionalProperty.app:orgRole",
-        message: "Person app:orgRole must be one of member,founder,accountant,advisor,interest.",
-      });
-    }
-  }
-
+  // CEL validation (business rules)
   if (bucket && !ACTION_BUCKETS.has(bucket) && bucket !== "project") {
     issues.push({
       source: "cel",

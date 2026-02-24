@@ -101,12 +101,19 @@ export function validateWithShacl(
     const itemType = item["@type"];
     if (itemType) {
       const typeValue = Array.isArray(itemType) ? itemType[0] : itemType;
-      const typeUri =
-        typeof typeValue === "string" && typeValue.startsWith("schema:")
-          ? `https://schema.org/${typeValue.substring(7)}`
-          : typeof typeValue === "string"
-            ? typeValue
-            : "";
+      let typeUri = "";
+      if (typeof typeValue === "string") {
+        if (typeValue.startsWith("schema:")) {
+          // schema:Action -> https://schema.org/Action
+          typeUri = `https://schema.org/${typeValue.substring(7)}`;
+        } else if (typeValue.startsWith("http://") || typeValue.startsWith("https://")) {
+          // Already a full URI
+          typeUri = typeValue;
+        } else {
+          // Plain name like "Action" -> https://schema.org/Action
+          typeUri = `https://schema.org/${typeValue}`;
+        }
+      }
       if (typeUri) {
         dataStore.add(
           DataFactory.quad(
