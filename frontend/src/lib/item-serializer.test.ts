@@ -688,6 +688,286 @@ describe("fromJsonLd", () => {
     });
   });
 
+  describe("schema.org action subtypes → ActionItem", () => {
+    it("deserializes BuyAction as ActionItem with inbox bucket", () => {
+      const record = wrapAsItemRecord({
+        "@id": "urn:app:action:buy-001",
+        "@type": "BuyAction",
+        _schemaVersion: 2,
+        name: "Buy groceries",
+        startTime: null,
+        endTime: null,
+        keywords: ["shopping"],
+        dateCreated: "2025-01-01T00:00:00Z",
+        dateModified: "2025-01-01T00:00:00Z",
+        additionalProperty: [
+          { "@type": "PropertyValue", propertyID: "app:bucket", value: "inbox" },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:rawCapture",
+            value: "buy groceries",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:needsEnrichment",
+            value: false,
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:confidence",
+            value: "high",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:captureSource",
+            value: { kind: "thought" },
+          },
+          { "@type": "PropertyValue", propertyID: "app:contexts", value: [] },
+          { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:typedReferences",
+            value: [],
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:provenanceHistory",
+            value: [],
+          },
+        ],
+      });
+
+      const action = fromJsonLd(record) as ActionItem;
+      expect(action.bucket).toBe("inbox");
+      expect(action.name).toBe("Buy groceries");
+      expect(action.tags).toEqual(["shopping"]);
+      expect(action.rawCapture).toBe("buy groceries");
+      expect(action.needsEnrichment).toBe(false);
+      expect(action.confidence).toBe("high");
+    });
+
+    it("deserializes CreateAction as ActionItem with next bucket", () => {
+      const record = wrapAsItemRecord({
+        "@id": "urn:app:action:create-001",
+        "@type": "CreateAction",
+        _schemaVersion: 2,
+        name: "Write blog post",
+        startTime: "2026-03-15",
+        endTime: null,
+        keywords: ["writing", "content"],
+        dateCreated: "2025-01-01T00:00:00Z",
+        dateModified: "2025-01-01T00:00:00Z",
+        additionalProperty: [
+          { "@type": "PropertyValue", propertyID: "app:bucket", value: "next" },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:isFocused",
+            value: true,
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:dueDate",
+            value: "2026-03-20",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:needsEnrichment",
+            value: false,
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:confidence",
+            value: "high",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:captureSource",
+            value: { kind: "thought" },
+          },
+          { "@type": "PropertyValue", propertyID: "app:contexts", value: [] },
+          { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:typedReferences",
+            value: [],
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:provenanceHistory",
+            value: [],
+          },
+        ],
+      });
+
+      const action = fromJsonLd(record) as ActionItem;
+      expect(action.bucket).toBe("next");
+      expect(action.name).toBe("Write blog post");
+      expect(action.tags).toEqual(["writing", "content"]);
+      expect(action.isFocused).toBe(true);
+      expect(action.dueDate).toBe("2026-03-20");
+      expect(action.scheduledDate).toBe("2026-03-15");
+      expect(action.needsEnrichment).toBe(false);
+    });
+
+    it("deserializes PlanAction as ActionItem with waiting bucket", () => {
+      const record = wrapAsItemRecord({
+        "@id": "urn:app:action:plan-001",
+        "@type": "PlanAction",
+        _schemaVersion: 2,
+        name: "Plan vacation",
+        startTime: null,
+        endTime: null,
+        keywords: ["travel", "planning"],
+        dateCreated: "2025-01-01T00:00:00Z",
+        dateModified: "2025-01-01T00:00:00Z",
+        additionalProperty: [
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:bucket",
+            value: "waiting",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:delegatedTo",
+            value: "Travel agent",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:needsEnrichment",
+            value: false,
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:confidence",
+            value: "high",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:captureSource",
+            value: { kind: "thought" },
+          },
+          { "@type": "PropertyValue", propertyID: "app:contexts", value: [] },
+          { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:typedReferences",
+            value: [],
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:provenanceHistory",
+            value: [],
+          },
+        ],
+      });
+
+      const action = fromJsonLd(record) as ActionItem;
+      expect(action.bucket).toBe("waiting");
+      expect(action.name).toBe("Plan vacation");
+      expect(action.tags).toEqual(["travel", "planning"]);
+      expect(action.delegatedTo).toBe("Travel agent");
+      expect(action.needsEnrichment).toBe(false);
+    });
+
+    it("deserializes CommunicateAction as ActionItem", () => {
+      const record = wrapAsItemRecord({
+        "@id": "urn:app:action:comm-001",
+        "@type": "CommunicateAction",
+        _schemaVersion: 2,
+        name: "Email client update",
+        startTime: null,
+        endTime: null,
+        keywords: ["email", "communication"],
+        dateCreated: "2025-01-01T00:00:00Z",
+        dateModified: "2025-01-01T00:00:00Z",
+        additionalProperty: [
+          { "@type": "PropertyValue", propertyID: "app:bucket", value: "next" },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:needsEnrichment",
+            value: false,
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:confidence",
+            value: "high",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:captureSource",
+            value: { kind: "thought" },
+          },
+          { "@type": "PropertyValue", propertyID: "app:contexts", value: [] },
+          { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:typedReferences",
+            value: [],
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:provenanceHistory",
+            value: [],
+          },
+        ],
+      });
+
+      const action = fromJsonLd(record) as ActionItem;
+      expect(action.bucket).toBe("next");
+      expect(action.name).toBe("Email client update");
+      expect(action.tags).toEqual(["email", "communication"]);
+    });
+
+    it("deserializes ReviewAction as ActionItem", () => {
+      const record = wrapAsItemRecord({
+        "@id": "urn:app:action:review-001",
+        "@type": "ReviewAction",
+        _schemaVersion: 2,
+        name: "Review pull request",
+        startTime: null,
+        endTime: null,
+        keywords: ["code-review"],
+        dateCreated: "2025-01-01T00:00:00Z",
+        dateModified: "2025-01-01T00:00:00Z",
+        additionalProperty: [
+          { "@type": "PropertyValue", propertyID: "app:bucket", value: "next" },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:needsEnrichment",
+            value: false,
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:confidence",
+            value: "high",
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:captureSource",
+            value: { kind: "thought" },
+          },
+          { "@type": "PropertyValue", propertyID: "app:contexts", value: [] },
+          { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:typedReferences",
+            value: [],
+          },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:provenanceHistory",
+            value: [],
+          },
+        ],
+      });
+
+      const action = fromJsonLd(record) as ActionItem;
+      expect(action.bucket).toBe("next");
+      expect(action.name).toBe("Review pull request");
+      expect(action.tags).toEqual(["code-review"]);
+    });
+  });
+
   describe("schema:Project → Project", () => {
     it("deserializes a Project (no actionIds — projects no longer track actions)", () => {
       const record = wrapAsItemRecord({
