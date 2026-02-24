@@ -65,11 +65,11 @@ native text selection behavior:
 ```css
 /* EmailBodyViewer body wrapper */
 .email-body-content {
-  user-select: text;              /* Ensure text is selectable */
+  user-select: text; /* Ensure text is selectable */
   -webkit-user-select: text;
 }
 .email-body-content table {
-  table-layout: fixed;            /* Prevent selection from jumping across cells */
+  table-layout: fixed; /* Prevent selection from jumping across cells */
   word-break: break-word;
 }
 ```
@@ -101,11 +101,11 @@ Implementation:
 
 ### Files to modify
 
-| File | Change |
-| --- | --- |
-| `frontend/src/components/work/EmailBodyViewer.tsx` | Add copy button, plaintext extraction, clipboard logic |
-| `frontend/src/components/work/EmailBodyViewer.test.tsx` | Tests for copy behavior, fallback, feedback state |
-| `frontend/src/components/work/EmailBodyViewer.stories.tsx` | Story with copy interaction |
+| File                                                       | Change                                                 |
+| ---------------------------------------------------------- | ------------------------------------------------------ |
+| `frontend/src/components/work/EmailBodyViewer.tsx`         | Add copy button, plaintext extraction, clipboard logic |
+| `frontend/src/components/work/EmailBodyViewer.test.tsx`    | Tests for copy behavior, fallback, feedback state      |
+| `frontend/src/components/work/EmailBodyViewer.stories.tsx` | Story with copy interaction                            |
 
 ---
 
@@ -155,18 +155,18 @@ export interface EmailBodyViewerProps {
   senderName?: string;
   senderEmail?: string;
   className?: string;
-  onArchive?: () => void;  // NEW — archive callback from parent
+  onArchive?: () => void; // NEW — archive callback from parent
 }
 ```
 
 ### Files to modify
 
-| File | Change |
-| --- | --- |
-| `frontend/src/components/work/EmailBodyViewer.tsx` | Add `onArchive` prop, archive button in footer |
-| `frontend/src/components/work/EmailBodyViewer.test.tsx` | Tests for archive button visibility, click callback |
-| `frontend/src/components/work/EmailBodyViewer.stories.tsx` | Story with archive action |
-| `frontend/src/components/work/ActionRow.tsx` | Pass `onArchive` to `EmailBodyViewer` |
+| File                                                       | Change                                              |
+| ---------------------------------------------------------- | --------------------------------------------------- |
+| `frontend/src/components/work/EmailBodyViewer.tsx`         | Add `onArchive` prop, archive button in footer      |
+| `frontend/src/components/work/EmailBodyViewer.test.tsx`    | Tests for archive button visibility, click callback |
+| `frontend/src/components/work/EmailBodyViewer.stories.tsx` | Story with archive action                           |
+| `frontend/src/components/work/ActionRow.tsx`               | Pass `onArchive` to `EmailBodyViewer`               |
 
 ---
 
@@ -190,7 +190,7 @@ wrapper:
 
 ```css
 .email-body-content {
-  overflow-x: auto;                    /* Horizontal scroll for truly wide content */
+  overflow-x: auto; /* Horizontal scroll for truly wide content */
   overflow-wrap: break-word;
   word-break: break-word;
 }
@@ -255,7 +255,9 @@ Add a post-processing step:
 ```typescript
 const sanitizedHtml = useMemo(() => {
   if (!htmlBody) return "";
-  let html = DOMPurify.sanitize(htmlBody, { /* existing config */ });
+  let html = DOMPurify.sanitize(htmlBody, {
+    /* existing config */
+  });
   // Strip fixed widths that cause overflow on mobile
   html = html.replace(/\s*(min-)?width\s*:\s*\d+px/gi, "");
   return html;
@@ -264,17 +266,18 @@ const sanitizedHtml = useMemo(() => {
 
 ### Files to modify
 
-| File | Change |
-| --- | --- |
-| `frontend/src/components/work/EmailBodyViewer.tsx` | Responsive Tailwind classes, width-stripping post-process |
-| `frontend/src/components/work/EmailBodyViewer.test.tsx` | Tests for width stripping, overflow handling |
-| `frontend/src/components/work/EmailBodyViewer.stories.tsx` | Mobile viewport story, wide-table story |
+| File                                                       | Change                                                    |
+| ---------------------------------------------------------- | --------------------------------------------------------- |
+| `frontend/src/components/work/EmailBodyViewer.tsx`         | Responsive Tailwind classes, width-stripping post-process |
+| `frontend/src/components/work/EmailBodyViewer.test.tsx`    | Tests for width stripping, overflow handling              |
+| `frontend/src/components/work/EmailBodyViewer.stories.tsx` | Mobile viewport story, wide-table story                   |
 
 ---
 
 ## Acceptance Criteria
 
 ### Copy/Paste
+
 - [ ] Expanded email body text is selectable with standard browser selection
 - [ ] "Kopieren" button appears in header when email body is expanded
 - [ ] Clicking "Kopieren" copies the email body as clean plaintext to clipboard
@@ -282,12 +285,14 @@ const sanitizedHtml = useMemo(() => {
 - [ ] Copy works in Chrome, Firefox, and Safari
 
 ### Archive
+
 - [ ] "Archivieren" button appears in email preview footer when `onArchive` is provided
 - [ ] Clicking "Archivieren" triggers the same archive flow as the overflow menu
 - [ ] Button is not shown for already-archived items or contexts without archive support
 - [ ] Bidirectional Gmail sync works (COPILOT archive removes Gmail INBOX label)
 
 ### Responsive
+
 - [ ] Email HTML tables do not overflow the container on 375px-wide viewport
 - [ ] Email images scale down to fit container width
 - [ ] Inline `width: NNNpx` styles on tables/divs are stripped during sanitization

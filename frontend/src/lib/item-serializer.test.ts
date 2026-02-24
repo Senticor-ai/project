@@ -701,7 +701,11 @@ describe("fromJsonLd", () => {
         dateCreated: "2025-01-01T00:00:00Z",
         dateModified: "2025-01-01T00:00:00Z",
         additionalProperty: [
-          { "@type": "PropertyValue", propertyID: "app:bucket", value: "inbox" },
+          {
+            "@type": "PropertyValue",
+            propertyID: "app:bucket",
+            value: "inbox",
+          },
           {
             "@type": "PropertyValue",
             propertyID: "app:rawCapture",
@@ -1104,7 +1108,11 @@ describe("fromJsonLd", () => {
           dateCreated: "2025-01-01T00:00:00Z",
           dateModified: "2025-01-01T00:00:00Z",
           additionalProperty: [
-            { "@type": "PropertyValue", propertyID: "app:bucket", value: bucket },
+            {
+              "@type": "PropertyValue",
+              propertyID: "app:bucket",
+              value: bucket,
+            },
             {
               "@type": "PropertyValue",
               propertyID: "app:captureSource",

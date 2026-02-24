@@ -147,30 +147,30 @@ variants of `schema:Action` that provide additional context about what kind of a
 
 The frontend serializer recognizes the following schema.org action types:
 
-| `@type`                  | Use Case                                     | Example                                         |
-| ------------------------ | -------------------------------------------- | ----------------------------------------------- |
-| `schema:Action`          | Generic action (default)                     | "Review quarterly report"                       |
-| `schema:PlanAction`      | Planned or future action                     | "Plan team offsite for Q2"                      |
-| `schema:BuyAction`       | Purchase or procurement task                 | "Buy apples for party"                          |
-| `schema:CommunicateAction` | Communication task (email, call, message) | "Email contract to legal team"                  |
-| `schema:ReviewAction`    | Review or approval task                      | "Review and approve design mockups"             |
-| `schema:CreateAction`    | Content creation task (document, design)     | "Create shopping list for husband"              |
-| `schema:SendAction`      | Send or deliver task                         | "Send invoice to client"                        |
-| `schema:CheckAction`     | Verification or validation task              | "Check inventory levels before ordering"        |
-| `schema:ReadAction`      | Reading or research task                     | "Read proposal document"                        |
+| `@type`                    | Use Case                                  | Example                                  |
+| -------------------------- | ----------------------------------------- | ---------------------------------------- |
+| `schema:Action`            | Generic action (default)                  | "Review quarterly report"                |
+| `schema:PlanAction`        | Planned or future action                  | "Plan team offsite for Q2"               |
+| `schema:BuyAction`         | Purchase or procurement task              | "Buy apples for party"                   |
+| `schema:CommunicateAction` | Communication task (email, call, message) | "Email contract to legal team"           |
+| `schema:ReviewAction`      | Review or approval task                   | "Review and approve design mockups"      |
+| `schema:CreateAction`      | Content creation task (document, design)  | "Create shopping list for husband"       |
+| `schema:SendAction`        | Send or deliver task                      | "Send invoice to client"                 |
+| `schema:CheckAction`       | Verification or validation task           | "Check inventory levels before ordering" |
+| `schema:ReadAction`        | Reading or research task                  | "Read proposal document"                 |
 
 ### Bucket Mapping for Subtypes
 
 **All action subtypes respect the `app:bucket` property** — there is no special bucket mapping based on subtype.
 The bucket assignment is determined by the `app:bucket` property value (or falls back to `"inbox"` if missing or invalid).
 
-| Bucket      | Applies to                                                              |
-| ----------- | ----------------------------------------------------------------------- |
-| `inbox`     | All action subtypes (default when `app:bucket` is missing or invalid)  |
-| `next`      | All action subtypes (when explicitly assigned)                          |
-| `waiting`   | All action subtypes (when explicitly assigned)                          |
-| `calendar`  | All action subtypes (when explicitly assigned)                          |
-| `someday`   | All action subtypes (when explicitly assigned)                          |
+| Bucket     | Applies to                                                            |
+| ---------- | --------------------------------------------------------------------- |
+| `inbox`    | All action subtypes (default when `app:bucket` is missing or invalid) |
+| `next`     | All action subtypes (when explicitly assigned)                        |
+| `waiting`  | All action subtypes (when explicitly assigned)                        |
+| `calendar` | All action subtypes (when explicitly assigned)                        |
+| `someday`  | All action subtypes (when explicitly assigned)                        |
 
 **Rule of thumb:** The subtype provides semantic meaning about what kind of action it is, but does not affect
 where the action is stored or displayed. Bucket assignment is independent of action subtype.
