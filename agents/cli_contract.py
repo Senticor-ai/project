@@ -244,7 +244,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, TypeAdapter, field_validator
 
 
 class CopilotV1ErrorDetail(BaseModel):
@@ -301,4 +301,25 @@ class CopilotV1Error(BaseModel):
 
 
 # Discriminated union for success/error envelopes
-CopilotV1Envelope = CopilotV1Success | CopilotV1Error
+# TypeAdapter enables model_validate() on the union type (for SDK consumers)
+_CopilotV1EnvelopeAdapter = TypeAdapter[CopilotV1Success | CopilotV1Error](
+    CopilotV1Success | CopilotV1Error
+)
+
+
+class _CopilotV1EnvelopeMeta(type):
+    """Metaclass to add model_validate() to CopilotV1Envelope union type."""
+
+    def model_validate(cls, obj: Any, *, strict: bool | None = None) -> CopilotV1Success | CopilotV1Error:
+        """Validate and parse envelope data using the discriminated union."""
+        return _CopilotV1EnvelopeAdapter.validate_python(obj, strict=strict)
+
+
+class CopilotV1Envelope(metaclass=_CopilotV1EnvelopeMeta):
+    """Type alias with model_validate() support for SDK consumers.
+
+    This is a discriminated union of CopilotV1Success | CopilotV1Error.
+    Use `CopilotV1Envelope.model_validate(data)` to parse envelope responses.
+    """
+
+    pass
