@@ -800,6 +800,35 @@ describe("ActionList", () => {
     expect(screen.getByText("Computer task")).toBeInTheDocument();
   });
 
+  it("shows energy and time filters even when no contexts are available", async () => {
+    const user = userEvent.setup();
+    const items = [
+      createActionItem({
+        name: "High no context",
+        bucket: "next",
+        ports: [computationPort({ energyLevel: "high" })],
+      }),
+      createActionItem({
+        name: "Low no context",
+        bucket: "next",
+        ports: [computationPort({ energyLevel: "low" })],
+      }),
+    ];
+    renderActionList({ bucket: "next", items });
+
+    expect(
+      screen.queryByRole("group", { name: "Filter by context" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("group", { name: "Filter by energy" }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Time available")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("radio", { name: "high" }));
+    expect(screen.getByText("High no context")).toBeInTheDocument();
+    expect(screen.queryByText("Low no context")).not.toBeInTheDocument();
+  });
+
   // -------------------------------------------------------------------------
   // Energy filter integration
   // -------------------------------------------------------------------------
@@ -949,6 +978,58 @@ describe("ActionList", () => {
     expect(screen.queryByText("Phone low quick")).not.toBeInTheDocument();
     expect(screen.queryByText("Computer high quick")).not.toBeInTheDocument();
     expect(screen.queryByText("Phone high long")).not.toBeInTheDocument();
+  });
+
+  it("clearing context filters keeps energy and time filters active", async () => {
+    const user = userEvent.setup();
+    const items = [
+      createActionItem({
+        name: "Phone high quick",
+        bucket: "next",
+        contexts: ["@phone"] as unknown as CanonicalId[],
+        ports: [computationPort({ energyLevel: "high", timeEstimate: "15min" })],
+      }),
+      createActionItem({
+        name: "Computer high quick",
+        bucket: "next",
+        contexts: ["@computer"] as unknown as CanonicalId[],
+        ports: [computationPort({ energyLevel: "high", timeEstimate: "15min" })],
+      }),
+      createActionItem({
+        name: "Phone low quick",
+        bucket: "next",
+        contexts: ["@phone"] as unknown as CanonicalId[],
+        ports: [computationPort({ energyLevel: "low", timeEstimate: "15min" })],
+      }),
+      createActionItem({
+        name: "Computer high long",
+        bucket: "next",
+        contexts: ["@computer"] as unknown as CanonicalId[],
+        ports: [computationPort({ energyLevel: "high", timeEstimate: "2hr" })],
+      }),
+    ];
+    renderActionList({ bucket: "next", items });
+
+    await user.click(screen.getByRole("checkbox", { name: /@phone/ }));
+    await user.click(screen.getByRole("radio", { name: "high" }));
+    await user.selectOptions(screen.getByLabelText("Time available"), "30min");
+
+    expect(screen.getByText("Phone high quick")).toBeInTheDocument();
+    expect(screen.queryByText("Computer high quick")).not.toBeInTheDocument();
+    expect(screen.queryByText("Phone low quick")).not.toBeInTheDocument();
+    expect(screen.queryByText("Computer high long")).not.toBeInTheDocument();
+
+    await user.click(screen.getByLabelText("Clear context filters"));
+
+    expect(screen.getByText("Phone high quick")).toBeInTheDocument();
+    expect(screen.getByText("Computer high quick")).toBeInTheDocument();
+    expect(screen.queryByText("Phone low quick")).not.toBeInTheDocument();
+    expect(screen.queryByText("Computer high long")).not.toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "high" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    expect(screen.getByLabelText("Time available")).toHaveValue("30min");
   });
 
   // -------------------------------------------------------------------------

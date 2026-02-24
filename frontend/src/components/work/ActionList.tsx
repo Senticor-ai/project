@@ -131,6 +131,7 @@ export function ActionList({
     selectedEnergy,
     maxTimeEstimate,
     toggleContext,
+    clearContexts,
     clearAll,
     setEnergy,
     setMaxTime,
@@ -647,31 +648,29 @@ export function ActionList({
               maxSizeMb={25}
             />
           )}
-          {(availableContexts.length > 0 || hasActiveFilters) && (
-            <div className="flex flex-col gap-1.5">
-              {availableContexts.length > 0 && (
-                <ContextFilterBar
-                  contexts={availableContexts}
-                  selectedContexts={selectedContexts}
-                  actionCounts={contextCounts}
-                  onToggleContext={toggleContext}
-                  onClearAll={clearAll}
-                />
-              )}
-              <div className="flex items-center gap-3">
-                <EnergyFilterBar
-                  selectedEnergy={selectedEnergy}
-                  onToggleEnergy={(level) =>
-                    setEnergy(selectedEnergy === level ? null : level)
-                  }
-                />
-                <TimeFilterDropdown
-                  maxTimeEstimate={maxTimeEstimate}
-                  onChangeMaxTime={setMaxTime}
-                />
-              </div>
+          <div className="flex flex-col gap-1.5">
+            {availableContexts.length > 0 && (
+              <ContextFilterBar
+                contexts={availableContexts}
+                selectedContexts={selectedContexts}
+                actionCounts={contextCounts}
+                onToggleContext={toggleContext}
+                onClearAll={clearContexts}
+              />
+            )}
+            <div className="flex items-center gap-3">
+              <EnergyFilterBar
+                selectedEnergy={selectedEnergy}
+                onToggleEnergy={(level) =>
+                  setEnergy(selectedEnergy === level ? null : level)
+                }
+              />
+              <TimeFilterDropdown
+                maxTimeEstimate={maxTimeEstimate}
+                onChangeMaxTime={setMaxTime}
+              />
             </div>
-          )}
+          </div>
         </>
       }
       expandedId={effectiveExpandedId}
