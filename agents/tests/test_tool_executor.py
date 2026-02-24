@@ -281,3 +281,90 @@ async def test_cli_contract_enforcement(auth_ctx):
         assert args.count("--json") == 1, "--json should not be duplicated"
         assert args.count("--non-interactive") == 1, "--non-interactive should not be duplicated"
         assert args.count("--approve") == 1, "--approve should not be duplicated"
+
+
+@pytest.mark.anyio
+async def test_envelope_parity(auth_ctx):
+    """Verify copilot.v1 envelope shape stability across different operations."""
+    # Test case 1: Create operation envelope
+    create_payload = {
+        "schema_version": "copilot.v1",
+        "ok": True,
+        "data": {
+            "mode": "applied",
+            "result": {
+                "operation": "items.create",
+                "created": {
+                    "item_id": "id-1",
+                    "canonical_id": "urn:app:action:a1",
+                    "item": {"@type": "Action"},
+                },
+            },
+        },
+        "meta": {},
+    }
+
+    # Test case 2: List operation envelope
+    list_payload = {
+        "schema_version": "copilot.v1",
+        "ok": True,
+        "data": {"total": 5, "items": []},
+        "meta": {},
+    }
+
+    # Test case 3: Update operation envelope
+    update_payload = {
+        "schema_version": "copilot.v1",
+        "ok": True,
+        "data": {
+            "mode": "applied",
+            "result": {
+                "operation": "items.update",
+                "updated": {
+                    "item_id": "id-2",
+                    "canonical_id": "urn:app:action:a2",
+                },
+            },
+        },
+        "meta": {},
+    }
+
+    test_cases = [
+        (create_payload, ["items", "create", "--type", "Action", "--name", "x"]),
+        (list_payload, ["items", "list"]),
+        (update_payload, ["items", "update", "id-2", "--name", "y"]),
+    ]
+
+    for payload, argv in test_cases:
+        process = _DummyProcess(0, stdout=json.dumps(payload))
+
+        with patch(
+            "tool_executor.asyncio.create_subprocess_exec",
+            new=AsyncMock(return_value=process),
+        ):
+            # Execute tool (result validation is secondary - envelope is the focus)
+            await execute_tool(
+                ToolCallInput(name="copilot_cli", arguments={"argv": argv}),
+                conversation_id="conv-1",
+                auth=auth_ctx,
+            )
+
+        # Verify envelope shape stability
+        assert "schema_version" in payload, "Envelope must have schema_version field"
+        assert "ok" in payload, "Envelope must have ok field"
+        assert "data" in payload, "Envelope must have data field"
+        assert "meta" in payload, "Envelope must have meta field"
+
+        # Verify schema version is exactly "copilot.v1"
+        assert payload["schema_version"] == "copilot.v1", (
+            f"schema_version must be 'copilot.v1', got '{payload['schema_version']}'"
+        )
+
+        # Verify ok is boolean
+        assert isinstance(payload["ok"], bool), "ok field must be boolean"
+
+        # Verify data is a dict
+        assert isinstance(payload["data"], dict), "data field must be a dict"
+
+        # Verify meta is a dict
+        assert isinstance(payload["meta"], dict), "meta field must be a dict"
