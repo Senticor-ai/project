@@ -40,3 +40,11 @@ app:PersonShape a sh:NodeShape ;
     sh:path app:orgRole ;
     sh:in ("member" "founder" "accountant" "advisor" "interest")
   ] .
+
+app:DigitalDocumentShape a sh:NodeShape ;
+  sh:targetClass schema:DigitalDocument ;
+  sh:property [
+    sh:path schema:name ;
+    sh:minCount 1 ;
+    sh:datatype xsd:string
+  ] .
