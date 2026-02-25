@@ -17,6 +17,8 @@ from ..idempotency import (
 from ..metrics import APP_ITEMS_ARCHIVED_TOTAL, APP_ITEMS_CREATED_TOTAL, APP_ITEMS_UPDATED_TOTAL
 from ..models import (
     ACTION_SUBTYPES,
+    FileAppendContentRequest,
+    FilePatchContentRequest,
     ItemContentResponse,
     ItemCreateRequest,
     ItemPatchRequest,
@@ -756,6 +758,10 @@ def get_item_content(
             local_path = storage.resolve_path(file_row["storage_path"])
             if local_path and local_path.exists():
                 file_content = extract_file_text(local_path, file_row["content_type"], max_chars)
+    elif isinstance(jsonld.get("text"), str):
+        # Org knowledge docs store content in schema_jsonld.text (no file attachment)
+        text_val = jsonld["text"]
+        file_content = text_val[:max_chars] if len(text_val) > max_chars else text_val
 
     return ItemContentResponse(
         item_id=str(row["item_id"]),
@@ -767,6 +773,83 @@ def get_item_content(
         file_content=file_content,
         file_name=file_name,
     )
+
+
+@router.patch(
+    "/{item_id}/file-content",
+    summary="Replace item text content",
+    description="Replaces the text content of a DigitalDocument item (e.g. org knowledge docs).",
+)
+def patch_item_file_content(
+    item_id: str,
+    body: FilePatchContentRequest,
+    current_org=Depends(get_current_org),
+):
+    org_id = current_org["org_id"]
+    now = datetime.now(UTC).isoformat()
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT item_id, schema_jsonld
+                FROM items
+                WHERE (item_id::text = %s OR canonical_id = %s)
+                  AND org_id = %s AND archived_at IS NULL
+                """,
+                (item_id, item_id, org_id),
+            )
+            row = cur.fetchone()
+            if row is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
+            jsonld = dict(row["schema_jsonld"] or {})
+            jsonld["text"] = body.text
+            jsonld["dateModified"] = now
+            cur.execute(
+                "UPDATE items SET schema_jsonld = %s, updated_at = %s WHERE item_id = %s",
+                (jsonb(jsonld), now, row["item_id"]),
+            )
+        conn.commit()
+    return {"ok": True}
+
+
+@router.post(
+    "/{item_id}/append-content",
+    summary="Append a timestamped entry to item text content",
+    description="Appends a timestamped log entry to a DigitalDocument item (e.g. org log docs).",
+)
+def append_item_content(
+    item_id: str,
+    body: FileAppendContentRequest,
+    current_org=Depends(get_current_org),
+):
+    org_id = current_org["org_id"]
+    now = datetime.now(UTC)
+    now_iso = now.isoformat()
+    timestamp = now.strftime("%Y-%m-%d %H:%M")
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT item_id, schema_jsonld
+                FROM items
+                WHERE (item_id::text = %s OR canonical_id = %s)
+                  AND org_id = %s AND archived_at IS NULL
+                """,
+                (item_id, item_id, org_id),
+            )
+            row = cur.fetchone()
+            if row is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
+            jsonld = dict(row["schema_jsonld"] or {})
+            existing = jsonld.get("text") or ""
+            jsonld["text"] = f"{existing}\n\n{timestamp} — {body.text}".lstrip()
+            jsonld["dateModified"] = now_iso
+            cur.execute(
+                "UPDATE items SET schema_jsonld = %s, updated_at = %s WHERE item_id = %s",
+                (jsonb(jsonld), now_iso, row["item_id"]),
+            )
+        conn.commit()
+    return {"ok": True}
 
 
 @router.get(

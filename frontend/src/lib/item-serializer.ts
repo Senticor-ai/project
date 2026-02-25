@@ -4,6 +4,10 @@ import type {
   ActionItemBucket,
   Project,
   ReferenceMaterial,
+  PersonItem,
+  OrgDocItem,
+  OrgDocType,
+  OrgRole,
   CalendarEntry,
   AppItem,
   CaptureSource,
@@ -148,7 +152,7 @@ function serializeActionItemAdditionalProps(
 }
 
 export function toJsonLd(
-  item: ActionItem | Project | ReferenceMaterial,
+  item: ActionItem | Project | ReferenceMaterial | PersonItem,
 ): Record<string, unknown> {
   const base: Record<string, unknown> = {
     "@id": item.id,
@@ -207,6 +211,32 @@ export function toJsonLd(
       props.push(pv("app:orgRef", JSON.stringify(project.orgRef)));
     }
     base.additionalProperty = props;
+  } else if (item.bucket === "reference" && isPersonItem(item)) {
+    const person = item;
+    base["@type"] = "Person";
+    if (person.email) base.email = person.email;
+    if (person.telephone) base.telephone = person.telephone;
+    if (person.jobTitle) base.jobTitle = person.jobTitle;
+
+    const personProps: PropertyValue[] = [
+      pv("app:bucket", "reference"),
+      pv("app:needsEnrichment", person.needsEnrichment),
+      pv("app:confidence", person.confidence),
+      pv("app:captureSource", person.captureSource),
+      pv("app:ports", person.ports),
+      pv("app:typedReferences", person.references),
+      pv("app:provenanceHistory", person.provenance.history),
+    ];
+    if (person.projectIds.length > 0) {
+      personProps.push(pv("app:projectRefs", person.projectIds));
+    }
+    if (person.orgRef) {
+      personProps.push(pv("app:orgRef", JSON.stringify(person.orgRef)));
+    }
+    if (person.orgRole) {
+      personProps.push(pv("app:orgRole", person.orgRole));
+    }
+    base.additionalProperty = personProps;
   } else if (item.bucket === "reference") {
     const ref = item as ReferenceMaterial;
     base["@type"] = TYPE_MAP.reference;
@@ -408,15 +438,13 @@ export function fromJsonLd(record: ItemRecord): AppItem {
       projectIds:
         (getAdditionalProperty(props, "app:projectRefs") as CanonicalId[]) ??
         [],
-      encodingFormat: (t.encodingFormat as string) || undefined,
-      url: (t.url as string) || undefined,
-      origin:
-        (getAdditionalProperty(props, "app:origin") as
-          | "triaged"
-          | "captured"
-          | "file") || undefined,
+      email: (t.email as string) || undefined,
+      telephone: (t.telephone as string) || undefined,
+      jobTitle: (t.jobTitle as string) || undefined,
       orgRef: parseOrgRef(props),
-    };
+      orgRole:
+        (getAdditionalProperty(props, "app:orgRole") as OrgRole) || undefined,
+    } satisfies PersonItem;
   }
 
   if (type === TYPE_MAP.event || type === "Event") {
@@ -433,11 +461,15 @@ export function fromJsonLd(record: ItemRecord): AppItem {
     } satisfies CalendarEntry;
   }
 
-  // DigitalDocument in reference bucket → ReferenceMaterial (split-on-triage result)
+  // DigitalDocument in reference bucket → OrgDocItem or ReferenceMaterial
   if (type === "DigitalDocument") {
     const bucket = getAdditionalProperty(props, "app:bucket") as string;
     if (bucket === "reference") {
-      return {
+      const orgDocType = getAdditionalProperty(
+        props,
+        "app:orgDocType",
+      ) as OrgDocType | undefined;
+      const refBase = {
         ...base,
         bucket: "reference" as const,
         projectIds:
@@ -452,6 +484,10 @@ export function fromJsonLd(record: ItemRecord): AppItem {
             | "file") || undefined,
         orgRef: parseOrgRef(props),
       };
+      if (orgDocType) {
+        return { ...refBase, orgDocType } satisfies OrgDocItem;
+      }
+      return refBase;
     }
   }
 
@@ -947,4 +983,16 @@ export function buildReadActionTriagePatch(
     endTime: null,
     additionalProperty: additionalProps,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Type guards for reference sub-types
+// ---------------------------------------------------------------------------
+
+export function isPersonItem(item: AppItem): item is PersonItem {
+  return item.bucket === "reference" && "orgRole" in item;
+}
+
+export function isOrgDocItem(item: ReferenceMaterial): item is OrgDocItem {
+  return "orgDocType" in item && (item as OrgDocItem).orgDocType !== undefined;
 }

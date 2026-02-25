@@ -113,7 +113,11 @@ class TestJsonLdAliases:
         """JSONB round-trip test: relationship fields must survive create → read cycle."""
         # Create action with all relationship fields populated
         relationship_fields = {
-            "object": {"@type": "Thing", "@id": "urn:example:document:123", "name": "Budget Report"},
+            "object": {
+                "@type": "Thing",
+                "@id": "urn:example:document:123",
+                "name": "Budget Report",
+            },
             "instrument": {"@type": "Thing", "@id": "urn:example:tool:excel", "name": "Excel"},
             "agent": {"@type": "Person", "@id": "urn:example:person:alice", "name": "Alice"},
             "participant": {"@type": "Person", "@id": "urn:example:person:bob", "name": "Bob"},
@@ -151,9 +155,7 @@ class TestJsonLdAliases:
             assert field_name in retrieved_item, f"Missing relationship field: {field_name}"
             actual_value = retrieved_item[field_name]
             assert actual_value == expected_value, (
-                f"Field {field_name} mismatch:\n"
-                f"  Expected: {expected_value}\n"
-                f"  Got: {actual_value}"
+                f"Field {field_name} mismatch:\n  Expected: {expected_value}\n  Got: {actual_value}"
             )
 
     def test_relationship_null_vs_missing(self, auth_client):
@@ -205,7 +207,9 @@ class TestJsonLdAliases:
         }
 
         # Create item without relationship fields
-        create_resp = auth_client.post("/items", json={"item": item_without_fields, "source": "manual"})
+        create_resp = auth_client.post(
+            "/items", json={"item": item_without_fields, "source": "manual"}
+        )
         assert create_resp.status_code == 201, f"Create without fields failed: {create_resp.text}"
         item_id_missing = create_resp.json()["item_id"]
 
@@ -227,14 +231,20 @@ class TestJsonLdAliases:
             "object": {"@type": "Thing", "@id": "urn:example:doc:456", "name": "Document"},
             "instrument": None,  # Explicit null
             # agent omitted entirely
-            "participant": {"@type": "Person", "@id": "urn:example:person:charlie", "name": "Charlie"},
+            "participant": {
+                "@type": "Person",
+                "@id": "urn:example:person:charlie",
+                "name": "Charlie",
+            },
             "result": None,  # Explicit null
             # location omitted entirely
         }
 
         # Create item with mixed pattern
         create_resp = auth_client.post("/items", json={"item": item_mixed, "source": "manual"})
-        assert create_resp.status_code == 201, f"Create with mixed pattern failed: {create_resp.text}"
+        assert create_resp.status_code == 201, (
+            f"Create with mixed pattern failed: {create_resp.text}"
+        )
         item_id_mixed = create_resp.json()["item_id"]
 
         # Read back and verify all patterns handled correctly

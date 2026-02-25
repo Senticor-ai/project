@@ -239,6 +239,8 @@ def test_patch_action_relationship_fields(auth_client):
     # Verify other fields still preserved
     assert updated["instrument"]["@id"] == "urn:tool:wrench"
     assert updated["agent"]["@id"] == "urn:user:alice"
+
+
 # ---------------------------------------------------------------------------
 # Rename provenance
 # ---------------------------------------------------------------------------

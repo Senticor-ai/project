@@ -291,6 +291,28 @@ export interface ReferenceMaterial extends BaseEntity {
   orgRef?: OrgRef;
 }
 
+export type OrgDocType = "general" | "user" | "log" | "agent";
+export type OrgRole =
+  | "member"
+  | "founder"
+  | "accountant"
+  | "advisor"
+  | "interest";
+
+export interface PersonItem extends BaseEntity {
+  bucket: "reference";
+  projectIds: CanonicalId[];
+  email?: string;
+  telephone?: string;
+  jobTitle?: string;
+  orgRef?: OrgRef;
+  orgRole?: OrgRole | string;
+}
+
+export interface OrgDocItem extends ReferenceMaterial {
+  orgDocType: OrgDocType;
+}
+
 // ---------------------------------------------------------------------------
 // Calendar Entry
 // ---------------------------------------------------------------------------
@@ -308,7 +330,13 @@ export interface CalendarEntry extends BaseEntity {
 // Union Types
 // ---------------------------------------------------------------------------
 
-export type AppItem = ActionItem | Project | ReferenceMaterial | CalendarEntry;
+export type AppItem =
+  | ActionItem
+  | Project
+  | ReferenceMaterial
+  | PersonItem
+  | OrgDocItem
+  | CalendarEntry;
 
 export type Bucket =
   | "inbox"

@@ -2,24 +2,30 @@ import { useState, useMemo } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { ItemList } from "./ItemList";
 import { ReferenceRow } from "./ReferenceRow";
+import { PersonRow } from "./PersonRow";
 import type {
   ReferenceMaterial,
+  PersonItem,
+  OrgDocType,
   ItemEditableFields,
   ActionItemBucket,
   Project,
 } from "@/model/types";
+import { isPersonItem, isOrgDocItem } from "@/lib/item-serializer";
 import type { CanonicalId } from "@/model/canonical-id";
 
 const UNASSIGNED_KEY = "__unassigned__";
 
+type AnyReference = ReferenceMaterial | PersonItem;
+
 interface OrgGroup {
   id: string;
   name: string;
-  items: ReferenceMaterial[];
+  items: AnyReference[];
 }
 
 export interface ReferenceListProps {
-  references: ReferenceMaterial[];
+  references: AnyReference[];
   /** When provided, references are grouped by orgRef. */
   organizations?: { id: string; name: string }[];
   onAdd: (title: string) => void;
@@ -35,7 +41,42 @@ export interface ReferenceListProps {
   className?: string;
 }
 
-function sortNewestFirst(items: ReferenceMaterial[]): ReferenceMaterial[] {
+const ORG_DOC_ORDER: Record<OrgDocType, number> = {
+  general: 0,
+  user: 1,
+  log: 2,
+  agent: 3,
+};
+
+function sortGroupItems(items: AnyReference[]): AnyReference[] {
+  return [...items].sort((a, b) => {
+    const aIsDoc =
+      !isPersonItem(a as ReferenceMaterial) &&
+      isOrgDocItem(a as ReferenceMaterial);
+    const bIsDoc =
+      !isPersonItem(b as ReferenceMaterial) &&
+      isOrgDocItem(b as ReferenceMaterial);
+    if (aIsDoc && !bIsDoc) return -1;
+    if (!aIsDoc && bIsDoc) return 1;
+    if (aIsDoc && bIsDoc) {
+      const aOrder =
+        ORG_DOC_ORDER[
+          (a as unknown as { orgDocType: OrgDocType }).orgDocType
+        ] ?? 99;
+      const bOrder =
+        ORG_DOC_ORDER[
+          (b as unknown as { orgDocType: OrgDocType }).orgDocType
+        ] ?? 99;
+      return aOrder - bOrder;
+    }
+    return (
+      new Date(b.provenance.createdAt).getTime() -
+      new Date(a.provenance.createdAt).getTime()
+    );
+  });
+}
+
+function sortNewestFirst(items: AnyReference[]): AnyReference[] {
   return [...items].sort(
     (a, b) =>
       new Date(b.provenance.createdAt).getTime() -
@@ -77,8 +118,8 @@ export function ReferenceList({
   const orgGroups = useMemo((): OrgGroup[] | null => {
     if (!organizations || organizations.length === 0) return null;
 
-    const byOrg = new Map<string, ReferenceMaterial[]>();
-    const unassigned: ReferenceMaterial[] = [];
+    const byOrg = new Map<string, AnyReference[]>();
+    const unassigned: AnyReference[] = [];
 
     for (const ref of sorted) {
       if (ref.orgRef) {
@@ -90,14 +131,14 @@ export function ReferenceList({
       }
     }
 
-    // Alphabetical by org name
+    // Alphabetical by org name; within each group org docs sort first
     const groups: OrgGroup[] = organizations
       .filter((o) => byOrg.has(o.id))
       .sort((a, b) => a.name.localeCompare(b.name))
       .map((o) => ({
         id: o.id,
         name: o.name,
-        items: byOrg.get(o.id)!,
+        items: sortGroupItems(byOrg.get(o.id)!),
       }));
 
     if (unassigned.length > 0) {
@@ -112,23 +153,35 @@ export function ReferenceList({
   }, [organizations, sorted]);
 
   const renderRef = (
-    ref: ReferenceMaterial,
+    ref: AnyReference,
     isExpanded: boolean,
     onToggleExpand: (() => void) | undefined,
-  ) => (
-    <ReferenceRow
-      key={ref.id}
-      reference={ref}
-      onArchive={onArchive}
-      onSelect={onSelect}
-      isExpanded={isExpanded}
-      onToggleExpand={onEditReference ? onToggleExpand : undefined}
-      onEdit={onEditReference}
-      linkedActionBucket={linkedActionBuckets?.get(ref.id)}
-      projects={projects}
-      organizations={organizations}
-    />
-  );
+  ) => {
+    if (isPersonItem(ref as ReferenceMaterial)) {
+      return (
+        <PersonRow
+          key={ref.id}
+          item={ref as PersonItem}
+          onArchive={onArchive}
+          onSelect={onSelect}
+        />
+      );
+    }
+    return (
+      <ReferenceRow
+        key={ref.id}
+        reference={ref as ReferenceMaterial}
+        onArchive={onArchive}
+        onSelect={onSelect}
+        isExpanded={isExpanded}
+        onToggleExpand={onEditReference ? onToggleExpand : undefined}
+        onEdit={onEditReference}
+        linkedActionBucket={linkedActionBuckets?.get(ref.id)}
+        projects={projects}
+        organizations={organizations}
+      />
+    );
+  };
 
   const toggleGroup = (groupId: string) => {
     setCollapsedGroups((prev) => {
@@ -147,7 +200,7 @@ export function ReferenceList({
   // duplicate rendering (the wrapping div is harmless).
   if (orgGroups) {
     return (
-      <ItemList<ReferenceMaterial>
+      <ItemList<AnyReference>
         items={sorted}
         header={{
           icon: "book",
@@ -213,14 +266,7 @@ export function ReferenceList({
             ? {
                 label: "Archived",
                 items: archivedItems,
-                renderItem: (ref) => (
-                  <ReferenceRow
-                    key={ref.id}
-                    reference={ref}
-                    onArchive={onArchive}
-                    onSelect={onSelect}
-                  />
-                ),
+                renderItem: (ref) => renderRef(ref, false, undefined),
                 wrapperClassName: "opacity-60",
               }
             : undefined
@@ -234,7 +280,7 @@ export function ReferenceList({
 
   // Flat rendering (no organizations)
   return (
-    <ItemList<ReferenceMaterial>
+    <ItemList<AnyReference>
       items={sorted}
       header={{
         icon: "book",
@@ -258,14 +304,7 @@ export function ReferenceList({
           ? {
               label: "Archived",
               items: archivedItems,
-              renderItem: (ref) => (
-                <ReferenceRow
-                  key={ref.id}
-                  reference={ref}
-                  onArchive={onArchive}
-                  onSelect={onSelect}
-                />
-              ),
+              renderItem: (ref) => renderRef(ref, false, undefined),
               wrapperClassName: "opacity-60",
             }
           : undefined

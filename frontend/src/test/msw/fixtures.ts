@@ -14,11 +14,13 @@ import type { ConversationSummary } from "@/model/chat-types";
 
 export const store = {
   items: new Map<string, ItemRecord>(),
+  fileContent: new Map<string, string>(),
   emailConnections: new Map<string, EmailConnectionResponse>(),
   orgs: new Map<string, OrgResponse>(),
   conversations: new Map<string, ConversationSummary>(),
   clear() {
     this.items.clear();
+    this.fileContent.clear();
     this.emailConnections.clear();
     this.orgs.clear();
     this.conversations.clear();
@@ -689,4 +691,120 @@ export function seedDefaultOrgs(): OrgResponse[] {
   ];
   store.seedOrgs(orgs);
   return orgs;
+}
+
+// ---------------------------------------------------------------------------
+// Person item fixtures
+// ---------------------------------------------------------------------------
+
+export function createPersonItemRecord(overrides: {
+  item_id?: string;
+  name: string;
+  email?: string;
+  telephone?: string;
+  jobTitle?: string;
+  orgRole?: string;
+  orgRef?: { id: string; name: string };
+}): ItemRecord {
+  counter++;
+  const id = overrides.item_id ?? `person-${counter}`;
+  const now = new Date().toISOString();
+  const canonicalId = `urn:app:reference:${id}` as CanonicalId;
+
+  const additionalProperty = [
+    pv("app:bucket", "reference"),
+    pv("app:needsEnrichment", false),
+    pv("app:confidence", "high"),
+    pv("app:captureSource", { kind: "thought" }),
+    pv("app:ports", []),
+    pv("app:typedReferences", []),
+    pv("app:provenanceHistory", [{ timestamp: now, action: "created" }]),
+    pv("app:projectRefs", []),
+  ];
+  if (overrides.orgRef) {
+    additionalProperty.push(pv("app:orgRef", JSON.stringify(overrides.orgRef)));
+  }
+  if (overrides.orgRole) {
+    additionalProperty.push(pv("app:orgRole", overrides.orgRole));
+  }
+
+  return {
+    item_id: id,
+    canonical_id: canonicalId,
+    source: "manual",
+    item: {
+      "@id": canonicalId,
+      "@type": "Person",
+      _schemaVersion: 2,
+      name: overrides.name,
+      email: overrides.email ?? null,
+      telephone: overrides.telephone ?? null,
+      jobTitle: overrides.jobTitle ?? null,
+      description: null,
+      keywords: [],
+      dateCreated: now,
+      dateModified: now,
+      additionalProperty,
+    },
+    created_at: now,
+    updated_at: now,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Org doc item fixtures
+// ---------------------------------------------------------------------------
+
+export function createOrgDocItemRecord(overrides: {
+  item_id?: string;
+  name: string;
+  orgDocType: "general" | "user" | "log" | "agent";
+  orgRef?: { id: string; name: string };
+  initialContent?: string;
+}): ItemRecord {
+  counter++;
+  const id = overrides.item_id ?? `orgdoc-${counter}`;
+  const now = new Date().toISOString();
+  const canonicalId = `urn:app:reference:${id}` as CanonicalId;
+  const content = overrides.initialContent ?? "";
+
+  if (content) {
+    store.fileContent.set(id, content);
+  }
+
+  const additionalProperty = [
+    pv("app:bucket", "reference"),
+    pv("app:orgDocType", overrides.orgDocType),
+    pv("app:needsEnrichment", false),
+    pv("app:confidence", "high"),
+    pv("app:captureSource", { kind: "system" }),
+    pv("app:ports", []),
+    pv("app:typedReferences", []),
+    pv("app:provenanceHistory", [{ timestamp: now, action: "created" }]),
+    pv("app:projectRefs", []),
+  ];
+  if (overrides.orgRef) {
+    additionalProperty.push(pv("app:orgRef", JSON.stringify(overrides.orgRef)));
+  }
+
+  return {
+    item_id: id,
+    canonical_id: canonicalId,
+    source: "system",
+    item: {
+      "@id": canonicalId,
+      "@type": "DigitalDocument",
+      _schemaVersion: 2,
+      name: overrides.name,
+      encodingFormat: "text/markdown",
+      text: content,
+      description: null,
+      keywords: [],
+      dateCreated: now,
+      dateModified: now,
+      additionalProperty,
+    },
+    created_at: now,
+    updated_at: now,
+  };
 }

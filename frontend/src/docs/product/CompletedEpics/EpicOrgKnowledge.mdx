@@ -1,14 +1,33 @@
 import { Meta } from "@storybook/addon-docs/blocks";
 
-<Meta title="Product/Epics/Org Knowledge & Person Items" />
+<Meta title="Product/Completed Epics/Org Knowledge & Person Items" />
 
 # Epic: Org Knowledge Documents, Person Items, and Agent Org Awareness
 
-**Status:** Not started
-**Priority:** Next (after current work)
-**Checklist audit:** February 23, 2026 — implementation has not started; no completion boxes are marked.
+**Status:** Closed (Features 1 & 2 shipped; Feature 3 deferred to Platform SDK)
+**Closed on:** February 25, 2026
 **Depends on:** [Org Categorization (Phase 1)](?path=/docs/engineering-architecture--docs) — `app:orgRef` on Projects and References, org grouping in Reference bucket
 **See also:** [Copilot V2+](?path=/docs/product-completed-epics-copilot-v2--docs)
+
+## What shipped
+
+Issues #54, #55, #57 closed February 25, 2026:
+
+- **Backend content endpoints** — `PATCH /items/{id}/file-content` and `POST /items/{id}/append-content`
+  for inline markdown editing of org knowledge documents (content stored in `schema_jsonld.text`)
+- **PersonItem** — `@type: "Person"` reference items with email, telephone, jobTitle, orgRole;
+  `isPersonItem()` type guard; full `toJsonLd`/`fromJsonLd` roundtrip; `PersonRow` component
+  with role badges, org badge, mailto/tel links
+- **OrgDocItem** — `OrgDocType` (`general | user | log | agent`); `isOrgDocItem()` guard;
+  `OrgDocEditor` component (editable textarea for GENERAL/USER, append-only log, read-only AGENT);
+  special icons + i18n subtitles in `ReferenceRow`; org docs sort first within each org group
+- **Testing** — Storybook stories with MSW handlers, vitest unit + storybook coverage (all green)
+
+## What was deferred
+
+Issue #56 (**Org-aware Copilot flows**) — agent tools (`list_organizations`, `read_org_document`,
+`update_agent_notes`, `append_org_log`, `create_person`), `BackendClient` methods, system prompt —
+remain open and will be implemented as part of the Platform SDK & Agent CLI epic.
 
 ## Context
 
@@ -285,7 +304,7 @@ When an org doc ReferenceRow is expanded:
 ## Future: Platform SDK & Agent CLI
 
 The org awareness tools described in Feature 3 will be implemented as **CLI commands** rather than
-individual Python tools. See the [Platform SDK & Agent CLI](?path=/docs/product-epics-platform-sdk-agent-cli--docs)
+individual Python tools. See the [Platform SDK & Agent CLI](?path=/docs/product-completed-epics-platform-sdk-agent-cli--docs)
 epic for the full architecture.
 
 **Key decisions:**

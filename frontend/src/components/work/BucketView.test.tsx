@@ -20,6 +20,7 @@ import type { Bucket } from "@/model/types";
 
 // Mock completed items hook (used by ActionList)
 vi.mock("@/hooks/use-items", () => ({
+  ITEMS_QUERY_KEY: ["items"],
   useAllCompletedItems: () => ({ data: [], isFetching: false }),
 }));
 

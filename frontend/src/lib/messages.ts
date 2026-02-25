@@ -70,6 +70,21 @@ const messages: Record<string, { en: string; de: string }> = {
     en: "I understand",
     de: "Ich verstehe",
   },
+  "person.role.member": { en: "Member", de: "Mitglied" },
+  "person.role.founder": { en: "Founder", de: "Gründer:in" },
+  "person.role.accountant": { en: "Accountant", de: "Buchhalter:in" },
+  "person.role.advisor": { en: "Advisor", de: "Berater:in" },
+  "person.role.interest": { en: "Interest", de: "Interessent:in" },
+  "orgDoc.type.general": { en: "Org · General", de: "Org · Allgemein" },
+  "orgDoc.type.user": { en: "Org · User", de: "Org · Nutzer" },
+  "orgDoc.type.log": { en: "Org · Log", de: "Org · Protokoll" },
+  "orgDoc.type.agent": { en: "Org · Agent", de: "Org · Agent" },
+  "orgDoc.editor.saveLabel": { en: "Save", de: "Speichern" },
+  "orgDoc.editor.appendLabel": { en: "Add entry", de: "Eintrag hinzufügen" },
+  "orgDoc.editor.appendPlaceholder": {
+    en: "New log entry…",
+    de: "Neuer Protokolleintrag…",
+  },
 };
 
 export function getMessage(key: string, locale?: string): string {

@@ -134,6 +134,74 @@ export const itemsHandlers = [
       ok: true,
     });
   }),
+
+  // Get item content — used by OrgDocEditor via useQuery
+  http.get(`${API}/items/:itemId/content`, ({ params }) => {
+    const itemId = params.itemId as string;
+    // Look up by direct key first, then by canonical_id
+    let content = store.fileContent.get(itemId);
+    if (content === undefined) {
+      const record = Array.from(store.items.values()).find(
+        (r) => r.canonical_id === itemId,
+      );
+      if (record) {
+        const text = (record.item as Record<string, unknown>).text;
+        content = typeof text === "string" ? text : "";
+      }
+    }
+    return HttpResponse.json({
+      item_id: itemId,
+      canonical_id: itemId,
+      name: null,
+      description: null,
+      type: "DigitalDocument",
+      bucket: "reference",
+      file_content: content ?? null,
+      file_name: null,
+    });
+  }),
+
+  // Patch file content — used by usePatchFileContent
+  http.patch(
+    `${API}/items/:itemId/file-content`,
+    async ({ params, request }) => {
+      const itemId = params.itemId as string;
+      const body = (await request.json()) as { text: string };
+      store.fileContent.set(itemId, body.text);
+      // Also update item.text if present in the store
+      const record =
+        store.items.get(itemId) ??
+        Array.from(store.items.values()).find((r) => r.canonical_id === itemId);
+      if (record) {
+        const updatedItem: ItemRecord = {
+          ...record,
+          item: {
+            ...(record.item as Record<string, unknown>),
+            text: body.text,
+          },
+          updated_at: new Date().toISOString(),
+        };
+        store.items.set(record.item_id, updatedItem);
+      }
+      return HttpResponse.json({ ok: true });
+    },
+  ),
+
+  // Append content — used by useAppendContent
+  http.post(
+    `${API}/items/:itemId/append-content`,
+    async ({ params, request }) => {
+      const itemId = params.itemId as string;
+      const body = (await request.json()) as { text: string };
+      const existing = store.fileContent.get(itemId) ?? "";
+      const timestamp = new Date().toISOString().slice(0, 16).replace("T", " ");
+      const updated = existing
+        ? `${existing}\n\n${timestamp} — ${body.text}`
+        : `${timestamp} — ${body.text}`;
+      store.fileContent.set(itemId, updated);
+      return HttpResponse.json({ ok: true });
+    },
+  ),
 ];
 
 // ---------------------------------------------------------------------------

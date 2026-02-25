@@ -1126,6 +1126,38 @@ export function useCreateProject() {
 }
 
 // ---------------------------------------------------------------------------
+// Patch file content (org docs — replace text)
+// ---------------------------------------------------------------------------
+
+export function usePatchFileContent() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ itemId, text }: { itemId: string; text: string }) =>
+      ItemsApi.patchFileContent(itemId, text),
+    onSettled: (_data, _err, { itemId }) => {
+      qc.invalidateQueries({ queryKey: ["item-content", itemId] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Append content (org docs — append log entry)
+// ---------------------------------------------------------------------------
+
+export function useAppendContent() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ itemId, text }: { itemId: string; text: string }) =>
+      ItemsApi.appendContent(itemId, text),
+    onSettled: (_data, _err, { itemId }) => {
+      qc.invalidateQueries({ queryKey: ["item-content", itemId] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Archive reference
 // ---------------------------------------------------------------------------
 

@@ -7,14 +7,26 @@ import { MarkdownViewer } from "@/components/ui/MarkdownViewer";
 import { BucketBadge } from "@/components/paperclip/BucketBadge";
 import { getFileUrl } from "@/lib/api-client";
 import { ItemEditor } from "./ItemEditor";
+import { OrgDocEditor, OrgDocTypeIcon } from "./OrgDocEditor";
+import { isOrgDocItem } from "@/lib/item-serializer";
+import { getMessage } from "@/lib/messages";
 import type {
   ReferenceMaterial,
+  OrgDocItem,
+  OrgDocType,
   ReferenceOrigin,
   ActionItemBucket,
   ItemEditableFields,
   Project,
 } from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
+
+const ORG_DOC_SUBTITLE_KEY: Record<OrgDocType, string> = {
+  general: "orgDoc.type.general",
+  user: "orgDoc.type.user",
+  log: "orgDoc.type.log",
+  agent: "orgDoc.type.agent",
+};
 
 export interface ReferenceRowProps {
   reference: ReferenceMaterial;
@@ -115,6 +127,10 @@ export function ReferenceRow({
   const [viewMode, setViewMode] = useState<"view" | "edit">("view");
   const origin = reference.origin ? originConfig[reference.origin] : null;
   const hasMarkdownContent = Boolean(reference.description);
+  const orgDoc = isOrgDocItem(reference) ? (reference as OrgDocItem) : null;
+  const orgDocSubtitle = orgDoc
+    ? getMessage(ORG_DOC_SUBTITLE_KEY[orgDoc.orgDocType])
+    : null;
   const projectName = projects?.find(
     (p) => p.id === reference.projectIds[0],
   )?.name;
@@ -162,12 +178,19 @@ export function ReferenceRow({
           <Icon name="drag_indicator" size={14} />
         </span>
 
+        {/* Org doc icon (replaces drag handle area for pinned docs) */}
+        {orgDoc && <OrgDocTypeIcon docType={orgDoc.orgDocType} />}
+
         {/* Title — clickable */}
-        <button
-          onClick={handleTitleClick}
-          className="flex-1 whitespace-pre-wrap text-left text-sm font-medium text-text"
-        >
-          {reference.name ?? "Untitled"}
+        <button onClick={handleTitleClick} className="flex-1 text-left">
+          <span className="whitespace-pre-wrap text-sm font-medium text-text">
+            {reference.name ?? "Untitled"}
+          </span>
+          {orgDocSubtitle && (
+            <span className="ml-1.5 text-xs text-ink-400">
+              {orgDocSubtitle}
+            </span>
+          )}
         </button>
 
         {/* Content type chip */}
@@ -313,8 +336,15 @@ export function ReferenceRow({
         </div>
       </div>
 
+      {/* Expanded content — org doc editor */}
+      {isExpanded && orgDoc && (
+        <div className="mt-1 ml-8">
+          <OrgDocEditor item={orgDoc} />
+        </div>
+      )}
+
       {/* Expanded content — file preview, markdown view, or editor */}
-      {isExpanded && onEdit && (
+      {isExpanded && onEdit && !orgDoc && (
         <div className="mt-1 ml-8">
           {/* File-backed references: show open/download bar */}
           {reference.downloadUrl && (

@@ -347,11 +347,19 @@ export const AuthApi = {
 // Organizations API
 // ---------------------------------------------------------------------------
 
+export type OrgDocIds = {
+  general: string | null;
+  user: string | null;
+  log: string | null;
+  agent: string | null;
+};
+
 export type OrgResponse = {
   id: string;
   name: string;
   role: string;
   created_at: string;
+  doc_ids?: OrgDocIds;
 };
 
 export const OrgsApi = {
@@ -377,6 +385,17 @@ export type ArchiveResponse = {
   item_id: string;
   archived_at: string;
   ok: boolean;
+};
+
+export type ItemContentResponse = {
+  item_id: string;
+  canonical_id: string;
+  name: string | null;
+  description: string | null;
+  type: string | null;
+  bucket: string | null;
+  file_content: string | null;
+  file_name: string | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -801,5 +820,20 @@ export const ItemsApi = {
   archive: (itemId: string) =>
     request<ArchiveResponse>(`/items/${itemId}`, {
       method: "DELETE",
+    }),
+
+  getContent: (itemId: string) =>
+    request<ItemContentResponse>(`/items/${itemId}/content`),
+
+  patchFileContent: (itemId: string, text: string) =>
+    request<{ ok: boolean }>(`/items/${itemId}/file-content`, {
+      method: "PATCH",
+      body: JSON.stringify({ text }),
+    }),
+
+  appendContent: (itemId: string, text: string) =>
+    request<{ ok: boolean }>(`/items/${itemId}/append-content`, {
+      method: "POST",
+      body: JSON.stringify({ text }),
     }),
 };

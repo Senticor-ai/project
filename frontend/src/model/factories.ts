@@ -5,6 +5,9 @@ import type {
   ActionItemBucket,
   Project,
   ReferenceMaterial,
+  PersonItem,
+  OrgDocItem,
+  OrgDocType,
   Provenance,
   CaptureSource,
   WorkContext,
@@ -184,6 +187,65 @@ export function createReferenceMaterial(
     origin: overrides.origin ?? "captured",
     fileId: overrides.fileId,
     downloadUrl: overrides.downloadUrl,
+    orgRef: overrides.orgRef,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Person Item Factory
+// ---------------------------------------------------------------------------
+
+type PersonItemOverrides = Partial<PersonItem> & { name: string };
+
+export function createPersonItem(overrides: PersonItemOverrides): PersonItem {
+  const id = overrides.id ?? createCanonicalId("reference", nextId());
+  return {
+    id,
+    bucket: "reference",
+    name: overrides.name,
+    description: overrides.description,
+    tags: overrides.tags ?? [],
+    references: overrides.references ?? [],
+    captureSource: overrides.captureSource ?? defaultSource(),
+    provenance: overrides.provenance ?? defaultProvenance(),
+    ports: overrides.ports ?? [],
+    needsEnrichment: overrides.needsEnrichment ?? false,
+    confidence: overrides.confidence ?? "medium",
+    projectIds: overrides.projectIds ?? [],
+    email: overrides.email,
+    telephone: overrides.telephone,
+    jobTitle: overrides.jobTitle,
+    orgRef: overrides.orgRef,
+    orgRole: overrides.orgRole,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Org Doc Item Factory
+// ---------------------------------------------------------------------------
+
+type OrgDocItemOverrides = Partial<OrgDocItem> & {
+  name: string;
+  orgDocType: OrgDocType;
+};
+
+export function createOrgDocItem(overrides: OrgDocItemOverrides): OrgDocItem {
+  const id = overrides.id ?? createCanonicalId("reference", nextId());
+  return {
+    id,
+    bucket: "reference",
+    name: overrides.name,
+    description: overrides.description,
+    tags: overrides.tags ?? [],
+    references: overrides.references ?? [],
+    captureSource: overrides.captureSource ?? defaultSource(),
+    provenance: overrides.provenance ?? defaultProvenance(),
+    ports: overrides.ports ?? [],
+    needsEnrichment: overrides.needsEnrichment ?? false,
+    confidence: overrides.confidence ?? "medium",
+    projectIds: overrides.projectIds ?? [],
+    encodingFormat: overrides.encodingFormat ?? "text/markdown",
+    orgDocType: overrides.orgDocType,
     orgRef: overrides.orgRef,
   };
 }

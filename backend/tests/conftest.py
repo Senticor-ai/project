@@ -16,6 +16,9 @@ from fastapi.testclient import TestClient
 from psycopg import sql
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
+# Set test CORS origins before load_dotenv so the port-shifted .env values
+# don't win — load_dotenv skips keys that are already in the environment.
+os.environ["CORS_ORIGINS"] = "http://localhost:5173,http://localhost:6006"
 load_dotenv(ROOT_DIR / ".env")
 sys.path.insert(0, str(ROOT_DIR / "backend"))
 
