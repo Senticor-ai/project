@@ -57,6 +57,20 @@ def flush_org_data(
             )
             deleted["idempotency_keys"] = cur.rowcount
 
+            # Clear doc links first: organizations has FK references to items.
+            cur.execute(
+                """
+                UPDATE organizations
+                SET general_doc_id = NULL,
+                    user_doc_id = NULL,
+                    log_doc_id = NULL,
+                    agent_doc_id = NULL
+                WHERE id = %s
+                """,
+                (org_id,),
+            )
+            deleted["org_doc_links_cleared"] = cur.rowcount
+
             cur.execute(
                 "DELETE FROM items WHERE org_id = %s",
                 (org_id,),

@@ -531,10 +531,10 @@ def patch_file_content(
             cur.execute(
                 """
                 UPDATE files
-                SET size_bytes = %s, sha256 = %s, updated_at = %s
+                SET size_bytes = %s, sha256 = %s
                 WHERE file_id = %s
                 """,
-                (new_size, new_hash, datetime.now(UTC), file_id),
+                (new_size, new_hash, file_id),
             )
         conn.commit()
 
@@ -613,10 +613,10 @@ def append_file_content(
             cur.execute(
                 """
                 UPDATE files
-                SET size_bytes = %s, sha256 = %s, updated_at = %s
+                SET size_bytes = %s, sha256 = %s
                 WHERE file_id = %s
                 """,
-                (new_size, new_hash, datetime.now(UTC), file_id),
+                (new_size, new_hash, file_id),
             )
         conn.commit()
 

@@ -14,6 +14,7 @@ def create_org_knowledge_documents(
     """Create default org knowledge docs and attach their IDs to organizations."""
     doc_ids: dict[str, Any] = {}
     for doc_type in ("general", "user", "log", "agent"):
+        canonical_id = f"org:{org_id}:knowledge:{doc_type}"
         cur.execute(
             """
             INSERT INTO items (
@@ -25,10 +26,12 @@ def create_org_knowledge_documents(
             (
                 org_id,
                 created_by_user_id,
-                f"org:{org_id}:knowledge:{doc_type}",
+                canonical_id,
                 jsonb(
                     {
+                        "@id": canonical_id,
                         "@type": "DigitalDocument",
+                        "_schemaVersion": 2,
                         "name": f"Organization {doc_type.title()} Knowledge",
                         "encodingFormat": "text/markdown",
                         "text": "",

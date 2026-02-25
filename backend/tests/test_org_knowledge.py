@@ -1,6 +1,31 @@
 import uuid
 
 
+def _upload_text_file(client, filename: str, text: str) -> str:
+    data = text.encode("utf-8")
+    init = client.post(
+        "/files/initiate",
+        json={
+            "filename": filename,
+            "content_type": "text/plain",
+            "total_size": len(data),
+        },
+    )
+    assert init.status_code == 201
+    upload = init.json()
+
+    chunk_headers = {
+        "X-Chunk-Index": "0",
+        "X-Chunk-Total": str(upload["chunk_total"]),
+    }
+    put = client.put(f"/files/upload/{upload['upload_id']}", content=data, headers=chunk_headers)
+    assert put.status_code == 200
+
+    complete = client.post("/files/complete", json={"upload_id": upload["upload_id"]})
+    assert complete.status_code == 201
+    return complete.json()["file_id"]
+
+
 def test_org_creation_includes_documents(auth_client):
     """Test that creating an org atomically creates 4 knowledge documents."""
     org_name = f"Test Org {uuid.uuid4().hex[:8]}"
@@ -30,6 +55,7 @@ def test_org_documents_are_digital_documents(auth_client):
     response = auth_client.post("/orgs", json={"name": org_name})
     assert response.status_code == 201
     data = response.json()
+    auth_client.headers.update({"X-Org-Id": data["id"]})
 
     # Verify each document exists and has correct schema type
     for doc_id_key in ["generalDocId", "userDocId", "logDocId", "agentDocId"]:
@@ -50,6 +76,7 @@ def test_org_documents_have_canonical_ids(auth_client):
     assert response.status_code == 201
     data = response.json()
     org_id = data["id"]
+    auth_client.headers.update({"X-Org-Id": org_id})
 
     # Check canonical ID pattern for each document type
     doc_types = {
@@ -65,7 +92,8 @@ def test_org_documents_have_canonical_ids(auth_client):
         assert doc_response.status_code == 200
         doc = doc_response.json()
         expected_canonical_id = f"org:{org_id}:knowledge:{expected_type}"
-        assert doc["canonicalId"] == expected_canonical_id
+        assert doc["canonical_id"] == expected_canonical_id
+        assert doc["item"]["@id"] == expected_canonical_id
 
 
 def test_org_list_includes_doc_ids(auth_client):
@@ -99,22 +127,10 @@ def test_org_creation_rollback_on_failure(auth_client):
     This verifies transaction rollback by ensuring that org + 4 documents + membership
     are created atomically. If any step fails, the transaction rolls back entirely.
     """
-    # Count orgs and items before creation
+    # Count orgs before creation
     list_response = auth_client.get("/orgs")
     assert list_response.status_code == 200
     orgs_before = len(list_response.json())
-
-    items_response = auth_client.get("/items")
-    assert items_response.status_code == 200
-    all_items_before = items_response.json()
-    docs_before = len(
-        [
-            item
-            for item in all_items_before
-            if item.get("canonicalId", "").startswith("org:")
-            and ":knowledge:" in item.get("canonicalId", "")
-        ]
-    )
 
     # Create org - should succeed and create all components atomically
     org_name = f"Test Org {uuid.uuid4().hex[:8]}"
@@ -128,21 +144,8 @@ def test_org_creation_rollback_on_failure(auth_client):
     orgs_after = len(list_response.json())
     assert orgs_after == orgs_before + 1
 
-    # Verify exactly 4 documents were created atomically with the org
-    items_response = auth_client.get("/items")
-    assert items_response.status_code == 200
-    all_items_after = items_response.json()
-    docs_after = len(
-        [
-            item
-            for item in all_items_after
-            if item.get("canonicalId", "").startswith("org:")
-            and ":knowledge:" in item.get("canonicalId", "")
-        ]
-    )
-    assert docs_after == docs_before + 4
-
-    # Verify all doc IDs are valid and point to existing items
+    # Verify all doc IDs are valid and point to existing items in the new org.
+    auth_client.headers.update({"X-Org-Id": org_data["id"]})
     for doc_id_key in ["generalDocId", "userDocId", "logDocId", "agentDocId"]:
         doc_id = org_data[doc_id_key]
         assert doc_id is not None
@@ -150,48 +153,11 @@ def test_org_creation_rollback_on_failure(auth_client):
         assert doc_response.status_code == 200
 
     # This proves atomicity: org + 4 docs were created in a single transaction.
-    # If any document creation had failed, the entire transaction would have
-    # rolled back and neither org nor any documents would exist.
 
 
 def test_patch_file_content(auth_client):
     """Test PATCH endpoint replaces file content and updates metadata."""
-    # Create a file first via items endpoint
-    item_payload = {
-        "canonicalId": f"test:file:{uuid.uuid4().hex}",
-        "source": "user",
-        "item": {
-            "@type": "DigitalDocument",
-            "name": "Test File",
-            "encodingFormat": "text/plain",
-            "text": "original content",
-        },
-    }
-    create_response = auth_client.post("/items", json=item_payload)
-    assert create_response.status_code == 201
-    item_data = create_response.json()
-    item_id = item_data["itemId"]
-
-    # Create a file record for this item
-    upload_response = auth_client.post(
-        "/files/create",
-        json={
-            "itemId": item_id,
-            "filename": "test.txt",
-            "size": len("original content"),
-            "mimeType": "text/plain",
-        },
-    )
-    assert upload_response.status_code == 201
-    file_data = upload_response.json()
-    file_id = file_data["fileId"]
-
-    # Complete the upload
-    complete_response = auth_client.post(
-        f"/files/{file_id}/complete",
-        json={"contentHash": "dummy-hash", "extractedText": "original content"},
-    )
-    assert complete_response.status_code == 200
+    file_id = _upload_text_file(auth_client, "test.txt", "original content")
 
     # Now patch the content
     new_content = "replaced content"
@@ -201,52 +167,17 @@ def test_patch_file_content(auth_client):
     )
     assert patch_response.status_code == 200
     patch_data = patch_response.json()
-    assert patch_data["content"] == new_content
+    assert patch_data["text"] == new_content
 
     # Verify content was replaced by getting it
     get_response = auth_client.get(f"/files/{file_id}/content")
     assert get_response.status_code == 200
-    assert get_response.text == new_content
+    assert get_response.json()["text"] == new_content
 
 
 def test_append_file_content(auth_client):
     """Test POST append endpoint preserves existing content and adds new."""
-    # Create a file first via items endpoint
-    item_payload = {
-        "canonicalId": f"test:file:{uuid.uuid4().hex}",
-        "source": "user",
-        "item": {
-            "@type": "DigitalDocument",
-            "name": "Test File",
-            "encodingFormat": "text/plain",
-            "text": "original content",
-        },
-    }
-    create_response = auth_client.post("/items", json=item_payload)
-    assert create_response.status_code == 201
-    item_data = create_response.json()
-    item_id = item_data["itemId"]
-
-    # Create a file record for this item
-    upload_response = auth_client.post(
-        "/files/create",
-        json={
-            "itemId": item_id,
-            "filename": "test.txt",
-            "size": len("original content"),
-            "mimeType": "text/plain",
-        },
-    )
-    assert upload_response.status_code == 201
-    file_data = upload_response.json()
-    file_id = file_data["fileId"]
-
-    # Complete the upload
-    complete_response = auth_client.post(
-        f"/files/{file_id}/complete",
-        json={"contentHash": "dummy-hash", "extractedText": "original content"},
-    )
-    assert complete_response.status_code == 200
+    file_id = _upload_text_file(auth_client, "test.txt", "original content")
 
     # Now append content
     appended_text = "\nappended content"
@@ -256,12 +187,12 @@ def test_append_file_content(auth_client):
     )
     assert append_response.status_code == 200
     append_data = append_response.json()
-    assert append_data["content"] == "original content" + appended_text
+    assert append_data["text"] == "original content" + appended_text
 
     # Verify content was appended by getting it
     get_response = auth_client.get(f"/files/{file_id}/content")
     assert get_response.status_code == 200
-    assert get_response.text == "original content" + appended_text
+    assert get_response.json()["text"] == "original content" + appended_text
 
 
 def test_content_endpoints_require_org_access(client):
@@ -289,39 +220,7 @@ def test_content_endpoints_require_org_access(client):
 
     # Create a file as user 1
     client.headers.update({"X-Org-Id": org1_id})
-    item_payload = {
-        "canonicalId": f"test:file:{uuid.uuid4().hex}",
-        "source": "user",
-        "item": {
-            "@type": "DigitalDocument",
-            "name": "User 1 File",
-            "encodingFormat": "text/plain",
-            "text": "user 1 content",
-        },
-    }
-    create_response = client.post("/items", json=item_payload)
-    assert create_response.status_code == 201
-    item_data = create_response.json()
-    item_id = item_data["itemId"]
-
-    upload_response = client.post(
-        "/files/create",
-        json={
-            "itemId": item_id,
-            "filename": "user1.txt",
-            "size": len("user 1 content"),
-            "mimeType": "text/plain",
-        },
-    )
-    assert upload_response.status_code == 201
-    file_data = upload_response.json()
-    file_id = file_data["fileId"]
-
-    complete_response = client.post(
-        f"/files/{file_id}/complete",
-        json={"contentHash": "dummy-hash", "extractedText": "user 1 content"},
-    )
-    assert complete_response.status_code == 200
+    file_id = _upload_text_file(client, "user1.txt", "user 1 content")
 
     # Register user 2
     response = client.post(
