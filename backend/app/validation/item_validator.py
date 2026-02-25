@@ -26,7 +26,6 @@ PERSON_ROLES = {"member", "founder", "accountant", "advisor", "interest"}
 # RDF Namespaces
 SCHEMA = Namespace("https://schema.org/")
 APP = Namespace("urn:app:property:")
-XSD = Namespace("http://www.w3.org/2001/XMLSchema#")
 
 
 def _normalize_type(raw: object) -> str:
@@ -35,6 +34,9 @@ def _normalize_type(raw: object) -> str:
     if isinstance(raw, list) and raw and isinstance(raw[0], str):
         return raw[0]
     return ""
+
+
+RDF_TYPE = URIRef("http://www.w3.org/1999/02/22-rdf-syntax-ns#type")
 
 
 def _as_text(value: object) -> str:
@@ -70,7 +72,6 @@ def _item_to_rdf_graph(item: dict) -> Graph:
     g = Graph()
     g.bind("schema", SCHEMA)
     g.bind("app", APP)
-    g.bind("xsd", XSD)
 
     # Create a subject node for the item
     subject = URIRef("urn:item:1")
@@ -80,22 +81,22 @@ def _item_to_rdf_graph(item: dict) -> Graph:
     if item_type:
         # Map to schema.org class
         if item_type == "Action" or item_type.endswith(":Action"):
-            g.add((subject, URIRef("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"), SCHEMA.Action))
+            g.add((subject, RDF_TYPE, SCHEMA.Action))
         elif item_type == "ReadAction":
-            g.add((subject, URIRef("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"), SCHEMA.Action))
+            g.add((subject, RDF_TYPE, SCHEMA.Action))
         elif item_type == "Project":
-            g.add((subject, URIRef("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"), SCHEMA.Project))
+            g.add((subject, RDF_TYPE, SCHEMA.Project))
         elif item_type == "Person":
-            g.add((subject, URIRef("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"), SCHEMA.Person))
+            g.add((subject, RDF_TYPE, SCHEMA.Person))
         elif item_type == "CreativeWork":
-            g.add((subject, URIRef("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"), SCHEMA.CreativeWork))
+            g.add((subject, RDF_TYPE, SCHEMA.CreativeWork))
         elif item_type == "DigitalDocument":
-            g.add((subject, URIRef("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"), SCHEMA.DigitalDocument))
+            g.add((subject, RDF_TYPE, SCHEMA.DigitalDocument))
 
     # Add schema:name if present
     name = item.get("name")
     if name and isinstance(name, str) and name.strip():
-        g.add((subject, SCHEMA.name, Literal(name.strip(), datatype=XSD.string)))
+        g.add((subject, SCHEMA.name, Literal(name.strip())))
 
     # Add additionalProperty values as direct properties
     props = item.get("additionalProperty")
@@ -106,13 +107,13 @@ def _item_to_rdf_graph(item: dict) -> Graph:
                 value = entry.get("value")
 
                 if prop_id == "app:bucket" and isinstance(value, str):
-                    g.add((subject, APP.bucket, Literal(value, datatype=XSD.string)))
+                    g.add((subject, APP.bucket, Literal(value)))
                 elif prop_id == "app:rawCapture" and isinstance(value, str):
-                    g.add((subject, APP.rawCapture, Literal(value, datatype=XSD.string)))
+                    g.add((subject, APP.rawCapture, Literal(value)))
                 elif prop_id == "app:orgRef" and value is not None:
-                    g.add((subject, APP.orgRef, Literal(str(value), datatype=XSD.string)))
+                    g.add((subject, APP.orgRef, Literal(str(value))))
                 elif prop_id == "app:orgRole" and isinstance(value, str):
-                    g.add((subject, APP.orgRole, Literal(value, datatype=XSD.string)))
+                    g.add((subject, APP.orgRole, Literal(value)))
 
     return g
 
@@ -131,10 +132,21 @@ def validate_item_create(item: dict) -> list[dict[str, object]]:
     """
     issues: list[dict[str, object]] = []
     bucket = _bucket(item)
+    item_type = _normalize_type(item.get("@type"))
+
+    # SHACL shapes target concrete classes, so we must enforce @type first.
+    if not item_type:
+        issues.append({
+            "source": "shacl",
+            "code": "TYPE_REQUIRED",
+            "field": "@type",
+            "message": "@type is required.",
+        })
+        return issues
 
     # SHACL validation using pyshacl
     try:
-        from app.validation.shacl_validator import validate_shacl
+        from .shacl_validator import validate_shacl
 
         data_graph = _item_to_rdf_graph(item)
         shacl_violations = validate_shacl(data_graph, abort_on_first=False)
@@ -157,7 +169,6 @@ def validate_item_create(item: dict) -> list[dict[str, object]]:
                 field = "additionalProperty.app:rawCapture"
 
             # Generate domain-specific error codes based on field and type
-            item_type = _normalize_type(item.get("@type"))
             if "name" in field and item_type == "Project":
                 code = "PROJECT_NAME_REQUIRED"
             elif "name" in field and item_type in {"CreativeWork", "DigitalDocument"}:
@@ -182,16 +193,6 @@ def validate_item_create(item: dict) -> list[dict[str, object]]:
     except ImportError:
         # Fallback to hardcoded validation if pyshacl not available
         logger.warning("pyshacl not available, using hardcoded validation")
-        item_type = _normalize_type(item.get("@type"))
-
-        if not item_type:
-            issues.append({
-                "source": "shacl",
-                "code": "TYPE_REQUIRED",
-                "field": "@type",
-                "message": "@type is required.",
-            })
-            return issues
 
         if item_type in {"Action", "ReadAction"} or item_type.endswith(":Action"):
             if bucket not in ACTION_BUCKETS:
@@ -250,7 +251,7 @@ def validate_item_create(item: dict) -> list[dict[str, object]]:
 
     # CEL rules using cel-python
     try:
-        from app.validation.cel_evaluator import evaluate_rules
+        from .cel_evaluator import evaluate_rules
 
         cel_context = {
             "operation": "create",
@@ -283,7 +284,7 @@ def validate_item_update(existing_item: dict, next_item: dict) -> list[dict[str,
 
     # CEL rules using cel-python
     try:
-        from app.validation.cel_evaluator import evaluate_rules
+        from .cel_evaluator import evaluate_rules
 
         # Determine operation type (triage if bucket changed, otherwise update)
         operation = "triage" if source_bucket != target_bucket else "update"
@@ -322,7 +323,10 @@ def validate_item_update(existing_item: dict, next_item: dict) -> list[dict[str,
                     "code": "TRIAGE_INBOX_TARGET_INVALID",
                     "field": "additionalProperty.app:bucket",
                     "rule": "triage.inbox.targets",
-                    "message": "Inbox items can only move to next,waiting,someday,calendar,reference.",
+                    "message": (
+                        "Inbox items can only move to "
+                        "next,waiting,someday,calendar,reference."
+                    ),
                 }
             )
 

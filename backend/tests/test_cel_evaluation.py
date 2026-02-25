@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from unittest.mock import mock_open, patch
 
 import pytest
@@ -36,7 +35,7 @@ class TestLoadRules:
         assert rules1 is rules2  # Same object reference
 
     @patch("app.validation.cel_evaluator._compiled_rules", None)
-    @patch("builtins.open", side_effect=FileNotFoundError("File not found"))
+    @patch("pathlib.Path.open", side_effect=FileNotFoundError("File not found"))
     def test_load_rules_missing_file_raises_error(self, mock_file):
         """Test that missing rules file raises RuntimeError."""
         # Reset the module cache to force reload
@@ -53,7 +52,7 @@ class TestLoadRules:
         app.validation.cel_evaluator._compiled_rules = None
 
         invalid_json = "{ not valid json }"
-        with patch("builtins.open", mock_open(read_data=invalid_json)):
+        with patch("pathlib.Path.open", mock_open(read_data=invalid_json)):
             with pytest.raises(RuntimeError, match="CEL rules JSON parsing failed"):
                 _load_rules()
 
@@ -71,7 +70,7 @@ class TestLoadRules:
             "expression": "invalid CEL syntax @#$%"
         }])
 
-        with patch("builtins.open", mock_open(read_data=invalid_rules)):
+        with patch("pathlib.Path.open", mock_open(read_data=invalid_rules)):
             with pytest.raises(RuntimeError, match="CEL rule compilation failed"):
                 _load_rules()
 

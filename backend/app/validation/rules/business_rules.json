@@ -2,7 +2,7 @@
   {
     "id": "triage.inbox.targets",
     "description": "Inbox items can only triage into actionable buckets.",
-    "when": "source.bucket == 'inbox'",
+    "when": "operation == 'triage' && source.bucket == 'inbox'",
     "expression": "target.bucket in ['next','waiting','someday','calendar','reference']"
   },
   {
@@ -14,7 +14,7 @@
   {
     "id": "item.bucket.enum",
     "description": "Bucket must be one of the known values.",
-    "when": "operation in ['create','triage']",
+    "when": "operation == 'triage' || (operation == 'create' && bucket != '')",
     "expression": "bucket in ['inbox','next','waiting','someday','calendar','reference','project','completed']"
   }
 ]

@@ -13,7 +13,6 @@ app:ActionShape a sh:NodeShape ;
   ] ;
   sh:property [
     sh:path app:rawCapture ;
-    sh:minCount 1 ;
     sh:datatype xsd:string
   ] .
 

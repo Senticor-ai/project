@@ -31,7 +31,7 @@ describe("validateWithShacl", () => {
       expect(issues.some((issue) => issue.field === "app:bucket")).toBe(true);
     });
 
-    it("rejects Action without rawCapture", () => {
+    it("accepts Action without rawCapture", () => {
       const item = {
         "@type": "schema:Action",
         "schema:name": "File taxes",
@@ -40,9 +40,7 @@ describe("validateWithShacl", () => {
         ],
       };
 
-      const issues = validateWithShacl(item);
-      expect(issues.length).toBeGreaterThan(0);
-      expect(issues.some((issue) => issue.field === "app:rawCapture")).toBe(true);
+      expect(validateWithShacl(item)).toEqual([]);
     });
 
     it("rejects Action with invalid bucket value", () => {
@@ -84,6 +82,15 @@ describe("validateWithShacl", () => {
       const item = {
         "@type": "schema:Project",
         "schema:name": "Tax preparation 2026",
+      };
+
+      expect(validateWithShacl(item)).toEqual([]);
+    });
+
+    it("accepts plain name field as schema:name", () => {
+      const item = {
+        "@type": "schema:Project",
+        name: "Tax preparation 2026",
       };
 
       expect(validateWithShacl(item)).toEqual([]);
@@ -290,9 +297,8 @@ describe("validateWithShacl", () => {
   describe("abortOnFirst parameter", () => {
     it("returns fewer errors when abortOnFirst=true (default)", () => {
       const item = {
-        "@type": "schema:Action",
-        "schema:name": "File taxes",
-        additionalProperty: [], // Missing both bucket and rawCapture
+        "@type": "schema:Person",
+        additionalProperty: [], // Missing name, orgRef, and orgRole
       };
 
       const issuesAbortFirst = validateWithShacl(item, true);
@@ -304,9 +310,8 @@ describe("validateWithShacl", () => {
 
     it("returns all errors when abortOnFirst=false", () => {
       const item = {
-        "@type": "schema:Action",
-        "schema:name": "File taxes",
-        additionalProperty: [], // Missing both bucket and rawCapture
+        "@type": "schema:Person",
+        additionalProperty: [], // Missing name, orgRef, and orgRole
       };
 
       const issues = validateWithShacl(item, false);
@@ -352,7 +357,14 @@ describe("validateWithShacl", () => {
       const item = {};
 
       const issues = validateWithShacl(item);
-      expect(Array.isArray(issues)).toBe(true);
+      expect(issues).toEqual([
+        {
+          source: "shacl",
+          code: "TYPE_REQUIRED",
+          message: "@type is required.",
+          field: "@type",
+        },
+      ]);
     });
 
     it("handles item without @type", () => {
@@ -361,7 +373,14 @@ describe("validateWithShacl", () => {
       };
 
       const issues = validateWithShacl(item);
-      expect(Array.isArray(issues)).toBe(true);
+      expect(issues).toEqual([
+        {
+          source: "shacl",
+          code: "TYPE_REQUIRED",
+          message: "@type is required.",
+          field: "@type",
+        },
+      ]);
     });
 
     it("handles malformed additionalProperty", () => {

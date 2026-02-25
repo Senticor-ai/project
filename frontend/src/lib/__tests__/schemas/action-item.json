@@ -65,7 +65,10 @@
           "title": "Value"
         }
       },
-      "required": ["propertyID", "value"],
+      "required": [
+        "propertyID",
+        "value"
+      ],
       "title": "PropertyValueModel",
       "type": "object"
     }
@@ -80,7 +83,11 @@
     },
     "@type": {
       "description": "schema.org Action (also accepts 'EmailMessage', 'ReadAction').",
-      "enum": ["Action", "EmailMessage", "ReadAction"],
+      "enum": [
+        "Action",
+        "EmailMessage",
+        "ReadAction"
+      ],
       "title": "@Type",
       "type": "string"
     },
@@ -211,7 +218,10 @@
       "title": "Object"
     }
   },
-  "required": ["@id", "@type"],
+  "required": [
+    "@id",
+    "@type"
+  ],
   "title": "ActionItemJsonLd",
   "type": "object"
 }

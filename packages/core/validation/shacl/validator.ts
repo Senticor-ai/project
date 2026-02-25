@@ -90,6 +90,18 @@ export function validateWithShacl(
   abortOnFirst = true,
 ): ValidationIssue[] {
   try {
+    const itemType = item["@type"];
+    if (itemType == null || (Array.isArray(itemType) && itemType.length === 0)) {
+      return [
+        {
+          source: "shacl",
+          code: "TYPE_REQUIRED",
+          message: "@type is required.",
+          field: "@type",
+        },
+      ];
+    }
+
     // Load shapes graph
     const shapes = loadShapes();
 
@@ -98,31 +110,28 @@ export function validateWithShacl(
     const itemNode = DataFactory.blankNode();
 
     // Add @type
-    const itemType = item["@type"];
-    if (itemType) {
-      const typeValue = Array.isArray(itemType) ? itemType[0] : itemType;
-      let typeUri = "";
-      if (typeof typeValue === "string") {
-        if (typeValue.startsWith("schema:")) {
-          // schema:Action -> https://schema.org/Action
-          typeUri = `https://schema.org/${typeValue.substring(7)}`;
-        } else if (typeValue.startsWith("http://") || typeValue.startsWith("https://")) {
-          // Already a full URI
-          typeUri = typeValue;
-        } else {
-          // Plain name like "Action" -> https://schema.org/Action
-          typeUri = `https://schema.org/${typeValue}`;
-        }
+    const typeValue = Array.isArray(itemType) ? itemType[0] : itemType;
+    let typeUri = "";
+    if (typeof typeValue === "string") {
+      if (typeValue.startsWith("schema:")) {
+        // schema:Action -> https://schema.org/Action
+        typeUri = `https://schema.org/${typeValue.substring(7)}`;
+      } else if (typeValue.startsWith("http://") || typeValue.startsWith("https://")) {
+        // Already a full URI
+        typeUri = typeValue;
+      } else {
+        // Plain name like "Action" -> https://schema.org/Action
+        typeUri = `https://schema.org/${typeValue}`;
       }
-      if (typeUri) {
-        dataStore.add(
-          DataFactory.quad(
-            itemNode,
-            DataFactory.namedNode("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"),
-            DataFactory.namedNode(typeUri),
-          ),
-        );
-      }
+    }
+    if (typeUri) {
+      dataStore.add(
+        DataFactory.quad(
+          itemNode,
+          DataFactory.namedNode("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"),
+          DataFactory.namedNode(typeUri),
+        ),
+      );
     }
 
     // Add direct properties (schema:name, etc.)
@@ -134,6 +143,8 @@ export function validateWithShacl(
       const predicate =
         key.startsWith("schema:")
           ? DataFactory.namedNode(`https://schema.org/${key.substring(7)}`)
+          : key === "name"
+            ? DataFactory.namedNode("https://schema.org/name")
           : DataFactory.namedNode(key);
 
       const objectValue = typeof value === "string" ? value : String(value ?? "");

@@ -75,7 +75,11 @@ def _parse_violation_report(report_graph: Graph, report_text: str) -> list[dict[
             message = str(row.message) if row.message else "Validation constraint violated"
 
             # Generate code from path or use generic code
-            code = f"SHACL_{path_str.upper()}_CONSTRAINT" if path_str != "item" else "SHACL_CONSTRAINT"
+            code = (
+                f"SHACL_{path_str.upper()}_CONSTRAINT"
+                if path_str != "item"
+                else "SHACL_CONSTRAINT"
+            )
 
             violations.append({
                 "source": "shacl",

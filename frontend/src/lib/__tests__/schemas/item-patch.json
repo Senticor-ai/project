@@ -65,7 +65,10 @@
           "title": "Value"
         }
       },
-      "required": ["propertyID", "value"],
+      "required": [
+        "propertyID",
+        "value"
+      ],
       "title": "PropertyValueModel",
       "type": "object"
     }

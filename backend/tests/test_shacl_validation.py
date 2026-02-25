@@ -7,7 +7,6 @@ from rdflib import Graph, Literal, Namespace, URIRef
 
 from app.validation.shacl_validator import (
     _load_shapes,
-    _parse_violation_report,
     validate_shacl,
 )
 
@@ -15,7 +14,6 @@ pytestmark = pytest.mark.unit
 
 SCHEMA = Namespace("https://schema.org/")
 APP = Namespace("urn:app:property:")
-XSD = Namespace("http://www.w3.org/2001/XMLSchema#")
 RDF = Namespace("http://www.w3.org/1999/02/22-rdf-syntax-ns#")
 
 
@@ -27,15 +25,14 @@ def _create_action_graph(
     g = Graph()
     g.bind("schema", SCHEMA)
     g.bind("app", APP)
-    g.bind("xsd", XSD)
 
     subject = URIRef("urn:item:1")
     g.add((subject, RDF.type, SCHEMA.Action))
 
     if bucket is not None:
-        g.add((subject, APP.bucket, Literal(bucket, datatype=XSD.string)))
+        g.add((subject, APP.bucket, Literal(bucket)))
     if raw_capture is not None:
-        g.add((subject, APP.rawCapture, Literal(raw_capture, datatype=XSD.string)))
+        g.add((subject, APP.rawCapture, Literal(raw_capture)))
 
     return g
 
@@ -45,13 +42,12 @@ def _create_project_graph(name: str | None = "Test Project") -> Graph:
     g = Graph()
     g.bind("schema", SCHEMA)
     g.bind("app", APP)
-    g.bind("xsd", XSD)
 
     subject = URIRef("urn:item:1")
     g.add((subject, RDF.type, SCHEMA.Project))
 
     if name is not None:
-        g.add((subject, SCHEMA.name, Literal(name, datatype=XSD.string)))
+        g.add((subject, SCHEMA.name, Literal(name)))
 
     return g
 
@@ -65,17 +61,16 @@ def _create_person_graph(
     g = Graph()
     g.bind("schema", SCHEMA)
     g.bind("app", APP)
-    g.bind("xsd", XSD)
 
     subject = URIRef("urn:item:1")
     g.add((subject, RDF.type, SCHEMA.Person))
 
     if name is not None:
-        g.add((subject, SCHEMA.name, Literal(name, datatype=XSD.string)))
+        g.add((subject, SCHEMA.name, Literal(name)))
     if org_ref is not None:
-        g.add((subject, APP.orgRef, Literal(org_ref, datatype=XSD.string)))
+        g.add((subject, APP.orgRef, Literal(org_ref)))
     if org_role is not None:
-        g.add((subject, APP.orgRole, Literal(org_role, datatype=XSD.string)))
+        g.add((subject, APP.orgRole, Literal(org_role)))
 
     return g
 
@@ -85,13 +80,12 @@ def _create_creative_work_graph(name: str | None = "Test Document") -> Graph:
     g = Graph()
     g.bind("schema", SCHEMA)
     g.bind("app", APP)
-    g.bind("xsd", XSD)
 
     subject = URIRef("urn:item:1")
     g.add((subject, RDF.type, SCHEMA.CreativeWork))
 
     if name is not None:
-        g.add((subject, SCHEMA.name, Literal(name, datatype=XSD.string)))
+        g.add((subject, SCHEMA.name, Literal(name)))
 
     return g
 
@@ -101,13 +95,12 @@ def _create_digital_document_graph(name: str | None = "Test PDF") -> Graph:
     g = Graph()
     g.bind("schema", SCHEMA)
     g.bind("app", APP)
-    g.bind("xsd", XSD)
 
     subject = URIRef("urn:item:1")
     g.add((subject, RDF.type, SCHEMA.DigitalDocument))
 
     if name is not None:
-        g.add((subject, SCHEMA.name, Literal(name, datatype=XSD.string)))
+        g.add((subject, SCHEMA.name, Literal(name)))
 
     return g
 
@@ -161,12 +154,11 @@ class TestValidateShaclAction:
         assert len(violations) > 0
         assert any(v["source"] == "shacl" for v in violations)
 
-    def test_action_missing_raw_capture_fails(self):
-        """Test that Action without rawCapture fails validation."""
+    def test_action_missing_raw_capture_passes(self):
+        """Test that Action without rawCapture still passes validation."""
         graph = _create_action_graph(bucket="inbox", raw_capture=None)
         violations = validate_shacl(graph)
-        assert len(violations) > 0
-        assert any(v["source"] == "shacl" for v in violations)
+        assert violations == []
 
     def test_action_invalid_bucket_fails(self):
         """Test that Action with invalid bucket fails validation."""
@@ -280,8 +272,8 @@ class TestAbortOnFirst:
 
     def test_abort_on_first_false_collects_all_violations(self):
         """Test that abort_on_first=False collects all violations."""
-        # Create an Action with multiple violations (no bucket, no rawCapture)
-        graph = _create_action_graph(bucket=None, raw_capture=None)
+        # Create a Person with multiple violations (no name, no orgRef, no orgRole)
+        graph = _create_person_graph(name=None, org_ref=None, org_role=None)
         violations = validate_shacl(graph, abort_on_first=False)
 
         # Should have multiple violations
@@ -289,8 +281,8 @@ class TestAbortOnFirst:
 
     def test_abort_on_first_true_stops_at_first_violation(self):
         """Test that abort_on_first=True stops at first violation."""
-        # Create an Action with multiple violations
-        graph = _create_action_graph(bucket=None, raw_capture=None)
+        # Create a Person with multiple violations
+        graph = _create_person_graph(name=None, org_ref=None, org_role=None)
         violations = validate_shacl(graph, abort_on_first=True)
 
         # Should have at least one violation (may stop early)
