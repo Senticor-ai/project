@@ -163,8 +163,7 @@ jobs:
       - name: Audit backend dependencies
         run: |
           cd backend
-          uv sync --quiet --all-groups --all-extras
-          uv run pip-audit
+          uvx pip-audit
 
   agents-lint:
     continue-on-error: true
