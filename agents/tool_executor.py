@@ -6,9 +6,10 @@ import asyncio
 import json
 import os
 import shlex
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+from pydantic import BaseModel
 
 from backend_client import AuthContext, CreatedItemRef
 from intent_contract import compile_intent_to_argv
@@ -17,8 +18,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 CORE_DIR = REPO_ROOT / "packages" / "core"
 
 
-@dataclass
-class ToolCallInput:
+class ToolCallInput(BaseModel):
     """Input from the frontend's accepted tool call."""
 
     name: str
@@ -59,8 +59,8 @@ def _with_required_cli_flags(argv: list[str], conversation_id: str) -> list[str]
         normalized.append("--json")
     if "--non-interactive" not in normalized:
         normalized.append("--non-interactive")
-    if "--yes" not in normalized:
-        normalized.append("--yes")
+    if "--approve" not in normalized:
+        normalized.append("--approve")
 
     # Carry chat context for write capture metadata when supported.
     if (

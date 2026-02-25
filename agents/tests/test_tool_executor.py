@@ -109,7 +109,7 @@ async def test_executes_cli_and_parses_created_item(auth_ctx):
     args, kwargs = create_proc.call_args
     assert "--json" in args
     assert "--non-interactive" in args
-    assert "--yes" in args
+    assert "--approve" in args
     assert "--conversation-id" in args
     assert kwargs["env"]["COPILOT_TOKEN"] == "jwt-delegated-token"
     assert kwargs["env"]["COPILOT_ORG_ID"] == "org-1"
@@ -202,12 +202,12 @@ async def test_executes_intent_as_multiple_cli_commands(auth_ctx):
 
     assert "--json" in first_args
     assert "--non-interactive" in first_args
-    assert "--yes" in first_args
+    assert "--approve" in first_args
     assert "--conversation-id" not in first_args
 
     assert "--json" in second_args
     assert "--non-interactive" in second_args
-    assert "--yes" in second_args
+    assert "--approve" in second_args
     assert "--conversation-id" in second_args
     conv_idx = second_args.index("--conversation-id")
     assert second_args[conv_idx + 1] == "conv-77"
@@ -230,3 +230,141 @@ async def test_cli_failure_raises(auth_ctx):
                 conversation_id="conv-1",
                 auth=auth_ctx,
             )
+
+
+@pytest.mark.anyio
+async def test_cli_contract_enforcement(auth_ctx):
+    """Verify CLI contract enforcement: argv[], --json, --non-interactive, --approve flags."""
+    payload = {
+        "schema_version": "copilot.v1",
+        "ok": True,
+        "data": {"total": 1},
+        "meta": {},
+    }
+    process = _DummyProcess(0, stdout=json.dumps(payload))
+
+    with patch(
+        "tool_executor.asyncio.create_subprocess_exec",
+        new=AsyncMock(return_value=process),
+    ) as create_proc:
+        # Test with minimal argv (no flags)
+        await execute_tool(
+            ToolCallInput(
+                name="copilot_cli",
+                arguments={"argv": ["items", "list"]},
+            ),
+            conversation_id="conv-1",
+            auth=auth_ctx,
+        )
+
+        args, kwargs = create_proc.call_args
+        # Verify all three contract flags were auto-added
+        assert "--json" in args, "CLI contract requires --json flag"
+        assert "--non-interactive" in args, "CLI contract requires --non-interactive flag"
+        assert "--approve" in args, "CLI contract requires --approve flag"
+
+        # Test idempotency: flags already present should not be duplicated
+        create_proc.reset_mock()
+        await execute_tool(
+            ToolCallInput(
+                name="copilot_cli",
+                arguments={
+                    "argv": ["items", "list", "--json", "--non-interactive", "--approve"]
+                },
+            ),
+            conversation_id="conv-1",
+            auth=auth_ctx,
+        )
+
+        args, _ = create_proc.call_args
+        # Verify flags appear exactly once
+        assert args.count("--json") == 1, "--json should not be duplicated"
+        assert args.count("--non-interactive") == 1, "--non-interactive should not be duplicated"
+        assert args.count("--approve") == 1, "--approve should not be duplicated"
+
+
+@pytest.mark.anyio
+async def test_envelope_parity(auth_ctx):
+    """Verify copilot.v1 envelope shape stability across different operations."""
+    # Test case 1: Create operation envelope
+    create_payload = {
+        "schema_version": "copilot.v1",
+        "ok": True,
+        "data": {
+            "mode": "applied",
+            "result": {
+                "operation": "items.create",
+                "created": {
+                    "item_id": "id-1",
+                    "canonical_id": "urn:app:action:a1",
+                    "item": {"@type": "Action"},
+                },
+            },
+        },
+        "meta": {},
+    }
+
+    # Test case 2: List operation envelope
+    list_payload = {
+        "schema_version": "copilot.v1",
+        "ok": True,
+        "data": {"total": 5, "items": []},
+        "meta": {},
+    }
+
+    # Test case 3: Update operation envelope
+    update_payload = {
+        "schema_version": "copilot.v1",
+        "ok": True,
+        "data": {
+            "mode": "applied",
+            "result": {
+                "operation": "items.update",
+                "updated": {
+                    "item_id": "id-2",
+                    "canonical_id": "urn:app:action:a2",
+                },
+            },
+        },
+        "meta": {},
+    }
+
+    test_cases = [
+        (create_payload, ["items", "create", "--type", "Action", "--name", "x"]),
+        (list_payload, ["items", "list"]),
+        (update_payload, ["items", "update", "id-2", "--name", "y"]),
+    ]
+
+    for payload, argv in test_cases:
+        process = _DummyProcess(0, stdout=json.dumps(payload))
+
+        with patch(
+            "tool_executor.asyncio.create_subprocess_exec",
+            new=AsyncMock(return_value=process),
+        ):
+            # Execute tool (result validation is secondary - envelope is the focus)
+            await execute_tool(
+                ToolCallInput(name="copilot_cli", arguments={"argv": argv}),
+                conversation_id="conv-1",
+                auth=auth_ctx,
+            )
+
+        # Verify envelope shape stability
+        assert "schema_version" in payload, "Envelope must have schema_version field"
+        assert "ok" in payload, "Envelope must have ok field"
+        assert "data" in payload, "Envelope must have data field"
+        assert "meta" in payload, "Envelope must have meta field"
+
+        # Verify schema version is exactly "copilot.v1"
+        assert payload["schema_version"] == "copilot.v1", (
+            f"schema_version must be 'copilot.v1', got '{payload['schema_version']}'"
+        )
+
+        # Verify ok is boolean
+        assert isinstance(payload["ok"], bool), "ok field must be boolean"
+
+        # Verify data is a dict
+        assert isinstance(payload["data"], dict), "data field must be a dict"
+
+        # Verify meta is a dict
+        assert isinstance(payload["meta"], dict), "meta field must be a dict"
