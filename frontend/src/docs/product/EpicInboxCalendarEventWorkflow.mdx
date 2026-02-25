@@ -32,6 +32,7 @@ Users expect calendar sync to behave as a single, reliable system:
 2. Events visible in Project should be actionable (accept/decline/tentative, reschedule, delete).
 3. Changes made in Project should propagate back to Google Calendar (when the source event is Google-managed and permissions allow).
 4. Inbox-to-calendar triage should create true events, not pseudo-calendar actions.
+5. Time-sensitive email + calendar context should proactively surface Copilot proposals with browser notifications and confirmation-required execution.
 
 ## User Story
 
@@ -46,6 +47,7 @@ Users expect calendar sync to behave as a single, reliable system:
 5. Support project filtering and project association/disassociation from both views.
 6. Support in-product event actions that propagate to Google when applicable.
 7. Define robust error/retry/permission behavior so users can trust sync.
+8. Ensure urgent Copilot proposal flows are visible and executable end-to-end from browser alert to Google+email writeback.
 
 ## Scope
 
@@ -66,6 +68,11 @@ Users expect calendar sync to behave as a single, reliable system:
   - Decline
   - Reschedule
   - Delete
+- Copilot proposal automation for urgent workflows:
+  - meeting reschedule requests close to event time
+  - personal pickup/errand requests
+- Browser alert for urgent proposals, with in-app fallback when notification permission is unavailable.
+- Confirmation-required execution for all Copilot write actions.
 - Google propagation behavior for those actions (subject to permissions/source).
 - Migration/compat logic for existing calendar `Action` items.
 - Telemetry, audit, and test coverage for critical flows.
@@ -100,8 +107,50 @@ Users expect calendar sync to behave as a single, reliable system:
    - Removing project links does not move event out of calendar; it only updates association metadata.
 8. Existing calendar `Action` records:
    - One-time migration + compatibility fallback during rollout.
+9. Copilot write safety:
+   - all Copilot-generated write actions are proposal-first and require explicit user confirmation.
 
 ## End-to-end functional specification
+
+### FR-0: Copilot proposal trigger and urgency contract
+
+The system must generate proposal candidates from new email and calendar context without requiring manual "generate proposals" action in normal use.
+
+Trigger sources:
+
+1. new synced Gmail message
+2. relevant calendar event updates (time/attendee changes)
+
+Proposal classes in scope:
+
+- `Proposal.RescheduleMeeting`
+- `Proposal.PersonalRequest`
+
+Urgency criteria (MVP defaults, configurable):
+
+- event-linked proposal where target event starts within next `4 hours`, or
+- classifier marks request as urgent/time-critical.
+
+Notification behavior:
+
+- For urgent proposals, show browser notification (if permission granted).
+- If browser notification permission is denied/not granted, show in-app high-priority alert.
+- Notification click opens the proposal review surface with suggested actions preloaded.
+
+Safety and dedupe:
+
+- Same source email + proposal type must not produce duplicate pending proposals.
+- Each proposal remains confirmation-required before any Google Calendar or Gmail write is executed.
+
+Reference scenario (must pass E2E):
+
+1. User has a 4:00 PM meeting on calendar.
+2. At 3:00 PM, an email arrives from the same participant asking to move by 30 minutes.
+3. Copilot correlates email + event and creates `Proposal.RescheduleMeeting`.
+4. User receives browser alert.
+5. User opens proposal and confirms.
+6. System updates calendar event (+30 min), sends reply email confirming the move, and persists audit log.
+7. Updated event state is reflected in Project and propagated to Google Calendar.
 
 ### FR-1: Enable calendar sync -> visibility contract
 
@@ -260,6 +309,160 @@ Implementation note:
 
 - Backend may internally reuse existing `items` and `google_calendar_api` modules; this contract is about behavior and payload semantics.
 
+### Proposal automation + notification integration
+
+- Existing proposal endpoints (`/email/proposals`, `/email/proposals/generate`, confirm/dismiss) remain source of truth for proposal entities.
+- Proposal generation is invoked automatically from sync/update workflows for new candidate events/messages.
+- Frontend monitors pending proposals and issues browser notification for newly created urgent proposals.
+- Notification payload includes:
+  - proposal type label
+  - counterpart (sender/attendee)
+  - target event time
+  - recommended action summary
+- Clicking notification deep-links to proposal review UI.
+
+## Technical specification
+
+### TS-1: Wake-up and event propagation model
+
+Use existing outbox/event infrastructure as the canonical wake-up path:
+
+1. Persist domain event in `outbox_events`.
+2. Emit Postgres `pg_notify` on configured outbox channel.
+3. Worker process wakes via `LISTEN/NOTIFY` and processes event with near-zero idle latency.
+
+Event types added for this epic:
+
+- `proposal_candidate_detected`
+- `proposal_created`
+- `proposal_urgent_created`
+- `proposal_confirmed`
+- `proposal_dismissed`
+
+This keeps proposal automation aligned with existing worker architecture and avoids introducing a parallel trigger bus.
+
+### TS-2: How the agent learns about new urgent context
+
+Decision:
+
+- Agent container does not connect directly to Postgres for wake-ups.
+- Backend owns DB connections and emits an SSE stream for agent/runtime consumers.
+
+New SSE stream (backend):
+
+- `GET /notifications/stream`
+- event types: `proposal_created`, `proposal_urgent_created`, `proposal_updated`
+- payload includes `event_id`, `proposal_id`, `proposal_type`, `urgency`, `created_at`, `target_user_id`, deep-link URL
+
+Agent wake behavior:
+
+- Agent runtime subscribes to SSE stream.
+- On urgent proposal events, agent can fetch proposal details and prepare follow-up suggestions.
+- Execution remains confirmation-gated; no autonomous write action.
+
+### TS-3: CLI support for wake + notification workflows
+
+CLI additions (copilot CLI):
+
+1. `notifications watch --sse`
+   - subscribes to `/notifications/stream`
+   - machine-readable output for automation (`--json`)
+2. `notifications send --title ... --body ... [--url ...] [--target-user-id ...]`
+   - enqueues notification through backend notification API
+   - usable by human operator, agent tool flow, and automation scripts
+3. `proposals watch [--urgent-only]`
+   - convenience wrapper for urgent proposal stream consumption
+
+Requirement:
+
+- Agent-triggered and CLI-triggered notifications must use the same backend envelope and delivery pipeline as system-generated urgent proposal alerts.
+
+### TS-4: Unified notification envelope
+
+Introduce shared notification payload contract used by push, SSE, and in-app UI:
+
+```json
+{
+  "event_id": "uuid",
+  "kind": "proposal_urgent",
+  "severity": "info|warning|critical",
+  "title": "Urgent: meeting update suggested",
+  "body": "Alex requested moving your 4:00 PM meeting by 30 minutes.",
+  "url": "/settings/email?proposal=...",
+  "proposal_id": "uuid",
+  "target_user_id": "uuid",
+  "created_at": "ISO-8601"
+}
+```
+
+All producers (worker, agent, CLI, API route) must emit this schema.
+
+### TS-5: Browser + in-window notification integration
+
+Frontend `NotificationOrchestrator` (new app-level module) behavior:
+
+1. Consume SSE notifications while app is open.
+2. Always create an in-window notification entry (in-app source of truth).
+3. Trigger toast via existing `ToastProvider` for urgent events.
+4. Trigger browser `Notification` when permission is granted.
+5. Deduplicate by `event_id` so one event does not show duplicate toast/browser alerts.
+
+Focus rules:
+
+- If tab is visible/focused: show in-window notification + toast; browser notification optional (configurable, default off).
+- If tab is hidden/background: show browser notification plus in-window notification entry.
+- If permission denied: skip browser notification, keep in-window notification + toast.
+
+### TS-6: Notification storage and read model
+
+Add `notification_events` table for in-app feed and SSE replay cursoring:
+
+- `event_id` (PK)
+- `org_id`
+- `target_user_id`
+- `kind`
+- `severity`
+- `payload` (JSONB)
+- `created_at`
+- `read_at`
+
+`push_outbox` remains delivery queue for web push transport.
+`notification_events` is the user-facing read model and SSE source.
+
+### TS-7: Security and tenancy
+
+- SSE stream and notification queries are user/org scoped.
+- CLI watch/send commands require authenticated user session.
+- Agent runtime receives delegated token scoped to current user+org.
+- Notification payload must never include OAuth tokens or raw provider secrets.
+
+### TS-8: Busy-agent delivery guarantees (no missed events)
+
+Guarantee objective:
+
+- New email/calendar events are never dropped when agent runtime is busy with another task.
+
+Mechanism:
+
+1. On trigger, persist a durable candidate row before agent processing:
+   - table: `proposal_candidates` (new)
+   - status lifecycle: `queued -> processing -> completed | failed | dead_lettered`
+2. Scheduler claims work via lease (not by direct wake-only push):
+   - claim query uses `FOR UPDATE SKIP LOCKED`
+   - claimed rows set `lease_expires_at`
+3. If agent is busy, rows remain `queued` until capacity is available.
+4. If agent crashes or hangs, expired lease rows are automatically re-queued.
+5. Deduplication key prevents duplicate candidate work:
+   - `(source_message_id, proposal_type, target_event_id)`
+6. Urgent user notification is emitted when candidate/proposal is persisted, not when agent finishes.
+7. Periodic reconciliation pass re-scans recent Gmail history + calendar changes and re-enqueues missing candidates.
+8. After max attempts, move to dead letter with operator-visible diagnostics.
+
+Operational controls:
+
+- Queue depth metric, lease-timeout metric, retry-count metric, dead-letter metric.
+- Alert on sustained queue age and dead-letter growth.
+
 ### Writeback execution model
 
 - Synchronous attempt on user action for immediate feedback.
@@ -286,6 +489,18 @@ Mandatory controls in event detail panel:
 - Reschedule (date/time editor)
 - Delete
 - Project links editor
+
+### Urgent proposal alerts
+
+- Browser notification title format:
+  - `Urgent: meeting update suggested`
+  - `Urgent: personal request action suggested`
+- Browser notification body includes short reason + timing context.
+- Alert click opens proposal card with:
+  - why this was triggered
+  - suggested calendar change
+  - draft email reply
+  - confirm / dismiss controls
 
 ### State indicators
 
@@ -329,6 +544,10 @@ Migration behavior:
 Track:
 
 - `% calendar events visible in UI vs synced in backend` (consistency ratio)
+- proposal auto-generation rate (per new email/event)
+- urgent proposal notification delivery rate
+- urgent proposal open-through rate
+- urgent proposal confirm-through rate
 - RSVP write success rate
 - Reschedule write success rate
 - Delete write success rate
@@ -351,6 +570,16 @@ Alert thresholds:
 - [ ] User can delete writable events in Project and deletion propagates to Google.
 - [ ] Non-writable events show correct disabled states and explanatory feedback.
 - [ ] Local and provider sync states are visible (`Synced`, `Saving`, `Sync failed`, `Local only`).
+- [ ] Copilot proposal generation is automatically triggered by new email/event sync signals (no manual generate step required for normal flow).
+- [ ] Urgent proposals generate browser notifications (or in-app high-priority fallback when notification permission is unavailable).
+- [ ] Urgent proposal pipeline uses unified notification envelope and deduplicates by `event_id`.
+- [ ] Agent runtime can be woken via backend SSE notification stream without direct Postgres access.
+- [ ] CLI supports stream watching and notification send commands via the same backend notification pipeline.
+- [ ] Busy agent does not cause missed proposal candidates; queued work is processed after capacity returns.
+- [ ] Lease timeout recovers stuck agent tasks and re-queues candidate processing automatically.
+- [ ] Dead-lettered candidate tasks are visible with error diagnostics and retry metadata.
+- [ ] Confirming urgent reschedule proposal updates Google Calendar and sends confirmation email reply.
+- [ ] Confirming urgent personal-request proposal performs mapped calendar/email actions with audit log.
 - [ ] Existing calendar `Action` items are migrated (or compatibly rendered) without data loss.
 - [ ] Audit logs capture all provider write attempts and outcomes.
 
@@ -367,6 +596,13 @@ Alert thresholds:
 
 - initial backfill horizon behavior (today to +365 days)
 - incremental sync token lifecycle
+- proposal auto-generation trigger on new email/event updates
+- outbox wakeup behavior for proposal events (`LISTEN/NOTIFY`)
+- SSE notification stream filtering, auth, and replay cursor behavior
+- busy-agent queue lifecycle (`queued/processing/completed/failed/dead_lettered`)
+- lease expiry and automatic requeue behavior
+- dedupe key correctness for repeated provider events
+- reconciliation job catches missed triggers and re-enqueues candidates
 - rsvp/reschedule/delete provider call mapping + error handling
 - permission matrix (owner/writer/reader/freeBusyReader)
 - idempotency and conflict behavior
@@ -375,6 +611,8 @@ Alert thresholds:
 
 - list/grid mode parity for action controls
 - sync badge states
+- urgent proposal browser notification and in-app fallback behavior
+- dedupe behavior across SSE + browser notification + toast (single user-visible alert per `event_id`)
 - project filter behavior with multi-project events
 - write failure and retry UX
 
@@ -385,6 +623,8 @@ Alert thresholds:
 - accept/decline/tentative propagate
 - reschedule propagate and re-render
 - delete propagate and item removed/archived
+- urgent reschedule scenario: 3:00 PM inbound email for 4:00 PM meeting -> browser alert -> user confirm -> calendar + email writeback
+- urgent personal request scenario: browser alert -> user confirm -> expected write actions executed and audited
 
 ## Delivery phases
 
@@ -393,11 +633,13 @@ Alert thresholds:
 - event schema fields and migration plan
 - endpoint contracts and error semantics
 - permission and action matrix implementation
+- proposal trigger + urgency criteria lock
 
 ### Phase 2: Backend write path + sync visibility
 
 - event query endpoint for calendar views
 - RSVP/reschedule/delete writeback pipeline
+- proposal auto-generation hookup in sync flows
 - audit + metrics + retries
 
 ### Phase 3: Frontend calendar surfaces
@@ -405,6 +647,7 @@ Alert thresholds:
 - list/grid mode with shared event detail panel
 - project filter + association editor
 - sync state badges and degraded-state UX
+- urgent proposal browser/in-app alert + deep-link review flow
 
 ### Phase 4: Rollout and hardening
 

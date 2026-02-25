@@ -51,6 +51,7 @@ from .routes import (
     files,
     imports,
     items,
+    notifications,
     orgs,
     push,
     schemas,
@@ -347,6 +348,7 @@ app.include_router(assertions.router)
 app.include_router(files.router)
 app.include_router(orgs.router)
 app.include_router(push.router)
+app.include_router(notifications.router)
 app.include_router(schemas.router)
 app.include_router(search.router)
 app.include_router(chat_router)

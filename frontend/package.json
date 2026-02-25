@@ -5,11 +5,11 @@
   "license": "EUPL-1.2",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "rm -rf node_modules/.vite/deps node_modules/.vite/deps_temp_* 2>/dev/null || true && vite --force",
     "dev:stack": "bash ../scripts/dev-stack.sh",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "storybook": "storybook dev -p 6006",
+    "storybook": "storybook dev --host ${PROJECT_PREFIX:-project}.localhost -p 6006",
     "build-storybook": "storybook build",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",

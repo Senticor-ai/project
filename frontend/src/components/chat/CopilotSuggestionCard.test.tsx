@@ -7,6 +7,7 @@ import type {
   CreateActionSuggestion,
   CreateReferenceSuggestion,
   RenderCvSuggestion,
+  CopilotCliSuggestion,
 } from "@/model/chat-types";
 import type { CanonicalId } from "@/model/canonical-id";
 
@@ -214,6 +215,66 @@ describe("CopilotSuggestionCard", () => {
       expect(
         screen.getByText("Aus Markdown-Referenz rendern"),
       ).toBeInTheDocument();
+    });
+  });
+
+  describe("copilot_cli suggestion", () => {
+    it("renders human readable summary with expandable technical details", () => {
+      const cliSuggestion: CopilotCliSuggestion = {
+        type: "copilot_cli",
+        argv: [
+          "projects",
+          "actions",
+          "update",
+          "urn:app:action:019c5293-e445-72ff-9dff-d19e5b24aead",
+          "--project-id",
+          "urn:app:project:c16ebac6-a5ca-41ff-97db-567e67b5c7e3",
+          "--name",
+          "Steuerberater kontaktieren",
+          "--apply",
+        ],
+      };
+
+      render(
+        <CopilotSuggestionCard
+          suggestion={cliSuggestion}
+          status="pending"
+          onAccept={vi.fn()}
+          onDismiss={vi.fn()}
+        />,
+      );
+
+      expect(screen.getByText("Projektaktion aktualisieren")).toBeInTheDocument();
+      expect(
+        screen.getByText("Neuer Titel: Steuerberater kontaktieren"),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Technische Details")).toBeInTheDocument();
+      expect(
+        screen.getByText(/projects actions update urn:app:action:/i),
+      ).toBeInTheDocument();
+    });
+
+    it("renders readable intent fallback when argv is missing", () => {
+      const cliSuggestion: CopilotCliSuggestion = {
+        type: "copilot_cli",
+        intent: {
+          schemaVersion: "copilot.intent.v0",
+          kind: "weekly_review_plan",
+        },
+      };
+
+      render(
+        <CopilotSuggestionCard
+          suggestion={cliSuggestion}
+          status="pending"
+          onAccept={vi.fn()}
+          onDismiss={vi.fn()}
+        />,
+      );
+
+      expect(screen.getByText("Copilot-Intent ausführen")).toBeInTheDocument();
+      expect(screen.getByText("Intent: weekly review plan")).toBeInTheDocument();
+      expect(screen.getByText("Technische Details")).toBeInTheDocument();
     });
   });
 

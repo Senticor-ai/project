@@ -19,6 +19,11 @@ from ..outbox import enqueue_event
 from . import gmail_api
 from .calendar_sync import run_calendar_sync
 from .gmail_oauth import get_valid_gmail_token
+from .proposals import (
+    enqueue_calendar_sync_candidate,
+    enqueue_candidates_for_email_items,
+    process_proposal_candidates,
+)
 from .transform import EmailMessage, build_email_item
 
 logger = logging.getLogger(__name__)
@@ -67,6 +72,39 @@ def _sync_calendar_if_enabled(
         result.calendar_errors += 1
         logger.warning(
             "Calendar sync failed for connection %s",
+            connection_id,
+            exc_info=True,
+        )
+
+
+def _run_proposal_pipeline(
+    *,
+    org_id: str,
+    user_id: str,
+    connection_id: str,
+    created_item_ids: list[str],
+    result: SyncResult,
+) -> None:
+    calendar_changed = (result.calendar_created + result.calendar_updated) > 0
+    try:
+        if created_item_ids:
+            enqueue_candidates_for_email_items(
+                org_id=org_id,
+                user_id=user_id,
+                connection_id=connection_id,
+                item_ids=created_item_ids,
+            )
+        if calendar_changed:
+            enqueue_calendar_sync_candidate(
+                org_id=org_id,
+                user_id=user_id,
+                connection_id=connection_id,
+            )
+        # Always try draining pending candidates to avoid backlog growth.
+        process_proposal_candidates(org_id=org_id, user_id=user_id, limit=10)
+    except Exception:  # noqa: BLE001
+        logger.warning(
+            "Proposal candidate pipeline failed for connection %s",
             connection_id,
             exc_info=True,
         )
@@ -302,10 +340,18 @@ def run_email_sync(
                 access_token=access_token,
                 result=result,
             )
+            _run_proposal_pipeline(
+                org_id=org_id,
+                user_id=user_id,
+                connection_id=connection_id,
+                created_item_ids=[],
+                result=result,
+            )
             return result
 
         # 5. Fetch full messages, transform, and upsert
         gmail_msg_ids_for_mark_read: list[str] = []
+        created_item_ids: list[str] = []
         result.synced = len(new_message_ids)
 
         with db_conn() as conn:
@@ -360,6 +406,7 @@ def run_email_sync(
 
                     if row:
                         result.created += 1
+                        created_item_ids.append(str(row["item_id"]))
                         gmail_msg_ids_for_mark_read.append(msg_id)
                     else:
                         result.skipped += 1
@@ -436,6 +483,13 @@ def run_email_sync(
             org_id=org_id,
             user_id=user_id,
             access_token=access_token,
+            result=result,
+        )
+        _run_proposal_pipeline(
+            org_id=org_id,
+            user_id=user_id,
+            connection_id=connection_id,
+            created_item_ids=created_item_ids,
             result=result,
         )
 

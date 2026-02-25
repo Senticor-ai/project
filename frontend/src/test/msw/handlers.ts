@@ -13,6 +13,7 @@ import type {
   ImportJobResponse,
   EmailConnectionResponse,
   EmailConnectionUpdateRequest,
+  EmailProposalResponse,
   OrgResponse,
 } from "@/lib/api-client";
 
@@ -463,6 +464,60 @@ export const emailHandlers = [
       created: 2,
       skipped: 1,
       errors: 0,
+    });
+  }),
+
+  http.get(`${API}/email/proposals`, () => {
+    return HttpResponse.json(store.emailProposals);
+  }),
+
+  http.post(`${API}/email/proposals/generate`, () => {
+    const pending = store.emailProposals.filter((p) => p.status === "pending");
+    if (pending.length === 0) {
+      const proposal: EmailProposalResponse = {
+        proposal_id: `proposal-${Date.now()}`,
+        proposal_type: "Proposal.RescheduleMeeting",
+        why: "Inbound email suggests a meeting should move by 30 minutes.",
+        confidence: "medium",
+        requires_confirmation: true,
+        suggested_actions: ["gcal_update_event", "gmail_send_reply"],
+        status: "pending",
+        created_at: new Date().toISOString(),
+      };
+      store.emailProposals = [proposal, ...store.emailProposals];
+    }
+    return HttpResponse.json(store.emailProposals);
+  }),
+
+  http.post(`${API}/email/proposals/:proposalId/confirm`, ({ params }) => {
+    const proposalId = params.proposalId as string;
+    const index = store.emailProposals.findIndex(
+      (proposal) => proposal.proposal_id === proposalId,
+    );
+    if (index === -1) {
+      return HttpResponse.json({ detail: "Not found" }, { status: 404 });
+    }
+    const proposal = store.emailProposals[index]!;
+    store.emailProposals[index] = { ...proposal, status: "confirmed" };
+    return HttpResponse.json({
+      proposal_id: proposalId,
+      status: "confirmed",
+    });
+  }),
+
+  http.post(`${API}/email/proposals/:proposalId/dismiss`, ({ params }) => {
+    const proposalId = params.proposalId as string;
+    const index = store.emailProposals.findIndex(
+      (proposal) => proposal.proposal_id === proposalId,
+    );
+    if (index === -1) {
+      return HttpResponse.json({ detail: "Not found" }, { status: 404 });
+    }
+    const proposal = store.emailProposals[index]!;
+    store.emailProposals[index] = { ...proposal, status: "dismissed" };
+    return HttpResponse.json({
+      proposal_id: proposalId,
+      status: "dismissed",
     });
   }),
 

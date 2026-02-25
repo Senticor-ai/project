@@ -610,6 +610,22 @@ export type EmailSyncResponse = {
   calendar_errors?: number;
 };
 
+export type EmailProposalResponse = {
+  proposal_id: string;
+  proposal_type: string;
+  why: string;
+  confidence: string;
+  requires_confirmation: boolean;
+  suggested_actions: string[];
+  status: string;
+  created_at: string;
+};
+
+export type EmailProposalDecisionResponse = {
+  proposal_id: string;
+  status: string;
+};
+
 export type EmailConnectionCalendarResponse = {
   calendar_id: string;
   summary: string;
@@ -662,10 +678,85 @@ export const EmailApi = {
       method: "POST",
     }),
 
+  listProposals: () => request<EmailProposalResponse[]>("/email/proposals"),
+
+  generateProposals: () =>
+    request<EmailProposalResponse[]>("/email/proposals/generate", {
+      method: "POST",
+    }),
+
+  confirmProposal: (proposalId: string) =>
+    request<EmailProposalDecisionResponse>(
+      `/email/proposals/${proposalId}/confirm`,
+      {
+        method: "POST",
+      },
+    ),
+
+  dismissProposal: (proposalId: string) =>
+    request<EmailProposalDecisionResponse>(
+      `/email/proposals/${proposalId}/dismiss`,
+      {
+        method: "POST",
+      },
+    ),
+
   disconnect: (id: string) =>
     request<EmailConnectionResponse>(`/email/connections/${id}`, {
       method: "DELETE",
     }),
+};
+
+// ---------------------------------------------------------------------------
+// Notifications API
+// ---------------------------------------------------------------------------
+
+export type NotificationEventResponse = {
+  event_id: string;
+  kind: string;
+  title: string;
+  body: string;
+  url: string | null;
+  payload: Record<string, unknown>;
+  created_at: string;
+  read_at?: string | null;
+};
+
+export type NotificationSendRequest = {
+  kind?: string;
+  title: string;
+  body: string;
+  url?: string | null;
+  payload?: Record<string, unknown>;
+  target_user_id?: string;
+};
+
+export const NotificationsApi = {
+  list: (params?: { cursor?: string; limit?: number }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.cursor) searchParams.set("cursor", params.cursor);
+    if (params?.limit) searchParams.set("limit", String(params.limit));
+    const qs = searchParams.toString();
+    return request<NotificationEventResponse[]>(
+      `/notifications${qs ? `?${qs}` : ""}`,
+    );
+  },
+
+  send: (payload: NotificationSendRequest) =>
+    request<NotificationEventResponse>("/notifications/send", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  streamUrl: (params?: { cursor?: string; pollSeconds?: number }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.cursor) searchParams.set("cursor", params.cursor);
+    if (params?.pollSeconds) {
+      searchParams.set("poll_seconds", String(params.pollSeconds));
+    }
+    const qs = searchParams.toString();
+    return `${API_BASE_URL}/notifications/stream${qs ? `?${qs}` : ""}`;
+  },
 };
 
 // ---------------------------------------------------------------------------

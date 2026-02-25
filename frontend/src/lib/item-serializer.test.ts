@@ -1633,6 +1633,11 @@ describe("fromJsonLd", () => {
       expect(entry.duration).toBe(30);
       expect(entry.isAllDay).toBe(false);
       expect(entry.tags).toEqual(["meeting"]);
+      const actionLike = entry as unknown as ActionItem;
+      expect(actionLike.contexts).toEqual([]);
+      expect(actionLike.projectIds).toEqual([]);
+      expect(actionLike.isFocused).toBe(false);
+      expect(actionLike.scheduledDate).toBe("2026-03-01T09:00:00Z");
     });
 
     it("treats Event without time component as all-day", () => {
@@ -2241,14 +2246,27 @@ describe("buildTriagePatch", () => {
     expectPropertyValue(patch, "app:projectRefs", ["urn:app:project:p-1"]);
   });
 
-  it("maps date to schema.org startTime", () => {
+  it("maps calendar triage date to schema.org startDate and Event type", () => {
     const item = createInboxItem({ name: "Task" });
     const patch = buildTriagePatch(item, {
       targetBucket: "calendar",
       date: "2025-06-15",
     });
 
-    expect(patch.startTime).toBe("2025-06-15");
+    expect(patch["@type"]).toBe("Event");
+    expect(patch.startDate).toBe("2025-06-15");
+    expect(patch.startTime).toBeNull();
+    expectPropertyValue(patch, "app:bucket", "calendar");
+  });
+
+  it("throws when calendar triage has no date context", () => {
+    const item = createInboxItem({ name: "Task" });
+
+    expect(() =>
+      buildTriagePatch(item, {
+        targetBucket: "calendar",
+      }),
+    ).toThrow("Calendar triage requires a date");
   });
 
   it("produces @type CreativeWork when triaging to reference", () => {

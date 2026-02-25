@@ -12,6 +12,7 @@ import { useLocationState } from "./hooks/use-location-state";
 import { useImportJobs } from "./hooks/use-import-jobs";
 import { useImportJobToasts } from "./hooks/use-import-job-toasts";
 import { useIsMobile } from "./hooks/use-is-mobile";
+import { useProposalNotificationStream } from "./hooks/use-proposal-notification-stream";
 import { useAllItems, useProjects, useReferences } from "./hooks/use-items";
 import {
   EMAIL_CONNECTIONS_QUERY_KEY,
@@ -20,6 +21,12 @@ import {
   useDisconnectEmail,
   useUpdateEmailConnection,
 } from "./hooks/use-email-connections";
+import {
+  useEmailProposals,
+  useGenerateEmailProposals,
+  useConfirmEmailProposal,
+  useDismissEmailProposal,
+} from "./hooks/use-email-proposals";
 import {
   useAgentSettings,
   useUpdateAgentSettings,
@@ -139,6 +146,7 @@ function AuthenticatedApp({
     archiveJob,
   } = useImportJobs();
   useImportJobToasts(importJobs);
+  useProposalNotificationStream();
   const isMobile = useIsMobile();
   const { canInstall, promptInstall } = usePwaInstall();
   const { data: allItems = [] } = useAllItems();
@@ -150,6 +158,19 @@ function AuthenticatedApp({
   const triggerEmailSync = useTriggerEmailSync();
   const disconnectEmail = useDisconnectEmail();
   const updateEmailConnection = useUpdateEmailConnection();
+  const isEmailSettingsActive =
+    location.view === "settings" && location.sub === "email";
+  const emailProposalsQuery = useEmailProposals(isEmailSettingsActive);
+  const generateEmailProposals = useGenerateEmailProposals();
+  const confirmEmailProposal = useConfirmEmailProposal();
+  const dismissEmailProposal = useDismissEmailProposal();
+  const highlightedProposalId = useMemo(() => {
+    try {
+      return new URLSearchParams(window.location.search).get("proposal");
+    } catch {
+      return null;
+    }
+  }, [location.view, location.sub]);
   const emailCalendarQueries = useQueries({
     queries: (emailConnections ?? []).map((connection) => ({
       queryKey: [
@@ -201,6 +222,24 @@ function AuthenticatedApp({
     });
     return byConnectionId;
   }, [emailConnections, emailCalendarQueries]);
+  const emailProposalsError = useMemo(
+    () => getMutationErrorMessage(emailProposalsQuery.error),
+    [emailProposalsQuery.error],
+  );
+  const emailProposalBusyId = useMemo(() => {
+    if (confirmEmailProposal.isPending) {
+      return confirmEmailProposal.variables ?? null;
+    }
+    if (dismissEmailProposal.isPending) {
+      return dismissEmailProposal.variables ?? null;
+    }
+    return null;
+  }, [
+    confirmEmailProposal.isPending,
+    confirmEmailProposal.variables,
+    dismissEmailProposal.isPending,
+    dismissEmailProposal.variables,
+  ]);
 
   const handleGmailConnected = useCallback(() => {
     void queryClient.invalidateQueries({
@@ -212,6 +251,12 @@ function AuthenticatedApp({
     });
     navigate("settings", "email");
   }, [queryClient, navigate]);
+
+  useEffect(() => {
+    if (!highlightedProposalId) return;
+    if (location.view === "settings" && location.sub === "email") return;
+    navigate("settings", "email");
+  }, [highlightedProposalId, location.view, location.sub, navigate]);
 
   // Organizations
   const orgsQuery = useOrganizations();
@@ -231,6 +276,7 @@ function AuthenticatedApp({
         emailConnectionsQuery.error,
       );
       if (emailQueryError) rawErrors.push(emailQueryError);
+      if (emailProposalsError) rawErrors.push(emailProposalsError);
 
       for (const conn of emailConnections ?? []) {
         if (
@@ -256,6 +302,13 @@ function AuthenticatedApp({
 
       const updateError = getMutationErrorMessage(updateEmailConnection.error);
       if (updateError) rawErrors.push(updateError);
+
+      const generateError = getMutationErrorMessage(generateEmailProposals.error);
+      if (generateError) rawErrors.push(generateError);
+      const confirmError = getMutationErrorMessage(confirmEmailProposal.error);
+      if (confirmError) rawErrors.push(confirmError);
+      const dismissError = getMutationErrorMessage(dismissEmailProposal.error);
+      if (dismissError) rawErrors.push(dismissError);
     }
 
     if (location.view === "settings" && location.sub === "agent-setup") {
@@ -299,9 +352,13 @@ function AuthenticatedApp({
     emailConnectionsQuery.error,
     emailConnections,
     emailCalendarsErrorByConnectionId,
+    emailProposalsError,
     triggerEmailSync.error,
     disconnectEmail.error,
     updateEmailConnection.error,
+    generateEmailProposals.error,
+    confirmEmailProposal.error,
+    dismissEmailProposal.error,
     updateAgentSettings.error,
     agentSettingsData,
   ]);
@@ -496,6 +553,12 @@ function AuthenticatedApp({
               emailCalendarsErrorByConnectionId={
                 emailCalendarsErrorByConnectionId
               }
+              emailProposals={emailProposalsQuery.data}
+              emailProposalsLoading={
+                emailProposalsQuery.isLoading || emailProposalsQuery.isFetching
+              }
+              emailProposalsError={emailProposalsError}
+              highlightedProposalId={highlightedProposalId}
               emailLoading={emailLoading}
               onConnectGmail={handleConnectGmail}
               onEmailSync={(id) => triggerEmailSync.mutate(id)}
@@ -524,6 +587,15 @@ function AuthenticatedApp({
                   patch: { calendar_selected_ids: calendarIds },
                 })
               }
+              onEmailGenerateProposals={() => generateEmailProposals.mutate()}
+              onEmailConfirmProposal={(proposalId) =>
+                confirmEmailProposal.mutate(proposalId)
+              }
+              onEmailDismissProposal={(proposalId) =>
+                dismissEmailProposal.mutate(proposalId)
+              }
+              emailProposalBusyId={emailProposalBusyId}
+              emailGeneratingProposals={generateEmailProposals.isPending}
               emailSyncingConnectionId={
                 triggerEmailSync.isPending
                   ? (triggerEmailSync.variables ?? null)

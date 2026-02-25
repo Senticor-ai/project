@@ -224,12 +224,16 @@ def email_connection(auth_client):
 
 
 class TestRunEmailSync:
+    @patch("app.email.sync.process_proposal_candidates")
+    @patch("app.email.sync.enqueue_candidates_for_email_items")
     @patch("app.email.sync.gmail_api")
     @patch("app.email.sync.get_valid_gmail_token")
     def test_sync_creates_new_items(
         self,
         mock_get_token,
         mock_gmail_api,
+        mock_enqueue_candidates,
+        mock_process_candidates,
         email_connection,
     ):
         conn_id, org_id, user_id = email_connection
@@ -250,6 +254,13 @@ class TestRunEmailSync:
         assert result.created == 2
         assert result.skipped == 0
         assert result.errors == 0
+        mock_enqueue_candidates.assert_called_once()
+        enqueue_kwargs = mock_enqueue_candidates.call_args.kwargs
+        assert enqueue_kwargs["org_id"] == org_id
+        assert enqueue_kwargs["user_id"] == user_id
+        assert enqueue_kwargs["connection_id"] == conn_id
+        assert len(enqueue_kwargs["item_ids"]) == 2
+        mock_process_candidates.assert_called_once_with(org_id=org_id, user_id=user_id, limit=10)
 
         # Verify items were created in DB
         with db_conn() as conn:

@@ -86,6 +86,8 @@ einen Tool-Aufruf. Der Nutzer sieht deinen Vorschlag als Karte und muss ihn
   `items create`, `items triage`, `items focus`, `projects create`,
   `projects actions create`, `projects actions update`, `projects actions transition`,
   `projects actions comments add`, `projects actions comments reply`, `proposals apply`.
+- Fuer `projects actions *` immer `--project <id>` und (wo noetig) `--action <id>` explizit setzen.
+  Keine Positionsargumente fuer Aktions-IDs verwenden.
 - Wenn mehrere unabhaengige Aenderungen noetig sind, gib mehrere `copilot_cli` Tool-Calls
   in derselben Antwort aus.
 - Fuer Tool-Aufrufe immer nur `copilot_cli` nutzen.

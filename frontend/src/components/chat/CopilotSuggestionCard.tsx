@@ -14,6 +14,220 @@ const bucketLabels: Record<string, string> = {
   someday: "Someday",
 };
 
+interface CopilotCliSummary {
+  title: string;
+  details: string[];
+}
+
+function optionValue(argv: string[], ...names: string[]): string | undefined {
+  for (let i = 0; i < argv.length; i += 1) {
+    const token = argv[i];
+    if (typeof token !== "string") {
+      continue;
+    }
+    for (const name of names) {
+      if (token === name) {
+        return argv[i + 1];
+      }
+      if (token.startsWith(`${name}=`)) {
+        return token.slice(name.length + 1);
+      }
+    }
+  }
+  return undefined;
+}
+
+function hasFlag(argv: string[], name: string): boolean {
+  return argv.some((token) => token === name);
+}
+
+function compactId(value: string): string {
+  if (!value) {
+    return value;
+  }
+  if (value.startsWith("urn:")) {
+    const last = value.split(":").at(-1);
+    return last && last.length > 0 ? last : value;
+  }
+  return value;
+}
+
+function humanizeKind(kind: string): string {
+  if (!kind) {
+    return kind;
+  }
+  return kind.replaceAll("_", " ");
+}
+
+function summarizeCopilotCli(
+  suggestion: Extract<CopilotSuggestion, { type: "copilot_cli" }>,
+): CopilotCliSummary {
+  if (!Array.isArray(suggestion.argv) || suggestion.argv.length === 0) {
+    const intent = suggestion.intent;
+    const kind =
+      intent && typeof intent === "object" && typeof intent.kind === "string"
+        ? intent.kind
+        : undefined;
+
+    return {
+      title: "Copilot-Intent ausführen",
+      details: kind ? [`Intent: ${humanizeKind(kind)}`] : [],
+    };
+  }
+
+  const argv = suggestion.argv;
+  const first = argv[0];
+  const second = argv[1];
+  const third = argv[2];
+  const fourth = argv[3];
+
+  if (first === "items" && second === "focus") {
+    const itemId = argv[2];
+    return {
+      title: hasFlag(argv, "--off")
+        ? "Fokus bei einem Element entfernen"
+        : "Fokus auf ein Element setzen",
+      details: itemId ? [`Element: ${compactId(itemId)}`] : [],
+    };
+  }
+
+  if (first === "items" && second === "triage") {
+    const bucket = optionValue(argv, "--bucket");
+    const status = optionValue(argv, "--status");
+    const details: string[] = [];
+    if (bucket) {
+      details.push(`Bucket: ${bucketLabels[bucket] ?? bucket}`);
+    }
+    if (status) {
+      details.push(`Status: ${status}`);
+    }
+    return {
+      title:
+        bucket === "completed"
+          ? "Element als erledigt markieren"
+          : "Element umsortieren",
+      details,
+    };
+  }
+
+  if (first === "items" && second === "create") {
+    const itemType = optionValue(argv, "--type");
+    const name = optionValue(argv, "--name");
+    const bucket = optionValue(argv, "--bucket");
+    const title =
+      itemType === "Project"
+        ? "Projekt erstellen"
+        : itemType === "CreativeWork" || itemType === "DigitalDocument"
+          ? "Referenz erstellen"
+          : "Aktion erstellen";
+    const details: string[] = [];
+    if (name) {
+      details.push(`Titel: ${name}`);
+    }
+    if (bucket) {
+      details.push(`Bucket: ${bucketLabels[bucket] ?? bucket}`);
+    }
+    return { title, details };
+  }
+
+  if (first === "projects" && second === "create") {
+    const name = optionValue(argv, "--name");
+    const desiredOutcome = optionValue(argv, "--desired-outcome");
+    const details: string[] = [];
+    if (name) {
+      details.push(`Titel: ${name}`);
+    }
+    if (desiredOutcome) {
+      details.push(`Ergebnis: ${desiredOutcome}`);
+    }
+    return { title: "Projekt erstellen", details };
+  }
+
+  if (first === "projects" && second === "actions" && third === "create") {
+    const name = optionValue(argv, "--name");
+    const details: string[] = [];
+    if (name) {
+      details.push(`Titel: ${name}`);
+    }
+    return { title: "Projektaktion erstellen", details };
+  }
+
+  if (first === "projects" && second === "actions" && third === "update") {
+    const positionals = argv.slice(3).filter((token) => !token.startsWith("-"));
+    const actionId = optionValue(argv, "--action") ?? positionals.at(-1);
+    const projectId = optionValue(argv, "--project", "--project-id");
+    const name = optionValue(argv, "--name");
+    const due = optionValue(argv, "--due");
+    const assignee =
+      optionValue(argv, "--assignee-text") ?? optionValue(argv, "--assignee-user");
+    const details: string[] = [];
+    if (name) {
+      details.push(`Neuer Titel: ${name}`);
+    }
+    if (due) {
+      details.push(`Fällig: ${due}`);
+    }
+    if (assignee) {
+      details.push(`Verantwortlich: ${assignee}`);
+    }
+    if (actionId) {
+      details.push(`Aktion: ${compactId(actionId)}`);
+    }
+    if (projectId) {
+      details.push(`Projekt: ${compactId(projectId)}`);
+    }
+    return { title: "Projektaktion aktualisieren", details };
+  }
+
+  if (first === "projects" && second === "actions" && third === "transition") {
+    const status = optionValue(argv, "--status");
+    return {
+      title: "Status einer Projektaktion ändern",
+      details: status ? [`Neuer Status: ${status}`] : [],
+    };
+  }
+
+  if (
+    first === "projects" &&
+    second === "actions" &&
+    third === "comments" &&
+    fourth === "add"
+  ) {
+    return { title: "Kommentar zu einer Projektaktion hinzufügen", details: [] };
+  }
+
+  if (
+    first === "projects" &&
+    second === "actions" &&
+    third === "comments" &&
+    fourth === "reply"
+  ) {
+    return { title: "Antwort auf einen Kommentar hinzufügen", details: [] };
+  }
+
+  if (first === "proposals" && second === "apply") {
+    return { title: "Vorschläge übernehmen", details: [] };
+  }
+
+  return {
+    title: "Änderung über Senticor Copilot CLI anwenden",
+    details: [],
+  };
+}
+
+function technicalDetailsPreview(
+  suggestion: Extract<CopilotSuggestion, { type: "copilot_cli" }>,
+): string {
+  if (Array.isArray(suggestion.argv) && suggestion.argv.length > 0) {
+    return suggestion.argv.join(" ");
+  }
+  const intent = suggestion.intent;
+  if (!intent || typeof intent !== "object") {
+    return "(kein CLI-Detail angegeben)";
+  }
+  return JSON.stringify(intent, null, 2);
+}
+
 // ---------------------------------------------------------------------------
 // CopilotSuggestionCard
 // ---------------------------------------------------------------------------
@@ -206,22 +420,8 @@ function CopilotCliSuggestionContent({
 }: {
   suggestion: Extract<CopilotSuggestion, { type: "copilot_cli" }>;
 }) {
-  const commandPreview =
-    Array.isArray(suggestion.argv) && suggestion.argv.length > 0
-      ? suggestion.argv.join(" ")
-      : (() => {
-          const intent = suggestion.intent;
-          if (!intent || typeof intent !== "object") {
-            return "(kein CLI-Detail angegeben)";
-          }
-          const kind =
-            typeof intent.kind === "string" ? intent.kind : "unknown_intent";
-          const version =
-            typeof intent.schemaVersion === "string"
-              ? ` ${intent.schemaVersion}`
-              : "";
-          return `intent ${kind}${version}`;
-        })();
+  const summary = summarizeCopilotCli(suggestion);
+  const commandPreview = technicalDetailsPreview(suggestion);
 
   return (
     <>
@@ -229,9 +429,22 @@ function CopilotCliSuggestionContent({
         <Icon name="terminal" size={16} className="text-blueprint-500" />
         <span className="text-sm font-medium">Senticor Copilot CLI</span>
       </div>
-      <code className="mt-1 block rounded bg-paper-100 px-2 py-1 text-xs text-text">
-        {commandPreview}
-      </code>
+      <p className="mt-1 ml-5.5 text-xs text-text">{summary.title}</p>
+      {summary.details.length > 0 && (
+        <ul className="mt-1 ml-9 space-y-1 text-xs text-text-muted">
+          {summary.details.map((detail) => (
+            <li key={detail}>{detail}</li>
+          ))}
+        </ul>
+      )}
+      <details className="mt-2 ml-5.5">
+        <summary className="cursor-pointer text-xs text-text-muted">
+          Technische Details
+        </summary>
+        <code className="mt-1 block rounded bg-paper-100 px-2 py-1 text-xs text-text whitespace-pre-wrap break-all">
+          {commandPreview}
+        </code>
+      </details>
     </>
   );
 }

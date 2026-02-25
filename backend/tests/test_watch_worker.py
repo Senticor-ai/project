@@ -12,6 +12,7 @@ from app.email.pubsub import PubSubMessage
 from app.email.watch_worker import (
     _is_transient_pull_error,
     process_notifications,
+    register_missing_watches,
     renew_expiring_watches,
 )
 
@@ -133,7 +134,12 @@ class TestRenewExpiringWatches:
         # Mock a connection with watch expiring in 6 hours (within 12h buffer)
         mock_cursor = MagicMock()
         mock_cursor.fetchall.return_value = [
-            {"connection_id": "conn-1", "org_id": "org-1"},
+            {
+                "connection_id": "conn-1",
+                "org_id": "org-1",
+                "encrypted_access_token": "gAAAAA-valid-token",
+                "encrypted_refresh_token": "gAAAAA-valid-refresh",
+            },
         ]
         mock_conn = MagicMock()
         mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
@@ -151,8 +157,18 @@ class TestRenewExpiringWatches:
     def test_handles_renewal_failure_gracefully(self, mock_db_conn, mock_register):
         mock_cursor = MagicMock()
         mock_cursor.fetchall.return_value = [
-            {"connection_id": "conn-1", "org_id": "org-1"},
-            {"connection_id": "conn-2", "org_id": "org-1"},
+            {
+                "connection_id": "conn-1",
+                "org_id": "org-1",
+                "encrypted_access_token": "gAAAAA-valid-token",
+                "encrypted_refresh_token": "gAAAAA-valid-refresh",
+            },
+            {
+                "connection_id": "conn-2",
+                "org_id": "org-1",
+                "encrypted_access_token": "gAAAAA-valid-token-2",
+                "encrypted_refresh_token": "gAAAAA-valid-refresh-2",
+            },
         ]
         mock_conn = MagicMock()
         mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
@@ -168,6 +184,77 @@ class TestRenewExpiringWatches:
         # Only 1 succeeded, the other failed gracefully
         assert result == 1
         assert mock_register.call_count == 2
+
+    @patch("app.email.watch_worker.register_watch")
+    @patch("app.email.watch_worker.db_conn")
+    def test_skips_connections_with_invalid_token_format(self, mock_db_conn, mock_register):
+        mock_cursor = MagicMock()
+        mock_cursor.fetchall.return_value = [
+            {
+                "connection_id": "conn-valid",
+                "org_id": "org-1",
+                "encrypted_access_token": "gAAAAA-valid-token",
+                "encrypted_refresh_token": "gAAAAA-valid-refresh",
+            },
+            {
+                "connection_id": "conn-invalid",
+                "org_id": "org-1",
+                "encrypted_access_token": "enc-access",
+                "encrypted_refresh_token": "enc-refresh",
+            },
+        ]
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        mock_db_conn.return_value.__enter__ = MagicMock(return_value=mock_conn)
+        mock_db_conn.return_value.__exit__ = MagicMock(return_value=False)
+
+        result = renew_expiring_watches(buffer_hours=12)
+
+        assert result == 1
+        mock_register.assert_called_once_with("conn-valid", "org-1")
+
+
+class TestRegisterMissingWatches:
+    @patch("app.email.watch_worker.register_watch")
+    @patch("app.email.watch_worker.db_conn")
+    def test_skips_connections_with_invalid_token_format(self, mock_db_conn, mock_register):
+        mock_cursor = MagicMock()
+        mock_cursor.fetchall.return_value = [
+            {
+                "connection_id": "conn-valid",
+                "org_id": "org-1",
+                "encrypted_access_token": "gAAAAA-valid-token",
+                "encrypted_refresh_token": "gAAAAA-valid-refresh",
+            },
+            {
+                "connection_id": "conn-empty-refresh",
+                "org_id": "org-1",
+                "encrypted_access_token": "gAAAAA-valid-token-2",
+                "encrypted_refresh_token": "",
+            },
+            {
+                "connection_id": "conn-invalid",
+                "org_id": "org-1",
+                "encrypted_access_token": "enc-access",
+                "encrypted_refresh_token": "enc-refresh",
+            },
+        ]
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        mock_db_conn.return_value.__enter__ = MagicMock(return_value=mock_conn)
+        mock_db_conn.return_value.__exit__ = MagicMock(return_value=False)
+
+        result = register_missing_watches()
+
+        assert result == 2
+        assert mock_register.call_count == 2
+        called_ids = {(args[0], args[1]) for args, _kwargs in mock_register.call_args_list}
+        assert called_ids == {
+            ("conn-valid", "org-1"),
+            ("conn-empty-refresh", "org-1"),
+        }
 
 
 class TestTransientPullError:

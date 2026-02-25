@@ -253,6 +253,72 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* ─── SlideShow presenter mode (enabled by ?full=1) ─── */
+[data-slideshow-mode="present"] {
+  min-height: 100vh;
+  padding: 1rem 1rem 5rem;
+  background: #f8fafc;
+}
+
+[data-slideshow-mode="present"] [data-slide] {
+  display: none;
+  margin: 0;
+  min-height: calc(100vh - 6.25rem);
+  max-height: calc(100vh - 6.25rem);
+  overflow: auto;
+}
+
+[data-slideshow-mode="present"] [data-slide][data-slide-active="true"] {
+  display: block;
+}
+
+/* In presenter mode, keep slides visual-first by hiding narrative body text. */
+[data-slideshow-mode="present"] [data-slide-notes] {
+  display: none !important;
+}
+
+[data-slideshow-mode="present"]
+  [data-slide][data-slide-has-visual="true"]
+  [data-slide-body]
+  > :where(
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6,
+    p,
+    ul,
+    ol,
+    blockquote,
+    hr
+  ) {
+  display: none;
+}
+
+[data-slideshow-mode="present"]
+  [data-slide][data-slide-has-visual="true"]
+  [data-slide-body]
+  > :where(
+    table,
+    pre,
+    figure,
+    img,
+    svg,
+    [data-slide-visual]
+  ) {
+  margin: 0 auto;
+}
+
+[data-slideshow-mode="present"] [data-slide-body] table {
+  font-size: 0.96rem;
+}
+
+[data-slideshow-mode="present"] [data-slide-body] pre {
+  font-size: 0.9rem;
+  overflow: auto;
+}
+
 /* ─── Print / PDF (triggered by SlideShow's ⎙ pdf button or browser Cmd+P) ─── */
 @media print {
   @page {

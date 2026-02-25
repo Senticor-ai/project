@@ -163,6 +163,35 @@ const REFERENCE_RECORD = makeRecord({
   },
 });
 
+const EVENT_RECORD = makeRecord({
+  item: {
+    "@type": "Event",
+    "@id": "urn:app:event:gcal:primary:evt-1",
+    _schemaVersion: 2,
+    name: "Team standup",
+    startDate: "2026-03-01T09:00:00Z",
+    duration: 30,
+    keywords: ["meeting"],
+    dateCreated: "2026-01-01T00:00:00Z",
+    dateModified: "2026-01-01T00:00:00Z",
+    additionalProperty: [
+      pvFixture("app:bucket", "calendar"),
+      pvFixture("app:needsEnrichment", false),
+      pvFixture("app:confidence", "high"),
+      pvFixture("app:captureSource", {
+        kind: "meeting",
+        title: "Team standup",
+        date: "2026-03-01",
+      }),
+      pvFixture("app:contexts", []),
+      pvFixture("app:isFocused", false),
+      pvFixture("app:ports", []),
+      pvFixture("app:typedReferences", []),
+      pvFixture("app:provenanceHistory", []),
+    ],
+  },
+});
+
 // -- Tests -------------------------------------------------------------------
 
 describe("useItems — cursor-based sync", () => {
@@ -242,6 +271,7 @@ describe("useItems — cursor-based sync", () => {
 describe("derived hooks filter by @type", () => {
   const ALL_RECORDS = [
     ACTION_RECORD,
+    EVENT_RECORD,
     INBOX_RECORD,
     PROJECT_RECORD,
     REFERENCE_RECORD,
@@ -252,16 +282,20 @@ describe("derived hooks filter by @type", () => {
     mockedItems.sync.mockResolvedValue(makeSyncPage(ALL_RECORDS, false));
   });
 
-  it("useActions returns only Action items", async () => {
+  it("useActions returns action-bucket items including calendar Events", async () => {
     const { result } = renderHook(() => useActions(), {
       wrapper: createWrapper(),
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(result.current.data).toHaveLength(1);
-    expect(result.current.data[0]?.name).toBe("Buy milk");
-    expect(result.current.data[0]?.bucket).toBe("next");
+    expect(result.current.data).toHaveLength(2);
+    const names = result.current.data.map((item) => item.name);
+    const buckets = result.current.data.map((item) => item.bucket);
+    expect(names).toContain("Buy milk");
+    expect(names).toContain("Team standup");
+    expect(buckets).toContain("next");
+    expect(buckets).toContain("calendar");
   });
 
   it("useInboxItems returns only ActionItem items", async () => {

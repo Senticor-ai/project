@@ -3,6 +3,7 @@ import { render, screen, act, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./App";
+import { ToastProvider } from "./components/ui/ToastProvider";
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -93,7 +94,9 @@ beforeEach(() => {
 function renderApp() {
   return render(
     <QueryClientProvider client={queryClient}>
-      <App />
+      <ToastProvider>
+        <App />
+      </ToastProvider>
     </QueryClientProvider>,
   );
 }
@@ -245,7 +248,9 @@ describe("App", () => {
     });
 
     const Wrapper = ({ children }: { children: React.ReactNode }) => (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <QueryClientProvider client={queryClient}>
+        <ToastProvider>{children}</ToastProvider>
+      </QueryClientProvider>
     );
     const { rerender } = render(<App />, { wrapper: Wrapper });
     // URL preserved while showing login

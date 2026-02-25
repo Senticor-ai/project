@@ -455,17 +455,24 @@ export function fromJsonLd(record: ItemRecord): AppItem {
   }
 
   if (type === TYPE_MAP.event || type === "Event") {
-    const startDate = (t.startDate as string) || undefined;
+    const startDate = (t.startDate as string) || thingFields.startDate;
+    const scheduledTime = thingFields.scheduledTime;
     return {
       ...base,
+      ...thingFields,
       bucket: "calendar" as const,
+      // Keep event rows compatible with ActionList until dedicated grid/list
+      // calendar surfaces are implemented.
+      rawCapture:
+        (getAdditionalProperty(props, "app:rawCapture") as string) ||
+        base.name,
+      startDate,
+      scheduledDate: thingFields.scheduledDate || startDate,
       date: startDate ?? "",
-      time:
-        (getAdditionalProperty(props, "app:scheduledTime") as string) ||
-        undefined,
+      time: scheduledTime,
       duration: (t.duration as number) || undefined,
       isAllDay: !startDate?.includes("T"),
-    } satisfies CalendarEntry;
+    } as CalendarEntry & ActionItem;
   }
 
   // DigitalDocument in reference bucket → OrgDocItem or ReferenceMaterial
@@ -602,6 +609,33 @@ export function buildTriagePatch(
       "@type": TYPE_MAP.reference,
       keywords: item.tags,
       additionalProperty: refProps,
+    };
+  }
+
+  if (result.targetBucket === "calendar") {
+    const startDate = result.date || item.startDate || item.scheduledDate;
+    if (!startDate) {
+      throw new Error("Calendar triage requires a date");
+    }
+    const eventProps: PropertyValue[] = [
+      pv("app:bucket", "calendar"),
+      pv("app:contexts", result.contexts ?? []),
+      pv("app:isFocused", false),
+      pv("app:dueDate", null),
+      pv("app:scheduledTime", null),
+      pv("app:sequenceOrder", null),
+      pv("app:recurrence", null),
+      pv("app:ports", item.ports ?? []),
+      pv("app:projectRefs", result.projectId ? [result.projectId] : []),
+    ];
+    return {
+      "@type": TYPE_MAP.event,
+      keywords: item.tags,
+      startDate,
+      endDate: null,
+      startTime: null,
+      endTime: null,
+      additionalProperty: eventProps,
     };
   }
 

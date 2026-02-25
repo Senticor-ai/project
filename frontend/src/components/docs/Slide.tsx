@@ -12,6 +12,10 @@ interface SlideProps {
   children: ReactNode;
 }
 
+interface SlideContentProps {
+  children: ReactNode;
+}
+
 const card: CSSProperties = {
   border: "1px solid #e2e8f0",
   borderLeft: "4px solid #1a6fa0",
@@ -56,6 +60,14 @@ const tagStyle: CSSProperties = {
   letterSpacing: "0.03em",
 };
 
+export function SlideVisual({ children }: SlideContentProps) {
+  return <div data-slide-visual>{children}</div>;
+}
+
+export function SlideNotes({ children }: SlideContentProps) {
+  return <div data-slide-notes>{children}</div>;
+}
+
 export function Slide({ n, title, tag, breakBefore, children }: SlideProps) {
   const hasHeader = n !== undefined || !!title || !!tag;
 
@@ -74,7 +86,7 @@ export function Slide({ n, title, tag, breakBefore, children }: SlideProps) {
           {tag && <span style={tagStyle}>{tag}</span>}
         </div>
       )}
-      <div>{children}</div>
+      <div data-slide-body>{children}</div>
     </div>
   );
 }

@@ -49,6 +49,22 @@ def _is_transient_pull_error(exc: Exception) -> bool:
     return False
 
 
+def _is_fernet_ciphertext(value: str | None) -> bool:
+    """Best-effort check for Fernet token shape used by encrypted OAuth columns."""
+    return isinstance(value, str) and value.startswith("gAAAAA")
+
+
+def _has_probably_usable_tokens(connection_row: dict) -> bool:
+    """Whether a connection row appears to contain Fernet-encrypted OAuth tokens."""
+    access = connection_row.get("encrypted_access_token")
+    refresh = connection_row.get("encrypted_refresh_token")
+    if not _is_fernet_ciphertext(str(access) if access is not None else None):
+        return False
+    if refresh and not _is_fernet_ciphertext(str(refresh)):
+        return False
+    return True
+
+
 def _find_connection_by_email(email_address: str) -> dict | None:
     """Look up an active email connection by email address."""
     with db_conn() as conn:
@@ -123,7 +139,7 @@ def renew_expiring_watches(buffer_hours: int = 12) -> int:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT connection_id, org_id
+                SELECT connection_id, org_id, encrypted_access_token, encrypted_refresh_token
                 FROM email_connections
                 WHERE is_active = true
                   AND watch_expiration IS NOT NULL
@@ -135,6 +151,12 @@ def renew_expiring_watches(buffer_hours: int = 12) -> int:
 
     renewed = 0
     for row in rows:
+        if not _has_probably_usable_tokens(row):
+            logger.info(
+                "watch_worker.watch_renew_skipped_invalid_token connection=%s",
+                row["connection_id"],
+            )
+            continue
         try:
             register_watch(str(row["connection_id"]), str(row["org_id"]))
             renewed += 1
@@ -159,7 +181,7 @@ def register_missing_watches() -> int:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT connection_id, org_id
+                SELECT connection_id, org_id, encrypted_access_token, encrypted_refresh_token
                 FROM email_connections
                 WHERE is_active = true
                   AND watch_expiration IS NULL
@@ -169,6 +191,12 @@ def register_missing_watches() -> int:
 
     registered = 0
     for row in rows:
+        if not _has_probably_usable_tokens(row):
+            logger.info(
+                "watch_worker.register_missing_skipped_invalid_token connection=%s",
+                row["connection_id"],
+            )
+            continue
         try:
             register_watch(str(row["connection_id"]), str(row["org_id"]))
             registered += 1

@@ -77,6 +77,8 @@ function deserializeActionItems(
       ?.filter((r) => {
         const type = r.item["@type"] as string;
         if (type === "Action" || type === "ReadAction") return true;
+        // Calendar provider sync stores schema.org Event rows.
+        if (type === "Event") return true;
         // EmailMessage/DigitalDocument can sit in any action bucket after triage
         if (type === "EmailMessage" || type === "DigitalDocument") return true;
         // Other types (CreativeWork for URL captures) only in inbox

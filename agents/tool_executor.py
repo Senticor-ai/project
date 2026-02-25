@@ -49,16 +49,203 @@ def _resolve_cli_command() -> tuple[list[str], str]:
     return ["npm", "--prefix", str(CORE_DIR), "run", "copilot", "--silent", "--"], str(REPO_ROOT)
 
 
+def _has_option(argv: list[str], option: str) -> bool:
+    prefix = f"{option}="
+    return any(arg == option or arg.startswith(prefix) for arg in argv)
+
+
+def _split_option_token(token: str) -> tuple[str, str | None]:
+    if "=" not in token:
+        return token, None
+    option, inline_value = token.split("=", 1)
+    return option, inline_value
+
+
+def _normalize_option_aliases(argv: list[str]) -> list[str]:
+    alias_map = {
+        "--project-id": "--project",
+        "--action-id": "--action",
+    }
+    normalized: list[str] = []
+    for arg in argv:
+        replacement = None
+        for alias, canonical in alias_map.items():
+            if arg == alias:
+                replacement = canonical
+                break
+            alias_prefix = f"{alias}="
+            if arg.startswith(alias_prefix):
+                replacement = f"{canonical}={arg[len(alias_prefix):]}"
+                break
+        normalized.append(replacement if replacement is not None else arg)
+    return normalized
+
+
+def _option_value(argv: list[str], option: str) -> str | None:
+    prefix = f"{option}="
+    for idx, arg in enumerate(argv):
+        if arg == option:
+            if idx + 1 < len(argv):
+                return argv[idx + 1]
+            return None
+        if arg.startswith(prefix):
+            return arg[len(prefix) :]
+    return None
+
+
+def _promote_project_action_positionals(argv: list[str], args_start_idx: int) -> list[str]:
+    """Promote legacy positional ids to --project/--action flags."""
+    if _has_option(argv, "--project") and _has_option(argv, "--action"):
+        return argv
+
+    prefix = argv[:args_start_idx]
+    tail = argv[args_start_idx:]
+
+    positional: list[str] = []
+    while tail and not tail[0].startswith("-"):
+        positional.append(tail.pop(0))
+
+    has_project = _has_option(argv, "--project")
+    has_action = _has_option(argv, "--action")
+    injected: list[str] = []
+
+    # Legacy forms:
+    # - projects actions update <action-id> ...
+    # - projects actions update <project-id> <action-id> ...
+    if not has_project and positional and (has_action or len(positional) >= 2):
+        injected.extend(["--project", positional.pop(0)])
+        has_project = True
+    if not has_action and positional:
+        injected.extend(["--action", positional.pop(0)])
+
+    return prefix + injected + positional + tail
+
+
+def _normalize_projects_actions_argv(argv: list[str]) -> list[str]:
+    if len(argv) < 3 or argv[0] != "projects" or argv[1] != "actions":
+        return argv
+
+    sub = argv[2]
+    if sub in {"get", "history", "update", "transition"}:
+        return _promote_project_action_positionals(argv, args_start_idx=3)
+
+    if sub == "comments" and len(argv) >= 4 and argv[3] in {"add", "reply"}:
+        return _promote_project_action_positionals(argv, args_start_idx=4)
+
+    return argv
+
+
+def _normalize_items_subcommand_argv(
+    argv: list[str],
+    subcommand: str,
+    *,
+    value_option_order: tuple[str, ...],
+    flag_option_order: tuple[str, ...],
+) -> list[str]:
+    if len(argv) < 2 or argv[0] != "items" or argv[1] != subcommand:
+        return argv
+
+    value_options = set(value_option_order)
+    flag_options = set(flag_option_order)
+
+    positional_id: str | None = None
+    id_from_option: str | None = None
+    option_values: dict[str, str] = {}
+    seen_flags: set[str] = set()
+
+    i = 2
+    while i < len(argv):
+        token = argv[i]
+        if token.startswith("--"):
+            option, inline_value = _split_option_token(token)
+
+            if option == "--id":
+                option_value = inline_value
+                if option_value is None and i + 1 < len(argv):
+                    option_value = argv[i + 1]
+                    i += 1
+                if option_value:
+                    id_from_option = option_value
+            elif option in value_options:
+                option_value = inline_value
+                if option_value is None and i + 1 < len(argv):
+                    option_value = argv[i + 1]
+                    i += 1
+                if option_value is not None:
+                    option_values[option] = option_value
+            elif option in flag_options:
+                seen_flags.add(option)
+            else:
+                # Drop unknown options (and likely option values) to avoid CLI parser errors.
+                if inline_value is None and i + 1 < len(argv) and not argv[i + 1].startswith("-"):
+                    i += 1
+        elif positional_id is None:
+            positional_id = token
+        i += 1
+
+    normalized = ["items", subcommand]
+    item_id = id_from_option or positional_id
+    if item_id:
+        normalized.append(item_id)
+
+    for option in value_option_order:
+        value = option_values.get(option)
+        if value is not None:
+            normalized.extend([option, value])
+
+    for option in flag_option_order:
+        if option in seen_flags:
+            normalized.append(option)
+
+    return normalized
+
+
+def _normalize_items_argv(argv: list[str]) -> list[str]:
+    if len(argv) < 2 or argv[0] != "items":
+        return argv
+
+    if argv[1] == "triage":
+        return _normalize_items_subcommand_argv(
+            argv,
+            "triage",
+            value_option_order=("--bucket",),
+            flag_option_order=("--propose", "--apply"),
+        )
+    if argv[1] == "focus":
+        return _normalize_items_subcommand_argv(
+            argv,
+            "focus",
+            value_option_order=(),
+            flag_option_order=("--on", "--off", "--propose", "--apply"),
+        )
+
+    return argv
+
+
+def _requires_project_and_action(argv: list[str]) -> bool:
+    if len(argv) < 3 or argv[0] != "projects" or argv[1] != "actions":
+        return False
+
+    sub = argv[2]
+    if sub in {"get", "history", "update", "transition"}:
+        return True
+
+    return sub == "comments" and len(argv) >= 4 and argv[3] in {"add", "reply"}
+
+
 def _with_required_cli_flags(argv: list[str], conversation_id: str) -> list[str]:
-    normalized = list(argv)
+    normalized = _normalize_option_aliases(list(argv))
+    normalized = _normalize_projects_actions_argv(normalized)
+    normalized = _normalize_items_argv(normalized)
+    normalized = [arg for arg in normalized if arg != "--approve"]
 
     # Ensure JSON/non-interactive behavior for deterministic tool execution.
     if "--json" not in normalized:
         normalized.append("--json")
     if "--non-interactive" not in normalized:
         normalized.append("--non-interactive")
-    if "--approve" not in normalized:
-        normalized.append("--approve")
+    if "--yes" not in normalized:
+        normalized.append("--yes")
 
     # Carry chat context for write capture metadata when supported.
     if (
@@ -102,6 +289,164 @@ def _normalize_commands(tool_call: ToolCallInput, conversation_id: str) -> list[
             raise ValueError("copilot_cli intent expanded to zero commands")
 
     return [_with_required_cli_flags(command, conversation_id) for command in commands]
+
+
+async def _run_cli_process(
+    cli_base: list[str],
+    argv: list[str],
+    cwd: str,
+    env: dict[str, str],
+) -> tuple[int, str, str]:
+    process = await asyncio.create_subprocess_exec(
+        *cli_base,
+        *argv,
+        cwd=cwd,
+        env=env,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout_bytes, stderr_bytes = await process.communicate()
+    stdout = stdout_bytes.decode("utf-8", errors="replace")
+    stderr = stderr_bytes.decode("utf-8", errors="replace")
+    if process.returncode is None:
+        raise RuntimeError("copilot_cli subprocess terminated without a return code")
+    return process.returncode, stdout, stderr
+
+
+async def _run_cli_json(
+    cli_base: list[str],
+    argv: list[str],
+    cwd: str,
+    env: dict[str, str],
+) -> dict[str, Any]:
+    normalized = list(argv)
+    if "--json" not in normalized:
+        normalized.append("--json")
+    if "--non-interactive" not in normalized:
+        normalized.append("--non-interactive")
+    if "--yes" not in normalized:
+        normalized.append("--yes")
+
+    return_code, stdout, stderr = await _run_cli_process(cli_base, normalized, cwd, env)
+    if return_code != 0:
+        detail = stderr.strip() or stdout.strip() or "unknown error"
+        command = " ".join(normalized[:6])
+        raise RuntimeError(
+            f"copilot_cli lookup failed with exit code {return_code} "
+            f"while running '{command}...': {detail}"
+        )
+
+    return _parse_json_from_stdout(stdout)
+
+
+async def _resolve_project_id_for_action(
+    action_id: str,
+    cli_base: list[str],
+    cwd: str,
+    env: dict[str, str],
+    action_project_cache: dict[str, str],
+) -> str | None:
+    if action_id in action_project_cache:
+        return action_project_cache[action_id]
+
+    try:
+        projects_payload = await _run_cli_json(
+            cli_base,
+            ["projects", "list"],
+            cwd,
+            env,
+        )
+    except RuntimeError:
+        return None
+
+    data = projects_payload.get("data")
+    if not isinstance(data, dict):
+        return None
+    projects = data.get("projects")
+    if not isinstance(projects, list):
+        return None
+
+    seen_projects: set[str] = set()
+    for project in projects:
+        if not isinstance(project, dict):
+            continue
+
+        candidate_ids: list[str] = []
+        for key in ("canonical_id", "item_id"):
+            value = project.get(key)
+            if isinstance(value, str) and value and value not in candidate_ids:
+                candidate_ids.append(value)
+
+        for project_id in candidate_ids:
+            if project_id in seen_projects:
+                continue
+            seen_projects.add(project_id)
+
+            try:
+                actions_payload = await _run_cli_json(
+                    cli_base,
+                    ["projects", "actions", "list", "--project", project_id],
+                    cwd,
+                    env,
+                )
+            except RuntimeError:
+                continue
+
+            actions_data = actions_payload.get("data")
+            if not isinstance(actions_data, dict):
+                continue
+            actions = actions_data.get("actions")
+            if not isinstance(actions, list):
+                continue
+
+            for action in actions:
+                if not isinstance(action, dict):
+                    continue
+                resolved_project_id = action.get("project_id")
+                if not isinstance(resolved_project_id, str) or not resolved_project_id:
+                    resolved_project_id = project_id
+
+                action_pk = action.get("id")
+                if isinstance(action_pk, str) and action_pk:
+                    action_project_cache[action_pk] = resolved_project_id
+
+                action_canonical = action.get("canonical_id")
+                if isinstance(action_canonical, str) and action_canonical:
+                    action_project_cache[action_canonical] = resolved_project_id
+
+            if action_id in action_project_cache:
+                return action_project_cache[action_id]
+
+    return action_project_cache.get(action_id)
+
+
+async def _maybe_fill_missing_project_id(
+    argv: list[str],
+    cli_base: list[str],
+    cwd: str,
+    env: dict[str, str],
+    action_project_cache: dict[str, str],
+) -> list[str]:
+    if not _requires_project_and_action(argv):
+        return argv
+    if _has_option(argv, "--project"):
+        return argv
+
+    action_id = _option_value(argv, "--action")
+    if not action_id:
+        return argv
+
+    project_id = await _resolve_project_id_for_action(
+        action_id=action_id,
+        cli_base=cli_base,
+        cwd=cwd,
+        env=env,
+        action_project_cache=action_project_cache,
+    )
+    if not project_id:
+        return argv
+
+    return [*argv, "--project", project_id]
 
 
 def _parse_json_from_stdout(stdout: str) -> dict[str, Any]:
@@ -258,26 +603,29 @@ async def execute_tool(
     env.setdefault("COPILOT_HOST", os.getenv("BACKEND_URL", "http://localhost:8000"))
 
     created_batches: list[list[CreatedItemRef]] = []
+    action_project_cache: dict[str, str] = {}
 
     for argv in commands:
-        process = await asyncio.create_subprocess_exec(
-            *cli_base,
-            *argv,
+        final_argv = await _maybe_fill_missing_project_id(
+            argv=argv,
+            cli_base=cli_base,
             cwd=cwd,
             env=env,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+            action_project_cache=action_project_cache,
         )
-        stdout_bytes, stderr_bytes = await process.communicate()
 
-        stdout = stdout_bytes.decode("utf-8", errors="replace")
-        stderr = stderr_bytes.decode("utf-8", errors="replace")
+        return_code, stdout, stderr = await _run_cli_process(
+            cli_base=cli_base,
+            argv=final_argv,
+            cwd=cwd,
+            env=env,
+        )
 
-        if process.returncode != 0:
+        if return_code != 0:
             detail = stderr.strip() or stdout.strip() or "unknown error"
-            command = " ".join(argv[:4])
+            command = " ".join(final_argv[:6])
             raise RuntimeError(
-                f"copilot_cli failed with exit code {process.returncode} "
+                f"copilot_cli failed with exit code {return_code} "
                 f"while running '{command}...': {detail}"
             )
 

@@ -29,6 +29,7 @@ from app.email.gmail_oauth import (
 from app.email.sync import register_watch, run_email_sync, stop_watch_for_connection
 
 from . import gmail_api, google_calendar_api
+from .proposals import generate_proposals_for_items
 
 router = APIRouter(prefix="/email", tags=["email"])
 logger = logging.getLogger(__name__)
@@ -979,115 +980,13 @@ def generate_proposals(
     if not connection:
         raise HTTPException(status_code=400, detail="No active Google connection")
 
-    with db_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT item_id, schema_jsonld
-                FROM items
-                WHERE org_id = %s
-                  AND created_by_user_id = %s
-                  AND source = 'gmail'
-                  AND archived_at IS NULL
-                ORDER BY created_at DESC
-                LIMIT 20
-                """,
-                (org_id, user_id),
-            )
-            email_items = cur.fetchall()
-
-            cur.execute(
-                """
-                SELECT item_id, schema_jsonld
-                FROM items
-                WHERE org_id = %s
-                  AND source = 'google_calendar'
-                  AND archived_at IS NULL
-                ORDER BY created_at DESC
-                LIMIT 1
-                """,
-                (org_id,),
-            )
-            calendar_item = cur.fetchone()
-
-        created_or_existing_ids: list[str] = []
-        reschedule_keywords, pickup_keywords = _proposal_keywords()
-        for email_item in email_items:
-            schema = email_item.get("schema_jsonld") or {}
-            text = f"{schema.get('name') or ''} {schema.get('description') or ''}".lower()
-            proposal_type: str | None = None
-            payload: dict[str, Any] | None = None
-
-            if calendar_item and any(k in text for k in reschedule_keywords):
-                proposal_type = "Proposal.RescheduleMeeting"
-                payload = _build_reschedule_payload(email_item, calendar_item)
-            elif any(k in text for k in pickup_keywords):
-                proposal_type = "Proposal.PersonalRequest"
-                payload = _build_personal_payload(email_item)
-
-            if not proposal_type or payload is None:
-                continue
-
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT proposal_id
-                    FROM connector_action_proposals
-                    WHERE org_id = %s
-                      AND user_id = %s
-                      AND source_item_id = %s
-                      AND proposal_type = %s
-                      AND status = 'pending'
-                    ORDER BY created_at DESC
-                    LIMIT 1
-                    """,
-                    (org_id, user_id, email_item["item_id"], proposal_type),
-                )
-                existing = cur.fetchone()
-                if existing:
-                    created_or_existing_ids.append(str(existing["proposal_id"]))
-                    continue
-
-                cur.execute(
-                    """
-                    INSERT INTO connector_action_proposals
-                        (
-                            org_id, user_id, connection_id, proposal_type,
-                            status, source_item_id, payload
-                        )
-                    VALUES (%s, %s, %s, %s, 'pending', %s, %s)
-                    RETURNING proposal_id
-                    """,
-                    (
-                        org_id,
-                        user_id,
-                        connection["connection_id"],
-                        proposal_type,
-                        email_item["item_id"],
-                        jsonb(payload),
-                    ),
-                )
-                inserted = cur.fetchone()
-                if inserted:
-                    created_or_existing_ids.append(str(inserted["proposal_id"]))
-        conn.commit()
-
-    if not created_or_existing_ids:
-        return []
-    proposal_ids = [uuid.UUID(pid) for pid in created_or_existing_ids]
-
-    with db_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT *
-                FROM connector_action_proposals
-                WHERE proposal_id = ANY(%s)
-                ORDER BY created_at DESC
-                """,
-                (proposal_ids,),
-            )
-            rows = cur.fetchall()
+    rows = generate_proposals_for_items(
+        org_id=org_id,
+        user_id=user_id,
+        connection_id=str(connection["connection_id"]),
+        source_item_ids=None,
+        limit=20,
+    )
     return [_row_to_proposal_response(r) for r in rows]
 
 

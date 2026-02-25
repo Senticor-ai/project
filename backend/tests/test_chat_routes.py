@@ -626,6 +626,51 @@ class TestExecuteTool:
         response = auth_client.post("/chat/execute-tool", json=request)
         assert response.status_code == 200
 
+    def test_cli_triage_positional_id_with_extra_flags_handled_locally(
+        self,
+        auth_client,
+        monkeypatch,
+    ):
+        """Positional triage ids should be handled locally, ignoring unknown flags."""
+        from unittest.mock import AsyncMock
+
+        _patch_settings(monkeypatch, agents_url=None)
+
+        mock_triage = AsyncMock(
+            return_value={
+                "item_id": "item-xyz",
+                "canonical_id": "urn:app:action:xyz",
+                "schema_jsonld": {"name": "Inbox Mail", "@type": ["schema:Action"]},
+            }
+        )
+        monkeypatch.setattr("app.chat.routes._patch_item_local", mock_triage)
+
+        request = {
+            "toolCall": {
+                "name": "copilot_cli",
+                "arguments": {
+                    "argv": [
+                        "items",
+                        "triage",
+                        "urn:app:email:fd38b8c6210f5a44",
+                        "--bucket",
+                        "next",
+                        "--name",
+                        "ignore me",
+                        "--apply",
+                    ],
+                },
+            },
+            "conversationId": "conv-42",
+        }
+
+        response = auth_client.post("/chat/execute-tool", json=request)
+        assert response.status_code == 200
+        body = response.json()
+        assert body["createdItems"][0]["canonicalId"] == "urn:app:action:xyz"
+        called_item_id = mock_triage.await_args.args[0]
+        assert called_item_id == "urn:app:email:fd38b8c6210f5a44"
+
     def test_cli_non_triage_still_forwarded(self, auth_client, monkeypatch):
         """Non-triage copilot_cli commands should still forward to agents."""
         _patch_settings(monkeypatch, agents_url="http://localhost:8002")

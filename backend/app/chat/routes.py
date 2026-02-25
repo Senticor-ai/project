@@ -447,30 +447,47 @@ def _parse_cli_triage(argv: list) -> dict | None:
 
     Returns a dict with ``id`` (required) and optional ``status`` / ``bucket``
     keys, or *None* when the argv is not an ``items triage`` command.
+    Supports both positional id (CLI-native) and legacy ``--id`` form.
     """
-    if not isinstance(argv, list) or len(argv) < 4:
+    if not isinstance(argv, list) or len(argv) < 3:
         return None
     if argv[0] != "items" or argv[1] != "triage":
         return None
 
     params: dict[str, str] = {}
+    positional_id: str | None = None
     i = 2
     while i < len(argv):
-        if argv[i] == "--id" and i + 1 < len(argv):
-            params["id"] = argv[i + 1]
-            i += 2
-        elif argv[i] == "--bucket" and i + 1 < len(argv):
-            params["bucket"] = argv[i + 1]
-            i += 2
-        elif argv[i] == "--status" and i + 1 < len(argv):
-            params["status"] = argv[i + 1]
-            i += 2
-        else:
-            # Skip flags like --apply, --yes, --json, --non-interactive
-            i += 1
+        token = argv[i]
+        if isinstance(token, str) and token.startswith("--"):
+            option, inline_value = (
+                (token.split("=", 1) + [None])[:2] if "=" in token else (token, None)
+            )
+
+            if option in {"--id", "--bucket", "--status"}:
+                value = inline_value
+                if value is None and i + 1 < len(argv):
+                    value = argv[i + 1]
+                    i += 1
+                if isinstance(value, str) and value:
+                    key = option[2:]
+                    params[key] = value
+            else:
+                # Skip unknown option payloads (e.g. --name "<text>").
+                if inline_value is None and i + 1 < len(argv):
+                    next_token = argv[i + 1]
+                    if isinstance(next_token, str) and not next_token.startswith("-"):
+                        i += 1
+        elif isinstance(token, str) and token and positional_id is None:
+            positional_id = token
+        i += 1
+
+    if "id" not in params and positional_id:
+        params["id"] = positional_id
 
     if "id" not in params:
         return None
+
     return params
 
 

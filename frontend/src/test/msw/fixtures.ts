@@ -4,6 +4,7 @@ import type {
   FileRecord,
   EmailConnectionResponse,
   EmailConnectionCalendarResponse,
+  EmailProposalResponse,
   OrgResponse,
 } from "@/lib/api-client";
 import type { CanonicalId } from "@/model/canonical-id";
@@ -18,6 +19,7 @@ export const store = {
   fileContent: new Map<string, string>(),
   emailConnections: new Map<string, EmailConnectionResponse>(),
   emailCalendars: new Map<string, EmailConnectionCalendarResponse[]>(),
+  emailProposals: [] as EmailProposalResponse[],
   orgs: new Map<string, OrgResponse>(),
   conversations: new Map<string, ConversationSummary>(),
   clear() {
@@ -25,6 +27,7 @@ export const store = {
     this.fileContent.clear();
     this.emailConnections.clear();
     this.emailCalendars.clear();
+    this.emailProposals = [];
     this.orgs.clear();
     this.conversations.clear();
   },

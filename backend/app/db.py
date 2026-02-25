@@ -1,3 +1,4 @@
+import os
 import time
 import uuid
 from contextlib import contextmanager
@@ -12,6 +13,12 @@ from .observability import get_logger, get_request_context
 
 logger = get_logger("db")
 _SQL_PREVIEW_CHARS = 240
+_LOG_DB_QUERIES = os.environ.get("LOG_DB_QUERIES", "1").lower() not in {
+    "0",
+    "false",
+    "off",
+    "no",
+}
 
 
 def _sql_preview(query: object) -> str:
@@ -44,14 +51,15 @@ class InstrumentedCursor(psycopg.Cursor):
                 error=str(exc),
             )
             raise
-        logger.info(
-            "db.query",
-            trail_id=context.get("trail_id"),
-            db_call_id=db_call_id,
-            statement=statement,
-            duration_ms=int((time.monotonic() - started) * 1000),
-            rowcount=self.rowcount,
-        )
+        if _LOG_DB_QUERIES:
+            logger.info(
+                "db.query",
+                trail_id=context.get("trail_id"),
+                db_call_id=db_call_id,
+                statement=statement,
+                duration_ms=int((time.monotonic() - started) * 1000),
+                rowcount=self.rowcount,
+            )
         return result
 
     def executemany(self, query, params_seq, *, returning=False):
@@ -71,14 +79,15 @@ class InstrumentedCursor(psycopg.Cursor):
                 error=str(exc),
             )
             raise
-        logger.info(
-            "db.executemany",
-            trail_id=context.get("trail_id"),
-            db_call_id=db_call_id,
-            statement=statement,
-            duration_ms=int((time.monotonic() - started) * 1000),
-            rowcount=self.rowcount,
-        )
+        if _LOG_DB_QUERIES:
+            logger.info(
+                "db.executemany",
+                trail_id=context.get("trail_id"),
+                db_call_id=db_call_id,
+                statement=statement,
+                duration_ms=int((time.monotonic() - started) * 1000),
+                rowcount=self.rowcount,
+            )
         return result
 
 

@@ -28,21 +28,21 @@ The tool executor automatically adds required flags to ensure consistent behavio
 
 - `--json`: Forces structured JSON output conforming to copilot.v1 envelope
 - `--non-interactive`: Disables interactive prompts (required for agent execution)
-- `--approve`: Auto-added for write operations requiring user approval
+- `--yes`: Auto-added for write operations requiring user approval
 
 These flags are idempotent — if already present in argv[], they are not duplicated.
 
 Example transformation:
     Input:  argv = ["items", "create", "--title", "Task"]
-    Output: ["items", "create", "--title", "Task", "--json", "--non-interactive", "--approve"]
+    Output: ["items", "create", "--title", "Task", "--json", "--non-interactive", "--yes"]
 
 ### 1.3 Approval-Gated Write Operations
 
 Write operations (create, update, delete, archive) require explicit approval:
 
-- In agent context: `--approve` is auto-added by the tool executor
-- In interactive CLI: User is prompted for confirmation unless `--approve` provided
-- In CI/non-interactive mode: `--approve` must be present or command fails
+- In agent context: `--yes` is auto-added by the tool executor
+- In interactive CLI: User is prompted for confirmation unless `--yes` provided
+- In CI/non-interactive mode: `--yes` must be present or command fails
 
 This ensures audit trails and prevents unauthorized modifications.
 
@@ -111,7 +111,7 @@ Common error codes returned by copilot_cli:
 - `INVALID_BUCKET`: Unknown bucket name provided
 - `ITEM_NOT_FOUND`: Item ID does not exist
 - `VALIDATION_ERROR`: Invalid command arguments or data
-- `APPROVAL_REQUIRED`: Write operation needs --approve flag
+- `APPROVAL_REQUIRED`: Write operation needs --yes flag
 - `EXECUTION_ERROR`: Unexpected internal error during execution
 
 ## 3. Version Stability Guarantees
