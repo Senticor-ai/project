@@ -81,3 +81,125 @@ export const WithGermanUmlauts: Story = {
     senderEmail: "oeffentlichkeit@bund.de",
   },
 };
+
+// Phase 1: Responsive — wide table that would overflow without containment
+export const WideTableEmail: Story = {
+  args: {
+    htmlBody: `
+      <div>
+        <p>Sehr geehrte Frau Müller,</p>
+        <p>anbei finden Sie die Übersicht der eingegangenen Anträge:</p>
+        <table style="width: 900px; border-collapse: collapse;">
+          <thead>
+            <tr>
+              <th style="min-width: 150px; border: 1px solid #ccc; padding: 8px;">Antragsnummer</th>
+              <th style="min-width: 200px; border: 1px solid #ccc; padding: 8px;">Antragsteller</th>
+              <th style="min-width: 150px; border: 1px solid #ccc; padding: 8px;">Datum</th>
+              <th style="min-width: 200px; border: 1px solid #ccc; padding: 8px;">Status</th>
+              <th style="min-width: 200px; border: 1px solid #ccc; padding: 8px;">Bemerkung</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="border: 1px solid #ccc; padding: 8px;">AZ-2024-001</td>
+              <td style="border: 1px solid #ccc; padding: 8px;">Schmidt, Hans</td>
+              <td style="border: 1px solid #ccc; padding: 8px;">12.01.2024</td>
+              <td style="border: 1px solid #ccc; padding: 8px;">In Bearbeitung</td>
+              <td style="border: 1px solid #ccc; padding: 8px;">Unterlagen vollständig</td>
+            </tr>
+          </tbody>
+        </table>
+        <p>Mit freundlichen Grüßen</p>
+      </div>
+    `,
+    senderName: "Verwaltung",
+    senderEmail: "verwaltung@bund.de",
+    sourceUrl: "https://mail.google.com/mail/u/0/#inbox/ghi789",
+  },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(
+      canvas.getByRole("button", { name: /E-Mail anzeigen/i }),
+    );
+    // Table should be present and not cause horizontal overflow
+    expect(canvas.getByRole("table")).toBeInTheDocument();
+  },
+};
+
+// Phase 1: Responsive — mobile viewport
+export const MobileViewport: Story = {
+  parameters: {
+    viewport: { defaultViewport: "mobile1" },
+  },
+  args: {
+    htmlBody: `
+      <div>
+        <p>Sehr geehrte Frau Müller,</p>
+        <table style="width: 800px;">
+          <tr><td style="min-width: 400px;">Spalte 1</td><td style="min-width: 400px;">Spalte 2</td></tr>
+        </table>
+        <p>Mit freundlichen Grüßen</p>
+      </div>
+    `,
+    senderName: "Verwaltung",
+    senderEmail: "verwaltung@bund.de",
+  },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(
+      canvas.getByRole("button", { name: /E-Mail anzeigen/i }),
+    );
+    expect(canvas.getByRole("table")).toBeInTheDocument();
+  },
+};
+
+// Phase 2: Copy — shows copy button when expanded
+export const WithCopyInteraction: Story = {
+  args: {
+    htmlBody: `
+      <p>Sehr geehrte Frau Müller,</p>
+      <p>hiermit teile ich Ihnen mit, dass der Antrag genehmigt wurde.</p>
+      <p>Mit freundlichen Grüßen, Hans Schmidt</p>
+    `,
+    senderName: "Hans Schmidt",
+    senderEmail: "h.schmidt@example.de",
+    sourceUrl: "https://mail.google.com/mail/u/0/#inbox/abc123",
+  },
+  play: async ({ canvas, userEvent }) => {
+    // Copy button not visible when collapsed
+    expect(canvas.queryByRole("button", { name: /kopieren/i })).toBeNull();
+    // Expand
+    await userEvent.click(
+      canvas.getByRole("button", { name: /E-Mail anzeigen/i }),
+    );
+    // Copy button now visible
+    expect(
+      canvas.getByRole("button", { name: /kopieren/i }),
+    ).toBeInTheDocument();
+  },
+};
+
+// Phase 3: Archive — shows archive button in footer
+export const WithArchiveAction: Story = {
+  args: {
+    htmlBody: `
+      <p>Sehr geehrte Frau Müller,</p>
+      <p>hiermit teile ich Ihnen mit, dass der Antrag genehmigt wurde.</p>
+      <p>Mit freundlichen Grüßen, Hans Schmidt</p>
+    `,
+    senderName: "Hans Schmidt",
+    senderEmail: "h.schmidt@example.de",
+    sourceUrl: "https://mail.google.com/mail/u/0/#inbox/abc123",
+    onArchive: () => undefined,
+  },
+  play: async ({ canvas, userEvent }) => {
+    // Archive button not visible when collapsed
+    expect(canvas.queryByRole("button", { name: /archivieren/i })).toBeNull();
+    // Expand
+    await userEvent.click(
+      canvas.getByRole("button", { name: /E-Mail anzeigen/i }),
+    );
+    // Archive button visible in footer
+    expect(
+      canvas.getByRole("button", { name: /archivieren/i }),
+    ).toBeInTheDocument();
+  },
+};

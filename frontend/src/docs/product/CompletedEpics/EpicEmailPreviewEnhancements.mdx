@@ -1,12 +1,11 @@
 import { Meta } from "@storybook/addon-docs/blocks";
 
-<Meta title="Product/Epics/Email Preview Enhancements" />
+<Meta title="Product/Completed Epics/Email Preview Enhancements" />
 
 # Epic: Email Preview Enhancements — Copy, Archive, Responsive
 
-**Status:** Not started
-**Priority:** Current
-**Checklist audit:** February 24, 2026 — implementation has not started; all checklist items remain unchecked.
+**Status:** Closed
+**Closed on:** February 25, 2026
 **See also:** [Engineering / Email Integration](?path=/docs/engineering-email-integration--docs), [Design / Copilot UX](?path=/docs/design-copilot-ux--docs)
 
 ## Context
@@ -99,7 +98,7 @@ Implementation:
   then reverts to "Kopieren"
 - Button only appears when the email body is expanded
 
-### Files to modify
+### Files modified
 
 | File                                                       | Change                                                 |
 | ---------------------------------------------------------- | ------------------------------------------------------ |
@@ -159,7 +158,7 @@ export interface EmailBodyViewerProps {
 }
 ```
 
-### Files to modify
+### Files modified
 
 | File                                                       | Change                                              |
 | ---------------------------------------------------------- | --------------------------------------------------- |
@@ -264,7 +263,7 @@ const sanitizedHtml = useMemo(() => {
 }, [htmlBody]);
 ```
 
-### Files to modify
+### Files modified
 
 | File                                                       | Change                                                    |
 | ---------------------------------------------------------- | --------------------------------------------------------- |
@@ -278,28 +277,28 @@ const sanitizedHtml = useMemo(() => {
 
 ### Copy/Paste
 
-- [ ] Expanded email body text is selectable with standard browser selection
-- [ ] "Kopieren" button appears in header when email body is expanded
-- [ ] Clicking "Kopieren" copies the email body as clean plaintext to clipboard
-- [ ] Button shows "Kopiert!" feedback for 2 seconds after successful copy
-- [ ] Copy works in Chrome, Firefox, and Safari
+- [x] Expanded email body text is selectable with standard browser selection
+- [x] "Kopieren" button appears in header when email body is expanded
+- [x] Clicking "Kopieren" copies the email body as clean plaintext to clipboard
+- [x] Button shows "Kopiert!" feedback for 2 seconds after successful copy
+- [x] Copy works in Chrome, Firefox, and Safari
 
 ### Archive
 
-- [ ] "Archivieren" button appears in email preview footer when `onArchive` is provided
-- [ ] Clicking "Archivieren" triggers the same archive flow as the overflow menu
-- [ ] Button is not shown for already-archived items or contexts without archive support
-- [ ] Bidirectional Gmail sync works (COPILOT archive removes Gmail INBOX label)
+- [x] "Archivieren" button appears in email preview footer when `onArchive` is provided
+- [x] Clicking "Archivieren" triggers the same archive flow as the overflow menu
+- [x] Button is not shown for already-archived items or contexts without archive support
+- [x] Bidirectional Gmail sync works (COPILOT archive removes Gmail INBOX label)
 
 ### Responsive
 
-- [ ] Email HTML tables do not overflow the container on 375px-wide viewport
-- [ ] Email images scale down to fit container width
-- [ ] Inline `width: NNNpx` styles on tables/divs are stripped during sanitization
-- [ ] Long unbroken strings (URLs) wrap instead of overflowing
-- [ ] Header layout stacks vertically on screens below `md` breakpoint
-- [ ] Footer actions stack vertically on screens below `md` breakpoint
-- [ ] Email preview is usable on iPhone SE (375px) and Galaxy S8 (360px) viewports
+- [x] Email HTML tables do not overflow the container on 375px-wide viewport
+- [x] Email images scale down to fit container width
+- [x] Inline `width: NNNpx` styles on tables/divs are stripped during sanitization
+- [x] Long unbroken strings (URLs) wrap instead of overflowing
+- [x] Header layout stacks vertically on screens below `md` breakpoint
+- [x] Footer actions stack vertically on screens below `md` breakpoint
+- [x] Email preview is usable on iPhone SE (375px) and Galaxy S8 (360px) viewports
 
 ---
 
@@ -307,27 +306,27 @@ const sanitizedHtml = useMemo(() => {
 
 ### Phase 1: Responsive reformatting
 
-- [ ] Add overflow/containment CSS to email body wrapper
-- [ ] Add width-stripping post-processing to DOMPurify output
-- [ ] Add responsive header/footer layout (stacking on mobile)
-- [ ] Add Storybook stories for mobile viewport and wide-table email
-- [ ] Add unit tests for width stripping and overflow behavior
+- [x] Add overflow/containment CSS to email body wrapper
+- [x] Add width-stripping post-processing to DOMPurify output
+- [x] Add responsive header/footer layout (stacking on mobile)
+- [x] Add Storybook stories for mobile viewport and wide-table email
+- [x] Add unit tests for width stripping and overflow behavior
 
 ### Phase 2: Copy/paste support
 
-- [ ] Add plaintext extraction utility (sanitized HTML → textContent)
-- [ ] Add "Kopieren" button to email header (expanded state only)
-- [ ] Implement clipboard write with fallback
-- [ ] Add "Kopiert!" feedback animation
-- [ ] Add unit tests and Storybook story for copy interaction
+- [x] Add plaintext extraction utility (sanitized HTML → textContent)
+- [x] Add "Kopieren" button to email header (expanded state only)
+- [x] Implement clipboard write with fallback
+- [x] Add "Kopiert!" feedback animation
+- [x] Add unit tests and Storybook story for copy interaction
 
 ### Phase 3: Archive from preview
 
-- [ ] Add `onArchive` prop to `EmailBodyViewerProps`
-- [ ] Render "Archivieren" button in footer when prop is provided
-- [ ] Wire `onArchive` from `ActionRow` through to `EmailBodyViewer`
-- [ ] Add unit tests for archive button visibility and callback
-- [ ] Add Storybook story with archive action
+- [x] Add `onArchive` prop to `EmailBodyViewerProps`
+- [x] Render "Archivieren" button in footer when prop is provided
+- [x] Wire `onArchive` from `ActionRow` through to `EmailBodyViewer`
+- [x] Add unit tests for archive button visibility and callback
+- [x] Add Storybook story with archive action
 
 ---
 

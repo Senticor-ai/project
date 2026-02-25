@@ -497,6 +497,7 @@ export function ActionRow({
                 captureSource.kind === "email" ? captureSource.from : undefined
               }
               sourceUrl={thing.emailSourceUrl}
+              onArchive={() => onArchive(thing.id)}
               className="mb-3"
             />
           )}
