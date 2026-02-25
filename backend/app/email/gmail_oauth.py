@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke"
 GOOGLE_GMAIL_PROFILE_URL = "https://gmail.googleapis.com/gmail/v1/users/me/profile"
 
 
@@ -151,3 +152,30 @@ def get_valid_gmail_token(connection_row: dict, org_id: str) -> str:
         str(connection_row["connection_id"]),
         org_id,
     )
+
+
+def revoke_google_token(token: str) -> None:
+    """Revoke a Google OAuth token (access or refresh).
+
+    Calls the Google revocation endpoint.  Non-200 responses are logged
+    but **not** raised so that the disconnect flow remains resilient.
+    """
+    try:
+        response = httpx.post(
+            GOOGLE_REVOKE_URL,
+            params={"token": token},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            timeout=10,
+        )
+        if response.status_code == 200:
+            logger.info("Google token revoked successfully")
+        else:
+            logger.warning(
+                "Google token revocation returned %d: %s",
+                response.status_code,
+                response.text[:500],
+            )
+    except httpx.TimeoutException:
+        logger.warning("Google token revocation timed out")
+    except Exception:
+        logger.warning("Google token revocation failed", exc_info=True)

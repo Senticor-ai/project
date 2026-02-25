@@ -1,5 +1,16 @@
 """Tests for security headers middleware and CORS configuration."""
 
+import dataclasses
+
+from app.config import settings
+
+
+def _patch_settings(monkeypatch, **overrides):
+    """Replace the module-level settings with a copy that has overrides applied."""
+    patched = dataclasses.replace(settings, **overrides)
+    monkeypatch.setattr("app.main.settings", patched)
+    return patched
+
 
 class TestSecurityHeaders:
     """Verify security headers are applied to responses."""
@@ -34,6 +45,27 @@ class TestHstsHeader:
     """HSTS is off by default (dev) and on in production."""
 
     def test_hsts_absent_by_default(self, client):
+        response = client.get("/health")
+        assert "Strict-Transport-Security" not in response.headers
+
+    def test_hsts_present_when_enabled(self, client, monkeypatch):
+        _patch_settings(monkeypatch, hsts_enabled=True, hsts_max_age=31536000)
+        response = client.get("/health")
+        hsts = response.headers.get("Strict-Transport-Security")
+        assert hsts is not None
+        assert "max-age=31536000" in hsts
+        assert "includeSubDomains" in hsts
+        assert "preload" in hsts
+
+    def test_hsts_custom_max_age(self, client, monkeypatch):
+        _patch_settings(monkeypatch, hsts_enabled=True, hsts_max_age=86400)
+        response = client.get("/health")
+        hsts = response.headers.get("Strict-Transport-Security")
+        assert hsts is not None
+        assert "max-age=86400" in hsts
+
+    def test_hsts_disabled_explicitly(self, client, monkeypatch):
+        _patch_settings(monkeypatch, hsts_enabled=False)
         response = client.get("/health")
         assert "Strict-Transport-Security" not in response.headers
 

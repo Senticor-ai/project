@@ -16,10 +16,22 @@ spec:
         prometheus.io/path: /metrics
         prometheus.io/port: "9091"
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       initContainers:
         - name: wait-for-postgres
           image: postgres:16
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
           envFrom:
             - configMapRef:
                 name: app-config
@@ -37,6 +49,10 @@ spec:
         - name: push-worker
           image: project-backend:local
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           command: ["python", "-m", "app.push_worker", "--loop", "--interval", "1", "--batch-size", "10"]
           ports:
             - containerPort: 9091

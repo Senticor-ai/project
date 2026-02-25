@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
   - ../../base
   - configmap.yaml
+  - secrets-per-workload.yaml
 
 images:
   - name: project-backend

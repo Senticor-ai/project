@@ -410,6 +410,9 @@ CREATE INDEX IF NOT EXISTS idx_email_connections_watch_expiration
 CREATE INDEX IF NOT EXISTS idx_email_connections_calendar_sync
   ON email_connections (last_calendar_sync_at) WHERE is_active = true AND calendar_sync_enabled = true;
 
+-- Encryption key version tracking (key rotation support)
+ALTER TABLE email_connections ADD COLUMN IF NOT EXISTS encryption_key_version INTEGER;
+
 -- Google Workspace proposal + audit logs
 CREATE TABLE IF NOT EXISTS connector_action_proposals (
   proposal_id      UUID PRIMARY KEY DEFAULT gen_random_uuid(),

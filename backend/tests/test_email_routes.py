@@ -404,6 +404,65 @@ class TestDisconnect:
         response = auth_client.delete(f"/email/connections/{fake_id}")
         assert response.status_code == 404
 
+    def test_disconnect_revokes_google_token(self, auth_client, monkeypatch):
+        """Disconnecting should call Google's revocation endpoint."""
+        connection_id, _org_id, _user_id = _seed_active_connection(auth_client)
+
+        class DummyCrypto:
+            def decrypt(self, value: str) -> str:
+                return f"dec:{value}"
+
+        monkeypatch.setattr("app.email.routes.CryptoService", DummyCrypto)
+        monkeypatch.setattr("app.email.routes.stop_watch_for_connection", lambda *a: None)
+
+        revoked_tokens: list[str] = []
+        monkeypatch.setattr(
+            "app.email.routes.revoke_google_token",
+            lambda token: revoked_tokens.append(token),
+        )
+
+        response = auth_client.delete(f"/email/connections/{connection_id}")
+        assert response.status_code == 200
+
+        # Should revoke the refresh token (preferred) — only one call needed.
+        assert len(revoked_tokens) == 1
+        assert revoked_tokens[0] == "dec:enc-refresh"
+
+    def test_disconnect_succeeds_when_revocation_fails(self, auth_client, monkeypatch):
+        """Disconnect must succeed even if token revocation raises."""
+        connection_id, _org_id, _user_id = _seed_active_connection(auth_client)
+
+        class DummyCrypto:
+            def decrypt(self, _value: str) -> str:
+                raise ValueError("bad key")
+
+        monkeypatch.setattr("app.email.routes.CryptoService", DummyCrypto)
+        monkeypatch.setattr("app.email.routes.stop_watch_for_connection", lambda *a: None)
+
+        response = auth_client.delete(f"/email/connections/{connection_id}")
+        assert response.status_code == 200
+
+    def test_disconnect_succeeds_when_revocation_times_out(self, auth_client, monkeypatch):
+        """Disconnect must succeed even if the revocation HTTP call times out."""
+        connection_id, _org_id, _user_id = _seed_active_connection(auth_client)
+
+        class DummyCrypto:
+            def decrypt(self, value: str) -> str:
+                return f"dec:{value}"
+
+        monkeypatch.setattr("app.email.routes.CryptoService", DummyCrypto)
+        monkeypatch.setattr("app.email.routes.stop_watch_for_connection", lambda *a: None)
+
+        def revoke_timeout(token: str) -> None:
+            import httpx as _httpx
+
+            raise _httpx.TimeoutException("timed out")
+
+        monkeypatch.setattr("app.email.routes.revoke_google_token", revoke_timeout)
+
+        response = auth_client.delete(f"/email/connections/{connection_id}")
+        assert response.status_code == 200
+
 
 class TestTriggerSync:
     def test_returns_401_without_auth(self, client):
