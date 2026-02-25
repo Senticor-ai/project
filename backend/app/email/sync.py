@@ -825,10 +825,10 @@ def disable_non_fernet_scheduled_connections() -> int:
                   AND sync_interval_minutes > 0
                   AND (
                     COALESCE(encrypted_access_token, '') = ''
-                    OR encrypted_access_token NOT LIKE 'gAAAAA%%'
+                    OR encrypted_access_token !~ '^(gAAAAA|v[0-9]+:gAAAAA)'
                     OR (
                         COALESCE(encrypted_refresh_token, '') <> ''
-                        AND encrypted_refresh_token NOT LIKE 'gAAAAA%%'
+                        AND encrypted_refresh_token !~ '^(gAAAAA|v[0-9]+:gAAAAA)'
                     )
                   )
                 RETURNING connection_id

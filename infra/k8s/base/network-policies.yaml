@@ -60,6 +60,14 @@ spec:
     - ports:
         - port: 443
           protocol: TCP
+    # OTLP collector (Alloy, observability namespace)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
+      ports:
+        - port: 4318
+          protocol: TCP
 ---
 # Workers (outbox, push, watch): no ingress needed except health probes.
 # Egress to postgres, DNS, and HTTPS for external APIs.
