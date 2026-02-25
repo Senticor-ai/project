@@ -66,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await AuthApi.logout();
     setUser(null);
     setFaroUser(null);
+    window.history.replaceState({}, "", "/");
   }, []);
 
   const acknowledgeDisclaimer = useCallback(async () => {

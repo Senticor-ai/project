@@ -77,7 +77,13 @@ updates:
         update-types:
           - "minor"
           - "patch"
-    # Ignore specific packages if needed (example - uncomment to use)
-    # ignore:
-    #   - dependency-name: "react"
-    #     update-types: ["version-update:semver-major"]
+    # Pin toolchain versions — only upgrade when the current version reaches EOL
+    ignore:
+      # Stay on ESLint 9 (EOL 2026-08-06) — v10 is a breaking major
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@eslint/js"
+        update-types: ["version-update:semver-major"]
+      # Stay on @types/node 24.x to match our Node 24 LTS target
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]

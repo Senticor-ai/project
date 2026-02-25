@@ -126,10 +126,10 @@ export function LoginPage({
           {/* Dev/demo disclaimer banner */}
           <div
             role="status"
-            className="flex items-center gap-2 rounded-sm bg-status-warning/10 px-4 py-2 text-sm text-status-warning"
+            className="flex items-start gap-2 rounded-sm bg-status-warning/10 px-4 py-2 text-sm text-status-warning"
           >
-            <Icon name="warning" size={16} className="shrink-0" />
-            <span>
+            <Icon name="warning" size={16} className="mt-0.5 shrink-0" />
+            <span className="min-w-0 break-words">
               {getMessage("disclaimer.dev.banner")}
             </span>
           </div>

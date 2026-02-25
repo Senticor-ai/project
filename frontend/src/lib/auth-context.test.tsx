@@ -156,4 +156,31 @@ describe("AuthProvider", () => {
       expect(screen.getByTestId("user")).toHaveTextContent("none"),
     );
   });
+
+  it("logout resets the URL to '/'", async () => {
+    mockedAuth.me.mockResolvedValue(MOCK_USER);
+    mockedRefreshCsrf.mockResolvedValue("csrf-token");
+    mockedAuth.logout.mockResolvedValue({ ok: true });
+
+    window.history.pushState({}, "", "/workspace/inbox");
+    const replaceState = vi.spyOn(window.history, "replaceState");
+
+    render(
+      <AuthProvider>
+        <AuthConsumer />
+      </AuthProvider>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("user")).toHaveTextContent("test@example.com"),
+    );
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Logout" }));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("user")).toHaveTextContent("none"),
+    );
+    expect(replaceState).toHaveBeenCalledWith({}, "", "/");
+  });
 });

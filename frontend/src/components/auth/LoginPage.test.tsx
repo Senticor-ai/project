@@ -123,5 +123,15 @@ describe("LoginPage", () => {
       expect(disclaimer).toHaveClass("text-status-warning");
       expect(disclaimer).toHaveClass("bg-status-warning/10");
     });
+
+    it("prevents disclaimer text from bleeding outside the box", () => {
+      render(<LoginPage {...defaultProps} />);
+
+      const disclaimer = screen.getByRole("status");
+      // Text span is the last child; the first span is the Icon element
+      const textSpan = disclaimer.querySelector("span:last-child");
+      expect(textSpan).toHaveClass("min-w-0");
+      expect(textSpan).toHaveClass("break-words");
+    });
   });
 });
