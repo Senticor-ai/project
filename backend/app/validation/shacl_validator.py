@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from pyshacl import validate
 from rdflib import Graph
@@ -65,14 +65,17 @@ def _parse_violation_report(report_graph: Graph, report_text: str) -> list[dict[
         results = report_graph.query(query)
 
         for row in results:
-            path_str = str(row.path) if row.path else "item"
+            result_row = cast(Any, row)
+            path_value = getattr(result_row, "path", None)
+            path_str = str(path_value) if path_value else "item"
             # Extract local name from URI for cleaner field names
             if "#" in path_str:
                 path_str = path_str.split("#")[-1]
             elif "/" in path_str:
                 path_str = path_str.split("/")[-1]
 
-            message = str(row.message) if row.message else "Validation constraint violated"
+            message_value = getattr(result_row, "message", None)
+            message = str(message_value) if message_value else "Validation constraint violated"
 
             # Generate code from path or use generic code
             code = (
