@@ -46,9 +46,7 @@ def _resolve_cli_command() -> tuple[list[str], str]:
     if dist_entry.exists():
         return ["node", str(dist_entry)], str(REPO_ROOT)
 
-    return ["npm", "--prefix", str(CORE_DIR), "run", "copilot", "--silent", "--"], str(
-        REPO_ROOT
-    )
+    return ["npm", "--prefix", str(CORE_DIR), "run", "copilot", "--silent", "--"], str(REPO_ROOT)
 
 
 def _with_required_cli_flags(argv: list[str], conversation_id: str) -> list[str]:
@@ -215,9 +213,7 @@ def _created_items_from_cli_payload(payload: dict[str, Any]) -> list[CreatedItem
         seen.add(canonical_id)
         item_jsonld = record.get("item")
         item_type = (
-            _item_type_from_jsonld(item_jsonld)
-            if isinstance(item_jsonld, dict)
-            else "reference"
+            _item_type_from_jsonld(item_jsonld) if isinstance(item_jsonld, dict) else "reference"
         )
         out.append(
             CreatedItemRef(

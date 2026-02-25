@@ -72,7 +72,10 @@ def test_weekly_planning_scenario(client: TestClient):
     body = resp.json()
 
     # Verify response structure
-    assert body["text"] == "Hier ist deine Wochenübersicht. Ich liste jetzt deine nächsten Schritte auf."
+    assert (
+        body["text"]
+        == "Hier ist deine Wochenübersicht. Ich liste jetzt deine nächsten Schritte auf."
+    )
     assert len(body["toolCalls"]) == 1
 
     # Verify tool call is copilot_cli (not external tracker)
@@ -252,7 +255,10 @@ def test_review_triage_scenario(client: TestClient):
     body = resp.json()
 
     # Verify response structure
-    assert body["text"] == "Ich zeige dir deine aktuellen Aufgaben und verschiebe niedrig-priorisierte Items."
+    assert (
+        body["text"]
+        == "Ich zeige dir deine aktuellen Aufgaben und verschiebe niedrig-priorisierte Items."
+    )
     assert len(body["toolCalls"]) == 2
 
     # Verify all tool calls are copilot_cli (no external trackers)

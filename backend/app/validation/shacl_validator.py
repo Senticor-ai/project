@@ -79,27 +79,29 @@ def _parse_violation_report(report_graph: Graph, report_text: str) -> list[dict[
 
             # Generate code from path or use generic code
             code = (
-                f"SHACL_{path_str.upper()}_CONSTRAINT"
-                if path_str != "item"
-                else "SHACL_CONSTRAINT"
+                f"SHACL_{path_str.upper()}_CONSTRAINT" if path_str != "item" else "SHACL_CONSTRAINT"
             )
 
-            violations.append({
-                "source": "shacl",
-                "code": code,
-                "field": path_str,
-                "message": message,
-            })
+            violations.append(
+                {
+                    "source": "shacl",
+                    "code": code,
+                    "field": path_str,
+                    "message": message,
+                }
+            )
     except Exception as e:
         logger.warning(f"Failed to parse SHACL report graph: {e}")
         # Fallback: parse text report for at least one violation
         if report_text and "Validation Report" in report_text:
-            violations.append({
-                "source": "shacl",
-                "code": "SHACL_VALIDATION_FAILED",
-                "field": "item",
-                "message": "SHACL validation failed. See details in report.",
-            })
+            violations.append(
+                {
+                    "source": "shacl",
+                    "code": "SHACL_VALIDATION_FAILED",
+                    "field": "item",
+                    "message": "SHACL validation failed. See details in report.",
+                }
+            )
 
     return violations
 
@@ -141,9 +143,11 @@ def validate_shacl(
     except Exception as e:
         logger.error(f"SHACL validation error: {e}")
         # Return a generic validation error rather than raising
-        return [{
-            "source": "shacl",
-            "code": "SHACL_VALIDATION_ERROR",
-            "field": "item",
-            "message": f"SHACL validation failed: {str(e)}",
-        }]
+        return [
+            {
+                "source": "shacl",
+                "code": "SHACL_VALIDATION_ERROR",
+                "field": "item",
+                "message": f"SHACL validation failed: {str(e)}",
+            }
+        ]

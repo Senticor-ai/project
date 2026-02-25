@@ -13,6 +13,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse, Response
+from slowapi.errors import RateLimitExceeded
 
 from .chat import router as chat_router
 from .config import settings
@@ -40,6 +41,7 @@ from .observability import (
     generate_trail_id,
     get_logger,
 )
+from .rate_limit import limiter
 from .routes import (
     agent_settings,
     assertions,
@@ -162,6 +164,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Attach rate limiter to app state for SlowAPI
+app.state.limiter = limiter
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -239,7 +244,17 @@ async def request_context_middleware(request: Request, call_next):
 @app.middleware("http")
 async def csrf_middleware(request: Request, call_next):
     if settings.csrf_enabled and should_validate_csrf(request):
-        validate_csrf_request(request)
+        try:
+            validate_csrf_request(request)
+        except HTTPException as exc:
+            # Return a JSONResponse directly rather than letting the HTTPException
+            # propagate through Starlette's BaseHTTPMiddleware task group, which
+            # in newer Starlette versions wraps the exception in an ExceptionGroup
+            # and surfaces as an unhandled error instead of an HTTP response.
+            return JSONResponse(
+                status_code=exc.status_code,
+                content={"detail": exc.detail},
+            )
     return await call_next(request)
 
 
@@ -253,7 +268,7 @@ async def security_headers_middleware(request: Request, call_next):
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
         if settings.hsts_enabled:
             response.headers["Strict-Transport-Security"] = (
-                f"max-age={settings.hsts_max_age}; includeSubDomains"
+                f"max-age={settings.hsts_max_age}; includeSubDomains; preload"
             )
         if settings.csp_policy:
             response.headers["Content-Security-Policy"] = settings.csp_policy
@@ -288,6 +303,26 @@ async def validation_exception_with_request_id(
     response.headers[REQUEST_ID_HEADER] = getattr(request.state, "request_id", "")
     response.headers[TRAIL_ID_HEADER] = getattr(request.state, "trail_id", "")
     return response
+
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_exception_handler(request: Request, exc: RateLimitExceeded):
+    request.state.error_reason = "Rate limit exceeded"
+    logger.warning(
+        "rate_limit.exceeded",
+        method=request.method,
+        path=request.url.path,
+        remote_addr=request.client.host if request.client else None,
+    )
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Rate limit exceeded"},
+        headers={
+            "Retry-After": "60",
+            REQUEST_ID_HEADER: getattr(request.state, "request_id", ""),
+            TRAIL_ID_HEADER: getattr(request.state, "trail_id", ""),
+        },
+    )
 
 
 @app.exception_handler(Exception)

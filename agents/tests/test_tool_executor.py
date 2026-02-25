@@ -268,9 +268,7 @@ async def test_cli_contract_enforcement(auth_ctx):
         await execute_tool(
             ToolCallInput(
                 name="copilot_cli",
-                arguments={
-                    "argv": ["items", "list", "--json", "--non-interactive", "--approve"]
-                },
+                arguments={"argv": ["items", "list", "--json", "--non-interactive", "--approve"]},
             ),
             conversation_id="conv-1",
             auth=auth_ctx,

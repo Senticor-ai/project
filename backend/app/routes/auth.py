@@ -10,6 +10,7 @@ from ..deps import get_current_user
 from ..http import get_client_ip
 from ..models import AuthCredentials, RegistrationRequest, SessionRefreshResponse, UserResponse
 from ..org_knowledge import create_org_knowledge_documents
+from ..rate_limit import limiter
 from ..security import (
     generate_refresh_token,
     generate_session_token,
@@ -154,6 +155,7 @@ def _validate_password(password: str) -> None:
 
 
 @router.post("/register", response_model=UserResponse)
+@limiter.limit("5/minute")
 def register(payload: RegistrationRequest, request: Request, response: Response):
     email = _validate_email(payload.email)
     username = _normalize_username(payload.username)
@@ -234,6 +236,7 @@ def register(payload: RegistrationRequest, request: Request, response: Response)
 
 
 @router.post("/login", response_model=UserResponse)
+@limiter.limit("5/minute")
 def login(payload: AuthCredentials, request: Request, response: Response):
     with db_conn() as conn:
         with conn.cursor() as cur:

@@ -23,12 +23,38 @@ from pydantic import BaseModel
 # Load .env from monorepo root
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
+# fmt: off
 from backend_client import AuthContext  # noqa: E402 — must load env before importing
 from copilot import MODELS, RuntimeLlmConfig, create_agent  # noqa: E402
+from secrets_manager import SecretsManager, get_secrets_manager  # noqa: E402
 from tool_executor import ToolCallInput, execute_tool  # noqa: E402
 from tracing import configure_tracing, shutdown_tracing  # noqa: E402
+# fmt: on
 
 logger = logging.getLogger(__name__)
+
+# Initialize secrets manager (env fallback for dev, Vault/AWS for production)
+secrets_manager: SecretsManager | None
+try:
+    secrets_manager = get_secrets_manager()
+except Exception as e:
+    # Keep startup resilient when optional provider SDKs are not installed.
+    backend = os.environ.get("SECRETS_BACKEND", "env").lower()
+    if backend in {"vault", "aws"} and isinstance(e, ImportError):
+        logger.warning(
+            "Secrets backend '%s' SDK unavailable, falling back to environment variables: %s",
+            backend,
+            e,
+        )
+        secrets_manager = None
+    elif backend != "env":
+        # Fail fast for configured non-env backends when dependencies are present
+        # but backend init/auth still fails.
+        logger.error(f"Failed to initialize secrets manager ({backend}): {e}")
+        raise
+    else:
+        logger.warning(f"Secrets manager initialization issue (using env fallback): {e}")
+        secrets_manager = None
 
 
 def _enable_haystack_logging(*, enable_otel_tracing: bool) -> None:

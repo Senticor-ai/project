@@ -15,12 +15,9 @@ def test_version_validation():
 
         print("Test 1: Valid version (copilot.v1) should succeed")
         try:
-            env = CopilotV1Envelope.model_validate({
-                'schema_version': 'copilot.v1',
-                'ok': True,
-                'data': {},
-                'meta': {}
-            })
+            env = CopilotV1Envelope.model_validate(
+                {"schema_version": "copilot.v1", "ok": True, "data": {}, "meta": {}}
+            )
             print(f"  ✓ Success envelope parsed: {type(env).__name__}")
         except Exception as e:
             print(f"  ✗ FAILED: {e}")
@@ -28,11 +25,9 @@ def test_version_validation():
 
         print("\nTest 2: Invalid version (copilot.v2) should raise ValidationError")
         try:
-            env = CopilotV1Envelope.model_validate({
-                'schema_version': 'copilot.v2',
-                'ok': True,
-                'meta': {}
-            })
+            env = CopilotV1Envelope.model_validate(
+                {"schema_version": "copilot.v2", "ok": True, "meta": {}}
+            )
             print("  ✗ FAILED: Validation did not reject copilot.v2")
             return False
         except Exception as e:
@@ -41,12 +36,14 @@ def test_version_validation():
 
         print("\nTest 3: Error envelope with valid version should succeed")
         try:
-            env = CopilotV1Envelope.model_validate({
-                'schema_version': 'copilot.v1',
-                'ok': False,
-                'error': {'code': 'TEST_ERROR', 'message': 'Test error'},
-                'meta': {}
-            })
+            env = CopilotV1Envelope.model_validate(
+                {
+                    "schema_version": "copilot.v1",
+                    "ok": False,
+                    "error": {"code": "TEST_ERROR", "message": "Test error"},
+                    "meta": {},
+                }
+            )
             print(f"  ✓ Error envelope parsed: {type(env).__name__}")
         except Exception as e:
             print(f"  ✗ FAILED: {e}")

@@ -139,12 +139,14 @@ def validate_item_create(item: dict) -> list[dict[str, object]]:
 
     # SHACL shapes target concrete classes, so we must enforce @type first.
     if not item_type:
-        issues.append({
-            "source": "shacl",
-            "code": "TYPE_REQUIRED",
-            "field": "@type",
-            "message": "@type is required.",
-        })
+        issues.append(
+            {
+                "source": "shacl",
+                "code": "TYPE_REQUIRED",
+                "field": "@type",
+                "message": "@type is required.",
+            }
+        )
         return issues
 
     # SHACL validation using pyshacl
@@ -187,70 +189,84 @@ def validate_item_create(item: dict) -> list[dict[str, object]]:
             elif "@type" in field or field == "item":
                 code = "TYPE_REQUIRED"
 
-            issues.append({
-                "source": "shacl",
-                "code": code,
-                "field": field,
-                "message": violation.get("message", "Validation constraint violated"),
-            })
+            issues.append(
+                {
+                    "source": "shacl",
+                    "code": code,
+                    "field": field,
+                    "message": violation.get("message", "Validation constraint violated"),
+                }
+            )
     except ImportError:
         # Fallback to hardcoded validation if pyshacl not available
         logger.warning("pyshacl not available, using hardcoded validation")
 
         if _is_action_type(item_type):
             if bucket not in ACTION_BUCKETS:
-                issues.append({
-                    "source": "shacl",
-                    "code": "ACTION_BUCKET_INVALID",
-                    "field": "additionalProperty.app:bucket",
-                    "message": (
-                        "Action bucket must be one of "
-                        "inbox,next,waiting,someday,calendar,reference,completed"
-                    ),
-                })
+                issues.append(
+                    {
+                        "source": "shacl",
+                        "code": "ACTION_BUCKET_INVALID",
+                        "field": "additionalProperty.app:bucket",
+                        "message": (
+                            "Action bucket must be one of "
+                            "inbox,next,waiting,someday,calendar,reference,completed"
+                        ),
+                    }
+                )
 
         if item_type == "Project" and not _as_text(item.get("name")):
-            issues.append({
-                "source": "shacl",
-                "code": "PROJECT_NAME_REQUIRED",
-                "field": "name",
-                "message": "Project items require a non-empty name.",
-            })
+            issues.append(
+                {
+                    "source": "shacl",
+                    "code": "PROJECT_NAME_REQUIRED",
+                    "field": "name",
+                    "message": "Project items require a non-empty name.",
+                }
+            )
 
         if item_type in {"CreativeWork", "DigitalDocument"} and not _as_text(item.get("name")):
-            issues.append({
-                "source": "shacl",
-                "code": "REFERENCE_NAME_REQUIRED",
-                "field": "name",
-                "message": "Reference items require a non-empty name.",
-            })
+            issues.append(
+                {
+                    "source": "shacl",
+                    "code": "REFERENCE_NAME_REQUIRED",
+                    "field": "name",
+                    "message": "Reference items require a non-empty name.",
+                }
+            )
 
         if item_type == "Person":
             if not _as_text(item.get("name")):
-                issues.append({
-                    "source": "shacl",
-                    "code": "PERSON_NAME_REQUIRED",
-                    "field": "name",
-                    "message": "Person items require a non-empty name.",
-                })
+                issues.append(
+                    {
+                        "source": "shacl",
+                        "code": "PERSON_NAME_REQUIRED",
+                        "field": "name",
+                        "message": "Person items require a non-empty name.",
+                    }
+                )
             if _get_additional_property(item, "app:orgRef") is None:
-                issues.append({
-                    "source": "shacl",
-                    "code": "PERSON_ORGREF_REQUIRED",
-                    "field": "additionalProperty.app:orgRef",
-                    "message": "Person items require app:orgRef.",
-                })
+                issues.append(
+                    {
+                        "source": "shacl",
+                        "code": "PERSON_ORGREF_REQUIRED",
+                        "field": "additionalProperty.app:orgRef",
+                        "message": "Person items require app:orgRef.",
+                    }
+                )
             role = _as_text(_get_additional_property(item, "app:orgRole"))
             if role not in PERSON_ROLES:
-                issues.append({
-                    "source": "shacl",
-                    "code": "PERSON_ORGROLE_INVALID",
-                    "field": "additionalProperty.app:orgRole",
-                    "message": (
-                        "Person app:orgRole must be one of "
-                        "member,founder,accountant,advisor,interest."
-                    ),
-                })
+                issues.append(
+                    {
+                        "source": "shacl",
+                        "code": "PERSON_ORGROLE_INVALID",
+                        "field": "additionalProperty.app:orgRole",
+                        "message": (
+                            "Person app:orgRole must be one of "
+                            "member,founder,accountant,advisor,interest."
+                        ),
+                    }
+                )
 
     # CEL rules using cel-python
     try:
@@ -266,16 +282,18 @@ def validate_item_create(item: dict) -> list[dict[str, object]]:
         # Fallback to hardcoded CEL if cel-python not available
         logger.warning("cel-python not available, using hardcoded CEL validation")
         if bucket and bucket not in ACTION_BUCKETS:
-            issues.append({
-                "source": "cel",
-                "code": "BUCKET_ENUM",
-                "field": "additionalProperty.app:bucket",
-                "rule": "item.bucket.enum",
-                "message": (
-                    "Bucket must be one of "
-                    "inbox,next,waiting,someday,calendar,reference,project,completed."
-                ),
-            })
+            issues.append(
+                {
+                    "source": "cel",
+                    "code": "BUCKET_ENUM",
+                    "field": "additionalProperty.app:bucket",
+                    "rule": "item.bucket.enum",
+                    "message": (
+                        "Bucket must be one of "
+                        "inbox,next,waiting,someday,calendar,reference,project,completed."
+                    ),
+                }
+            )
 
     return issues
 
@@ -327,8 +345,7 @@ def validate_item_update(existing_item: dict, next_item: dict) -> list[dict[str,
                     "field": "additionalProperty.app:bucket",
                     "rule": "triage.inbox.targets",
                     "message": (
-                        "Inbox items can only move to "
-                        "next,waiting,someday,calendar,reference."
+                        "Inbox items can only move to next,waiting,someday,calendar,reference."
                     ),
                 }
             )

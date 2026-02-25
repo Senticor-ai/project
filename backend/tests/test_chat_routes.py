@@ -554,11 +554,13 @@ class TestExecuteTool:
 
         _patch_settings(monkeypatch, agents_url=None)  # No agents → would 503 if forwarded
 
-        mock_triage = AsyncMock(return_value={
-            "item_id": "item-abc",
-            "canonical_id": "urn:app:action:abc",
-            "schema_jsonld": {"name": "GitHub PR #64", "@type": ["schema:Action"]},
-        })
+        mock_triage = AsyncMock(
+            return_value={
+                "item_id": "item-abc",
+                "canonical_id": "urn:app:action:abc",
+                "schema_jsonld": {"name": "GitHub PR #64", "@type": ["schema:Action"]},
+            }
+        )
         monkeypatch.setattr("app.chat.routes._patch_item_local", mock_triage)
 
         request = {
@@ -566,10 +568,14 @@ class TestExecuteTool:
                 "name": "copilot_cli",
                 "arguments": {
                     "argv": [
-                        "items", "triage",
-                        "--id", "01jksnyyypf0vbead2gcr7p80w",
-                        "--bucket", "inbox",
-                        "--status", "completed",
+                        "items",
+                        "triage",
+                        "--id",
+                        "01jksnyyypf0vbead2gcr7p80w",
+                        "--bucket",
+                        "inbox",
+                        "--status",
+                        "completed",
                         "--apply",
                     ],
                 },
@@ -588,11 +594,13 @@ class TestExecuteTool:
 
         _patch_settings(monkeypatch, agents_url=None)
 
-        mock_triage = AsyncMock(return_value={
-            "item_id": "item-abc",
-            "canonical_id": "urn:app:action:abc",
-            "schema_jsonld": {"name": "Newsletter", "@type": ["schema:DigitalDocument"]},
-        })
+        mock_triage = AsyncMock(
+            return_value={
+                "item_id": "item-abc",
+                "canonical_id": "urn:app:action:abc",
+                "schema_jsonld": {"name": "Newsletter", "@type": ["schema:DigitalDocument"]},
+            }
+        )
         monkeypatch.setattr("app.chat.routes._patch_item_local", mock_triage)
 
         request = {
@@ -600,10 +608,14 @@ class TestExecuteTool:
                 "name": "copilot_cli",
                 "arguments": {
                     "argv": [
-                        "items", "triage",
-                        "--id", "urn:app:ref:xyz",
-                        "--bucket", "inbox",
-                        "--status", "completed",
+                        "items",
+                        "triage",
+                        "--id",
+                        "urn:app:ref:xyz",
+                        "--bucket",
+                        "inbox",
+                        "--status",
+                        "completed",
                         "--apply",
                     ],
                 },

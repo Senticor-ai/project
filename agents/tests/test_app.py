@@ -435,7 +435,16 @@ class TestMultiTurn:
                             ChatToolCallResponse(
                                 id="call_abc123",
                                 name="copilot_cli",
-                                arguments={"argv": ["items", "create", "--type", "Action", "--name", "Test"]},
+                                arguments={
+                                    "argv": [
+                                        "items",
+                                        "create",
+                                        "--type",
+                                        "Action",
+                                        "--name",
+                                        "Test",
+                                    ]
+                                },
                             )
                         ],
                     ),
@@ -481,7 +490,16 @@ class TestMultiTurn:
                             ChatToolCallResponse(
                                 # No id — simulates old DB records
                                 name="copilot_cli",
-                                arguments={"argv": ["items", "create", "--type", "Action", "--name", "Test"]},
+                                arguments={
+                                    "argv": [
+                                        "items",
+                                        "create",
+                                        "--type",
+                                        "Action",
+                                        "--name",
+                                        "Test",
+                                    ]
+                                },
                             )
                         ],
                     ),

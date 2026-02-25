@@ -26,11 +26,7 @@ def _additional_property_value(item_jsonld: dict, property_id: str):
         return None
 
     for entry in props:
-        if (
-            isinstance(entry, dict)
-            and entry.get("propertyID") == property_id
-            and "value" in entry
-        ):
+        if isinstance(entry, dict) and entry.get("propertyID") == property_id and "value" in entry:
             return entry.get("value")
     return None
 

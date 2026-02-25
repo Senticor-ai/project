@@ -40,6 +40,7 @@ class TestLoadRules:
         """Test that missing rules file raises RuntimeError."""
         # Reset the module cache to force reload
         import app.validation.cel_evaluator
+
         app.validation.cel_evaluator._compiled_rules = None
 
         with pytest.raises(RuntimeError, match="CEL rules file not found"):
@@ -49,6 +50,7 @@ class TestLoadRules:
     def test_load_rules_invalid_json_raises_error(self):
         """Test that invalid JSON raises RuntimeError."""
         import app.validation.cel_evaluator
+
         app.validation.cel_evaluator._compiled_rules = None
 
         invalid_json = "{ not valid json }"
@@ -60,15 +62,20 @@ class TestLoadRules:
     def test_load_rules_compilation_error_raises_error(self):
         """Test that CEL compilation errors raise RuntimeError."""
         import app.validation.cel_evaluator
+
         app.validation.cel_evaluator._compiled_rules = None
 
         # Invalid CEL syntax
-        invalid_rules = json.dumps([{
-            "id": "test.invalid",
-            "description": "Invalid CEL",
-            "when": "true",
-            "expression": "invalid CEL syntax @#$%"
-        }])
+        invalid_rules = json.dumps(
+            [
+                {
+                    "id": "test.invalid",
+                    "description": "Invalid CEL",
+                    "when": "true",
+                    "expression": "invalid CEL syntax @#$%",
+                }
+            ]
+        )
 
         with patch("pathlib.Path.open", mock_open(read_data=invalid_rules)):
             with pytest.raises(RuntimeError, match="CEL rule compilation failed"):
@@ -86,7 +93,7 @@ class TestEvaluateRulesTriageInboxTargets:
             context = {
                 "source": {"bucket": "inbox"},
                 "target": {"bucket": target},
-                "operation": "triage"
+                "operation": "triage",
             }
             violations = evaluate_rules(context)
             assert violations == [], f"Inbox to {target} should be allowed"
@@ -99,7 +106,7 @@ class TestEvaluateRulesTriageInboxTargets:
             context = {
                 "source": {"bucket": "inbox"},
                 "target": {"bucket": target},
-                "operation": "triage"
+                "operation": "triage",
             }
             violations = evaluate_rules(context)
             assert len(violations) > 0, f"Inbox to {target} should fail"
@@ -116,7 +123,7 @@ class TestEvaluateRulesTriageInboxTargets:
         context = {
             "source": {"bucket": "next"},
             "target": {"bucket": "completed"},
-            "operation": "triage"
+            "operation": "triage",
         }
         violations = evaluate_rules(context)
 
@@ -130,10 +137,7 @@ class TestEvaluateRulesCompletedImmutable:
 
     def test_read_completed_item_passes(self):
         """Test that reading completed items is allowed."""
-        context = {
-            "source": {"bucket": "completed"},
-            "operation": "read"
-        }
+        context = {"source": {"bucket": "completed"}, "operation": "read"}
         violations = evaluate_rules(context)
 
         # Should not trigger immutability violation
@@ -145,24 +149,20 @@ class TestEvaluateRulesCompletedImmutable:
         modify_operations = ["update", "delete", "triage", "create"]
 
         for operation in modify_operations:
-            context = {
-                "source": {"bucket": "completed"},
-                "operation": operation
-            }
+            context = {"source": {"bucket": "completed"}, "operation": operation}
             violations = evaluate_rules(context)
 
             # Should have immutability violation
-            violation = next((v for v in violations if v["rule"] == "item.completed.immutable"), None)
+            violation = next(
+                (v for v in violations if v["rule"] == "item.completed.immutable"), None
+            )
             assert violation is not None, f"Operation {operation} on completed should fail"
             assert violation["source"] == "cel"
             assert violation["code"] == "ITEM_COMPLETED_IMMUTABLE"
 
     def test_completed_rule_not_applied_to_other_buckets(self):
         """Test that completed rule doesn't apply to non-completed items."""
-        context = {
-            "source": {"bucket": "inbox"},
-            "operation": "update"
-        }
+        context = {"source": {"bucket": "inbox"}, "operation": "update"}
         violations = evaluate_rules(context)
 
         # Should not trigger completed-specific rule
@@ -175,13 +175,19 @@ class TestEvaluateRulesBucketEnum:
 
     def test_valid_bucket_on_create_passes(self):
         """Test that valid buckets pass validation on create."""
-        valid_buckets = ["inbox", "next", "waiting", "someday", "calendar", "reference", "project", "completed"]
+        valid_buckets = [
+            "inbox",
+            "next",
+            "waiting",
+            "someday",
+            "calendar",
+            "reference",
+            "project",
+            "completed",
+        ]
 
         for bucket in valid_buckets:
-            context = {
-                "bucket": bucket,
-                "operation": "create"
-            }
+            context = {"bucket": bucket, "operation": "create"}
             violations = evaluate_rules(context)
 
             # Should not trigger bucket enum violation
@@ -193,10 +199,7 @@ class TestEvaluateRulesBucketEnum:
         invalid_buckets = ["invalid", "unknown", "archive", "trash"]
 
         for bucket in invalid_buckets:
-            context = {
-                "bucket": bucket,
-                "operation": "create"
-            }
+            context = {"bucket": bucket, "operation": "create"}
             violations = evaluate_rules(context)
 
             # Should have bucket enum violation
@@ -207,10 +210,7 @@ class TestEvaluateRulesBucketEnum:
 
     def test_bucket_enum_applies_to_triage_operation(self):
         """Test that bucket enum validation applies to triage operations."""
-        context = {
-            "bucket": "invalid_bucket",
-            "operation": "triage"
-        }
+        context = {"bucket": "invalid_bucket", "operation": "triage"}
         violations = evaluate_rules(context)
 
         # Should have bucket enum violation
@@ -219,10 +219,7 @@ class TestEvaluateRulesBucketEnum:
 
     def test_bucket_enum_not_applied_to_read_operation(self):
         """Test that bucket enum validation doesn't apply to read operations."""
-        context = {
-            "bucket": "invalid_bucket",
-            "operation": "read"
-        }
+        context = {"bucket": "invalid_bucket", "operation": "read"}
         violations = evaluate_rules(context)
 
         # Should not trigger bucket enum rule for read operations
@@ -240,7 +237,7 @@ class TestEvaluateRulesMultipleViolations:
             "source": {"bucket": "inbox"},
             "target": {"bucket": "invalid_bucket"},
             "bucket": "invalid_bucket",
-            "operation": "triage"
+            "operation": "triage",
         }
         violations = evaluate_rules(context)
 
@@ -257,7 +254,7 @@ class TestEvaluateRulesMultipleViolations:
             "source": {"bucket": "inbox"},
             "target": {"bucket": "next"},
             "bucket": "next",
-            "operation": "triage"
+            "operation": "triage",
         }
         violations = evaluate_rules(context)
 
@@ -269,10 +266,7 @@ class TestViolationStructure:
 
     def test_violation_has_required_fields(self):
         """Test that violations have all required fields."""
-        context = {
-            "bucket": "invalid_bucket",
-            "operation": "create"
-        }
+        context = {"bucket": "invalid_bucket", "operation": "create"}
         violations = evaluate_rules(context)
 
         assert len(violations) > 0
@@ -294,10 +288,7 @@ class TestViolationStructure:
 
     def test_violation_code_is_uppercase(self):
         """Test that violation codes are uppercase."""
-        context = {
-            "bucket": "invalid_bucket",
-            "operation": "create"
-        }
+        context = {"bucket": "invalid_bucket", "operation": "create"}
         violations = evaluate_rules(context)
 
         assert len(violations) > 0
@@ -307,10 +298,7 @@ class TestViolationStructure:
     def test_violation_field_set_correctly(self):
         """Test that violation field is set based on context."""
         # Without bucket in context
-        context = {
-            "source": {"bucket": "completed"},
-            "operation": "update"
-        }
+        context = {"source": {"bucket": "completed"}, "operation": "update"}
         violations = evaluate_rules(context)
 
         if violations:
@@ -319,10 +307,7 @@ class TestViolationStructure:
             assert violation["field"] == "item"
 
         # With bucket in context
-        context = {
-            "bucket": "invalid_bucket",
-            "operation": "create"
-        }
+        context = {"bucket": "invalid_bucket", "operation": "create"}
         violations = evaluate_rules(context)
 
         if violations:
@@ -343,10 +328,7 @@ class TestEmptyContext:
 
     def test_minimal_context_no_violations(self):
         """Test that context with only irrelevant fields produces no violations."""
-        context = {
-            "unrelated_field": "value",
-            "another_field": 123
-        }
+        context = {"unrelated_field": "value", "another_field": 123}
         violations = evaluate_rules(context)
 
         # No rules should match, so no violations
@@ -362,7 +344,7 @@ class TestEvaluationErrorHandling:
         # (e.g., accessing undefined properties)
         context = {
             "source": {"bucket": "inbox"},
-            "operation": "triage"
+            "operation": "triage",
             # Missing "target" will cause error in triage rule
         }
         violations = evaluate_rules(context)
