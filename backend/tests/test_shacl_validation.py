@@ -190,9 +190,7 @@ class TestValidateShaclPerson:
 
     def test_valid_person_passes_validation(self):
         """Test that a valid Person entity passes validation."""
-        graph = _create_person_graph(
-            name="John Doe", org_ref="org123", org_role="member"
-        )
+        graph = _create_person_graph(name="John Doe", org_ref="org123", org_role="member")
         violations = validate_shacl(graph)
         assert violations == []
 

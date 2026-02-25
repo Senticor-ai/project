@@ -30,8 +30,7 @@ def test_auth_login_rate_limiting(client):
     for i in range(1, 6):
         response = client.post(endpoint, json=payload)
         assert response.status_code == 401, (
-            f"Request {i} expected 401 (invalid credentials), "
-            f"got {response.status_code}"
+            f"Request {i} expected 401 (invalid credentials), got {response.status_code}"
         )
 
         # Small delay between requests
@@ -48,9 +47,7 @@ def test_auth_login_rate_limiting(client):
         "Rate limit response missing Retry-After header"
     )
 
-    retry_after = response.headers.get("retry-after") or response.headers.get(
-        "Retry-After"
-    )
+    retry_after = response.headers.get("retry-after") or response.headers.get("Retry-After")
     assert retry_after, "Retry-After header is empty"
 
     # Verify it's a reasonable value (should be 60 seconds based on implementation)
@@ -84,14 +81,10 @@ def test_auth_register_rate_limiting(client):
 
     # 6th request should hit rate limit
     response = client.post(endpoint, json=payload)
-    assert response.status_code == 429, (
-        f"Expected 429 (rate limited), got {response.status_code}"
-    )
+    assert response.status_code == 429, f"Expected 429 (rate limited), got {response.status_code}"
 
     # Verify Retry-After header
-    retry_after = response.headers.get("retry-after") or response.headers.get(
-        "Retry-After"
-    )
+    retry_after = response.headers.get("retry-after") or response.headers.get("Retry-After")
     assert retry_after, "Rate limit response missing Retry-After header"
 
 
@@ -125,9 +118,7 @@ def test_file_upload_rate_limiting(client):
         response = client.post(endpoint, json=payload)
         # Accept 200 (success), 401 (auth required), or other errors
         # but NOT 429 (rate limited) yet
-        assert response.status_code != 429, (
-            f"Request {i} unexpectedly hit rate limit"
-        )
+        assert response.status_code != 429, f"Request {i} unexpectedly hit rate limit"
         time.sleep(0.1)
 
     # 11th request should hit rate limit
@@ -138,9 +129,7 @@ def test_file_upload_rate_limiting(client):
 
     if response.status_code == 429:
         # Rate limiting is working
-        retry_after = response.headers.get("retry-after") or response.headers.get(
-            "Retry-After"
-        )
+        retry_after = response.headers.get("retry-after") or response.headers.get("Retry-After")
         assert retry_after, "Rate limit response missing Retry-After header"
 
 
@@ -160,17 +149,11 @@ def test_rate_limit_retry_after_header_format(client):
 
     # The last response should have been rate limited
     if response.status_code == 429:
-        retry_after = response.headers.get("retry-after") or response.headers.get(
-            "Retry-After"
-        )
+        retry_after = response.headers.get("retry-after") or response.headers.get("Retry-After")
 
         # Verify format (should be an integer representing seconds)
-        assert retry_after.isdigit(), (
-            f"Retry-After should be an integer, got '{retry_after}'"
-        )
+        assert retry_after.isdigit(), f"Retry-After should be an integer, got '{retry_after}'"
 
         # Verify reasonable value
         retry_seconds = int(retry_after)
-        assert 0 < retry_seconds <= 60, (
-            f"Retry-After {retry_seconds}s is outside expected range"
-        )
+        assert 0 < retry_seconds <= 60, f"Retry-After {retry_seconds}s is outside expected range"

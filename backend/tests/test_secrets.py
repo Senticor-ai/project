@@ -1,10 +1,38 @@
 """Unit tests for secrets management (VaultSecretsManager and AWSSecretsManager)."""
 
+import importlib.util
 import os
+import sys
 import time
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+# Stub optional backend libraries so the tests can run without installing
+# hvac or boto3. The implementation imports them lazily inside __init__, so
+# populating sys.modules here lets @patch decorators intercept the calls
+# the same way they would with the real packages installed.
+if importlib.util.find_spec("hvac") is None:
+    sys.modules["hvac"] = MagicMock()
+
+if importlib.util.find_spec("boto3") is None:
+    sys.modules["boto3"] = MagicMock()
+
+if importlib.util.find_spec("botocore") is None:
+
+    class _ClientError(Exception):
+        """Minimal botocore.exceptions.ClientError stub."""
+
+        def __init__(self, error_response: dict, operation_name: str) -> None:
+            self.response = error_response
+            self.operation_name = operation_name
+            super().__init__(error_response)
+
+    _botocore_mock = MagicMock()
+    _botocore_mock.exceptions = MagicMock()
+    _botocore_mock.exceptions.ClientError = _ClientError
+    sys.modules["botocore"] = _botocore_mock
+    sys.modules["botocore.exceptions"] = _botocore_mock.exceptions
 
 from app.secrets import (
     AWSSecretsManager,
@@ -31,9 +59,7 @@ def test_vault_secrets_manager_initialization(mock_hvac_client):
     manager = VaultSecretsManager()
 
     # Verify Client was called with correct parameters
-    mock_hvac_client.assert_called_once_with(
-        url="http://vault.test:8200", token="test-token"
-    )
+    mock_hvac_client.assert_called_once_with(url="http://vault.test:8200", token="test-token")
     mock_client.is_authenticated.assert_called_once()
 
     # Verify cache is initialized
@@ -59,9 +85,7 @@ def test_vault_get_secret_success(mock_hvac_client):
 
     # Verify result
     assert result == "secret-value-123"
-    mock_client.secrets.kv.v2.read_secret_version.assert_called_once_with(
-        path="database/password"
-    )
+    mock_client.secrets.kv.v2.read_secret_version.assert_called_once_with(path="database/password")
 
 
 @patch.dict(os.environ, {"VAULT_ADDR": "http://vault.test:8200", "VAULT_TOKEN": "test-token"})
@@ -170,9 +194,7 @@ def test_vault_get_secret_failure(mock_hvac_client):
     # Mock the hvac Client
     mock_client = MagicMock()
     mock_client.is_authenticated.return_value = True
-    mock_client.secrets.kv.v2.read_secret_version.side_effect = Exception(
-        "Secret not found"
-    )
+    mock_client.secrets.kv.v2.read_secret_version.side_effect = Exception("Secret not found")
     mock_hvac_client.return_value = mock_client
 
     # Initialize manager
@@ -200,9 +222,7 @@ def test_aws_secrets_manager_initialization(mock_boto3_client):
     manager = AWSSecretsManager()
 
     # Verify boto3 client was created with correct region
-    mock_boto3_client.assert_called_once_with(
-        "secretsmanager", region_name="us-west-2"
-    )
+    mock_boto3_client.assert_called_once_with("secretsmanager", region_name="us-west-2")
 
     # Verify cache is initialized
     assert manager._cache == {}
@@ -215,9 +235,7 @@ def test_aws_get_secret_success(mock_boto3_client):
     """Test AWSSecretsManager retrieves secret successfully."""
     # Mock boto3 client
     mock_client = MagicMock()
-    mock_client.get_secret_value.return_value = {
-        "SecretString": "my-secret-value"
-    }
+    mock_client.get_secret_value.return_value = {"SecretString": "my-secret-value"}
     mock_boto3_client.return_value = mock_client
 
     # Initialize manager and get secret
@@ -226,9 +244,7 @@ def test_aws_get_secret_success(mock_boto3_client):
 
     # Verify result
     assert result == "my-secret-value"
-    mock_client.get_secret_value.assert_called_once_with(
-        SecretId="database/password"
-    )
+    mock_client.get_secret_value.assert_called_once_with(SecretId="database/password")
 
 
 @patch.dict(os.environ, {"AWS_DEFAULT_REGION": "us-east-1"})
@@ -237,9 +253,7 @@ def test_aws_get_secret_caching(mock_boto3_client):
     """Test AWSSecretsManager caches secrets for 5 minutes."""
     # Mock boto3 client
     mock_client = MagicMock()
-    mock_client.get_secret_value.return_value = {
-        "SecretString": "cached-secret"
-    }
+    mock_client.get_secret_value.return_value = {"SecretString": "cached-secret"}
     mock_boto3_client.return_value = mock_client
 
     # Initialize manager
@@ -262,9 +276,7 @@ def test_aws_cache_expiration(mock_boto3_client):
     """Test AWSSecretsManager cache expires after 5 minutes."""
     # Mock boto3 client
     mock_client = MagicMock()
-    mock_client.get_secret_value.return_value = {
-        "SecretString": "secret-value"
-    }
+    mock_client.get_secret_value.return_value = {"SecretString": "secret-value"}
     mock_boto3_client.return_value = mock_client
 
     # Initialize manager with shorter TTL for testing
@@ -311,9 +323,7 @@ def test_aws_binary_secret_error(mock_boto3_client):
     """Test AWSSecretsManager raises error for binary secrets."""
     # Mock boto3 client returning binary secret
     mock_client = MagicMock()
-    mock_client.get_secret_value.return_value = {
-        "SecretBinary": b"binary-secret"
-    }
+    mock_client.get_secret_value.return_value = {"SecretBinary": b"binary-secret"}
     mock_boto3_client.return_value = mock_client
 
     # Initialize manager
@@ -333,9 +343,7 @@ def test_aws_resource_not_found(mock_boto3_client):
     # Mock boto3 client
     mock_client = MagicMock()
     error_response = {"Error": {"Code": "ResourceNotFoundException"}}
-    mock_client.get_secret_value.side_effect = ClientError(
-        error_response, "GetSecretValue"
-    )
+    mock_client.get_secret_value.side_effect = ClientError(error_response, "GetSecretValue")
     mock_boto3_client.return_value = mock_client
 
     # Initialize manager
@@ -356,9 +364,7 @@ def test_aws_decryption_failure(mock_boto3_client):
     # Mock boto3 client
     mock_client = MagicMock()
     error_response = {"Error": {"Code": "DecryptionFailure"}}
-    mock_client.get_secret_value.side_effect = ClientError(
-        error_response, "GetSecretValue"
-    )
+    mock_client.get_secret_value.side_effect = ClientError(error_response, "GetSecretValue")
     mock_boto3_client.return_value = mock_client
 
     # Initialize manager
@@ -379,9 +385,7 @@ def test_aws_internal_service_error(mock_boto3_client):
     # Mock boto3 client
     mock_client = MagicMock()
     error_response = {"Error": {"Code": "InternalServiceError"}}
-    mock_client.get_secret_value.side_effect = ClientError(
-        error_response, "GetSecretValue"
-    )
+    mock_client.get_secret_value.side_effect = ClientError(error_response, "GetSecretValue")
     mock_boto3_client.return_value = mock_client
 
     # Initialize manager

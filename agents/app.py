@@ -26,7 +26,7 @@ load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 # fmt: off
 from backend_client import AuthContext  # noqa: E402 — must load env before importing
 from copilot import MODELS, RuntimeLlmConfig, create_agent  # noqa: E402
-from secrets import SecretsManager, get_secrets_manager  # noqa: E402
+from secrets_manager import SecretsManager, get_secrets_manager  # noqa: E402
 from tool_executor import ToolCallInput, execute_tool  # noqa: E402
 from tracing import configure_tracing, shutdown_tracing  # noqa: E402
 # fmt: on

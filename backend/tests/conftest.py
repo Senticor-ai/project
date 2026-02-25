@@ -226,7 +226,9 @@ def _configure_rate_limiter_for_test(request):
     from app.rate_limit import limiter
 
     node_path = getattr(request.node, "path", None)
-    file_name = node_path.name if node_path is not None else os.path.basename(str(request.node.fspath))
+    file_name = (
+        node_path.name if node_path is not None else os.path.basename(str(request.node.fspath))
+    )
 
     original_enabled = limiter.enabled
     limiter.enabled = file_name == "test_rate_limiting.py"

@@ -27,17 +27,13 @@ class VaultSecretsManager(SecretsManager):
         try:
             import hvac
         except ImportError as e:
-            raise ImportError(
-                "hvac package not installed. Install with: pip install hvac"
-            ) from e
+            raise ImportError("hvac package not installed. Install with: pip install hvac") from e
 
         vault_addr = os.environ.get("VAULT_ADDR", "http://localhost:8200")
         vault_token = os.environ.get("VAULT_TOKEN")
 
         if not vault_token:
-            raise ValueError(
-                "VAULT_TOKEN environment variable required for Vault backend"
-            )
+            raise ValueError("VAULT_TOKEN environment variable required for Vault backend")
 
         self.client = hvac.Client(url=vault_addr, token=vault_token)
 
@@ -93,9 +89,7 @@ class AWSSecretsManager(SecretsManager):
             import boto3
             from botocore.exceptions import ClientError
         except ImportError as e:
-            raise ImportError(
-                "boto3 package not installed. Install with: pip install boto3"
-            ) from e
+            raise ImportError("boto3 package not installed. Install with: pip install boto3") from e
 
         region = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
 
@@ -158,9 +152,7 @@ class EnvSecretsManager(SecretsManager):
     """Environment variable fallback for development (not recommended for production)."""
 
     def __init__(self):
-        logger.warning(
-            "Using environment variables for secrets (not recommended for production)"
-        )
+        logger.warning("Using environment variables for secrets (not recommended for production)")
 
     def get_secret(self, key: str) -> str:
         value = os.environ.get(key)
@@ -183,6 +175,4 @@ def get_secrets_manager() -> SecretsManager:
     elif backend == "env":
         return EnvSecretsManager()
     else:
-        raise ValueError(
-            f"Unknown secrets backend: {backend}. Use 'vault', 'aws', or 'env'"
-        )
+        raise ValueError(f"Unknown secrets backend: {backend}. Use 'vault', 'aws', or 'env'")

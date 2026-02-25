@@ -50,12 +50,14 @@ def _load_rules() -> list[dict[str, Any]]:
                 expr_ast = env.compile(rule["expression"])
                 expr_program = env.program(expr_ast)
 
-                compiled.append({
-                    "id": rule_id,
-                    "description": rule.get("description", ""),
-                    "when_program": when_program,
-                    "rule_program": expr_program,
-                })
+                compiled.append(
+                    {
+                        "id": rule_id,
+                        "description": rule.get("description", ""),
+                        "when_program": when_program,
+                        "rule_program": expr_program,
+                    }
+                )
             except Exception as e:
                 logger.error(f"Failed to compile CEL rule '{rule_id}': {e}")
                 raise RuntimeError(f"CEL rule compilation failed for '{rule_id}': {e}") from e
@@ -111,13 +113,15 @@ def evaluate_rules(context: dict[str, Any]) -> list[dict[str, Any]]:
             continue
         except Exception as e:
             logger.error(f"Error evaluating CEL rule '{rule_id}': {e}")
-            violations.append({
-                "source": "cel",
-                "code": "CEL_EVALUATION_ERROR",
-                "field": "item",
-                "message": f"CEL rule '{rule_id}' evaluation failed: {str(e)}",
-                "rule": rule_id,
-            })
+            violations.append(
+                {
+                    "source": "cel",
+                    "code": "CEL_EVALUATION_ERROR",
+                    "field": "item",
+                    "message": f"CEL rule '{rule_id}' evaluation failed: {str(e)}",
+                    "rule": rule_id,
+                }
+            )
             continue
 
         if not when_result:
@@ -129,13 +133,15 @@ def evaluate_rules(context: dict[str, Any]) -> list[dict[str, Any]]:
         except Exception as e:
             logger.error(f"Error evaluating CEL rule '{rule_id}': {e}")
             # Fail safe: treat evaluation errors as violations
-            violations.append({
-                "source": "cel",
-                "code": "CEL_EVALUATION_ERROR",
-                "field": "item",
-                "message": f"CEL rule '{rule_id}' evaluation failed: {str(e)}",
-                "rule": rule_id,
-            })
+            violations.append(
+                {
+                    "source": "cel",
+                    "code": "CEL_EVALUATION_ERROR",
+                    "field": "item",
+                    "message": f"CEL rule '{rule_id}' evaluation failed: {str(e)}",
+                    "rule": rule_id,
+                }
+            )
             continue
 
         # If rule returns false, it's a violation
@@ -148,12 +154,14 @@ def evaluate_rules(context: dict[str, Any]) -> list[dict[str, Any]]:
             if "bucket" in normalized_context:
                 field = "additionalProperty.app:bucket"
 
-            violations.append({
-                "source": "cel",
-                "code": code,
-                "field": field,
-                "message": rule["description"],
-                "rule": rule_id,
-            })
+            violations.append(
+                {
+                    "source": "cel",
+                    "code": code,
+                    "field": field,
+                    "message": rule["description"],
+                    "rule": rule_id,
+                }
+            )
 
     return violations

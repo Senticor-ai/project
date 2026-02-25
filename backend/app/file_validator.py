@@ -1,8 +1,22 @@
-"""File upload validation utilities for type and size checking."""
+"""File upload validation utilities for type and size checking.
+
+Requires the ``python-magic`` Python package AND the ``libmagic`` system library:
+  - Debian/Ubuntu: apt-get install libmagic1
+  - macOS (Homebrew): brew install libmagic
+  - Docker: see backend/Dockerfile (libmagic1 is already included)
+"""
 
 from __future__ import annotations
 
-import magic
+try:
+    import magic
+except ImportError as exc:
+    raise ImportError(
+        "python-magic requires the libmagic system library.\n"
+        "  Debian/Ubuntu: sudo apt-get install libmagic1\n"
+        "  macOS (Homebrew): brew install libmagic\n"
+        "  Docker: already installed — see backend/Dockerfile"
+    ) from exc
 from fastapi import HTTPException, status
 
 # Allowed MIME types whitelist

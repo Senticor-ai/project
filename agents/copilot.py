@@ -88,6 +88,7 @@ class RuntimeLlmConfig:
     api_key: str
     model: str | None = None
 
+
 # ---------------------------------------------------------------------------
 # Tool definitions — no-op function that returns arguments
 # ---------------------------------------------------------------------------
@@ -282,8 +283,7 @@ def _build_workspace_read_tools(auth: AuthContext) -> list[Tool]:
                     "bucket": {
                         "type": "string",
                         "description": (
-                            "Bucket-Name "
-                            "(inbox,next,waiting,calendar,someday,reference,focus)"
+                            "Bucket-Name (inbox,next,waiting,calendar,someday,reference,focus)"
                         ),
                     },
                     "projectId": {
