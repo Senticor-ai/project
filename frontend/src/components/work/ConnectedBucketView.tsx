@@ -198,6 +198,15 @@ export function ConnectedBucketView({
     [createProjectMutation],
   );
 
+  const handleSetType = useCallback(
+    (id: CanonicalId, type: string) =>
+      updateItemMutation.mutate({
+        canonicalId: id,
+        patch: { "@type": type },
+      }),
+    [updateItemMutation],
+  );
+
   const handleArchiveProject = useCallback(
     (id: CanonicalId) =>
       updateItemMutation.mutate({
@@ -399,6 +408,7 @@ export function ConnectedBucketView({
         onCreateProject={handleCreateProject}
         onEditReference={handleEditItem}
         onEditProject={handleEditItem}
+        onSetType={handleSetType}
         onFileDrop={handleFileDrop}
         onNavigateToReference={handleNavigateToReference}
         linkedActionBuckets={linkedActionBuckets}

@@ -37,9 +37,7 @@ export function TimeFilterDropdown({
         value={maxTimeEstimate ?? ""}
         onChange={(e) =>
           onChangeMaxTime(
-            e.target.value === ""
-              ? null
-              : (e.target.value as TimeEstimate),
+            e.target.value === "" ? null : (e.target.value as TimeEstimate),
           )
         }
         className="rounded-[var(--radius-sm)] border border-border bg-surface px-2 py-1 text-xs"

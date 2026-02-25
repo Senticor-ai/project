@@ -1,0 +1,65 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+import { Slide } from "../../components/docs/Slide";
+import { SlideShow } from "../../components/docs/SlideShow";
+
+<Meta title="Slidedocs/Team & How We Work" />
+
+# Team & How We Work
+
+<SlideShow>
+
+<Slide n={1} title="Development Practices" tag="Engineering Culture">
+
+| Practice                     | What It Means                                                               |
+| ---------------------------- | --------------------------------------------------------------------------- |
+| **Walking skeleton first**   | Get the thinnest end-to-end slice working before adding features            |
+| **TDD (red-green-refactor)** | Failing test → minimum code to pass → clean up. No untested production code |
+| **Green suite first**        | Run the full check suite before starting any implementation                 |
+| **No broken windows**        | Fix warnings, type errors, lint issues as encountered — don't defer         |
+| **Robust over quick**        | Proper solutions over `eslint-disable` workarounds                          |
+| **No hardcoded secrets**     | All credentials via env vars with `${VAR:-default}` syntax                  |
+
+</Slide>
+
+<Slide n={2} title="The Completion Gate" tag="Quality Bar">
+
+Every change must pass all checks before it's done:
+
+**Frontend (TypeScript / React)**
+
+- `npx eslint src/` — linting
+- `npx prettier --check src/` — formatting
+- `npx tsc -b --noEmit` — type safety
+
+**Backend (Python / FastAPI)**
+
+- `uv run ruff check .` — linting + security
+- `uv run ruff format --check .` — formatting
+- `uv run mypy app/` — type checking
+
+**Tests**
+
+- `cd frontend && CI=1 npx vitest run --project=unit` — unit tests
+- `cd backend && uv run python -m pytest` — backend integration tests
+
+→ Full preflight: `npm run preflight:local`
+
+</Slide>
+
+<Slide n={3} title="Language Policy" tag="i18n">
+
+| Context                                      | Language                                |
+| -------------------------------------------- | --------------------------------------- |
+| Code, variables, functions, comments         | English                                 |
+| Documentation (README, CLAUDE.md, Storybook) | English                                 |
+| UI strings — labels, buttons, messages       | German (`de`) + English (`en`) via i18n |
+| LLM prompt templates                         | German (primary)                        |
+| Case examples, test fixtures, domain terms   | German                                  |
+| User persona                                 | German federal clerks (Bundesbeamte)    |
+
+**i18n stack:** ICU MessageFormat via `intl-messageformat`.
+Messages in `frontend/src/i18n/messages.{en,de}.ts`.
+
+</Slide>
+
+</SlideShow>

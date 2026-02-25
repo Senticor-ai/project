@@ -30,9 +30,7 @@ describe("EnergyFilterBar", () => {
   });
 
   it("marks selected energy as checked", () => {
-    render(
-      <EnergyFilterBar selectedEnergy="medium" onToggleEnergy={noop} />,
-    );
+    render(<EnergyFilterBar selectedEnergy="medium" onToggleEnergy={noop} />);
     expect(screen.getByRole("radio", { name: "medium" })).toHaveAttribute(
       "aria-checked",
       "true",
@@ -58,9 +56,7 @@ describe("EnergyFilterBar", () => {
   it("calls onToggleEnergy with selected level to deselect", async () => {
     const onToggle = vi.fn();
     const user = userEvent.setup();
-    render(
-      <EnergyFilterBar selectedEnergy="low" onToggleEnergy={onToggle} />,
-    );
+    render(<EnergyFilterBar selectedEnergy="low" onToggleEnergy={onToggle} />);
     await user.click(screen.getByRole("radio", { name: "low" }));
     expect(onToggle).toHaveBeenCalledWith("low");
   });

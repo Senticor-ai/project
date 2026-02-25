@@ -111,7 +111,9 @@ describe("EmailConnectionCard", () => {
     );
 
     expect(
-      screen.queryByText(/Google Calendar API is not enabled in this Google Cloud project/),
+      screen.queryByText(
+        /Google Calendar API is not enabled in this Google Cloud project/,
+      ),
     ).not.toBeInTheDocument();
   });
 

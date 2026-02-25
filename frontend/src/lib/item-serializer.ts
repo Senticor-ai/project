@@ -175,7 +175,9 @@ export function toJsonLd(
     item.bucket === "someday"
   ) {
     const actionItem = item as ActionItem;
-    base["@type"] = actionItem.objectRef ? "ReadAction" : TYPE_MAP.action;
+    base["@type"] =
+      actionItem.schemaType ??
+      (actionItem.objectRef ? "ReadAction" : TYPE_MAP.action);
     if (actionItem.objectRef) {
       base.object = { "@id": actionItem.objectRef };
     }
@@ -366,6 +368,10 @@ export function fromJsonLd(record: ItemRecord): AppItem {
     const objectRef = t.object
       ? ((t.object as { "@id": string })["@id"] as CanonicalId)
       : undefined;
+    const schemaType =
+      type !== TYPE_MAP.action && type !== "Action" && type !== "ReadAction"
+        ? type
+        : undefined;
     return {
       ...base,
       ...thingFields,
@@ -379,6 +385,7 @@ export function fromJsonLd(record: ItemRecord): AppItem {
           "app:nameProvenance",
         ) as NameProvenance) || undefined,
       objectRef,
+      schemaType,
     };
   }
 
@@ -465,10 +472,9 @@ export function fromJsonLd(record: ItemRecord): AppItem {
   if (type === "DigitalDocument") {
     const bucket = getAdditionalProperty(props, "app:bucket") as string;
     if (bucket === "reference") {
-      const orgDocType = getAdditionalProperty(
-        props,
-        "app:orgDocType",
-      ) as OrgDocType | undefined;
+      const orgDocType = getAdditionalProperty(props, "app:orgDocType") as
+        | OrgDocType
+        | undefined;
       const refBase = {
         ...base,
         bucket: "reference" as const,

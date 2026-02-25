@@ -28,6 +28,18 @@ import type { CanonicalId } from "@/model/canonical-id";
 // Bucket metadata
 // ---------------------------------------------------------------------------
 
+/** German labels for known schema.org Action subtypes (used in type filter chips). */
+const SUBTYPE_LABELS: Record<string, string> = {
+  BuyAction: "Kaufen",
+  PlanAction: "Planen",
+  CommunicateAction: "Kommunizieren",
+  ReviewAction: "Prüfen",
+  CreateAction: "Erstellen",
+  SendAction: "Senden",
+  CheckAction: "Prüfen",
+  ReadAction: "Lesen",
+};
+
 const bucketMeta: Record<
   ActionItem["bucket"] | "focus",
   { label: string; icon: string; subtitle: string }
@@ -98,6 +110,8 @@ export interface ActionListProps {
   onArchive: (id: CanonicalId) => void;
   onEdit?: (id: CanonicalId, fields: Partial<ItemEditableFields>) => void;
   onUpdateTitle?: (id: CanonicalId, newTitle: string) => void;
+  /** Called when the user selects a schema.org type from the "Typ ändern" menu. Pass "Action" to clear. */
+  onSetType?: (id: CanonicalId, type: string) => void;
   /** Called when files are dropped onto the inbox. Only active when bucket is "inbox". */
   onFileDrop?: (files: File[]) => void;
   /** Called when user clicks the ReadAction "Read" subtitle to navigate to its reference. */
@@ -120,6 +134,7 @@ export function ActionList({
   onArchive,
   onEdit,
   onUpdateTitle,
+  onSetType,
   onFileDrop,
   onNavigateToReference,
   projects,
@@ -130,11 +145,13 @@ export function ActionList({
     selectedContexts,
     selectedEnergy,
     maxTimeEstimate,
+    selectedTypes,
     toggleContext,
     clearContexts,
     clearAll,
     setEnergy,
     setMaxTime,
+    toggleType,
     hasActiveFilters,
   } = useActionFilters(bucket);
   const [selectedIds, setSelectedIds] = useState<Set<CanonicalId>>(new Set());
@@ -290,29 +307,46 @@ export function ActionList({
         })
       : energyFiltered;
 
+  // Type counts — used to show only types actually present in the current bucket
+  const typeCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const item of timeFiltered) {
+      if (item.schemaType) {
+        counts[item.schemaType] = (counts[item.schemaType] ?? 0) + 1;
+      }
+    }
+    return counts;
+  }, [timeFiltered]);
+
+  // Apply type filter
+  const typeFiltered =
+    selectedTypes.length > 0
+      ? timeFiltered.filter((t) => selectedTypes.includes(t.schemaType ?? ""))
+      : timeFiltered;
+
   // Compute energy counts from filtered items (after context + time filters)
   // Energy counts — computed for potential future badge display
   void useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const item of timeFiltered) {
+    for (const item of typeFiltered) {
       const cp = getComputationPort(item);
       if (cp?.energyLevel) {
         counts[cp.energyLevel] = (counts[cp.energyLevel] ?? 0) + 1;
       }
     }
     return counts;
-  }, [timeFiltered]);
+  }, [typeFiltered]);
 
   // Sort
   const sorted = useMemo(() => {
     if (isInbox) {
-      return [...timeFiltered].sort(
+      return [...typeFiltered].sort(
         (a, b) =>
           new Date(b.provenance.createdAt).getTime() -
           new Date(a.provenance.createdAt).getTime(),
       );
     }
-    return [...timeFiltered].sort((a, b) => {
+    return [...typeFiltered].sort((a, b) => {
       if (a.isFocused !== b.isFocused) return a.isFocused ? -1 : 1;
       if (a.sequenceOrder != null && b.sequenceOrder != null)
         return a.sequenceOrder - b.sequenceOrder;
@@ -321,7 +355,7 @@ export function ActionList({
         new Date(a.provenance.createdAt).getTime()
       );
     });
-  }, [timeFiltered, isInbox]);
+  }, [typeFiltered, isInbox]);
 
   // Derive the effective expanded ID: for inbox, auto-expand the first item
   // when nothing is expanded, or advance to the newest remaining item after
@@ -451,6 +485,7 @@ export function ActionList({
             }
             onEdit={onEdit}
             onUpdateTitle={onUpdateTitle}
+            onSetType={onSetType}
             onNavigateToReference={onNavigateToReference}
             projects={projects}
             showBucket={isFocusView}
@@ -649,6 +684,29 @@ export function ActionList({
             />
           )}
           <div className="flex flex-col gap-1.5">
+            {Object.keys(typeCounts).length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {Object.entries(typeCounts)
+                  .filter(([type]) => SUBTYPE_LABELS[type])
+                  .map(([type]) => (
+                    <button
+                      key={type}
+                      type="button"
+                      aria-label={`Filter by type: ${SUBTYPE_LABELS[type]}`}
+                      aria-pressed={selectedTypes.includes(type)}
+                      onClick={() => toggleType(type)}
+                      className={cn(
+                        "rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors",
+                        selectedTypes.includes(type)
+                          ? "bg-blueprint-600 text-white"
+                          : "bg-blueprint-50 text-blueprint-700 hover:bg-blueprint-100",
+                      )}
+                    >
+                      {SUBTYPE_LABELS[type]}
+                    </button>
+                  ))}
+              </div>
+            )}
             {availableContexts.length > 0 && (
               <ContextFilterBar
                 contexts={availableContexts}

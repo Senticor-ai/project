@@ -252,3 +252,42 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* ─── Print / PDF (triggered by SlideShow's ⎙ pdf button or browser Cmd+P) ─── */
+@media print {
+  @page {
+    size: A4;
+    margin: 2cm 2.5cm;
+  }
+
+  /* Hide the floating slide navigation overlay */
+  [data-slideshow-nav] {
+    display: none !important;
+  }
+
+  /* Clean slide cards: no shadow, keep border + accent */
+  [data-slide] {
+    box-shadow: none !important;
+    border: 1px solid #d1d5db !important;
+    border-left: 4px solid #1a6fa0 !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Optional: force a new page before slides marked with breakBefore */
+  [data-slide-break="before"] {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  /* Mermaid / inline SVG: scale to fit the page width */
+  svg {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+
+  /* Keep links visible as text — they won't be clickable in PDF */
+  a[href]::after {
+    content: none;
+  }
+}

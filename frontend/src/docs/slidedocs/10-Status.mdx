@@ -1,0 +1,58 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+import { Slide } from "../../components/docs/Slide";
+import { SlideShow } from "../../components/docs/SlideShow";
+
+<Meta title="Slidedocs/Status" />
+
+# Current Status
+
+> **Update this page weekly** — or reference the latest [Weekly SlideDec](?path=/docs/weekly-overview--docs).
+
+<SlideShow>
+
+<Slide n={1} title="Latest Release" tag="Week 9 · Feb 2026">
+
+**Build:** `b9e4fea` · deployed to production
+
+| Area                      | What Shipped                                                      |
+| ------------------------- | ----------------------------------------------------------------- |
+| **Email Inbox View**      | Enhanced inbox view for synced Gmail messages                     |
+| **Email & Calendar Sync** | Improved IMAP sync reliability and calendar event handling        |
+| **Org Knowledge**         | Organizational knowledge features — entity extraction and linking |
+| **Platform SDK**          | SDK enhancements for external integrations                        |
+
+**In progress (uncommitted):**
+
+- Item serializer refactor (`frontend/src/lib/item-serializer.ts`)
+- JSON-LD alias handling (`backend/app/models.py`, `backend/tests/test_items_jsonld_aliases.py`)
+- Type model updates (`frontend/src/model/types.ts`)
+
+</Slide>
+
+<Slide n={2} title="Active Epics" tag="What's In Flight">
+
+| Epic                            | Status         | Next Milestone                         |
+| ------------------------------- | -------------- | -------------------------------------- |
+| Inbox / Calendar Event Workflow | 🟡 In progress | Auto-create items from calendar events |
+| Schema Enrichment               | 🟡 In progress | Confidence scoring for captured items  |
+| Collaboration                   | 🔵 Planned     | Multi-user project sharing             |
+
+</Slide>
+
+<Slide n={3} title="Quality Baseline" tag="Health">
+
+| Metric                     | Status                                       |
+| -------------------------- | -------------------------------------------- |
+| CI pipeline                | ✅ Green                                     |
+| Type safety (tsc)          | ✅ 0 errors                                  |
+| Backend type safety (mypy) | ✅ 0 errors                                  |
+| Test suite                 | ✅ Passing                                   |
+| Deployment model           | SHA-first GitOps (named releases on roadmap) |
+
+→ See [Roadmap Projects](?path=/docs/product-roadmap-projects--docs) for Named Releases tracking.
+
+→ See [Weekly](?path=/docs/weekly-overview--docs) for detailed week-by-week quality metrics.
+
+</Slide>
+
+</SlideShow>

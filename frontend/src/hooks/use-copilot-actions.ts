@@ -17,7 +17,10 @@ export function useCopilotActions() {
         suggestion.type === "copilot_cli"
           ? (() => {
               const args: Record<string, unknown> = {};
-              if (Array.isArray(suggestion.argv) && suggestion.argv.length > 0) {
+              if (
+                Array.isArray(suggestion.argv) &&
+                suggestion.argv.length > 0
+              ) {
                 args.argv = suggestion.argv;
               }
               if (suggestion.intent && typeof suggestion.intent === "object") {

@@ -1,0 +1,65 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+import { Slide } from "../../components/docs/Slide";
+import { SlideShow } from "../../components/docs/SlideShow";
+
+<Meta title="Slidedocs/Product Overview" />
+
+# Product Overview
+
+<SlideShow>
+
+<Slide n={1} title="What Is Senticor Project?" tag="Elevator Pitch">
+
+> **Structured task management with AI-assisted triage, built for German federal clerks.**
+
+A disciplined five-phase inbox-to-execution system that captures every commitment,
+routes it to the right bucket, and keeps you in control — backed by an AI Copilot
+that triages, enriches, and connects evidence without replacing your judgment.
+
+| Dimension       | Value                                                                      |
+| --------------- | -------------------------------------------------------------------------- |
+| **User**        | Bundesbeamte — German federal clerks managing cases, procedures, documents |
+| **Core loop**   | Capture → Clarify → Organize → Reflect → Engage                            |
+| **AI role**     | Contributor, not authority — suggests, never overwrites                    |
+| **Data policy** | Append-only audit trail; no deletes, full provenance                       |
+| **Language**    | German UI, English code, German LLM prompts                                |
+
+</Slide>
+
+<Slide n={2} title="The Problem We Solve" tag="Why">
+
+German federal clerks manage high-stakes, multi-party procedures — tax assessments,
+benefit applications, permit reviews — with fragmented tools and no structured inbox.
+
+| Pain                      | Symptom                                   | Our Answer                                        |
+| ------------------------- | ----------------------------------------- | ------------------------------------------------- |
+| Information overload      | Emails + documents scattered across silos | Single capture inbox, FIFO processing             |
+| Loss of context           | No link between task and evidence         | JSON-LD items with provenance + file attachments  |
+| Compliance pressure       | Full audit trail required by law          | Append-only model, `archived_at` soft-delete only |
+| Manual triage             | Clerk reads each item to decide action    | AI Copilot auto-classifies and suggests routing   |
+| No next-action discipline | Tasks stall mid-procedure                 | Sequential project actions enforce order          |
+
+</Slide>
+
+<Slide n={3} title="The Product in One View" tag="Snapshot">
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  INBOX (FIFO)   ──► TRIAGE ──► BUCKET                   │
+│                                                          │
+│  Next ·  Projects · Waiting · Calendar · Reference      │
+│  Later · Focus (virtual) · Archive (no delete)          │
+│                                                          │
+│  AI COPILOT: chat + tool calls → creates/routes items   │
+│  EMAIL SYNC:  Gmail IMAP → items auto-land in Inbox     │
+│  SEARCH:      Meilisearch full-text over all items      │
+└─────────────────────────────────────────────────────────┘
+```
+
+→ Full product vision: [Product / Vision](?path=/docs/product-vision--docs)
+
+→ Methodology deep-dive: [Product / Methodology](?path=/docs/product-methodology--docs)
+
+</Slide>
+
+</SlideShow>

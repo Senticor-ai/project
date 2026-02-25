@@ -1,0 +1,135 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Product/Completed Epics/Schema.org Type Enrichment" />
+
+# Epic: Schema.org Type Enrichment
+
+**Status:** Implemented (end-to-end UX, Phase 1–5)
+**Priority:** Future (AI enrichment pipeline still pending)
+**Checklist audit:** February 25, 2026 — end-to-end UX implemented. Manual type assignment,
+type badge, and filter chips are live. AI enrichment pipeline not yet started.
+
+## Context
+
+A single user input like _"Ich muss fuer die Geburtstagsfeier Aepfel kaufen und auf die Einkaufsliste fuer meinen Mann schreiben"_ contains multiple schema.org entities: a `BuyAction`, a `CreateAction` (shopping list), a `Project`/`Event` (birthday party), and an implicit delegation. The UX stays simple (todos), but the backend data model should support richer schema.org types and relationship properties so that items can be decomposed or reassigned as users clarify them.
+
+**Current state (after this epic):** Backend accepts 16 action subtypes including `BuyAction`,
+`CommunicateAction`, `ReviewAction`, and `SendAction`. Frontend preserves `schemaType` through
+deserialization. Users can manually assign a subtype via the "Typ ändern" overflow menu in any
+action row, and filter by subtype using type chips in the action list.
+
+**Goal:** Backend accepts schema.org action subtypes and relationship properties. Capture stays as `Thing`. User actions (triage/PATCH) or AI enrichment can reassign `@type` to a richer subtype. Frontend stays simple but doesn't break on new types.
+
+**Prerequisite:** AI enrichment pipeline (classifies captures and decomposes sentences into typed items) is still pending. The manual assignment path is live and makes the filter immediately useful.
+
+---
+
+## What was implemented
+
+### Phase 1 — Backend model enrichment
+
+Added 4 previously missing action subtypes to `backend/app/models.py`:
+
+- `BuyAction`, `CommunicateAction`, `ReviewAction`, `SendAction`
+
+`ACTION_SUBTYPES` now contains 16 types. Both `ActionItemJsonLd.type` and `ItemPatchModel.type`
+Literals were extended to accept the new types. `_is_action_type()` in `items.py` already used
+`ACTION_SUBTYPES` and required no changes.
+
+**Tests added:** `test_items_jsonld_aliases.py` — 5 integration tests for round-trip POST and
+PATCH for each new type.
+
+### Phase 2 — Frontend model: `schemaType` preservation
+
+Added `schemaType?: string` to the `ActionItem` interface (`model/types.ts`). `fromJsonLd` now
+preserves the `@type` value as `schemaType` when it is a named subtype (not a generic "Action" or
+"ReadAction"). `toJsonLd` emits `schemaType` as `@type`, falling back to the existing ReadAction /
+Action logic.
+
+**Tests added:** `item-serializer.test.ts` — 8 unit tests covering fromJsonLd, toJsonLd, and
+round-trip for all 4 new types.
+
+### Phase 3 — ActionRow: type badge + "Typ ändern" menu
+
+`ActionRow.tsx` now renders a small pill badge (e.g. "Kaufen") next to the item title for any item
+with a known `schemaType`. The "more" overflow menu gained a "Typ ändern" section with quick-pick
+buttons for common types and a "Kein Typ" reset option. On click, `onSetType(id, type)` is called
+(PATCH to backend). The `onSetType` prop is wired all the way from `ActionRow` → `ActionList` →
+`BucketView` → `ConnectedBucketView` (which calls `useUpdateItem`).
+
+German label map:
+
+| schema.org type   | Label         |
+| ----------------- | ------------- |
+| BuyAction         | Kaufen        |
+| PlanAction        | Planen        |
+| CommunicateAction | Kommunizieren |
+| ReviewAction      | Prüfen        |
+| CreateAction      | Erstellen     |
+| SendAction        | Senden        |
+| CheckAction       | Prüfen        |
+| ReadAction        | Lesen         |
+
+**Tests added:** `ActionRow.test.tsx` — 11 new tests covering badge rendering and menu behavior.
+
+### Phase 4 — Type filter chips
+
+`use-action-filters.ts` gained `selectedTypes: string[]` and `toggleType(type)`. `ActionList.tsx`
+renders a row of toggle chips for every subtype present in the current bucket. Clicking a chip adds
+it to the active filter; the list is then narrowed to only items matching one of the selected types.
+Chips show only types actually present in the bucket.
+
+**Tests added:** `use-action-filters.test.ts` — 4 new tests. `BucketView.test.tsx` — 4 new tests.
+
+### Phase 5 — Fixtures and Storybook stories
+
+MSW fixtures (`fixtures.ts`) seed two `BuyAction` items ("Äpfel kaufen", "Blumen kaufen") in the
+inbox bucket so Storybook stories and snapshot tests exercise the filter chips automatically.
+`BucketView.stories.tsx` has a new `WithSubtypeFilter` story that demonstrates type chips and
+filter interactions.
+
+---
+
+## Pending: AI enrichment pipeline
+
+The manual assignment path is complete. The AI pipeline that auto-classifies captures and sets
+`@type` is tracked separately and is not yet started.
+
+---
+
+## Files modified
+
+| File                                                   | Change                                                                                |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| `backend/app/models.py`                                | Added 4 subtypes to `ACTION_SUBTYPES`, `ActionItemJsonLd.type`, `ItemPatchModel.type` |
+| `backend/tests/test_items_jsonld_aliases.py`           | 5 new integration tests                                                               |
+| `frontend/src/model/types.ts`                          | `schemaType?: string` on `ActionItem`                                                 |
+| `frontend/src/model/factories.ts`                      | Pass-through `schemaType` in `createActionItem`                                       |
+| `frontend/src/lib/item-serializer.ts`                  | `fromJsonLd` preserves subtype; `toJsonLd` emits it                                   |
+| `frontend/src/lib/item-serializer.test.ts`             | 8 new unit tests                                                                      |
+| `frontend/src/components/work/ActionRow.tsx`           | Type badge + "Typ ändern" overflow menu                                               |
+| `frontend/src/components/work/ActionRow.test.tsx`      | 11 new tests                                                                          |
+| `frontend/src/components/work/ActionList.tsx`          | Type filter chips + `typeFiltered` pipeline step                                      |
+| `frontend/src/components/work/BucketView.tsx`          | `onSetType` prop wired through                                                        |
+| `frontend/src/components/work/BucketView.test.tsx`     | 4 new tests                                                                           |
+| `frontend/src/components/work/BucketView.stories.tsx`  | `WithSubtypeFilter` story                                                             |
+| `frontend/src/components/work/ConnectedBucketView.tsx` | `handleSetType` → `useUpdateItem`                                                     |
+| `frontend/src/hooks/use-action-filters.ts`             | `selectedTypes`, `toggleType`, `clearAll` updated                                     |
+| `frontend/src/hooks/use-action-filters.test.ts`        | 4 new tests                                                                           |
+| `frontend/src/test/msw/fixtures.ts`                    | Seed 2 BuyAction items in inbox                                                       |
+
+---
+
+## Verification checklist
+
+- [x] POST a `BuyAction` to `POST /items` — stores and round-trips
+- [x] PATCH an inbox `Action` to `BuyAction` — type change persists
+- [x] Frontend deserializes `BuyAction` as a normal action (correct bucket, `schemaType` preserved)
+- [x] ActionRow shows "Kaufen" badge for BuyAction items
+- [x] "Typ ändern" overflow menu assigns subtype via PATCH
+- [x] Type filter chips appear when subtypes are present in the bucket
+- [x] Filtering by "Kaufen" hides non-BuyAction items
+- [x] "Kein Typ" resets `schemaType` to generic `Action`
+- [x] All backend tests pass (`pytest` — 606 tests)
+- [x] All frontend tests pass (`vitest run` — 1440 tests)
+- [x] TypeScript clean (`tsc -b --noEmit`)

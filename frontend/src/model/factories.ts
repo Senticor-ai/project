@@ -91,6 +91,7 @@ export function createActionItem(overrides: ActionItemOverrides): ActionItem {
     emailBody: overrides.emailBody,
     emailSourceUrl: overrides.emailSourceUrl,
     objectRef: overrides.objectRef,
+    schemaType: overrides.schemaType,
   };
 }
 

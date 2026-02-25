@@ -254,9 +254,7 @@ export const WithAllFilters: Story = {
         contexts: [
           "@computer",
         ] as unknown as import("@/model/canonical-id").CanonicalId[],
-        ports: [
-          computationPort({ energyLevel: "high", timeEstimate: "2hr" }),
-        ],
+        ports: [computationPort({ energyLevel: "high", timeEstimate: "2hr" })],
       }),
       createActionItem({
         rawCapture: "Pick up groceries",
@@ -274,9 +272,7 @@ export const WithAllFilters: Story = {
         contexts: [
           "@computer",
         ] as unknown as import("@/model/canonical-id").CanonicalId[],
-        ports: [
-          computationPort({ energyLevel: "low", timeEstimate: "15min" }),
-        ],
+        ports: [computationPort({ energyLevel: "low", timeEstimate: "15min" })],
       }),
     ],
   },

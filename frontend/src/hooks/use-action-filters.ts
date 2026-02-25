@@ -9,6 +9,7 @@ interface ActionFilterState {
   selectedContexts: string[];
   selectedEnergy: EnergyLevel | null;
   maxTimeEstimate: TimeEstimate | null;
+  selectedTypes: string[];
 }
 
 export interface UseActionFiltersReturn extends ActionFilterState {
@@ -16,6 +17,7 @@ export interface UseActionFiltersReturn extends ActionFilterState {
   clearContexts: () => void;
   setEnergy: (level: EnergyLevel | null) => void;
   setMaxTime: (estimate: TimeEstimate | null) => void;
+  toggleType: (type: string) => void;
   clearAll: () => void;
   hasActiveFilters: boolean;
 }
@@ -34,15 +36,18 @@ const EMPTY_STATE: ActionFilterState = {
   selectedContexts: [],
   selectedEnergy: null,
   maxTimeEstimate: null,
+  selectedTypes: [],
 };
 
 function loadState(bucket: string): ActionFilterState {
   try {
     const raw = sessionStorage.getItem(storageKey(bucket));
-    if (!raw) return { ...EMPTY_STATE, selectedContexts: [] };
-    return JSON.parse(raw) as ActionFilterState;
+    if (!raw) return { ...EMPTY_STATE };
+    const parsed = JSON.parse(raw) as Partial<ActionFilterState>;
+    // Ensure selectedTypes always exists (backwards-compat with old stored state)
+    return { ...EMPTY_STATE, ...parsed };
   } catch {
-    return { ...EMPTY_STATE, selectedContexts: [] };
+    return { ...EMPTY_STATE };
   }
 }
 
@@ -59,7 +64,9 @@ function saveState(bucket: string, state: ActionFilterState): void {
 // ---------------------------------------------------------------------------
 
 export function useActionFilters(bucket: string): UseActionFiltersReturn {
-  const [state, setState] = useState<ActionFilterState>(() => loadState(bucket));
+  const [state, setState] = useState<ActionFilterState>(() =>
+    loadState(bucket),
+  );
   const [prevBucket, setPrevBucket] = useState(bucket);
 
   // Derived-state pattern: detect bucket change during render (no useEffect)
@@ -111,12 +118,24 @@ export function useActionFilters(bucket: string): UseActionFiltersReturn {
     [update],
   );
 
+  const toggleType = useCallback(
+    (type: string) =>
+      update((prev) => ({
+        ...prev,
+        selectedTypes: prev.selectedTypes.includes(type)
+          ? prev.selectedTypes.filter((t) => t !== type)
+          : [...prev.selectedTypes, type],
+      })),
+    [update],
+  );
+
   const clearAll = useCallback(
     () =>
       update(() => ({
         selectedContexts: [],
         selectedEnergy: null,
         maxTimeEstimate: null,
+        selectedTypes: [],
       })),
     [update],
   );
@@ -125,18 +144,26 @@ export function useActionFilters(bucket: string): UseActionFiltersReturn {
     () =>
       state.selectedContexts.length > 0 ||
       state.selectedEnergy !== null ||
-      state.maxTimeEstimate !== null,
-    [state.selectedContexts, state.selectedEnergy, state.maxTimeEstimate],
+      state.maxTimeEstimate !== null ||
+      state.selectedTypes.length > 0,
+    [
+      state.selectedContexts,
+      state.selectedEnergy,
+      state.maxTimeEstimate,
+      state.selectedTypes,
+    ],
   );
 
   return {
     selectedContexts: state.selectedContexts,
     selectedEnergy: state.selectedEnergy,
     maxTimeEstimate: state.maxTimeEstimate,
+    selectedTypes: state.selectedTypes,
     toggleContext,
     clearContexts,
     setEnergy,
     setMaxTime,
+    toggleType,
     clearAll,
     hasActiveFilters,
   };

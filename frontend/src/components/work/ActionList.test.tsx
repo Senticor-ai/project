@@ -943,7 +943,9 @@ describe("ActionList", () => {
         name: "Phone high quick",
         bucket: "next",
         contexts: ["@phone"] as unknown as CanonicalId[],
-        ports: [computationPort({ energyLevel: "high", timeEstimate: "15min" })],
+        ports: [
+          computationPort({ energyLevel: "high", timeEstimate: "15min" }),
+        ],
       }),
       createActionItem({
         name: "Phone low quick",
@@ -955,7 +957,9 @@ describe("ActionList", () => {
         name: "Computer high quick",
         bucket: "next",
         contexts: ["@computer"] as unknown as CanonicalId[],
-        ports: [computationPort({ energyLevel: "high", timeEstimate: "15min" })],
+        ports: [
+          computationPort({ energyLevel: "high", timeEstimate: "15min" }),
+        ],
       }),
       createActionItem({
         name: "Phone high long",
@@ -987,13 +991,17 @@ describe("ActionList", () => {
         name: "Phone high quick",
         bucket: "next",
         contexts: ["@phone"] as unknown as CanonicalId[],
-        ports: [computationPort({ energyLevel: "high", timeEstimate: "15min" })],
+        ports: [
+          computationPort({ energyLevel: "high", timeEstimate: "15min" }),
+        ],
       }),
       createActionItem({
         name: "Computer high quick",
         bucket: "next",
         contexts: ["@computer"] as unknown as CanonicalId[],
-        ports: [computationPort({ energyLevel: "high", timeEstimate: "15min" })],
+        ports: [
+          computationPort({ energyLevel: "high", timeEstimate: "15min" }),
+        ],
       }),
       createActionItem({
         name: "Phone low quick",
@@ -1203,5 +1211,162 @@ describe("ActionList", () => {
     renderActionList({ bucket: "focus", onFileDrop: vi.fn() });
     simulateFileDragEnter();
     expect(screen.queryByTestId("file-drop-zone")).not.toBeInTheDocument();
+  });
+
+  // ---------------------------------------------------------------------------
+  // Type filter chips
+  // ---------------------------------------------------------------------------
+
+  describe("type filter chips", () => {
+    // Use "next" bucket to match the defaultProps bucket so items pass the
+    // per-bucket filter inside ActionList (items.filter(t => t.bucket === bucket))
+    const BUCKET = "next" as const;
+
+    it("shows no type chips when no items have a schemaType", () => {
+      const items = [
+        createActionItem({ name: "Generic action", bucket: BUCKET }),
+        createActionItem({ name: "Another task", bucket: BUCKET }),
+      ];
+      renderActionList({ items });
+      expect(
+        screen.queryByRole("button", { name: /Filter by type:/i }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows a chip for each distinct schemaType present in the bucket", () => {
+      const items = [
+        createActionItem({
+          name: "Äpfel kaufen",
+          schemaType: "BuyAction",
+          bucket: BUCKET,
+        }),
+        createActionItem({
+          name: "Dokument prüfen",
+          schemaType: "ReviewAction",
+          bucket: BUCKET,
+        }),
+        createActionItem({ name: "Generic task", bucket: BUCKET }),
+      ];
+      renderActionList({ items });
+      expect(
+        screen.getByRole("button", { name: /Filter by type: Kaufen/i }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /Filter by type: Prüfen/i }),
+      ).toBeInTheDocument();
+      // One chip per distinct type, not per item
+      expect(
+        screen.getAllByRole("button", { name: /Filter by type:/i }),
+      ).toHaveLength(2);
+    });
+
+    it("deduplicates chips when multiple items share the same schemaType", () => {
+      const items = [
+        createActionItem({
+          name: "Äpfel kaufen",
+          schemaType: "BuyAction",
+          bucket: BUCKET,
+        }),
+        createActionItem({
+          name: "Blumen kaufen",
+          schemaType: "BuyAction",
+          bucket: BUCKET,
+        }),
+      ];
+      renderActionList({ items });
+      expect(
+        screen.getAllByRole("button", { name: /Filter by type: Kaufen/i }),
+      ).toHaveLength(1);
+    });
+
+    it("chip starts with aria-pressed false", () => {
+      const items = [
+        createActionItem({
+          name: "Äpfel kaufen",
+          schemaType: "BuyAction",
+          bucket: BUCKET,
+        }),
+      ];
+      renderActionList({ items });
+      const chip = screen.getByRole("button", {
+        name: /Filter by type: Kaufen/i,
+      });
+      expect(chip).toHaveAttribute("aria-pressed", "false");
+    });
+
+    it("clicking a chip filters the list and sets aria-pressed true", async () => {
+      const user = userEvent.setup();
+      const items = [
+        createActionItem({
+          name: "Äpfel kaufen",
+          schemaType: "BuyAction",
+          bucket: BUCKET,
+        }),
+        createActionItem({
+          name: "Dokument prüfen",
+          schemaType: "ReviewAction",
+          bucket: BUCKET,
+        }),
+        createActionItem({ name: "Generic task", bucket: BUCKET }),
+      ];
+      renderActionList({ items });
+
+      await user.click(
+        screen.getByRole("button", { name: /Filter by type: Kaufen/i }),
+      );
+
+      expect(
+        screen.getByRole("button", { name: /Filter by type: Kaufen/i }),
+      ).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByText("Äpfel kaufen")).toBeInTheDocument();
+      expect(screen.queryByText("Dokument prüfen")).not.toBeInTheDocument();
+      expect(screen.queryByText("Generic task")).not.toBeInTheDocument();
+    });
+
+    it("clicking the active chip again deactivates the filter", async () => {
+      const user = userEvent.setup();
+      const items = [
+        createActionItem({
+          name: "Äpfel kaufen",
+          schemaType: "BuyAction",
+          bucket: BUCKET,
+        }),
+        createActionItem({
+          name: "Dokument prüfen",
+          schemaType: "ReviewAction",
+          bucket: BUCKET,
+        }),
+      ];
+      renderActionList({ items });
+
+      const chip = screen.getByRole("button", {
+        name: /Filter by type: Kaufen/i,
+      });
+      await user.click(chip);
+      expect(screen.queryByText("Dokument prüfen")).not.toBeInTheDocument();
+
+      await user.click(chip);
+      expect(chip).toHaveAttribute("aria-pressed", "false");
+      expect(screen.getByText("Dokument prüfen")).toBeInTheDocument();
+    });
+
+    it("items without a schemaType are hidden when a type filter is active", async () => {
+      const user = userEvent.setup();
+      const items = [
+        createActionItem({
+          name: "Äpfel kaufen",
+          schemaType: "BuyAction",
+          bucket: BUCKET,
+        }),
+        createActionItem({ name: "Kein Typ", bucket: BUCKET }), // no schemaType
+      ];
+      renderActionList({ items });
+
+      await user.click(
+        screen.getByRole("button", { name: /Filter by type: Kaufen/i }),
+      );
+      expect(screen.getByText("Äpfel kaufen")).toBeInTheDocument();
+      expect(screen.queryByText("Kein Typ")).not.toBeInTheDocument();
+    });
   });
 });

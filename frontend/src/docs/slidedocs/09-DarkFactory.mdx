@@ -1,0 +1,96 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+import { Slide } from "../../components/docs/Slide";
+import { SlideShow } from "../../components/docs/SlideShow";
+
+<Meta title="Slidedocs/Dark Software Factory" />
+
+# Dark Software Factory
+
+> Inspired by [StrongDM's Dark Factory](https://factory.strongdm.ai/) — a fully automated,
+> AI-assisted software pipeline that runs itself. "Lights-out manufacturing" applied to software development.
+
+<SlideShow>
+
+<Slide n={1} title="The Concept" tag="Philosophy">
+
+A **Dark Software Factory** is a development pipeline that operates autonomously —
+minimal manual intervention, maximum automation. Like a lights-out factory floor,
+the machinery runs even when no human is watching.
+
+**Our factory has three layers:**
+
+| Layer       | What Runs Itself                                                  |
+| ----------- | ----------------------------------------------------------------- |
+| **Build**   | Docker Buildx multi-stage builds, image tagging with SHA          |
+| **Quality** | Lint, type check, format, test — all gates required before deploy |
+| **Deploy**  | GitOps: Flux CD reconciles Kubernetes manifests automatically     |
+
+**Plus AI assistance:**
+
+- Claude Code assists with implementation, code review, and refactoring
+- LLM Copilot (OpenRouter) triages tasks within the product itself
+
+</Slide>
+
+<Slide n={2} title="The Pipeline" tag="CI/CD">
+
+```
+git push main
+    │
+    ├─► Quality Gates (required)
+    │       ├─ Backend: ruff + mypy + pytest
+    │       ├─ Frontend: eslint + prettier + tsc + vitest
+    │       └─ SAST: static security analysis
+    │
+    ├─► Build & Push (on green)
+    │       ├─ frontend:$SHA  → registry.onstackit.cloud
+    │       ├─ backend:$SHA   → registry.onstackit.cloud
+    │       └─ storybook:$SHA → registry.onstackit.cloud
+    │
+    └─► Deploy (automatic)
+            ├─ update-manifests: kustomization.yaml ← new SHA
+            └─ Flux CD reconciles → pods roll out (~5 min)
+```
+
+**No manual `kubectl apply`. No manual image promotion.**
+
+</Slide>
+
+<Slide n={3} title="Quality Gate in Detail" tag="The Gates">
+
+Every commit must pass all gates — no bypasses:
+
+| Gate          | Tool     | Command                              |
+| ------------- | -------- | ------------------------------------ |
+| Python lint   | ruff     | `uv run ruff check .`                |
+| Python format | ruff     | `uv run ruff format --check .`       |
+| Python types  | mypy     | `uv run mypy app/`                   |
+| TS lint       | eslint   | `npx eslint src/`                    |
+| TS format     | prettier | `npx prettier --check src/`          |
+| TS types      | tsc      | `npx tsc -b --noEmit`                |
+| Unit tests    | vitest   | `CI=1 npx vitest run --project=unit` |
+| Backend tests | pytest   | `uv run python -m pytest`            |
+| Security scan | SAST     | GitHub Actions SAST job              |
+
+**Completion gate:** `npm run preflight:local` — runs all checks locally before PR.
+
+</Slide>
+
+<Slide n={4} title="Observability" tag="Eyes in the Dark">
+
+Even "dark" factories need telemetry — the machine reports on itself.
+
+| Signal         | Tool                          | What It Shows                      |
+| -------------- | ----------------------------- | ---------------------------------- |
+| **Traces**     | OpenTelemetry → Grafana Tempo | Request flows through API + Agents |
+| **Metrics**    | OTEL → Grafana Mimir          | Latency, error rates, queue depths |
+| **Logs**       | OTEL → Grafana Loki           | Structured logs from all services  |
+| **Dashboards** | Grafana                       | Unified view of all three signals  |
+
+All services emit OTLP to the same Grafana LGTM stack (docker-otel-lgtm).
+
+→ [Engineering / Architecture](?path=/docs/engineering-architecture--docs) · [Engineering / Deployment](?path=/docs/engineering-deployment--docs)
+
+</Slide>
+
+</SlideShow>

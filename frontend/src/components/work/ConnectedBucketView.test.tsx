@@ -401,6 +401,18 @@ describe("ConnectedBucketView", () => {
       });
     });
 
+    it("onSetType calls updateItem with @type patch", () => {
+      const onSetType = capturedProps.onSetType as (
+        id: CanonicalId,
+        type: string,
+      ) => void;
+      onSetType("thing:test-1" as CanonicalId, "BuyAction");
+      expect(mockUpdate.mutate).toHaveBeenCalledWith({
+        canonicalId: "thing:test-1",
+        patch: { "@type": "BuyAction" },
+      });
+    });
+
     it("onFileDrop calls captureFile mutation for each file", () => {
       const onFileDrop = capturedProps.onFileDrop as (files: File[]) => void;
       const file1 = new File(["a"], "report.pdf", { type: "application/pdf" });

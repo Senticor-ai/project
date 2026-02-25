@@ -1,0 +1,119 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Weekly/Overview" />
+
+# Weekly SlideDocs
+
+A weekly cadence document shipped with every release — a self-contained visual record
+of what happened, what we learned, and how the factory ran.
+
+---
+
+## Weekly Ritual
+
+**When:** Every week, at release time.
+
+**Who creates it:** The engineer(s) who shipped that week.
+
+**How:** Copy the template below into a new `YYYY-WXX.mdx` file, fill it in, commit with the release.
+
+---
+
+## Template
+
+```mdx
+import { Meta } from "@storybook/addon-docs/blocks";
+import { Slide } from "../../components/docs/Slide";
+
+<Meta title="Weekly/YYYY-WXX" />
+
+# Week WXX · Mon DD – Sun DD, YYYY
+
+> **Headline:** One sentence that captures the essence of this week.
+
+<Slide n={1} title="🚀 What Shipped" tag="Release">
+
+| Feature      | Status     | Story                   | Notes      |
+| ------------ | ---------- | ----------------------- | ---------- |
+| Feature name | ✅ Shipped | [Demo](?path=/docs/...) | Brief note |
+
+Build: `$SHA` · [Deployment commit](https://github.com/Senticor-ai/project/commit/$SHA)
+
+</Slide>
+
+<Slide n={2} title="📊 Quality Gate" tag="Metrics">
+
+| Metric               | Value  | Trend |
+| -------------------- | ------ | ----- |
+| Unit test pass rate  | 100%   | →     |
+| Frontend type errors | 0      | →     |
+| Backend type errors  | 0      | →     |
+| Lint warnings        | 0      | →     |
+| Build time (CI)      | ~Xm Xs | →     |
+
+</Slide>
+
+<Slide n={3} title="💡 Lessons Learned" tag="Retro">
+
+### ✅ What Worked Well
+
+- ...
+
+### ❌ What Didn't Work
+
+- ...
+
+### 🔧 Process Changes
+
+- ...
+
+</Slide>
+
+<Slide n={4} title="🏭 Dark Software Factory" tag="Factory">
+
+**CI/CD**
+
+- Pipeline status: ✅ / ⚠️ / ❌
+- Any pipeline changes or issues this week:
+
+**AI Tooling (Claude Code)**
+
+- Patterns used:
+- Anything discovered about effective prompting:
+
+**Observability**
+
+- Any Grafana anomalies or alerts:
+- Infrastructure changes:
+
+</Slide>
+
+<Slide n={5} title="🗓️ Next Week Focus" tag="Priorities">
+
+1. ...
+2. ...
+3. ...
+
+</Slide>
+```
+
+---
+
+## Weekly Archive
+
+| Week                                          | Headline                                      | Build     |
+| --------------------------------------------- | --------------------------------------------- | --------- |
+| [2026-W09](?path=/docs/weekly-2026-w09--docs) | Email inbox view + calendar sync enhancements | `b9e4fea` |
+
+---
+
+## Additional Sections (Optional)
+
+Include these when relevant:
+
+| Section                       | When to Use                                      |
+| ----------------------------- | ------------------------------------------------ |
+| **🤖 AI Performance**         | When LLM Copilot eval results are available      |
+| **🗄️ Schema Changes**         | When data model migrations shipped               |
+| **👥 User Research**          | When feedback from Bundesbeamte is collected     |
+| **📐 Architecture Decisions** | When a non-trivial architectural choice was made |

@@ -1,0 +1,96 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+import { Slide } from "../../components/docs/Slide";
+import { SlideShow } from "../../components/docs/SlideShow";
+
+<Meta title="Weekly/2026-W09" />
+
+# Week W09 · Feb 23 – Mar 1, 2026
+
+> **Headline:** Email inbox and calendar sync reach production; item serializer and JSON-LD alias handling in progress.
+
+<SlideShow>
+
+<Slide n={1} title="🚀 What Shipped" tag="Release">
+
+| Feature                   | Status     | Notes                                                       |
+| ------------------------- | ---------- | ----------------------------------------------------------- |
+| **Email Inbox View**      | ✅ Shipped | Enhanced view for Gmail-synced messages in inbox            |
+| **Email & Calendar Sync** | ✅ Shipped | IMAP sync reliability improvements; calendar event handling |
+| **Org Knowledge**         | ✅ Shipped | Entity extraction and organizational knowledge linking      |
+| **Platform SDK**          | ✅ Shipped | External integration SDK enhancements                       |
+
+Build: `b9e4fea` · [View deploy commit](https://github.com/Senticor-ai/project/commit/b9e4fea3d3003ba91be3b980bec52a412cd7b645)
+
+Previous build: `d9f4504` — Org Knowledge + Platform SDK
+
+</Slide>
+
+<Slide n={2} title="📊 Quality Gate" tag="Metrics">
+
+| Metric                       | Value            | Trend |
+| ---------------------------- | ---------------- | ----- |
+| CI pipeline                  | ✅ Green         | →     |
+| Frontend type errors (`tsc`) | 0                | →     |
+| Backend type errors (`mypy`) | 0                | →     |
+| Lint warnings                | 0                | →     |
+| Unit tests                   | ✅ Passing       | →     |
+| Backend tests                | ✅ Passing       | →     |
+| Deployment model             | SHA-first GitOps | →     |
+
+**In progress (not yet committed):**
+
+- Item serializer refactor — `frontend/src/lib/item-serializer.ts`
+- JSON-LD alias handling — `backend/app/models.py`
+- Type model updates — `frontend/src/model/types.ts`
+
+</Slide>
+
+<Slide n={3} title="💡 Lessons Learned" tag="Retro">
+
+### ✅ What Worked Well
+
+- GitOps deploy pipeline ran without manual intervention — true dark factory behaviour
+- Email sync improvements landed cleanly with no regressions
+
+### ❌ What Didn't Work
+
+- JSON-LD alias handling required more model-level changes than expected (still in progress)
+- Item serializer refactor surfaced edge cases in the type model
+
+### 🔧 Process Changes
+
+- _(Update this section with any process changes made this week)_
+
+</Slide>
+
+<Slide n={4} title="🏭 Dark Software Factory" tag="Factory">
+
+**CI/CD**
+
+- Pipeline: ✅ Green — all quality gates passed before image push
+- Deploy: automatic via Flux CD after manifest update commit
+- Images tagged with immutable GitHub SHA — no named release yet (on roadmap)
+
+**AI Tooling (Claude Code)**
+
+- Used for email inbox and sync feature implementation
+- Storybook slidedocs system designed and scaffolded this week
+
+**Observability**
+
+- Grafana LGTM stack: running normally
+- OTEL traces: all services reporting
+- No anomalies to report
+
+</Slide>
+
+<Slide n={5} title="🗓️ Next Week Focus" tag="Priorities">
+
+1. Complete item serializer refactor and JSON-LD alias handling
+2. Continue Inbox / Calendar Event Workflow epic
+3. Schema enrichment — confidence scoring for captured items
+4. Begin Named Releases roadmap project setup
+
+</Slide>
+
+</SlideShow>

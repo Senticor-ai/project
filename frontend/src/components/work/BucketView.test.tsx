@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   act,
   fireEvent,
@@ -528,5 +528,111 @@ describe("BucketView drag and drop", () => {
     });
 
     expect(overlay).toHaveTextContent("Tax docs");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 4: schema.org type filter chips
+// ---------------------------------------------------------------------------
+
+describe("BucketView – type filter chips", () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+  });
+
+  it("shows type chip for BuyAction items present in the bucket", () => {
+    render(
+      <BucketView
+        {...baseProps}
+        activeBucket="inbox"
+        actionItems={[
+          createActionItem({
+            name: "Äpfel kaufen",
+            bucket: "inbox",
+            schemaType: "BuyAction",
+          }),
+          createActionItem({
+            name: "Milch kaufen",
+            bucket: "inbox",
+            schemaType: "BuyAction",
+          }),
+          createActionItem({ name: "Brief schreiben", bucket: "inbox" }),
+        ]}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: /Filter by type: Kaufen/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("does not show type chips when no items have a schemaType", () => {
+    render(
+      <BucketView
+        {...baseProps}
+        activeBucket="inbox"
+        actionItems={[
+          createActionItem({ name: "Generic task", bucket: "inbox" }),
+        ]}
+      />,
+    );
+    expect(
+      screen.queryByRole("button", { name: /Filter by type:/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("clicking type chip filters the list to matching items only", async () => {
+    const user = userEvent.setup();
+    render(
+      <BucketView
+        {...baseProps}
+        activeBucket="inbox"
+        actionItems={[
+          createActionItem({
+            name: "Äpfel kaufen",
+            bucket: "inbox",
+            schemaType: "BuyAction",
+          }),
+          createActionItem({ name: "Brief schreiben", bucket: "inbox" }),
+        ]}
+      />,
+    );
+    expect(screen.getByText("Äpfel kaufen")).toBeInTheDocument();
+    expect(screen.getByText("Brief schreiben")).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: /Filter by type: Kaufen/i }),
+    );
+
+    expect(screen.getByText("Äpfel kaufen")).toBeInTheDocument();
+    expect(screen.queryByText("Brief schreiben")).not.toBeInTheDocument();
+  });
+
+  it("clicking active type chip again clears the filter", async () => {
+    const user = userEvent.setup();
+    render(
+      <BucketView
+        {...baseProps}
+        activeBucket="inbox"
+        actionItems={[
+          createActionItem({
+            name: "Äpfel kaufen",
+            bucket: "inbox",
+            schemaType: "BuyAction",
+          }),
+          createActionItem({ name: "Brief schreiben", bucket: "inbox" }),
+        ]}
+      />,
+    );
+    // Activate
+    await user.click(
+      screen.getByRole("button", { name: /Filter by type: Kaufen/i }),
+    );
+    expect(screen.queryByText("Brief schreiben")).not.toBeInTheDocument();
+
+    // Deactivate
+    await user.click(
+      screen.getByRole("button", { name: /Filter by type: Kaufen/i }),
+    );
+    expect(screen.getByText("Brief schreiben")).toBeInTheDocument();
   });
 });

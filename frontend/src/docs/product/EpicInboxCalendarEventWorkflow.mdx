@@ -157,13 +157,13 @@ Both modes must support:
 
 Action matrix:
 
-| User action in Project | Local update | Google API behavior | Availability |
-| --- | --- | --- | --- |
-| Accept | `app:rsvpStatus = accepted` | `events.patch` attendee response status for current user | Google event where user is attendee |
-| Tentative | `app:rsvpStatus = tentative` | `events.patch` attendee response status | Google attendee events |
-| Decline | `app:rsvpStatus = declined` | `events.patch` attendee response status | Google attendee events |
-| Reschedule | Update `startDate`/`endDate` | `events.patch` start/end | Events on writable calendars (`owner`/`writer`) |
-| Delete | Soft-archive local item + tombstone/audit | `events.delete` for writable events; decline fallback when not writable | Writable events for hard delete; attendee-only events get decline fallback |
+| User action in Project | Local update                              | Google API behavior                                                     | Availability                                                               |
+| ---------------------- | ----------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Accept                 | `app:rsvpStatus = accepted`               | `events.patch` attendee response status for current user                | Google event where user is attendee                                        |
+| Tentative              | `app:rsvpStatus = tentative`              | `events.patch` attendee response status                                 | Google attendee events                                                     |
+| Decline                | `app:rsvpStatus = declined`               | `events.patch` attendee response status                                 | Google attendee events                                                     |
+| Reschedule             | Update `startDate`/`endDate`              | `events.patch` start/end                                                | Events on writable calendars (`owner`/`writer`)                            |
+| Delete                 | Soft-archive local item + tombstone/audit | `events.delete` for writable events; decline fallback when not writable | Writable events for hard delete; attendee-only events get decline fallback |
 
 Propagation rules:
 

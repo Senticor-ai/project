@@ -32,7 +32,31 @@ export interface ActionRowProps {
   /** Multi-select: whether this item is selected in batch selection mode. */
   isSelected?: boolean;
   className?: string;
+  /** Called when user selects a schema.org type from the "Typ ändern" menu. Pass "Action" to clear. */
+  onSetType?: (id: CanonicalId, type: string) => void;
 }
+
+/** German labels for known schema.org Action subtypes. */
+const SUBTYPE_LABELS: Record<string, string> = {
+  BuyAction: "Kaufen",
+  PlanAction: "Planen",
+  CommunicateAction: "Kommunizieren",
+  ReviewAction: "Prüfen",
+  CreateAction: "Erstellen",
+  SendAction: "Senden",
+  CheckAction: "Prüfen",
+  ReadAction: "Lesen",
+};
+
+/** Subtypes shown in the "Typ ändern" submenu (most common for the user's context). */
+const TYPE_MENU_OPTIONS: Array<{ type: string; label: string }> = [
+  { type: "BuyAction", label: "Kaufen" },
+  { type: "PlanAction", label: "Planen" },
+  { type: "CommunicateAction", label: "Kommunizieren" },
+  { type: "ReviewAction", label: "Prüfen" },
+  { type: "CreateAction", label: "Erstellen" },
+  { type: "SendAction", label: "Senden" },
+];
 
 const moveTargets: Array<{ bucket: ActionItem["bucket"]; label: string }> = [
   { bucket: "inbox", label: "Inbox" },
@@ -123,6 +147,7 @@ export function ActionRow({
   showBucket = false,
   isSelected,
   className,
+  onSetType,
 }: ActionRowProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showMore, setShowMore] = useState(false);
@@ -366,6 +391,13 @@ export function ActionRow({
             ) : null;
           })()}
 
+        {/* Schema type badge */}
+        {thing.schemaType && SUBTYPE_LABELS[thing.schemaType] && (
+          <span className="shrink-0 rounded-full bg-blueprint-50 px-1.5 py-0.5 text-[10px] font-medium text-blueprint-700">
+            {SUBTYPE_LABELS[thing.schemaType]}
+          </span>
+        )}
+
         {/* Due date */}
         {dueDateInfo && (
           <span className={cn("shrink-0 text-xs", dueDateInfo.className)}>
@@ -451,6 +483,40 @@ export function ActionRow({
                         {p.name ?? "Untitled"}
                       </button>
                     ))}
+                </>
+              )}
+              {/* Typ ändern */}
+              {onSetType && (
+                <>
+                  <div className="my-1 h-px bg-border" />
+                  <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-text-muted">
+                    Typ ändern
+                  </p>
+                  {TYPE_MENU_OPTIONS.map(({ type, label }) => (
+                    <button
+                      key={type}
+                      role="menuitem"
+                      onClick={() => {
+                        onSetType(thing.id, type);
+                        setMenuOpen(false);
+                      }}
+                      className="flex w-full items-center gap-2 rounded-[var(--radius-sm)] px-2 py-1.5 text-left text-xs hover:bg-paper-100"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                  {thing.schemaType && (
+                    <button
+                      role="menuitem"
+                      onClick={() => {
+                        onSetType(thing.id, "Action");
+                        setMenuOpen(false);
+                      }}
+                      className="flex w-full items-center gap-2 rounded-[var(--radius-sm)] px-2 py-1.5 text-left text-xs text-text-muted hover:bg-paper-100"
+                    >
+                      Kein Typ
+                    </button>
+                  )}
                 </>
               )}
               <div className="my-1 h-px bg-border" />

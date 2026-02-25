@@ -1,0 +1,71 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+import { Slide } from "../../components/docs/Slide";
+import { SlideShow } from "../../components/docs/SlideShow";
+
+<Meta title="Slidedocs/Roadmap" />
+
+# Roadmap
+
+<SlideShow>
+
+<Slide n={1} title="Active Epics" tag="In Progress">
+
+| Epic                                | Focus                   | Key Deliverables                                                    |
+| ----------------------------------- | ----------------------- | ------------------------------------------------------------------- |
+| **Inbox / Calendar Event Workflow** | Email-to-task lifecycle | Auto-create items from synced Gmail, calendar event linking         |
+| **Schema Enrichment**               | AI-assisted metadata    | Confidence scoring, `needsEnrichment` resolution, entity extraction |
+| **Collaboration**                   | Multi-user features     | Shared projects, delegation, Waiting-for with notification          |
+
+→ [Inbox / Calendar Epic](?path=/docs/product-epics-inbox-calendar-event-workflow--docs)
+
+→ [Schema Enrichment Epic](?path=/docs/product-epics-schema-enrichment--docs)
+
+→ [Collaboration Epic](?path=/docs/product-epics-collaboration--docs)
+
+</Slide>
+
+<Slide n={2} title="Roadmap Projects" tag="Planned">
+
+**Copilot V3**
+
+| Project                                         | Status                      |
+| ----------------------------------------------- | --------------------------- |
+| Context Budget (token counting + summarization) | Planned                     |
+| RAG / Embeddings (Qdrant vector store)          | Planned                     |
+| Conversation Titles (auto-summarize)            | Planned                     |
+| Conversation Search                             | Planned → depends on Titles |
+
+**Release & Deployment**
+
+| Project                                   | Status                     |
+| ----------------------------------------- | -------------------------- |
+| Named Releases (SemVer + GitHub releases) | Planned                    |
+| Release Evidence (CI artifact bundles)    | Planned → depends on Named |
+| Post-Deploy Smoke Checks                  | Planned                    |
+| Supply-Chain Hardening (SBOM + signing)   | Planned                    |
+
+→ [Roadmap Projects](?path=/docs/product-roadmap-projects--docs)
+
+</Slide>
+
+<Slide n={3} title="Near-Term Sequence" tag="Next Up">
+
+```
+1. Named Releases ──► Release Evidence
+                 └──► Post-Deploy Smoke
+                 └──► Supply-Chain Hardening
+
+2. Copilot V3 Context Budget ──► RAG / Embeddings
+                              └──► Conversation Titles ──► Search
+
+3. Active Epics (parallel):
+   ├── Inbox / Calendar Event Workflow
+   ├── Schema Enrichment
+   └── Collaboration
+```
+
+Completed epics are archived in [Product / Completed Epics](?path=/docs/product-completed-epics-copilot-v1--docs).
+
+</Slide>
+
+</SlideShow>

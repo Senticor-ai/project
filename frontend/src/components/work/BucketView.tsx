@@ -58,6 +58,8 @@ export interface BucketViewProps {
     fields: Partial<ItemEditableFields>,
   ) => void;
   onUpdateTitle?: (id: CanonicalId, newTitle: string) => void;
+  /** Called when user selects a schema.org type from the ActionRow overflow menu. */
+  onSetType?: (id: CanonicalId, type: string) => void;
   onAddReference?: (title: string) => void;
   onArchiveReference?: (id: CanonicalId) => void;
   onEditReference?: (
@@ -98,6 +100,7 @@ export function BucketView({
   onArchiveActionItem,
   onEditActionItem,
   onUpdateTitle,
+  onSetType,
   onAddReference,
   onArchiveReference,
   onEditReference,
@@ -196,6 +199,7 @@ export function BucketView({
               onArchive={onArchiveActionItem}
               onEdit={onEditActionItem}
               onUpdateTitle={onUpdateTitle}
+              onSetType={onSetType}
               onFileDrop={onFileDrop}
               onNavigateToReference={onNavigateToReference}
               projects={projects}

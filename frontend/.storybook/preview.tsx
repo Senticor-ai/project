@@ -88,6 +88,22 @@ const preview: Preview = {
       storySort: {
         method: "alphabetical" as const,
         order: [
+          "Slidedocs",
+          [
+            "Overview",
+            "Product Overview",
+            "Vision & Methodology",
+            "Team & How We Work",
+            "Architecture",
+            "Data Model",
+            "Design System",
+            "Roadmap",
+            "User Flows",
+            "Dark Software Factory",
+            "Status",
+          ],
+          "Weekly",
+          ["Overview", "*"],
           "Product",
           ["Vision", "Methodology", "Feature Map", "Sales Battlecard", "Epics"],
           "Flows",

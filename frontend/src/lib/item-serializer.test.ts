@@ -4074,3 +4074,94 @@ describe("reference projectIds", () => {
     expectPropertyValue(ld, "app:projectRefs", []);
   });
 });
+
+// ---------------------------------------------------------------------------
+// schemaType — Phase 2: preserve @type subtype through serialization round-trip
+// ---------------------------------------------------------------------------
+
+describe("schemaType preservation", () => {
+  const BASE_ACTION_PROPS = [
+    { "@type": "PropertyValue", propertyID: "app:bucket", value: "inbox" },
+    { "@type": "PropertyValue", propertyID: "app:rawCapture", value: "test" },
+    {
+      "@type": "PropertyValue",
+      propertyID: "app:needsEnrichment",
+      value: false,
+    },
+    { "@type": "PropertyValue", propertyID: "app:confidence", value: "high" },
+    {
+      "@type": "PropertyValue",
+      propertyID: "app:captureSource",
+      value: { kind: "thought" },
+    },
+    { "@type": "PropertyValue", propertyID: "app:contexts", value: [] },
+    { "@type": "PropertyValue", propertyID: "app:ports", value: [] },
+    { "@type": "PropertyValue", propertyID: "app:typedReferences", value: [] },
+    {
+      "@type": "PropertyValue",
+      propertyID: "app:provenanceHistory",
+      value: [],
+    },
+  ];
+
+  function makeActionRecord(atType: string) {
+    return wrapAsItemRecord({
+      "@id": "urn:app:inbox:schema-type-test",
+      "@type": atType,
+      _schemaVersion: 2,
+      name: "Test item",
+      startTime: null,
+      endTime: null,
+      keywords: [],
+      dateCreated: "2025-01-01T00:00:00Z",
+      dateModified: "2025-01-01T00:00:00Z",
+      additionalProperty: BASE_ACTION_PROPS,
+    });
+  }
+
+  it("fromJsonLd preserves BuyAction as schemaType", () => {
+    const action = fromJsonLd(makeActionRecord("BuyAction")) as ActionItem;
+    expect(action.schemaType).toBe("BuyAction");
+  });
+
+  it("fromJsonLd preserves CommunicateAction as schemaType", () => {
+    const action = fromJsonLd(
+      makeActionRecord("CommunicateAction"),
+    ) as ActionItem;
+    expect(action.schemaType).toBe("CommunicateAction");
+  });
+
+  it("fromJsonLd preserves ReviewAction as schemaType", () => {
+    const action = fromJsonLd(makeActionRecord("ReviewAction")) as ActionItem;
+    expect(action.schemaType).toBe("ReviewAction");
+  });
+
+  it("fromJsonLd preserves SendAction as schemaType", () => {
+    const action = fromJsonLd(makeActionRecord("SendAction")) as ActionItem;
+    expect(action.schemaType).toBe("SendAction");
+  });
+
+  it("fromJsonLd with generic Action leaves schemaType undefined", () => {
+    const action = fromJsonLd(makeActionRecord("Action")) as ActionItem;
+    expect(action.schemaType).toBeUndefined();
+  });
+
+  it("toJsonLd emits stored schemaType as @type", () => {
+    const action = fromJsonLd(makeActionRecord("BuyAction")) as ActionItem;
+    const ld = toJsonLd(action);
+    expect(ld["@type"]).toBe("BuyAction");
+  });
+
+  it("toJsonLd with no schemaType emits generic Action @type", () => {
+    const action = fromJsonLd(makeActionRecord("Action")) as ActionItem;
+    const ld = toJsonLd(action);
+    expect(ld["@type"]).toBe("Action");
+  });
+
+  it("round-trip: BuyAction survives fromJsonLd → toJsonLd", () => {
+    const record = makeActionRecord("BuyAction");
+    const action = fromJsonLd(record) as ActionItem;
+    const ld = toJsonLd(action);
+    expect(ld["@type"]).toBe("BuyAction");
+  });
+});

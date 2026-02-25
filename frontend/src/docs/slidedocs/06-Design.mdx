@@ -1,0 +1,66 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+import { Slide } from "../../components/docs/Slide";
+import { SlideShow } from "../../components/docs/SlideShow";
+
+<Meta title="Slidedocs/Design System" />
+
+# Design System
+
+<SlideShow>
+
+<Slide n={1} title="Paperclip Principles" tag="Design Language">
+
+Eight principles governing every UI decision:
+
+| #   | Principle                                 | Implication                                                         |
+| --- | ----------------------------------------- | ------------------------------------------------------------------- |
+| 1   | **Everything Is an Object**               | Tasks, files, contacts — all are `ObjectCard` instances             |
+| 2   | **Relationships Over Navigation**         | Link items directly; no deep navigation hierarchies                 |
+| 3   | **Gravity Creates Focus**                 | Visual weight draws attention to what matters now                   |
+| 4   | **Reversibility Is Sacred**               | Undo always available; no permanent deletes                         |
+| 5   | **AI Is a Contributor, Not an Authority** | AI suggests; user decides                                           |
+| 6   | **Language Describes Relationships**      | UI text describes connections, not isolated actions                 |
+| 7   | **Interface-Level Responsiveness**        | All interactions respond within 100ms                               |
+| 8   | **Speed Over Ceremony**                   | One action per step; no confirmation dialogs for reversible actions |
+
+</Slide>
+
+<Slide n={2} title="Apple HIG Applied" tag="Adopted Principles">
+
+| Principle               | COPILOT Interpretation                                                                           |
+| ----------------------- | ------------------------------------------------------------------------------------------------ |
+| **Clarity**             | WCAG AA contrast (4.5:1+), single icon system (Material Symbols outlined), scannable task titles |
+| **Deference**           | Subtle borders, low-contrast controls — task content dominates every view                        |
+| **Depth**               | 4 elevation levels: `card` → `card-hover` → `sheet` → `overlay`                                  |
+| **Direct Manipulation** | Inline triage (no modals), drag-to-reorder, tap-to-complete                                      |
+| **Feedback**            | All interactions respond within `--duration-instant` (100ms)                                     |
+| **Metaphor**            | Paperclip language: attach/detach, paper surfaces, card gravity                                  |
+
+</Slide>
+
+<Slide n={3} title="Design Tokens" tag="Visual System">
+
+**Typography**
+
+- Primary: Inter (fallback: system-ui)
+- Mono: JetBrains Mono (IDs, code, timestamps)
+- Hierarchy: 3 levels max — title (semibold), body (regular), meta (muted)
+
+**Colors — Semantic over Decorative**
+
+- Bucket colors communicate meaning (amber=inbox, green=next, blue=projects, …)
+- `bg-{color}/15 text-{color}` — 15% tint pattern for badges
+- All pairings verified for WCAG AA (4.5:1 minimum)
+
+**Motion**
+
+- `instant` (100ms) — feedback
+- `fast` (150ms) — micro-interactions
+- `normal` (250ms) — reveals
+- `prefers-reduced-motion` always respected (Framer Motion)
+
+→ [Design Philosophy](?path=/docs/design-philosophy--docs) · [Paperclip Principles](?path=/docs/design-paperclip-principles--docs) · [Design Tokens](?path=/docs/design-tokens--docs)
+
+</Slide>
+
+</SlideShow>

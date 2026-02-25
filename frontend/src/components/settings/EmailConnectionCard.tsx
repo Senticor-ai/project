@@ -148,7 +148,9 @@ export function EmailConnectionCard({
     availableCalendars.length > 0 &&
     (connection.last_calendar_sync_error || "")
       .toLowerCase()
-      .includes("google calendar api is not enabled in this google cloud project");
+      .includes(
+        "google calendar api is not enabled in this google cloud project",
+      );
 
   return (
     <div
@@ -208,12 +210,13 @@ export function EmailConnectionCard({
           {connection.last_sync_error}
         </p>
       )}
-      {connection.last_calendar_sync_error && !hasStaleApiNotEnabledCalendarError && (
-        <p className="rounded-[var(--radius-sm)] bg-status-error/10 px-3 py-2 text-xs text-status-error">
-          Letzter Kalender-Sync-Fehler: {connection.last_calendar_sync_error}{" "}
-          (Kalenderliste kann trotzdem sichtbar sein.)
-        </p>
-      )}
+      {connection.last_calendar_sync_error &&
+        !hasStaleApiNotEnabledCalendarError && (
+          <p className="rounded-[var(--radius-sm)] bg-status-error/10 px-3 py-2 text-xs text-status-error">
+            Letzter Kalender-Sync-Fehler: {connection.last_calendar_sync_error}{" "}
+            (Kalenderliste kann trotzdem sichtbar sein.)
+          </p>
+        )}
 
       {/* Settings */}
       <div className="grid grid-cols-2 gap-4">

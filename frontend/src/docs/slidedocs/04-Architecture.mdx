@@ -1,0 +1,66 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+import { Slide } from "../../components/docs/Slide";
+import { SlideShow } from "../../components/docs/SlideShow";
+
+<Meta title="Slidedocs/Architecture" />
+
+# Architecture
+
+<SlideShow>
+
+<Slide n={1} title="System Overview" tag="C4 Level 1">
+
+```
+┌──────────────────────────────────────────────┐
+│             SENTICOR PROJECT                 │
+│                                              │
+│  Bundesbeamter ──► Frontend SPA (React 19)  │
+│                         │                   │
+│              Backend API (FastAPI)           │
+│                    │         │               │
+│         PostgreSQL 16   Meilisearch         │
+│                    │                         │
+│         Agents Service (Haystack)            │
+│                    │                         │
+│               OpenRouter (LLM)              │
+└──────────────────────────────────────────────┘
+         │                    │
+      Gmail (IMAP)     Grafana LGTM (OTEL)
+```
+
+</Slide>
+
+<Slide n={2} title="Containers" tag="C4 Level 2">
+
+| Container          | Technology                  | Port | Role                                                  |
+| ------------------ | --------------------------- | ---- | ----------------------------------------------------- |
+| **Frontend SPA**   | React 19, Vite, Tailwind v4 | 5173 | Offline-first UI, sync, bucket navigation             |
+| **Storybook**      | Storybook 10, MDX           | 6006 | Living docs hub                                       |
+| **Backend API**    | Python, FastAPI             | 8000 | REST API: items, files, email, auth, chat proxy       |
+| **Agents Service** | Python, Haystack            | 8002 | AI Copilot with tool calling                          |
+| **Worker**         | Python                      | —    | Outbox consumer: search indexing, email sync, imports |
+| **PostgreSQL 16**  | Relational DB               | 5432 | Source of truth — JSON-LD items, events, sessions     |
+| **Meilisearch**    | Search engine               | 7700 | Full-text search (optional)                           |
+| **Grafana LGTM**   | Docker                      | 3000 | Logs, traces, metrics via OpenTelemetry               |
+
+</Slide>
+
+<Slide n={3} title="Key Architectural Decisions" tag="ADRs">
+
+| Decision           | Choice                               | Why                                           |
+| ------------------ | ------------------------------------ | --------------------------------------------- |
+| **Auth**           | Local JWT, HTTP-only cookies         | No external identity provider dependency      |
+| **Data format**    | JSON-LD (schema.org)                 | Self-describing, interoperable, LLM-friendly  |
+| **No deletes**     | `archived_at` soft delete only       | Legal audit requirement for court proceedings |
+| **Offline sync**   | Outbox pattern + conflict resolution | Mobile-first reliability                      |
+| **LLM routing**    | OpenRouter                           | Model-agnostic, configurable via env          |
+| **Frontend state** | React Query + optimistic updates     | Consistent UX under latency                   |
+| **Deployment**     | GitOps + Flux CD + Kubernetes        | Zero-touch production deploys                 |
+
+→ Full architecture: [Engineering / Architecture](?path=/docs/engineering-architecture--docs)
+
+→ Backend detail: [Engineering / Backend Architecture](?path=/docs/engineering-backend-architecture--docs)
+
+</Slide>
+
+</SlideShow>

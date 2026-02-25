@@ -1,0 +1,72 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+import { Slide } from "../../components/docs/Slide";
+import { SlideShow } from "../../components/docs/SlideShow";
+
+<Meta title="Slidedocs/Data Model" />
+
+# Data Model
+
+<SlideShow>
+
+<Slide n={1} title="Schema.org-First Principle" tag="Ontology">
+
+Every entity is stored as **JSON-LD** with a schema.org `@type`.
+
+**Rule:** If schema.org has a property for it, use it.
+Custom fields go into `additionalProperty` as `PropertyValue` objects — no parallel type system.
+
+| schema.org `@type` | Used for                              |
+| ------------------ | ------------------------------------- |
+| `Action`           | Tasks, to-dos, next actions           |
+| `CreativeWork`     | Documents, notes, captured URLs       |
+| `DigitalDocument`  | Uploaded files (PDF, DOCX, etc.)      |
+| `EmailMessage`     | Synced or imported emails             |
+| `Event`            | Calendar items, meetings              |
+| `Person`           | Contacts extracted from emails/vCards |
+| `Organization`     | Organizations linked to contacts      |
+
+**Why schema.org?** Self-describing, interoperable, queryable by search engines, knowledge graphs, and LLMs.
+
+</Slide>
+
+<Slide n={2} title="FRBR Knowledge Graph" tag="Document Hierarchy">
+
+The FRBR (Functional Requirements for Bibliographic Records) model structures documents into a four-level hierarchy:
+
+```
+Work        → the abstract intellectual creation
+  └─ Expression  → a specific realization (e.g. German translation)
+       └─ Manifestation  → a physical form (e.g. PDF file)
+            └─ Item      → a specific copy
+```
+
+**In Senticor Project:** Documents captured via email or file import are classified
+into this hierarchy. The FRBR graph projection enables cross-referencing across
+multiple versions and representations of the same underlying document.
+
+→ [FRBR Knowledge Graph](?path=/docs/engineering-ontology-frbr-knowledge-graph--docs)
+
+</Slide>
+
+<Slide n={3} title="LexCEL Architecture" tag="Legal References">
+
+LexCEL (Legal Concept Expression Language) provides typed references and a rule layer
+for German legal documents:
+
+| Concept                    | Description                                                |
+| -------------------------- | ---------------------------------------------------------- |
+| **Typed references**       | Structured links between items (cites, supersedes, amends) |
+| **DefinitionPort**         | What does "done" look like? — typed outcome field          |
+| **Rule layer**             | Legal norms that govern task requirements                  |
+| **Citation normalization** | Parse + normalize German legal citations (§, Abs., Nr.)    |
+
+**Provenance tracking:** Every item maintains a full history log —
+`provenance.history: [{ action, timestamp, actor }]` — immutable, append-only.
+
+→ [LexCEL Architecture](?path=/docs/engineering-ontology-lexcel-architecture--docs)
+
+→ [Legal Reference Normalization](?path=/docs/engineering-ontology-legal-reference-normalization--docs)
+
+</Slide>
+
+</SlideShow>

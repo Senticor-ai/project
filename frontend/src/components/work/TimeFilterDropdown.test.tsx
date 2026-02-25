@@ -11,19 +11,25 @@ beforeEach(() => {
 
 describe("TimeFilterDropdown", () => {
   it("renders a labelled select with schedule icon", () => {
-    render(<TimeFilterDropdown maxTimeEstimate={null} onChangeMaxTime={noop} />);
+    render(
+      <TimeFilterDropdown maxTimeEstimate={null} onChangeMaxTime={noop} />,
+    );
     expect(screen.getByLabelText("Time available")).toBeInTheDocument();
   });
 
   it("has 'Any time' as the default option with empty value", () => {
-    render(<TimeFilterDropdown maxTimeEstimate={null} onChangeMaxTime={noop} />);
+    render(
+      <TimeFilterDropdown maxTimeEstimate={null} onChangeMaxTime={noop} />,
+    );
     const select = screen.getByLabelText("Time available") as HTMLSelectElement;
     expect(select.value).toBe("");
     expect(screen.getByText("Any time")).toBeInTheDocument();
   });
 
   it("shows all time estimate options", () => {
-    render(<TimeFilterDropdown maxTimeEstimate={null} onChangeMaxTime={noop} />);
+    render(
+      <TimeFilterDropdown maxTimeEstimate={null} onChangeMaxTime={noop} />,
+    );
     const options = screen.getAllByRole("option");
     expect(options).toHaveLength(7); // Any time + 6 estimates
     expect(options.map((o) => o.textContent)).toEqual([

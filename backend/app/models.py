@@ -10,6 +10,8 @@ ACTION_SUBTYPES = frozenset(
         "Action",
         "ReadAction",
         "EmailMessage",
+        "BuyAction",
+        "CommunicateAction",
         "CreateAction",
         "UpdateAction",
         "DeleteAction",
@@ -19,6 +21,8 @@ ACTION_SUBTYPES = frozenset(
         "ConfirmAction",
         "InformAction",
         "PlanAction",
+        "ReviewAction",
+        "SendAction",
     }
 )
 
@@ -304,6 +308,8 @@ class ActionItemJsonLd(ItemJsonLdBase):
         "Action",
         "ReadAction",
         "EmailMessage",
+        "BuyAction",
+        "CommunicateAction",
         "CreateAction",
         "UpdateAction",
         "DeleteAction",
@@ -313,6 +319,8 @@ class ActionItemJsonLd(ItemJsonLdBase):
         "ConfirmAction",
         "InformAction",
         "PlanAction",
+        "ReviewAction",
+        "SendAction",
     ] = Field(
         ...,
         alias="@type",
@@ -438,6 +446,8 @@ class ItemPatchModel(BaseModel):
             "Action",
             "ReadAction",
             "EmailMessage",
+            "BuyAction",
+            "CommunicateAction",
             "CreateAction",
             "UpdateAction",
             "DeleteAction",
@@ -447,6 +457,8 @@ class ItemPatchModel(BaseModel):
             "ConfirmAction",
             "InformAction",
             "PlanAction",
+            "ReviewAction",
+            "SendAction",
             "Project",
             "CreativeWork",
             "DigitalDocument",

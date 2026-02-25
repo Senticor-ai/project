@@ -257,3 +257,101 @@ class TestJsonLdAliases:
         assert "object" in retrieved_mixed, "Populated object field should be present"
         assert retrieved_mixed["object"]["@id"] == "urn:example:doc:456"
         assert retrieved_mixed["participant"]["@id"] == "urn:example:person:charlie"
+
+    def test_buy_action_round_trip(self, auth_client):
+        """BuyAction (schema.org) must be accepted and round-trip via API."""
+        item = {
+            "@id": f"urn:app:inbox:{uuid.uuid4()}",
+            "@type": "BuyAction",
+            "_schemaVersion": 2,
+            "name": "Äpfel kaufen",
+            "additionalProperty": [
+                {"@type": "PropertyValue", "propertyID": "app:bucket", "value": "inbox"},
+            ],
+        }
+        resp = auth_client.post("/items", json={"item": item, "source": "manual"})
+        assert resp.status_code == 201, f"BuyAction rejected: {resp.status_code}: {resp.text}"
+        data = resp.json()
+        assert data["item"]["@type"] == "BuyAction"
+        _assert_jsonld_aliases(data["item"], "POST /items (BuyAction)")
+
+    def test_communicate_action_round_trip(self, auth_client):
+        """CommunicateAction must be accepted and round-trip via API."""
+        item = {
+            "@id": f"urn:app:inbox:{uuid.uuid4()}",
+            "@type": "CommunicateAction",
+            "_schemaVersion": 2,
+            "name": "Bürgermeister anrufen",
+            "additionalProperty": [
+                {"@type": "PropertyValue", "propertyID": "app:bucket", "value": "inbox"},
+            ],
+        }
+        resp = auth_client.post("/items", json={"item": item, "source": "manual"})
+        assert resp.status_code == 201, (
+            f"CommunicateAction rejected: {resp.status_code}: {resp.text}"
+        )
+        data = resp.json()
+        assert data["item"]["@type"] == "CommunicateAction"
+        _assert_jsonld_aliases(data["item"], "POST /items (CommunicateAction)")
+
+    def test_review_action_round_trip(self, auth_client):
+        """ReviewAction must be accepted and round-trip via API."""
+        item = {
+            "@id": f"urn:app:inbox:{uuid.uuid4()}",
+            "@type": "ReviewAction",
+            "_schemaVersion": 2,
+            "name": "Antrag prüfen",
+            "additionalProperty": [
+                {"@type": "PropertyValue", "propertyID": "app:bucket", "value": "inbox"},
+            ],
+        }
+        resp = auth_client.post("/items", json={"item": item, "source": "manual"})
+        assert resp.status_code == 201, (
+            f"ReviewAction rejected: {resp.status_code}: {resp.text}"
+        )
+        data = resp.json()
+        assert data["item"]["@type"] == "ReviewAction"
+        _assert_jsonld_aliases(data["item"], "POST /items (ReviewAction)")
+
+    def test_send_action_round_trip(self, auth_client):
+        """SendAction must be accepted and round-trip via API."""
+        item = {
+            "@id": f"urn:app:inbox:{uuid.uuid4()}",
+            "@type": "SendAction",
+            "_schemaVersion": 2,
+            "name": "Bericht versenden",
+            "additionalProperty": [
+                {"@type": "PropertyValue", "propertyID": "app:bucket", "value": "inbox"},
+            ],
+        }
+        resp = auth_client.post("/items", json={"item": item, "source": "manual"})
+        assert resp.status_code == 201, f"SendAction rejected: {resp.status_code}: {resp.text}"
+        data = resp.json()
+        assert data["item"]["@type"] == "SendAction"
+        _assert_jsonld_aliases(data["item"], "POST /items (SendAction)")
+
+    def test_patch_action_to_buy_action(self, auth_client):
+        """PATCH @type from generic Action to BuyAction must persist."""
+        # Create a generic action
+        item = {
+            "@id": f"urn:app:inbox:{uuid.uuid4()}",
+            "@type": "Action",
+            "_schemaVersion": 2,
+            "name": "Milch kaufen",
+            "additionalProperty": [
+                {"@type": "PropertyValue", "propertyID": "app:bucket", "value": "inbox"},
+            ],
+        }
+        create_resp = auth_client.post("/items", json={"item": item, "source": "manual"})
+        assert create_resp.status_code == 201
+        item_id = create_resp.json()["item_id"]
+
+        # Patch @type to BuyAction
+        patch_resp = auth_client.patch(
+            f"/items/{item_id}",
+            json={"item": {"@type": "BuyAction"}},
+        )
+        assert patch_resp.status_code == 200, (
+            f"PATCH to BuyAction failed: {patch_resp.status_code}: {patch_resp.text}"
+        )
+        assert patch_resp.json()["item"]["@type"] == "BuyAction"

@@ -1,0 +1,72 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+import { Slide } from "../../components/docs/Slide";
+import { SlideShow } from "../../components/docs/SlideShow";
+
+<Meta title="Slidedocs/User Flows" />
+
+# User Flows
+
+<SlideShow>
+
+<Slide n={1} title="Collect → Engage" tag="Core Journey">
+
+The five-phase lifecycle of every task:
+
+```
+COLLECT ──► TRIAGE ──► ORGANIZE ──► REVIEW ──► ENGAGE
+  │                                    │
+  │  (auto from email sync)            └──► Daily: 5–15 min
+  │  (manual capture)                       Weekly: 60–90 min
+  └──► Inbox (FIFO queue)
+```
+
+**Key design decisions:**
+
+- FIFO enforced at the inbox level — oldest item first, no skipping
+- Triage is **inline** (no modal dialogs) — one-tap routing
+- Sequential project actions — only the next step is visible
+- Focus list is a **virtual view**, not a separate bucket
+
+</Slide>
+
+<Slide n={2} title="Capture → Inbox" tag="Phase 1: Collect">
+
+**Entry points:**
+
+| Source         | What Happens                                              |
+| -------------- | --------------------------------------------------------- |
+| Typed text     | `CaptureSource: { kind: "thought" }`, `confidence: "low"` |
+| URL paste      | Auto-classified as `CreativeWork`                         |
+| File drop      | MIME-based classification → `DigitalDocument`             |
+| Email (`.eml`) | Extracts `Person`, `Organization` as linked entities      |
+| Gmail sync     | IMAP connection → items auto-land in inbox                |
+| Voice          | Transcript → `Action`, `confidence: "low"`                |
+
+Every capture: `needsEnrichment: true`, full provenance history entry.
+
+</Slide>
+
+<Slide n={3} title="Triage → Route → Work" tag="Phases 2–5">
+
+**Triage (Clarify):** Inline action bar on the first inbox item:
+
+```
+[✓ Done] [→ Next] [📁 Project] [⏰ Calendar] [👤 Waiting] [📄 Reference] [🕐 Later]
+```
+
+**Route (Organize):** Each item gets:
+
+- Bucket assignment
+- Context tags (`@phone`, `@computer`, `@büro`, `@home`)
+- Energy level (`low` / `medium` / `high`)
+- Time estimate (5 min → full day)
+- Optional project link
+
+**Engage:** Work from the **Next** list filtered by current context + energy.
+**Focus** surfaces your top priorities across all buckets.
+
+→ [Collect to Engage — full flow](?path=/docs/flows-collect-to-engage--docs)
+
+</Slide>
+
+</SlideShow>

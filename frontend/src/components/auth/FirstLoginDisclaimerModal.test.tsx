@@ -97,7 +97,9 @@ describe("FirstLoginDisclaimerModal", () => {
       screen.getByText(/no backup guarantees.*data may be lost at any time/i),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/no data privacy guarantees.*do not use real or sensitive data/i),
+      screen.getByText(
+        /no data privacy guarantees.*do not use real or sensitive data/i,
+      ),
     ).toBeInTheDocument();
   });
 

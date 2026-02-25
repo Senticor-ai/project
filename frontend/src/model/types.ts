@@ -224,6 +224,8 @@ export interface ActionItem extends BaseEntity {
   emailSourceUrl?: string;
   /** schema.org object — canonical ID of the referenced item (generic; used by ReadAction, etc.). */
   objectRef?: CanonicalId;
+  /** schema.org action subtype (e.g. "BuyAction", "PlanAction"). Absent = generic "Action". */
+  schemaType?: string;
 }
 
 // ---------------------------------------------------------------------------

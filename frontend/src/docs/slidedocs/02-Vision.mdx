@@ -1,0 +1,65 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+import { Slide } from "../../components/docs/Slide";
+import { SlideShow } from "../../components/docs/SlideShow";
+
+<Meta title="Slidedocs/Vision & Methodology" />
+
+# Vision & Methodology
+
+<SlideShow>
+
+<Slide n={1} title="The 5 Phases" tag="Core Loop">
+
+| #   | Phase        | Action  | Trigger                               | Output                          |
+| --- | ------------ | ------- | ------------------------------------- | ------------------------------- |
+| 1   | **Capture**  | Collect | Thought, email, file, voice           | Item in Inbox                   |
+| 2   | **Clarify**  | Process | FIFO from oldest item                 | Routed item with context        |
+| 3   | **Organize** | Route   | After clarify decision                | Item in correct bucket          |
+| 4   | **Reflect**  | Review  | Weekly (60–90 min) + Daily (5–15 min) | Clean lists, updated priorities |
+| 5   | **Engage**   | Do      | Context + time + energy + priority    | Action completed                |
+
+**The discipline:** FIFO inbox — oldest item first, no skipping.
+
+</Slide>
+
+<Slide n={2} title="The Buckets" tag="Data Model">
+
+| Bucket        | Purpose                                       | Color          |
+| ------------- | --------------------------------------------- | -------------- |
+| **Inbox**     | Unprocessed captures — FIFO queue             | Warm amber     |
+| **Next**      | Immediately actionable, context-tagged        | Green          |
+| **Projects**  | Multi-step outcomes with sequential actions   | Blueprint blue |
+| **Waiting**   | Delegated — with person + expected date       | Purple         |
+| **Calendar**  | Time-specific commitments                     | Red-orange     |
+| **Reference** | Supporting material, not actionable           | Muted olive    |
+| **Later**     | Deferred aspirations, reviewed weekly         | Cool cyan      |
+| **Focus**     | Virtual filtered view — high-priority overlay | Bold orange    |
+
+No hard deletes — items are **archived** (`archived_at`), never destroyed.
+
+</Slide>
+
+<Slide n={3} title="The Clarify Decision Tree" tag="Triage Logic">
+
+```
+Is it actionable?
+├── YES
+│   ├── Will it take <2 min? → DO IT NOW
+│   ├── Should someone else do it? → WAITING (delegated)
+│   └── What's the next action?
+│       ├── Single step → NEXT
+│       ├── Multi-step → PROJECT + first action
+│       └── Time-specific → CALENDAR
+└── NO
+    ├── No longer relevant → ARCHIVE
+    ├── Maybe later → LATER
+    └── Good reference → REFERENCE
+```
+
+Each clarified item gets: **desired outcome**, **next physical action**, **context**, **energy level**, **time estimate**.
+
+→ Full methodology: [Product / Methodology](?path=/docs/product-methodology--docs)
+
+</Slide>
+
+</SlideShow>

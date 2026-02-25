@@ -189,6 +189,18 @@ function StatefulBucketView({
           ),
         );
       }}
+      onSetType={(id, type) => {
+        setItems((prev) =>
+          prev.map((t) =>
+            t.id === id
+              ? ({
+                  ...t,
+                  schemaType: type === "Action" ? undefined : type,
+                } as ActionItem)
+              : t,
+          ),
+        );
+      }}
     />
   );
 }
@@ -551,6 +563,68 @@ export const ProjectsView: Story = {
       await userEvent.click(canvas.getByText("Website Redesign"));
       await expect(
         canvas.getByText("Design homepage wireframes"),
+      ).toBeInTheDocument();
+    });
+  },
+};
+
+/** Inbox with mixed schema.org subtypes — shows type filter chips and filters on click. */
+export const WithSubtypeFilter: Story = {
+  render: () => (
+    <StatefulBucketView
+      initialBucket="inbox"
+      initialItems={[
+        createActionItem({
+          name: "Äpfel kaufen",
+          bucket: "inbox",
+          schemaType: "BuyAction",
+        }),
+        createActionItem({
+          name: "Blumen kaufen",
+          bucket: "inbox",
+          schemaType: "BuyAction",
+        }),
+        createActionItem({
+          name: "Urlaub planen",
+          bucket: "inbox",
+          schemaType: "PlanAction",
+        }),
+        createActionItem({
+          name: "Bericht prüfen",
+          bucket: "inbox",
+          schemaType: "ReviewAction",
+        }),
+        createActionItem({ name: "Allgemeiner Posteingang", bucket: "inbox" }),
+      ]}
+    />
+  ),
+  play: async ({ canvas, userEvent, step }) => {
+    await step("Type filter chips are visible", async () => {
+      await expect(
+        canvas.getByRole("button", { name: /Filter by type: Kaufen/i }),
+      ).toBeInTheDocument();
+      await expect(
+        canvas.getByRole("button", { name: /Filter by type: Planen/i }),
+      ).toBeInTheDocument();
+    });
+
+    await step("Click 'Kaufen' chip to filter", async () => {
+      await userEvent.click(
+        canvas.getByRole("button", { name: /Filter by type: Kaufen/i }),
+      );
+      await expect(canvas.getByText("Äpfel kaufen")).toBeInTheDocument();
+      await expect(canvas.getByText("Blumen kaufen")).toBeInTheDocument();
+      // Non-BuyAction items should be hidden
+      const allgemein = canvas.queryByText("Allgemeiner Posteingang");
+      await expect(allgemein).not.toBeInTheDocument();
+    });
+
+    await step("Click chip again to clear filter", async () => {
+      await userEvent.click(
+        canvas.getByRole("button", { name: /Filter by type: Kaufen/i }),
+      );
+      await expect(
+        canvas.getByText("Allgemeiner Posteingang"),
       ).toBeInTheDocument();
     });
   },

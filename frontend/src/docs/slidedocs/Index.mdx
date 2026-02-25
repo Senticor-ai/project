@@ -1,0 +1,41 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Slidedocs/Overview" />
+
+# Slidedocs
+
+Visual documents for async communication — inspired by [Duarte SlideDocs](https://www.duarte.com/resources/books/slidedocs/).
+Each page is dense but scannable: short headlines, tables, and diagrams. No presenter needed.
+
+---
+
+## What Lives Here
+
+| Section                                                                         | Purpose                       | Full Ref                                                                 |
+| ------------------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------ |
+| [01 – Product Overview](?path=/docs/slidedocs-product-overview--docs)           | Elevator pitch                | [Product / Vision](?path=/docs/product-vision--docs)                     |
+| [02 – Vision & Methodology](?path=/docs/slidedocs-vision-methodology--docs)     | 5-phase method + buckets      | [Product / Methodology](?path=/docs/product-methodology--docs)           |
+| [03 – Team & How We Work](?path=/docs/slidedocs-team-how-we-work--docs)         | Development practices         | [Engineering / Architecture](?path=/docs/engineering-architecture--docs) |
+| [04 – Architecture](?path=/docs/slidedocs-architecture--docs)                   | System overview (C4 L1+L2)    | [Engineering / Architecture](?path=/docs/engineering-architecture--docs) |
+| [05 – Data Model](?path=/docs/slidedocs-data-model--docs)                       | Schema.org, FRBR, LexCEL      | [Engineering / Ontology](?path=/docs/engineering-ontology--docs)         |
+| [06 – Design System](?path=/docs/slidedocs-design-system--docs)                 | Paperclip principles + tokens | [Design / Philosophy](?path=/docs/design-philosophy--docs)               |
+| [07 – Roadmap](?path=/docs/slidedocs-roadmap--docs)                             | Current priorities            | [Product / Roadmap Projects](?path=/docs/product-roadmap-projects--docs) |
+| [08 – User Flows](?path=/docs/slidedocs-user-flows--docs)                       | Collect → Engage journey      | [Flows / Collect to Engage](?path=/docs/flows-collect-to-engage--docs)   |
+| [09 – Dark Software Factory](?path=/docs/slidedocs-dark-software-factory--docs) | CI/CD + AI tooling pipeline   | [Engineering / Deployment](?path=/docs/engineering-deployment--docs)     |
+| [10 – Status](?path=/docs/slidedocs-status--docs)                               | Current release + what's live | —                                                                        |
+
+---
+
+## Weekly Cadence
+
+Every week the team ships a [Weekly SlideDec](?path=/docs/weekly-overview--docs):
+`🚀 What Shipped` · `📊 Quality Gate` · `💡 Lessons Learned` · `🏭 Dark Factory` · `🗓️ Next Focus`
+
+---
+
+## Format Guide
+
+- Each page is a self-contained visual document
+- `<Slide n={N} title="..." tag="...">` marks each distinct section
+- Cross-links use Storybook's `?path=/docs/` syntax
+- Update the relevant page when the product changes — these are living docs

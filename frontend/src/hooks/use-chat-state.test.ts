@@ -666,21 +666,42 @@ describe("useChatState", () => {
                 name: "copilot_cli",
                 arguments: {
                   type: "copilot_cli" as const,
-                  argv: ["items", "triage", "--id", "id1", "--status", "completed"],
+                  argv: [
+                    "items",
+                    "triage",
+                    "--id",
+                    "id1",
+                    "--status",
+                    "completed",
+                  ],
                 },
               },
               {
                 name: "copilot_cli",
                 arguments: {
                   type: "copilot_cli" as const,
-                  argv: ["items", "triage", "--id", "id2", "--status", "completed"],
+                  argv: [
+                    "items",
+                    "triage",
+                    "--id",
+                    "id2",
+                    "--status",
+                    "completed",
+                  ],
                 },
               },
               {
                 name: "copilot_cli",
                 arguments: {
                   type: "copilot_cli" as const,
-                  argv: ["items", "triage", "--id", "id3", "--status", "completed"],
+                  argv: [
+                    "items",
+                    "triage",
+                    "--id",
+                    "id3",
+                    "--status",
+                    "completed",
+                  ],
                 },
               },
             ],

@@ -112,6 +112,39 @@ describe("useActionFilters", () => {
     expect(inboxResult.current.selectedContexts).toEqual([]);
   });
 
+  // --- Type filters ---
+
+  it("selectedTypes starts empty", () => {
+    const { result } = renderHook(() => useActionFilters("next"));
+    expect(result.current.selectedTypes).toEqual([]);
+  });
+
+  it("toggleType adds a type to selectedTypes", () => {
+    const { result } = renderHook(() => useActionFilters("next"));
+    act(() => result.current.toggleType("BuyAction"));
+    expect(result.current.selectedTypes).toEqual(["BuyAction"]);
+    expect(result.current.hasActiveFilters).toBe(true);
+  });
+
+  it("toggleType removes a type when already selected", () => {
+    const { result } = renderHook(() => useActionFilters("next"));
+    act(() => result.current.toggleType("BuyAction"));
+    act(() => result.current.toggleType("BuyAction"));
+    expect(result.current.selectedTypes).toEqual([]);
+    expect(result.current.hasActiveFilters).toBe(false);
+  });
+
+  it("clearAll also clears selectedTypes", () => {
+    const { result } = renderHook(() => useActionFilters("next"));
+    act(() => {
+      result.current.toggleType("BuyAction");
+      result.current.toggleContext("@phone");
+    });
+    act(() => result.current.clearAll());
+    expect(result.current.selectedTypes).toEqual([]);
+    expect(result.current.hasActiveFilters).toBe(false);
+  });
+
   // --- Bucket change (derived-state pattern) ---
 
   it("saves and restores state on bucket change", () => {

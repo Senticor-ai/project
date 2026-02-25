@@ -1237,3 +1237,117 @@ describe("ActionRow tooltip integration", () => {
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Phase 3: schema.org type badge + "Typ ändern" overflow menu
+// ---------------------------------------------------------------------------
+
+describe("ActionRow – schema type badge", () => {
+  it("shows German type label badge for BuyAction", () => {
+    const thing = createActionItem({
+      name: "Äpfel kaufen",
+      schemaType: "BuyAction",
+    });
+    renderRow({ thing });
+    expect(screen.getByText("Kaufen")).toBeInTheDocument();
+  });
+
+  it("shows German type label badge for PlanAction", () => {
+    const thing = createActionItem({
+      name: "Urlaub planen",
+      schemaType: "PlanAction",
+    });
+    renderRow({ thing });
+    expect(screen.getByText("Planen")).toBeInTheDocument();
+  });
+
+  it("shows German type label badge for ReviewAction", () => {
+    const thing = createActionItem({
+      name: "Antrag prüfen",
+      schemaType: "ReviewAction",
+    });
+    renderRow({ thing });
+    expect(screen.getByText("Prüfen")).toBeInTheDocument();
+  });
+
+  it("shows German type label badge for CommunicateAction", () => {
+    const thing = createActionItem({
+      name: "Bürgermeister anrufen",
+      schemaType: "CommunicateAction",
+    });
+    renderRow({ thing });
+    expect(screen.getByText("Kommunizieren")).toBeInTheDocument();
+  });
+
+  it("shows German type label badge for SendAction", () => {
+    const thing = createActionItem({
+      name: "Bericht senden",
+      schemaType: "SendAction",
+    });
+    renderRow({ thing });
+    expect(screen.getByText("Senden")).toBeInTheDocument();
+  });
+
+  it("does not show type badge when schemaType is absent", () => {
+    const thing = createActionItem({ name: "Generic task" });
+    renderRow({ thing });
+    // None of the known German labels should appear
+    expect(screen.queryByText("Kaufen")).not.toBeInTheDocument();
+    expect(screen.queryByText("Planen")).not.toBeInTheDocument();
+  });
+});
+
+describe("ActionRow – Typ ändern overflow menu", () => {
+  async function openMenu(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole("button", { name: /Move/i }));
+  }
+
+  it("shows 'Typ ändern' section in overflow menu when onSetType is provided", async () => {
+    const user = userEvent.setup();
+    renderRow({
+      thing: createActionItem({ name: "Task" }),
+      onSetType: vi.fn(),
+    });
+    await openMenu(user);
+    expect(screen.getByText("Typ ändern")).toBeInTheDocument();
+  });
+
+  it("does not show 'Typ ändern' section when onSetType is not provided", async () => {
+    const user = userEvent.setup();
+    renderRow({ thing: createActionItem({ name: "Task" }) });
+    await openMenu(user);
+    expect(screen.queryByText("Typ ändern")).not.toBeInTheDocument();
+  });
+
+  it("clicking 'Kaufen' in Typ ändern calls onSetType with BuyAction", async () => {
+    const user = userEvent.setup();
+    const onSetType = vi.fn();
+    const thing = createActionItem({ name: "Task" });
+    renderRow({ thing, onSetType });
+    await openMenu(user);
+    const menu = screen.getByRole("menu");
+    await user.click(within(menu).getByRole("menuitem", { name: "Kaufen" }));
+    expect(onSetType).toHaveBeenCalledWith(thing.id, "BuyAction");
+  });
+
+  it("clicking 'Kein Typ' resets type to Action", async () => {
+    const user = userEvent.setup();
+    const onSetType = vi.fn();
+    const thing = createActionItem({ name: "Task", schemaType: "BuyAction" });
+    renderRow({ thing, onSetType });
+    await openMenu(user);
+    const menu = screen.getByRole("menu");
+    await user.click(within(menu).getByRole("menuitem", { name: "Kein Typ" }));
+    expect(onSetType).toHaveBeenCalledWith(thing.id, "Action");
+  });
+
+  it("closes menu after selecting a type", async () => {
+    const user = userEvent.setup();
+    const onSetType = vi.fn();
+    renderRow({ thing: createActionItem({ name: "Task" }), onSetType });
+    await openMenu(user);
+    const menu = screen.getByRole("menu");
+    await user.click(within(menu).getByRole("menuitem", { name: "Kaufen" }));
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+});

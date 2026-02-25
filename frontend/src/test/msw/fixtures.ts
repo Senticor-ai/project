@@ -290,6 +290,18 @@ export function seedMixedBuckets(): ItemRecord[] {
       rawCapture: "Another capture",
     }),
     createItemRecord({
+      item_id: "inbox-buy-1",
+      bucket: "inbox",
+      type: "BuyAction",
+      name: "Äpfel kaufen",
+    }),
+    createItemRecord({
+      item_id: "inbox-buy-2",
+      bucket: "inbox",
+      type: "BuyAction",
+      name: "Blumen kaufen",
+    }),
+    createItemRecord({
       item_id: "next-1",
       bucket: "next",
       name: "Draft wireframes",

@@ -184,7 +184,11 @@ describe("useCopilotApi", () => {
     mockFetch.mockReturnValue(streamResponse([{ type: "done", text: "OK" }]));
     const { result } = renderHook(() => useCopilotApi());
 
-    await result.current.sendMessageStreaming("Was ist hier kaputt?", "conv-ui", () => {});
+    await result.current.sendMessageStreaming(
+      "Was ist hier kaputt?",
+      "conv-ui",
+      () => {},
+    );
 
     const [, opts] = mockFetch.mock.calls[0]!;
     const body = JSON.parse(opts.body as string);
@@ -225,7 +229,11 @@ describe("useCopilotApi", () => {
     mockFetch.mockReturnValue(streamResponse([{ type: "done", text: "OK" }]));
     const { result } = renderHook(() => useCopilotApi());
 
-    await result.current.sendMessageStreaming("Was ist sichtbar?", "conv-view", () => {});
+    await result.current.sendMessageStreaming(
+      "Was ist sichtbar?",
+      "conv-view",
+      () => {},
+    );
 
     const [, opts] = mockFetch.mock.calls[0]!;
     const body = JSON.parse(opts.body as string);

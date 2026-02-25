@@ -52,7 +52,8 @@ function isInViewport(node: HTMLElement): boolean {
   // JSDOM fallback: no layout metrics available.
   if (rect.width === 0 && rect.height === 0) return true;
 
-  const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+  const viewportWidth =
+    window.innerWidth || document.documentElement.clientWidth;
   const viewportHeight =
     window.innerHeight || document.documentElement.clientHeight;
   return (
@@ -67,7 +68,8 @@ function collectVisibleWorkspaceSnapshot(
   activeBucket: string | null,
   maxItems = 50,
 ): VisibleWorkspaceSnapshot | undefined {
-  if (typeof document === "undefined" || typeof window === "undefined") return undefined;
+  if (typeof document === "undefined" || typeof window === "undefined")
+    return undefined;
 
   const contentRoot = document.querySelector<HTMLElement>(
     'main[aria-label="Bucket content"]',
@@ -95,7 +97,9 @@ function collectVisibleWorkspaceSnapshot(
   visibleItems.sort((a, b) => (a.top ?? 0) - (b.top ?? 0));
 
   const bucketNav = Array.from(
-    document.querySelectorAll<HTMLElement>('[data-copilot-bucket-nav-item="true"]'),
+    document.querySelectorAll<HTMLElement>(
+      '[data-copilot-bucket-nav-item="true"]',
+    ),
   ).map((node) => ({
     bucket: node.dataset.copilotBucket ?? "unknown",
     count: Number.parseInt(node.dataset.copilotBucketCount ?? "0", 10) || 0,
@@ -115,10 +119,14 @@ function getClientContext(
   extraContext?: Partial<ChatClientContext>,
 ): ChatClientContext {
   const pathname =
-    typeof window !== "undefined" ? window.location.pathname : "/workspace/inbox";
+    typeof window !== "undefined"
+      ? window.location.pathname
+      : "/workspace/inbox";
   const parsed = parsePathname(pathname);
   const activeBucket =
-    parsed.view === "workspace" && isValidBucket(parsed.sub) ? parsed.sub : null;
+    parsed.view === "workspace" && isValidBucket(parsed.sub)
+      ? parsed.sub
+      : null;
 
   return {
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -128,7 +136,8 @@ function getClientContext(
       typeof window !== "undefined"
         ? `${window.location.pathname}${window.location.search}${window.location.hash}`
         : undefined,
-    currentUrl: typeof window !== "undefined" ? window.location.href : undefined,
+    currentUrl:
+      typeof window !== "undefined" ? window.location.href : undefined,
     appView: parsed.view,
     appSubView: parsed.sub,
     activeBucket,
