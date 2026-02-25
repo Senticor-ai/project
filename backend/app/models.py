@@ -22,6 +22,7 @@ class UserResponse(BaseModel):
     username: str | None = None
     default_org_id: str | None = None
     created_at: str
+    disclaimer_acknowledged_at: str | None = None
 
 
 class SessionRefreshResponse(BaseModel):

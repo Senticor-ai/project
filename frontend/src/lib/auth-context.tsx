@@ -8,11 +8,13 @@ import {
 import type { AuthUser } from "./api-client";
 import { AuthContext } from "./auth-types";
 import { setFaroUser } from "./faro";
+import { FirstLoginDisclaimerModal } from "@/components/auth/FirstLoginDisclaimerModal";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const showDisclaimerModal = Boolean(user && !user.disclaimer_acknowledged_at);
 
   // Restore session on mount
   useEffect(() => {
@@ -66,11 +68,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setFaroUser(null);
   }, []);
 
+  const acknowledgeDisclaimer = useCallback(async () => {
+    if (!user) return;
+
+    try {
+      const updatedUser = await AuthApi.acknowledgeDisclaimer();
+      setUser(updatedUser);
+      setFaroUser(updatedUser);
+    } catch (err) {
+      console.error("Failed to acknowledge disclaimer:", err);
+    }
+  }, [user]);
+
   return (
     <AuthContext.Provider
       value={{ user, isLoading, error, login, register, logout }}
     >
       {children}
+      <FirstLoginDisclaimerModal
+        isOpen={showDisclaimerModal}
+        onAcknowledge={acknowledgeDisclaimer}
+      />
     </AuthContext.Provider>
   );
 }

@@ -285,6 +285,7 @@ export type AuthUser = {
   email: string;
   username?: string | null;
   created_at: string;
+  disclaimer_acknowledged_at?: string | null;
 };
 
 export type SessionRefreshResponse = {
@@ -332,6 +333,13 @@ export const AuthApi = {
     setUserContext(session.user);
     await refreshCsrfToken();
     return session;
+  },
+  acknowledgeDisclaimer: async () => {
+    const user = await request<AuthUser>("/auth/acknowledge-disclaimer", {
+      method: "POST",
+    });
+    setUserContext(user);
+    return user;
   },
 };
 

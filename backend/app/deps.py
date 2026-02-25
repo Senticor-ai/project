@@ -49,7 +49,11 @@ def _authenticate_via_delegated_jwt(token: str, request: Request) -> dict:
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, email, username, created_at, default_org_id FROM users WHERE id = %s",
+                """
+                SELECT id, email, username, created_at, default_org_id, disclaimer_acknowledged_at
+                FROM users
+                WHERE id = %s
+                """,
                 (claims.sub,),
             )
             row = cur.fetchone()
@@ -104,6 +108,7 @@ def get_current_user(
                     u.username,
                     u.created_at,
                     u.default_org_id,
+                    u.disclaimer_acknowledged_at,
                     s.id AS session_id,
                     s.expires_at,
                     s.ip_address,

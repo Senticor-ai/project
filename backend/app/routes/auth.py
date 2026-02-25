@@ -181,7 +181,7 @@ def register(payload: RegistrationRequest, request: Request, response: Response)
                 """
                 INSERT INTO users (email, username, password_hash)
                 VALUES (%s, %s, %s)
-                RETURNING id, email, username, created_at
+                RETURNING id, email, username, created_at, disclaimer_acknowledged_at
                 """,
                 (email, username, password_hash),
             )
@@ -220,6 +220,9 @@ def register(payload: RegistrationRequest, request: Request, response: Response)
         username=user.get("username"),
         default_org_id=str(org["id"]),
         created_at=user["created_at"].isoformat(),
+        disclaimer_acknowledged_at=user["disclaimer_acknowledged_at"].isoformat()
+        if user.get("disclaimer_acknowledged_at")
+        else None,
     )
 
 
@@ -228,8 +231,12 @@ def login(payload: AuthCredentials, request: Request, response: Response):
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, email, username, password_hash, created_at, default_org_id "
-                "FROM users WHERE email = %s",
+                """
+                SELECT id, email, username, password_hash, created_at, default_org_id,
+                       disclaimer_acknowledged_at
+                FROM users
+                WHERE email = %s
+                """,
                 (payload.email,),
             )
             user = cur.fetchone()
@@ -245,6 +252,9 @@ def login(payload: AuthCredentials, request: Request, response: Response):
         username=user.get("username"),
         default_org_id=str(user["default_org_id"]) if user.get("default_org_id") else None,
         created_at=user["created_at"].isoformat(),
+        disclaimer_acknowledged_at=user["disclaimer_acknowledged_at"].isoformat()
+        if user.get("disclaimer_acknowledged_at")
+        else None,
     )
 
 
@@ -303,7 +313,8 @@ def refresh_session(request: Request, response: Response):
                     u.email,
                     u.username,
                     u.default_org_id,
-                    u.created_at
+                    u.created_at,
+                    u.disclaimer_acknowledged_at
                 FROM sessions s
                 JOIN users u ON u.id = s.user_id
                 WHERE s.refresh_token_hash = %s AND s.revoked_at IS NULL
@@ -402,6 +413,9 @@ def refresh_session(request: Request, response: Response):
             "username": row.get("username"),
             "default_org_id": str(row["default_org_id"]) if row.get("default_org_id") else None,
             "created_at": row["created_at"].isoformat(),
+            "disclaimer_acknowledged_at": row["disclaimer_acknowledged_at"].isoformat()
+            if row.get("disclaimer_acknowledged_at")
+            else None,
         },
         "expires_at": new_expires_at.isoformat(),
         "refresh_expires_at": new_refresh_expires_at.isoformat(),
@@ -428,4 +442,39 @@ def me(current_user=Depends(get_current_user)):
         if current_user.get("default_org_id")
         else None,
         created_at=current_user["created_at"].isoformat(),
+        disclaimer_acknowledged_at=current_user["disclaimer_acknowledged_at"].isoformat()
+        if current_user.get("disclaimer_acknowledged_at")
+        else None,
+    )
+
+
+@router.post("/acknowledge-disclaimer", response_model=UserResponse)
+def acknowledge_disclaimer(current_user=Depends(get_current_user)):
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE users
+                SET disclaimer_acknowledged_at = %s
+                WHERE id = %s
+                RETURNING id, email, username, default_org_id, created_at,
+                          disclaimer_acknowledged_at
+                """,
+                (utc_now(), current_user["id"]),
+            )
+            user = cur.fetchone()
+        conn.commit()
+
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    return UserResponse(
+        id=str(user["id"]),
+        email=user["email"],
+        username=user.get("username"),
+        default_org_id=str(user["default_org_id"]) if user.get("default_org_id") else None,
+        created_at=user["created_at"].isoformat(),
+        disclaimer_acknowledged_at=user["disclaimer_acknowledged_at"].isoformat()
+        if user.get("disclaimer_acknowledged_at")
+        else None,
     )

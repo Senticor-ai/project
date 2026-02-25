@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
+import { getMessage } from "@/lib/messages";
 
 export interface LoginPageProps {
   onLogin: (email: string, password: string) => Promise<void>;
@@ -122,6 +123,17 @@ export function LoginPage({
 
         {/* Right column — login form */}
         <div className="space-y-4">
+          {/* Dev/demo disclaimer banner */}
+          <div
+            role="status"
+            className="flex items-center gap-2 rounded-sm bg-status-warning/10 px-4 py-2 text-sm text-status-warning"
+          >
+            <Icon name="warning" size={16} className="shrink-0" />
+            <span>
+              {getMessage("disclaimer.dev.banner")}
+            </span>
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-4" key={mode}>
             <h2 className="text-sm font-medium text-text">
               {mode === "login" ? "Sign in to continue" : "Create account"}
