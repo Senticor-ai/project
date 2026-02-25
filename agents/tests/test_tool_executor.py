@@ -202,12 +202,12 @@ async def test_executes_intent_as_multiple_cli_commands(auth_ctx):
 
     assert "--json" in first_args
     assert "--non-interactive" in first_args
-    assert "--yes" in first_args
+    assert "--approve" in first_args
     assert "--conversation-id" not in first_args
 
     assert "--json" in second_args
     assert "--non-interactive" in second_args
-    assert "--yes" in second_args
+    assert "--approve" in second_args
     assert "--conversation-id" in second_args
     conv_idx = second_args.index("--conversation-id")
     assert second_args[conv_idx + 1] == "conv-77"
