@@ -8,6 +8,7 @@ import hashlib
 import json
 import time
 import uuid
+from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 
@@ -444,6 +445,7 @@ def test_export_then_import_exclude_completed(app):
 
 def test_import_with_emit_events_processes_item_upserted(app):
     """Import with emit_events=True: worker processes item_upserted without errors."""
+    test_started_at = datetime.now(UTC)
     client_a = TestClient(app)
     _register_and_login(client_a)
 
@@ -578,7 +580,9 @@ def test_import_with_emit_events_processes_item_upserted(app):
                 SELECT event_id, event_type, payload, dead_lettered_at, last_error
                 FROM outbox_events
                 WHERE dead_lettered_at IS NOT NULL
-                """
+                  AND dead_lettered_at >= %s
+                """,
+                (test_started_at,),
             )
             dead_letters = cur.fetchall()
 

@@ -335,8 +335,17 @@ def load_settings() -> Settings:
             "http://localhost:8000/email/oauth/gmail/callback",
         )
         or "http://localhost:8000/email/oauth/gmail/callback",
-        gmail_scopes=_get_env("GMAIL_SCOPES", "https://mail.google.com/")
-        or "https://mail.google.com/",
+        gmail_scopes=_get_env(
+            "GMAIL_SCOPES",
+            "https://www.googleapis.com/auth/gmail.readonly "
+            "https://www.googleapis.com/auth/gmail.send "
+            "https://www.googleapis.com/auth/calendar.events "
+            "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+        )
+        or "https://www.googleapis.com/auth/gmail.readonly "
+        "https://www.googleapis.com/auth/gmail.send "
+        "https://www.googleapis.com/auth/calendar.events "
+        "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
         gmail_state_secret=_get_secret("GMAIL_STATE_SECRET", "") or "",
         backend_base_url=_get_env("BACKEND_BASE_URL", "http://localhost:8000")
         or "http://localhost:8000",

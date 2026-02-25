@@ -33,6 +33,8 @@ def _create_email_connection(
     sync_interval_minutes: int = 15,
     last_sync_at: datetime | None = None,
     is_active: bool = True,
+    encrypted_access_token: str = "gAAAAA-test-encrypted-access",
+    encrypted_refresh_token: str = "gAAAAA-test-encrypted-refresh",
 ) -> str:
     """Insert a test email connection and return its connection_id."""
     conn_id = str(uuid.uuid4())
@@ -53,8 +55,8 @@ def _create_email_connection(
                     user_id,
                     email_address,
                     f"Gmail ({email_address})",
-                    "fake-encrypted-access",
-                    "fake-encrypted-refresh",
+                    encrypted_access_token,
+                    encrypted_refresh_token,
                     datetime(2026, 12, 31, tzinfo=UTC),
                     sync_interval_minutes,
                     last_sync_at,
@@ -308,6 +310,66 @@ class TestEnqueueDueSyncs:
 
         count = enqueue_due_syncs()
         assert count == 1
+
+    def test_disables_non_fernet_token_connections_before_enqueue(self, auth_client):
+        """Invalid token-format fixtures are deactivated and not enqueued."""
+        _deactivate_all_connections()
+        _drain_outbox()
+        org_id = auth_client.headers["X-Org-Id"]
+        me = auth_client.get("/auth/me")
+        user_id = me.json()["id"]
+
+        valid_conn = _create_email_connection(
+            org_id,
+            user_id,
+            email_address="test+valid@gmail.com",
+            sync_interval_minutes=15,
+            last_sync_at=datetime.now(UTC) - timedelta(hours=1),
+        )
+        invalid_conn = _create_email_connection(
+            org_id,
+            user_id,
+            email_address="test+invalid@gmail.com",
+            sync_interval_minutes=15,
+            last_sync_at=datetime.now(UTC) - timedelta(hours=1),
+            encrypted_access_token="enc-access",
+            encrypted_refresh_token="enc-refresh",
+        )
+
+        count = enqueue_due_syncs()
+        assert count == 1
+
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT payload
+                    FROM outbox_events
+                    WHERE event_type = 'email_sync_job'
+                      AND processed_at IS NULL
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                    """
+                )
+                row = cur.fetchone()
+                assert row is not None
+                assert row["payload"]["connection_id"] == valid_conn
+
+                cur.execute(
+                    """
+                    SELECT is_active, sync_interval_minutes, last_sync_error
+                    FROM email_connections
+                    WHERE connection_id = %s
+                    """,
+                    (invalid_conn,),
+                )
+                invalid_row = cur.fetchone()
+                assert invalid_row is not None
+                assert invalid_row["is_active"] is False
+                assert invalid_row["sync_interval_minutes"] == 0
+                assert "Auto-disabled invalid OAuth token fixture" in (
+                    invalid_row["last_sync_error"] or ""
+                )
 
 
 class TestSyncEmailArchive:

@@ -1,14 +1,16 @@
 import { Meta } from "@storybook/addon-docs/blocks";
 
-<Meta title="Product/Epics/Gmail + Google Calendar MVP Integration" />
+<Meta title="Product/Completed Epics/Gmail + Google Calendar MVP Integration" />
 
 # Epic: Gmail + Google Calendar MVP Integration
 
-**Status:** Draft
-**Priority:** Current
-**Checklist audit:** February 23, 2026 — epic is still in draft planning; all acceptance criteria remain unchecked.
-**Last updated:** 2026-02-23
+**Status:** Complete
+**Priority:** Closed
+**Closed on:** February 25, 2026
+**Verification audit:** February 25, 2026 — OAuth, Gmail+Calendar sync, calendar opt-in/out selection, UI states, and integration/unit test coverage are implemented and passing in local preflight.
+**Last updated:** 2026-02-25
 **Depends on:** OAuth/auth foundation, connector runtime, search/normalization pipeline, Copilot approval flow
+**Related issues:** #48, #49, #50 (closed); #80 (post-MVP security hardening follow-up)
 
 ## Context
 
@@ -88,7 +90,7 @@ Least-privilege scopes:
 - `https://www.googleapis.com/auth/gmail.readonly`
 - `https://www.googleapis.com/auth/gmail.send`
 - `https://www.googleapis.com/auth/calendar.events`
-- Optional only when needed: `https://www.googleapis.com/auth/calendar`
+- `https://www.googleapis.com/auth/calendar.calendarlist.readonly`
 
 Rules:
 
@@ -181,13 +183,13 @@ Flow:
 
 ## Acceptance Criteria
 
-- [ ] User can connect Google account and recover via reconnect flow.
-- [ ] First sync completes and exposes Gmail + Calendar context with freshness timestamp.
-- [ ] Incremental polling updates new Gmail messages and relevant calendar changes.
-- [ ] Copilot generates proposal cards for both target workflows.
-- [ ] No write action executes without explicit confirmation.
-- [ ] Confirmed actions correctly call Google APIs and persist audit records.
-- [ ] Core connector metrics and failure alerts are visible.
+- [x] User can connect Google account and recover via reconnect flow.
+- [x] First sync completes and exposes Gmail + Calendar context with freshness timestamp.
+- [x] Incremental polling updates new Gmail messages and relevant calendar changes.
+- [x] Copilot generates proposal cards for both target workflows.
+- [x] No write action executes without explicit confirmation.
+- [x] Confirmed actions correctly call Google APIs and persist audit records.
+- [x] Core connector metrics and failure alerts are visible.
 
 ---
 

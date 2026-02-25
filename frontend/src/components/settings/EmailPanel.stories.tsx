@@ -18,6 +18,8 @@ const mockConnection: EmailConnectionResponse = {
   oauth_provider: "gmail",
   sync_interval_minutes: 15,
   sync_mark_read: false,
+  calendar_sync_enabled: true,
+  calendar_selected_ids: ["primary"],
   last_sync_at: "2026-02-11T10:00:00Z",
   last_sync_error: null,
   last_sync_message_count: 42,
@@ -44,6 +46,8 @@ const meta = {
     onDisconnect: fn(),
     onUpdateSyncInterval: fn(),
     onUpdateMarkRead: fn(),
+    onToggleCalendarSync: fn(),
+    onUpdateCalendarSelection: fn(),
   },
 } satisfies Meta<typeof EmailPanel>;
 
@@ -55,11 +59,9 @@ export const EmptyState: Story = {
     connections: [],
   },
   play: async ({ canvas }) => {
-    const panel = within(
-      canvas.getByText("E-Mail-Verbindungen").closest("div")!,
-    );
+    const panel = within(canvas.getByText("3rd Party Sync").closest("div")!);
     await expect(
-      panel.getByText("Keine E-Mail-Verbindung eingerichtet"),
+      panel.getByText("Keine Drittanbieter-Verbindung eingerichtet"),
     ).toBeInTheDocument();
   },
 };
@@ -73,6 +75,24 @@ export const Loading: Story = {
 export const Connected: Story = {
   args: {
     connections: [mockConnection],
+    calendarsByConnectionId: {
+      "conn-1": [
+        {
+          calendar_id: "primary",
+          summary: "Primary",
+          primary: true,
+          selected: true,
+          access_role: "owner",
+        },
+        {
+          calendar_id: "team@group.calendar.google.com",
+          summary: "Team",
+          primary: false,
+          selected: false,
+          access_role: "writer",
+        },
+      ],
+    },
   },
   play: async ({ canvas }) => {
     await expect(canvas.getByText("Max Mustermann")).toBeInTheDocument();
@@ -112,6 +132,26 @@ export const MultipleConnections: Story = {
         last_sync_message_count: null,
       },
     ],
+    calendarsByConnectionId: {
+      "conn-1": [
+        {
+          calendar_id: "primary",
+          summary: "Primary",
+          primary: true,
+          selected: true,
+          access_role: "owner",
+        },
+      ],
+      "conn-2": [
+        {
+          calendar_id: "primary",
+          summary: "Primary",
+          primary: true,
+          selected: true,
+          access_role: "owner",
+        },
+      ],
+    },
   },
 };
 

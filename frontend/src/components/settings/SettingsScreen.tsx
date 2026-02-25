@@ -12,7 +12,11 @@ import {
   DEFAULT_PREFERENCES,
   type ExportOptions,
 } from "@/model/settings-types";
-import type { EmailConnectionResponse, OrgResponse } from "@/lib/api-client";
+import type {
+  EmailConnectionCalendarResponse,
+  EmailConnectionResponse,
+  OrgResponse,
+} from "@/lib/api-client";
 import type { ImportJobData } from "./ImportJobRow";
 import type { AgentSettings } from "./AgentSetupPanel";
 
@@ -27,7 +31,7 @@ export type SettingsTab =
 
 const settingsTabs: TabItem[] = [
   { id: "import-export", label: "Import / Export", icon: "swap_horiz" },
-  { id: "email", label: "Email", icon: "mail" },
+  { id: "email", label: "3rd Party Sync", icon: "sync" },
   { id: "labels", label: "Labels & Contexts", icon: "label" },
   { id: "organizations", label: "Organizations", icon: "apartment" },
   { id: "preferences", label: "Preferences", icon: "tune" },
@@ -51,12 +55,23 @@ export interface SettingsScreenProps {
   onArchiveJob?: (jobId: string) => void;
   retryingJobId?: string | null;
   emailConnections?: EmailConnectionResponse[];
+  emailCalendarsByConnectionId?: Record<
+    string,
+    EmailConnectionCalendarResponse[]
+  >;
+  emailCalendarsLoadingByConnectionId?: Record<string, boolean>;
+  emailCalendarsErrorByConnectionId?: Record<string, string>;
   emailLoading?: boolean;
   onConnectGmail?: () => void;
   onEmailSync?: (connectionId: string) => void;
   onEmailDisconnect?: (connectionId: string) => void;
   onEmailUpdateSyncInterval?: (connectionId: string, minutes: number) => void;
   onEmailUpdateMarkRead?: (connectionId: string, markRead: boolean) => void;
+  onEmailToggleCalendarSync?: (connectionId: string, enabled: boolean) => void;
+  onEmailUpdateCalendarSelection?: (
+    connectionId: string,
+    calendarIds: string[],
+  ) => void;
   emailSyncingConnectionId?: string | null;
   organizations?: OrgResponse[];
   organizationsLoading?: boolean;
@@ -92,12 +107,17 @@ export function SettingsScreen({
   onArchiveJob,
   retryingJobId,
   emailConnections,
+  emailCalendarsByConnectionId,
+  emailCalendarsLoadingByConnectionId,
+  emailCalendarsErrorByConnectionId,
   emailLoading,
   onConnectGmail,
   onEmailSync,
   onEmailDisconnect,
   onEmailUpdateSyncInterval,
   onEmailUpdateMarkRead,
+  onEmailToggleCalendarSync,
+  onEmailUpdateCalendarSelection,
   emailSyncingConnectionId,
   organizations,
   organizationsLoading,
@@ -159,12 +179,19 @@ export function SettingsScreen({
           {activeTab === "email" && (
             <EmailPanel
               connections={emailConnections}
+              calendarsByConnectionId={emailCalendarsByConnectionId}
+              calendarsLoadingByConnectionId={
+                emailCalendarsLoadingByConnectionId
+              }
+              calendarsErrorByConnectionId={emailCalendarsErrorByConnectionId}
               isLoading={emailLoading}
               onConnectGmail={onConnectGmail}
               onSync={onEmailSync}
               onDisconnect={onEmailDisconnect}
               onUpdateSyncInterval={onEmailUpdateSyncInterval}
               onUpdateMarkRead={onEmailUpdateMarkRead}
+              onToggleCalendarSync={onEmailToggleCalendarSync}
+              onUpdateCalendarSelection={onEmailUpdateCalendarSelection}
               syncingConnectionId={emailSyncingConnectionId}
             />
           )}

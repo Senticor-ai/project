@@ -1,7 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 import { EmailConnectionCard } from "./EmailConnectionCard";
-import type { EmailConnectionResponse } from "@/lib/api-client";
+import type {
+  EmailConnectionCalendarResponse,
+  EmailConnectionResponse,
+} from "@/lib/api-client";
 
 const baseConnection: EmailConnectionResponse = {
   connection_id: "conn-1",
@@ -11,6 +14,8 @@ const baseConnection: EmailConnectionResponse = {
   oauth_provider: "gmail",
   sync_interval_minutes: 15,
   sync_mark_read: false,
+  calendar_sync_enabled: true,
+  calendar_selected_ids: ["primary"],
   last_sync_at: "2026-02-11T10:00:00Z",
   last_sync_error: null,
   last_sync_message_count: 42,
@@ -19,6 +24,23 @@ const baseConnection: EmailConnectionResponse = {
   watch_expires_at: null,
   created_at: "2026-02-01T08:00:00Z",
 };
+
+const availableCalendars: EmailConnectionCalendarResponse[] = [
+  {
+    calendar_id: "primary",
+    summary: "Primary",
+    primary: true,
+    selected: true,
+    access_role: "owner",
+  },
+  {
+    calendar_id: "team@group.calendar.google.com",
+    summary: "Team",
+    primary: false,
+    selected: false,
+    access_role: "writer",
+  },
+];
 
 const meta = {
   title: "Settings/EmailConnectionCard",
@@ -37,6 +59,9 @@ const meta = {
     onDisconnect: fn(),
     onUpdateSyncInterval: fn(),
     onUpdateMarkRead: fn(),
+    onToggleCalendarSync: fn(),
+    onUpdateCalendarSelection: fn(),
+    availableCalendars,
   },
 } satisfies Meta<typeof EmailConnectionCard>;
 
@@ -114,5 +139,20 @@ export const ManualOnly: Story = {
       ...baseConnection,
       sync_interval_minutes: 0,
     },
+  },
+};
+
+export const MultiCalendarOptIn: Story = {
+  args: {
+    connection: {
+      ...baseConnection,
+      calendar_selected_ids: ["primary", "team@group.calendar.google.com"],
+    },
+    availableCalendars: availableCalendars.map((calendar) => ({
+      ...calendar,
+      selected:
+        calendar.calendar_id === "primary" ||
+        calendar.calendar_id === "team@group.calendar.google.com",
+    })),
   },
 };

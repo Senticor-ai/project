@@ -6,136 +6,419 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 **Status:** Draft
 **Priority:** Current
-**Checklist audit:** February 24, 2026 -- newly created draft; all acceptance criteria are unchecked.
-**Last updated:** 2026-02-24
-**Depends on:** Calendar bucket UX, item serializer/event patch support, project association model
+**Checklist audit:** February 25, 2026 -- rewritten to development-ready contract; all acceptance criteria remain unchecked until implementation lands.
+**Last updated:** 2026-02-25
+**Depends on:** Google Workspace connector baseline, Items/Event serializer parity, Calendar bucket UX, project association model, sync worker reliability
+**Related:** [Completed Epic: Gmail + Google Calendar MVP Integration](?path=/docs/product-completed-epics-gmail-google-calendar-mvp-integration--docs)
 
 ## Context
 
-Current behavior is split:
+The product currently has partial calendar capabilities across triage, sync, and UI, but they are not yet a cohesive end-to-end user workflow.
 
-- Inbox triage can move an item to `calendar`, but the item remains `@type: "Action"`
-- Frontend event rendering exists for inbound `@type: "Event"`, but event creation from triage is not first-class
-- Calendar bucket currently uses list behavior; there is no dedicated calendar-grid interaction in the main work surface
+### Current reality (as of February 25, 2026)
 
-Requested direction:
+- Google Calendar sync can import events as `@type: "Event"` with `app:bucket = "calendar"`.
+- Initial sync uses a bounded window (`now - 7 days` to `now + 30 days`), not "all current day and future events."
+- Work surface item queries are action-centric and do not consistently surface synced `Event` items in the same way as action items.
+- Inbox triage `Move to Calendar` requires selecting a date first, but persistence still defaults to `@type: "Action"` for triage moves.
+- Google Calendar write calls exist in proposal-confirm flows, but there is no direct "accept / reject / tentative / reschedule / delete" event control surface in the main Project calendar UI.
+- Calendar grid in the main work surface is still spec-only.
 
-- Items moved from inbox to calendar become **events by default**
-- Calendar-bound items must receive a due date/date assignment
-- If user cannot set a due date, item should remain in inbox, or user can route it to Next as a thing/action
-- Calendar surface supports both **List** and **Calendar** views
-- Calendar supports project-based filtering
-- Both List and Calendar views support associating/disassociating events with projects
+### Problem statement
+
+Users expect calendar sync to behave as a single, reliable system:
+
+1. Enabling calendar sync should make current-day and future events visible in Project calendar views.
+2. Events visible in Project should be actionable (accept/decline/tentative, reschedule, delete).
+3. Changes made in Project should propagate back to Google Calendar (when the source event is Google-managed and permissions allow).
+4. Inbox-to-calendar triage should create true events, not pseudo-calendar actions.
 
 ## User Story
 
-> "When I move something from inbox to calendar, I want it treated as a real event with a date, and I want to manage project linkage in either list or calendar mode."
+> "When I move something from inbox to calendar, I want it to become a real event with a date. When calendar sync is enabled, I want to see synced events in Project and manage them there (accept/decline/tentative, reschedule, delete) with reliable Google propagation."
 
 ## Goals
 
-1. Make inbox -> calendar triage deterministic: calendar items are `Event` by default.
-2. Enforce date assignment for calendar placement.
-3. Support two calendar surfaces: list and grid.
-4. Support project filtering and project association management from both surfaces.
-5. Preserve clear fallback when date cannot be set.
+1. Make inbox-to-calendar deterministic: triage to calendar creates `Event` by default.
+2. Enforce date assignment on calendar placement.
+3. Make synced events first-class in Project calendar surfaces.
+4. Provide both List and Calendar (grid) views with parity for core event actions.
+5. Support project filtering and project association/disassociation from both views.
+6. Support in-product event actions that propagate to Google when applicable.
+7. Define robust error/retry/permission behavior so users can trust sync.
 
 ## Scope
 
 ### In scope
 
-- Triage rule: inbox -> calendar creates/patches `@type: "Event"` by default
-- Date guardrail: no calendar placement without date
-- Fallback paths:
-  - keep item in inbox
-  - route to `next` as actionable thing
-- Calendar page/view mode toggle: List and Calendar
-- Project filter in calendar scope
-- Associate/disassociate event-to-project links from both view modes
+- Inbox triage -> calendar converts to `@type: "Event"` by default.
+- Date guardrail for calendar placement.
+- Calendar views:
+  - List mode
+  - Calendar grid mode (MVP: Month + Week)
+- Calendar data visibility:
+  - local events
+  - Google-synced events from selected calendars
+- Project filter and project association/disassociation in both modes.
+- Event action controls in Project UI:
+  - Accept
+  - Tentative
+  - Decline
+  - Reschedule
+  - Delete
+- Google propagation behavior for those actions (subject to permissions/source).
+- Migration/compat logic for existing calendar `Action` items.
+- Telemetry, audit, and test coverage for critical flows.
 
 ### Out of scope (for this epic)
 
-- External provider sync behavior changes (Google/Outlook semantics)
-- Recurrence redesign
-- Multi-user scheduling conflict resolution
+- Outlook/Microsoft calendar support.
+- "Propose new time" negotiation UX and email threading automation.
+- Full recurrence-series editor redesign (only "this occurrence" behavior in MVP).
+- Multi-user scheduling conflict solver.
+- Offline-first sync queue for mobile local DB (basic retry only in MVP).
 
-## Proposed Product Behavior
+## Product decisions locked for this epic
 
-### 1) Inbox triage to calendar
+1. Event date canonical field:
+   - Date/time is stored on `Event.startDate` (required).
+   - `Event.endDate` is optional but required when a timed duration is known.
+2. Date-only vs datetime:
+   - All-day events use date string (`YYYY-MM-DD`).
+   - Timed events use timezone-qualified ISO datetime.
+3. Inbox -> calendar default:
+   - Creates/patches to `@type: "Event"` (not `Action`).
+4. Multi-project support:
+   - Events support multi-project links via `app:projectRefs[]`.
+   - Filter semantics in MVP: `Any selected`.
+5. Calendar modes in MVP:
+   - Month + Week grid.
+   - Day view deferred.
+6. Edit parity:
+   - List and grid both open the same event detail/editor surface with identical core actions.
+7. Disassociation behavior:
+   - Removing project links does not move event out of calendar; it only updates association metadata.
+8. Existing calendar `Action` records:
+   - One-time migration + compatibility fallback during rollout.
 
-1. User selects **Move to Calendar**.
-2. Date is required before move is committed.
-3. On confirm with date:
-   - item is persisted as `@type: "Event"`
-   - bucket is `calendar`
-4. If date is not set:
-   - item remains in inbox, or
-   - user can explicitly move to Next instead.
+## End-to-end functional specification
 
-### 2) Calendar surface modes
+### FR-1: Enable calendar sync -> visibility contract
 
-- **List mode:** chronological list of calendar events
-- **Calendar mode:** month/week/day grid (final granularity to confirm)
-- Both modes share:
-  - project filter
-  - event open/edit affordance
-  - project association/disassociation actions
+When a user enables calendar sync for one or more Google calendars:
 
-### 3) Project association in calendar
+1. System performs initial backfill from local start-of-day today through `+365 days`.
+2. System then switches to incremental updates via per-calendar sync token.
+3. Project calendar views must show synced events once first sync succeeds.
+4. Visibility includes all events whose start date is today or in the future within loaded horizon.
+5. When user navigates beyond loaded horizon in grid mode, system loads next range segment and extends local cache.
 
-- Add project association to an event
-- Remove project association from an event
-- Filter all calendar content by one or more projects
+Notes:
 
-## Data Modeling Notes (Needs decision)
+- This satisfies "current day and future events visible" while keeping initial sync bounded.
+- Past events can remain available in data store but are not default-visible in this epic's calendar view.
 
-The system already supports:
+### FR-2: Inbox triage to calendar must create true events
 
-- `Event.startDate` and `Event.endDate` (schema.org-native)
-- `app:dueDate` on Action items (app-specific additionalProperty)
+Flow:
 
-For this epic, we need a single canonical rule for "due date" on events.
+1. User clicks **Move to Calendar** from inbox item.
+2. Date input is mandatory before confirm.
+3. Optional time input supported (all-day if omitted).
+4. On confirm:
+   - item persisted as `@type: "Event"`
+   - `app:bucket = "calendar"`
+   - `startDate` populated
+   - `endDate` inferred from duration or left null for all-day/no-duration
+5. If user cancels date entry:
+   - explicit options shown:
+     - Keep in Inbox
+     - Move to Next
+   - default is Keep in Inbox
 
-## Delivery Phases
+### FR-3: Calendar views with parity
 
-### Phase 1: Spec lock
+Calendar bucket provides two modes:
 
-- Finalize Event date semantics
-- Finalize project cardinality semantics for events (single vs multi-project)
-- Finalize calendar mode requirements and view-level parity
+- **List mode:** chronological list grouped by day.
+- **Grid mode:** Month + Week.
 
-### Phase 2: Data + API behavior
+Both modes must support:
 
-- Serializer/patch support for inbox -> Event conversion
-- Guardrails for required date on calendar placement
-- Backward compatibility for existing calendar `Action` records
+- open event details
+- edit title/description/time
+- project associate/disassociate
+- RSVP actions (accept/tentative/decline) when applicable
+- reschedule
+- delete
+- visual sync state (in sync, pending, failed)
 
-### Phase 3: UI behavior
+### FR-4: Event action semantics and Google propagation
 
-- List/Calendar mode toggle
-- Project filter controls
-- Associate/disassociate project actions in both modes
+Action matrix:
 
-## Acceptance Criteria
+| User action in Project | Local update | Google API behavior | Availability |
+| --- | --- | --- | --- |
+| Accept | `app:rsvpStatus = accepted` | `events.patch` attendee response status for current user | Google event where user is attendee |
+| Tentative | `app:rsvpStatus = tentative` | `events.patch` attendee response status | Google attendee events |
+| Decline | `app:rsvpStatus = declined` | `events.patch` attendee response status | Google attendee events |
+| Reschedule | Update `startDate`/`endDate` | `events.patch` start/end | Events on writable calendars (`owner`/`writer`) |
+| Delete | Soft-archive local item + tombstone/audit | `events.delete` for writable events; decline fallback when not writable | Writable events for hard delete; attendee-only events get decline fallback |
 
-- [ ] Moving an inbox item to calendar produces `@type: "Event"` by default
-- [ ] Calendar placement requires a date; without date, move is blocked
-- [ ] User can leave item in inbox or route to Next when date is unavailable
-- [ ] Calendar supports both List and Calendar modes
-- [ ] Calendar supports filtering by project
-- [ ] User can associate/disassociate event-project links in both modes
-- [ ] Existing calendar actions are handled by migration or compatibility logic
+Propagation rules:
 
-## Open Questions for Specification
+- For Google-sourced events (`sourceMetadata.provider = google_calendar`), user actions trigger Google write attempts.
+- For local-only events (no provider binding), actions apply locally only.
+- Provider write calls are idempotent and auditable.
+- UI shows pending state until provider response is confirmed.
 
-1. For event "due date", should we map to `startDate` (all-day), `endDate`, or both (`startDate` + inferred duration)?
-2. For date-only events, do we store local date (`YYYY-MM-DD`) or timezone-qualified datetime?
-3. Should inbox -> calendar always create all-day events first, with optional time later?
-4. If user clicks Calendar but cancels date entry, should UI offer explicit choices: "Keep in Inbox" and "Move to Next"?
-5. Should the system auto-convert existing `calendar` bucket `Action` items to `Event`, or support mixed rendering indefinitely?
-6. Should an event support one project or multiple projects (`app:projectRefs[]`)?
-7. In project filtering, do we need `Any selected` vs `All selected` semantics for multi-project events?
-8. Where should associate/disassociate live in calendar mode: event popover, side panel, or inline quick action?
-9. Does project disassociation ever move an event out of calendar, or only remove linkage?
-10. Which calendar grids are required for MVP: Month only, Month+Week, or Month+Week+Day?
-11. Do list mode and calendar mode require identical edit capabilities in MVP, or can one defer advanced edits?
-12. What is the rule for events without time when sorting list mode (start of day, end of day, or separate all-day section)?
+### FR-5: Project association in calendar
+
+- Event supports `app:projectRefs[]` (0..n).
+- Add/remove project links from list and grid.
+- Calendar filter supports selecting multiple projects with `Any selected` matching.
+- Event with zero project refs still remains in calendar and appears when no project filter is active.
+
+### FR-6: Sorting and rendering rules
+
+For a given day in list mode:
+
+1. all-day events first
+2. timed events sorted by start datetime ascending
+3. untimed legacy events (if any) at end with "time not set" label
+
+Grid mode:
+
+- all-day lane at top
+- timed events in day/time slots
+- recurring badge if event is recurring instance
+
+### FR-7: Permissions and editability rules
+
+- Calendar access role from selected Google calendar controls writable actions:
+  - `owner` / `writer`: reschedule and delete enabled
+  - `reader` / `freeBusyReader`: read-only for time/delete
+- RSVP actions available only when user appears in attendees.
+- When action unavailable, show disabled control with reason tooltip.
+
+### FR-8: Recurrence behavior (MVP)
+
+- For recurring events, edits/deletes in this epic apply to single occurrence only.
+- "Edit entire series" and advanced recurrence editor are out of scope.
+- UI must clearly label "This occurrence only."
+
+## Data model and storage contract
+
+### Canonical JSON-LD event requirements
+
+Required:
+
+- `@type = "Event"`
+- `@id` canonical id
+- `name`
+- `startDate`
+- `additionalProperty` includes `app:bucket = "calendar"`
+
+Recommended additional properties for this epic:
+
+- `app:projectRefs: string[]`
+- `app:rsvpStatus: "needsAction" | "accepted" | "tentative" | "declined"`
+- `app:calendarSyncState: "in_sync" | "pending_write" | "write_failed" | "local_only"`
+- `app:calendarWritable: boolean`
+- `app:calendarRole: "owner" | "writer" | "reader" | "freeBusyReader" | "unknown"`
+
+Provider identity (for Google propagation):
+
+- retain `sourceMetadata.provider = "google_calendar"`
+- retain `sourceMetadata.raw.calendarId`
+- retain `sourceMetadata.raw.eventId`
+
+### ID strategy
+
+- Google-sourced events keep provider-derived canonical IDs (`urn:app:event:gcal:{calendarId}:{eventId}`).
+- Locally created events without immediate provider create use local IDs (`urn:app:event:local:{uuid}`) and `app:calendarSyncState = local_only`.
+- If local event is later pushed to Google, store provider link metadata and keep canonical ID stable.
+
+## API and backend behavior contract
+
+### New/extended API surface (MVP)
+
+1. `GET /calendar/events`
+   - query: `from`, `to`, `project_ids[]`, `include_local_only`
+   - returns normalized event records for list/grid rendering.
+2. `POST /calendar/events`
+   - creates event from Project UI and optionally writes to Google when sync enabled.
+3. `PATCH /calendar/events/{canonical_id}`
+   - updates local event fields and writes through when provider-bound + allowed.
+4. `POST /calendar/events/{canonical_id}/rsvp`
+   - body: `{ status: accepted|tentative|declined }`
+   - updates local + provider attendee response.
+5. `DELETE /calendar/events/{canonical_id}`
+   - delete semantics per permissions matrix.
+
+Implementation note:
+
+- Backend may internally reuse existing `items` and `google_calendar_api` modules; this contract is about behavior and payload semantics.
+
+### Writeback execution model
+
+- Synchronous attempt on user action for immediate feedback.
+- On transient provider failures: mark `write_failed`, keep retry metadata, offer user-triggered retry.
+- On permanent permission failures: keep local state unchanged from last confirmed provider state and show actionable error.
+- All write attempts logged to audit with action type, canonical id, provider ids, status, and error detail.
+
+### Concurrency and idempotency
+
+- Mutating endpoints require ETag/version precondition where applicable.
+- Conflicts return `409` with latest server version.
+- Client must rebase and retry after conflict resolution.
+- Idempotency key required for reschedule/delete/rsvp write endpoints.
+
+## UX specification
+
+### Event row/card controls
+
+Mandatory controls in event detail panel:
+
+- Accept
+- Tentative
+- Decline
+- Reschedule (date/time editor)
+- Delete
+- Project links editor
+
+### State indicators
+
+Each event shows one sync badge:
+
+- `Synced`
+- `Saving...`
+- `Sync failed`
+- `Local only`
+
+### Empty and degraded states
+
+- Sync enabled but no events in range:
+  - "No upcoming events."
+  - CTA: "Refresh sync"
+- Calendar API permission issue:
+  - inline error with reconnect/settings CTA.
+- Write failure:
+  - inline toast + event-level retry affordance.
+
+## Migration and compatibility
+
+### Existing calendar Action items
+
+Migration behavior:
+
+1. Identify `Action` items with `app:bucket = "calendar"` and date-like scheduling metadata.
+2. Convert to `Event` preserving canonical id and user-entered metadata.
+3. Populate `startDate` from best available source:
+   - `startTime`
+   - fallback `app:scheduledDate`
+4. Keep compatibility read path during rollout for non-migrated records.
+
+### Existing Google-synced Event items
+
+- Preserve current canonical IDs and source metadata.
+- Backfill new additionalProperty fields lazily on read/update if absent.
+
+## Observability and metrics
+
+Track:
+
+- `% calendar events visible in UI vs synced in backend` (consistency ratio)
+- RSVP write success rate
+- Reschedule write success rate
+- Delete write success rate
+- median write latency (UI action -> provider confirmed)
+- sync failure rate by reason (permissions, quota, conflict, transient)
+
+Alert thresholds:
+
+- write failure rate > 5% for 15m
+- calendar sync stale age > 2h for active connections
+
+## Acceptance criteria
+
+- [ ] Enabling calendar sync makes current-day and future synced events visible in Project calendar views.
+- [ ] Inbox `Move to Calendar` persists `@type: "Event"` with required date semantics.
+- [ ] Calendar supports List and Grid (Month + Week) with parity for core event actions.
+- [ ] Project filter works in both modes with `Any selected` semantics for multi-project events.
+- [ ] User can accept/tentative/decline eligible events in Project and changes propagate to Google.
+- [ ] User can reschedule writable events in Project and changes propagate to Google.
+- [ ] User can delete writable events in Project and deletion propagates to Google.
+- [ ] Non-writable events show correct disabled states and explanatory feedback.
+- [ ] Local and provider sync states are visible (`Synced`, `Saving`, `Sync failed`, `Local only`).
+- [ ] Existing calendar `Action` items are migrated (or compatibly rendered) without data loss.
+- [ ] Audit logs capture all provider write attempts and outcomes.
+
+## Test plan
+
+### Unit tests
+
+- serializer: action->event conversion paths
+- event sorting/render grouping logic
+- rsvp state mapping and disabled-action predicates
+- migration transform functions
+
+### Integration tests (backend)
+
+- initial backfill horizon behavior (today to +365 days)
+- incremental sync token lifecycle
+- rsvp/reschedule/delete provider call mapping + error handling
+- permission matrix (owner/writer/reader/freeBusyReader)
+- idempotency and conflict behavior
+
+### Frontend integration tests
+
+- list/grid mode parity for action controls
+- sync badge states
+- project filter behavior with multi-project events
+- write failure and retry UX
+
+### End-to-end tests
+
+- enable sync -> events visible
+- inbox -> calendar -> event created
+- accept/decline/tentative propagate
+- reschedule propagate and re-render
+- delete propagate and item removed/archived
+
+## Delivery phases
+
+### Phase 1: Data + API contract lock
+
+- event schema fields and migration plan
+- endpoint contracts and error semantics
+- permission and action matrix implementation
+
+### Phase 2: Backend write path + sync visibility
+
+- event query endpoint for calendar views
+- RSVP/reschedule/delete writeback pipeline
+- audit + metrics + retries
+
+### Phase 3: Frontend calendar surfaces
+
+- list/grid mode with shared event detail panel
+- project filter + association editor
+- sync state badges and degraded-state UX
+
+### Phase 4: Rollout and hardening
+
+- staged rollout flag
+- migration execution and verification
+- SLO monitoring and bugfix sweep
+
+## Risks and mitigations
+
+- Google permission mismatch at runtime
+  - Mitigation: explicit role-based UI gating + reconnect CTA.
+- Write conflicts with concurrent edits from external clients
+  - Mitigation: ETag/version checks + conflict resolution UX.
+- Data divergence between local and provider states
+  - Mitigation: event-level sync state + retry + reconciliation job.
+- Migration regressions from legacy Action calendar data
+  - Mitigation: dry-run migration report + compatibility fallback.

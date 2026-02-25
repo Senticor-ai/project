@@ -33,12 +33,13 @@ def _make_gmail_message(
     body_text: str = "Testinhalt der E-Mail.",
     internal_date: str = "1707559200000",  # 2024-02-10T10:00:00Z
     history_id: str = "12345",
+    label_ids: list[str] | None = None,
 ) -> dict:
     """Build a Gmail API messages.get response."""
     return {
         "id": msg_id,
         "threadId": f"thread_{msg_id}",
-        "labelIds": ["INBOX", "UNREAD"],
+        "labelIds": label_ids or ["INBOX", "UNREAD"],
         "historyId": history_id,
         "internalDate": internal_date,
         "payload": {
@@ -260,6 +261,41 @@ class TestRunEmailSync:
                 row = cur.fetchone()
                 assert row is not None
                 assert row["cnt"] == 2
+
+    @patch("app.email.sync.gmail_api")
+    @patch("app.email.sync.get_valid_gmail_token")
+    def test_sync_skips_messages_that_are_not_currently_in_inbox(
+        self,
+        mock_get_token,
+        mock_gmail_api,
+        email_connection,
+    ):
+        conn_id, org_id, user_id = email_connection
+        mock_get_token.return_value = "fake-access-token"
+
+        mock_gmail_api.history_list.return_value = _make_history_response(
+            ["msg_not_inbox"], history_id="10002"
+        )
+        mock_gmail_api.message_get.return_value = _make_gmail_message(
+            msg_id="msg_not_inbox",
+            message_id_header="<msg-not-inbox@example.com>",
+            label_ids=["SENT"],
+        )
+
+        result = run_email_sync(connection_id=conn_id, org_id=org_id, user_id=user_id)
+        assert result.synced == 1
+        assert result.created == 0
+        assert result.skipped == 1
+
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT count(*) AS cnt FROM items WHERE org_id = %s AND source = 'gmail'",
+                    (org_id,),
+                )
+                row = cur.fetchone()
+                assert row is not None
+                assert row["cnt"] == 0
 
     @patch("app.email.sync.gmail_api")
     @patch("app.email.sync.get_valid_gmail_token")

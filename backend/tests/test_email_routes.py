@@ -7,9 +7,11 @@ the full test database with email_connections table.
 
 import dataclasses
 import uuid
+from datetime import UTC, datetime
 from urllib.parse import parse_qs, urlparse
 
 from app.config import settings
+from app.db import db_conn, jsonb
 
 
 def _patch_settings(monkeypatch, **overrides):
@@ -18,6 +20,53 @@ def _patch_settings(monkeypatch, **overrides):
     monkeypatch.setattr("app.email.routes.settings", patched)
     monkeypatch.setattr("app.email.gmail_oauth.settings", patched)
     return patched
+
+
+def _seed_active_connection(
+    auth_client,
+    *,
+    calendar_sync_enabled: bool = True,
+    calendar_selected_ids: list[str] | None = None,
+    calendar_sync_tokens: dict[str, str] | None = None,
+    last_calendar_sync_error: str | None = None,
+) -> tuple[str, str, str]:
+    org_id = auth_client.headers["X-Org-Id"]
+    me = auth_client.get("/auth/me")
+    assert me.status_code == 200
+    user_id = me.json()["id"]
+    connection_id = str(uuid.uuid4())
+    selected_ids = calendar_selected_ids or ["primary"]
+    sync_tokens = calendar_sync_tokens or {}
+
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO email_connections
+                    (connection_id, org_id, user_id, email_address, display_name,
+                     encrypted_access_token, encrypted_refresh_token, token_expires_at,
+                     is_active, sync_interval_minutes, calendar_sync_enabled,
+                     calendar_selected_ids, calendar_sync_tokens, last_calendar_sync_error)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, true, 0, %s, %s, %s, %s)
+                """,
+                (
+                    connection_id,
+                    org_id,
+                    user_id,
+                    "calendar-settings@example.com",
+                    "Calendar Settings",
+                    "enc-access",
+                    "enc-refresh",
+                    datetime(2027, 1, 1, tzinfo=UTC),
+                    calendar_sync_enabled,
+                    jsonb(selected_ids),
+                    jsonb(sync_tokens),
+                    last_calendar_sync_error,
+                ),
+            )
+        conn.commit()
+
+    return connection_id, org_id, user_id
 
 
 class TestGmailAuthorize:
@@ -45,6 +94,38 @@ class TestGmailAuthorize:
         assert "url" in data
         assert "accounts.google.com" in data["url"]
         assert "test-client-id" in data["url"]
+
+    def test_default_scope_set_includes_calendar_and_gmail(self, auth_client, monkeypatch):
+        _patch_settings(
+            monkeypatch,
+            gmail_client_id="test-client-id",
+            gmail_client_secret="test-secret",
+            gmail_state_secret="test-state-secret-32chars-minimum!",
+        )
+        response = auth_client.get("/email/oauth/gmail/authorize")
+        assert response.status_code == 200
+        oauth_url = response.json()["url"]
+        scope = parse_qs(urlparse(oauth_url).query).get("scope", [""])[0]
+        assert "https://www.googleapis.com/auth/gmail.readonly" in scope
+        assert "https://www.googleapis.com/auth/gmail.send" in scope
+        assert "https://www.googleapis.com/auth/calendar.events" in scope
+        assert "https://www.googleapis.com/auth/calendar.calendarlist.readonly" in scope
+
+    def test_redirect_mode_returns_google_consent_redirect(self, auth_client, monkeypatch):
+        _patch_settings(
+            monkeypatch,
+            gmail_client_id="test-client-id",
+            gmail_client_secret="test-secret",
+            gmail_state_secret="test-state-secret-32chars-minimum!",
+        )
+
+        response = auth_client.get(
+            "/email/oauth/gmail/authorize",
+            params={"redirect": "true"},
+            follow_redirects=False,
+        )
+        assert response.status_code == 303
+        assert response.headers["location"].startswith("https://accounts.google.com/")
 
 
 class TestGmailCallback:
@@ -144,6 +225,177 @@ class TestUpdateConnection:
             json={},
         )
         assert response.status_code == 400
+
+
+class TestCalendarSettings:
+    def test_lists_calendars_with_selection_state(self, auth_client, monkeypatch):
+        connection_id, _org_id, _user_id = _seed_active_connection(
+            auth_client,
+            calendar_selected_ids=["primary", "team@group.calendar.google.com"],
+        )
+
+        monkeypatch.setattr("app.email.routes.get_valid_gmail_token", lambda *_args: "token")
+        monkeypatch.setattr(
+            "app.email.routes.google_calendar_api.calendar_list",
+            lambda _token: {
+                "items": [
+                    {
+                        "id": "primary",
+                        "summary": "Primary",
+                        "primary": True,
+                        "accessRole": "owner",
+                    },
+                    {
+                        "id": "team@group.calendar.google.com",
+                        "summary": "Team",
+                        "accessRole": "writer",
+                    },
+                    {
+                        "id": "holidays@group.calendar.google.com",
+                        "summary": "Holidays",
+                        "accessRole": "reader",
+                    },
+                ]
+            },
+        )
+
+        response = auth_client.get(f"/email/connections/{connection_id}/calendars")
+        assert response.status_code == 200
+        payload = response.json()
+        by_id = {row["calendar_id"]: row for row in payload}
+
+        assert by_id["primary"]["selected"] is True
+        assert by_id["team@group.calendar.google.com"]["selected"] is True
+        assert by_id["holidays@group.calendar.google.com"]["selected"] is False
+
+    def test_update_selection_archives_deselected_calendar_items(self, auth_client):
+        connection_id, org_id, user_id = _seed_active_connection(
+            auth_client,
+            calendar_selected_ids=["primary", "team@group.calendar.google.com"],
+            calendar_sync_tokens={
+                "primary": "tok-primary",
+                "team@group.calendar.google.com": "tok-team",
+            },
+        )
+
+        schema = {
+            "@context": "https://schema.org",
+            "@id": "urn:app:event:gcal:team@group.calendar.google.com:evt-team-1",
+            "@type": "Event",
+            "name": "Team Standup",
+            "sourceMetadata": {
+                "provider": "google_calendar",
+                "raw": {
+                    "eventId": "evt-team-1",
+                    "calendarId": "team@group.calendar.google.com",
+                },
+            },
+        }
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO items
+                        (item_id, org_id, created_by_user_id, canonical_id, schema_jsonld,
+                         source, content_hash, created_at, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, now(), now())
+                    """,
+                    (
+                        str(uuid.uuid4()),
+                        org_id,
+                        user_id,
+                        schema["@id"],
+                        jsonb(schema),
+                        "google_calendar",
+                        "hash-team-1",
+                    ),
+                )
+            conn.commit()
+
+        response = auth_client.patch(
+            f"/email/connections/{connection_id}",
+            json={"calendar_selected_ids": ["primary"]},
+        )
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["calendar_selected_ids"] == ["primary"]
+
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT archived_at
+                    FROM items
+                    WHERE org_id = %s
+                      AND source = 'google_calendar'
+                      AND schema_jsonld -> 'sourceMetadata' -> 'raw' ->> 'eventId' = 'evt-team-1'
+                    """,
+                    (org_id,),
+                )
+                item_row = cur.fetchone()
+                assert item_row is not None
+                assert item_row["archived_at"] is not None
+
+                cur.execute(
+                    """
+                    SELECT calendar_selected_ids, calendar_sync_tokens
+                    FROM email_connections
+                    WHERE connection_id = %s
+                    """,
+                    (connection_id,),
+                )
+                conn_row = cur.fetchone()
+                assert conn_row["calendar_selected_ids"] == ["primary"]
+                assert conn_row["calendar_sync_tokens"] == {"primary": "tok-primary"}
+
+    def test_update_selection_rejects_empty_calendar_list(self, auth_client):
+        connection_id, _org_id, _user_id = _seed_active_connection(auth_client)
+        response = auth_client.patch(
+            f"/email/connections/{connection_id}",
+            json={"calendar_selected_ids": []},
+        )
+        assert response.status_code == 400
+
+    def test_listing_calendars_clears_stale_api_not_enabled_error(self, auth_client, monkeypatch):
+        connection_id, _org_id, _user_id = _seed_active_connection(
+            auth_client,
+            last_calendar_sync_error=(
+                "Google Calendar API is not enabled in this Google Cloud project. "
+                "Enable the Calendar API and reconnect."
+            ),
+        )
+
+        monkeypatch.setattr("app.email.routes.get_valid_gmail_token", lambda *_args: "token")
+        monkeypatch.setattr(
+            "app.email.routes.google_calendar_api.calendar_list",
+            lambda _token: {
+                "items": [
+                    {
+                        "id": "primary",
+                        "summary": "Primary",
+                        "primary": True,
+                        "accessRole": "owner",
+                    }
+                ]
+            },
+        )
+
+        response = auth_client.get(f"/email/connections/{connection_id}/calendars")
+        assert response.status_code == 200
+
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT last_calendar_sync_error
+                    FROM email_connections
+                    WHERE connection_id = %s
+                    """,
+                    (connection_id,),
+                )
+                row = cur.fetchone()
+                assert row is not None
+                assert row["last_calendar_sync_error"] is None
 
 
 class TestDisconnect:

@@ -6,7 +6,7 @@ import {
   lazy,
   Suspense,
 } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "./lib/use-auth";
 import { useLocationState } from "./hooks/use-location-state";
 import { useImportJobs } from "./hooks/use-import-jobs";
@@ -33,7 +33,10 @@ import {
 } from "./hooks/use-organizations";
 import { computeBucketCounts } from "./lib/bucket-counts";
 import { ApiError, DevApi, EmailApi, downloadExport } from "./lib/api-client";
-import type { AuthUser } from "./lib/api-client";
+import type {
+  AuthUser,
+  EmailConnectionCalendarResponse,
+} from "./lib/api-client";
 import { ConnectedBucketView } from "./components/work/ConnectedBucketView";
 import { CopilotChatPanel } from "./components/chat/CopilotChatPanel";
 import { useChatState } from "./hooks/use-chat-state";
@@ -147,6 +150,57 @@ function AuthenticatedApp({
   const triggerEmailSync = useTriggerEmailSync();
   const disconnectEmail = useDisconnectEmail();
   const updateEmailConnection = useUpdateEmailConnection();
+  const emailCalendarQueries = useQueries({
+    queries: (emailConnections ?? []).map((connection) => ({
+      queryKey: [
+        ...EMAIL_CONNECTIONS_QUERY_KEY,
+        connection.connection_id,
+        "calendars",
+      ],
+      queryFn: () => EmailApi.listConnectionCalendars(connection.connection_id),
+      enabled:
+        connection.is_active && (connection.calendar_sync_enabled ?? true),
+      staleTime: 60_000,
+    })),
+  });
+  const emailCalendarsByConnectionId = useMemo<
+    Record<string, EmailConnectionCalendarResponse[]>
+  >(() => {
+    const byConnectionId: Record<string, EmailConnectionCalendarResponse[]> =
+      {};
+    (emailConnections ?? []).forEach((connection, index) => {
+      const calendars = emailCalendarQueries[index]?.data;
+      if (calendars) {
+        byConnectionId[connection.connection_id] = calendars;
+      }
+    });
+    return byConnectionId;
+  }, [emailConnections, emailCalendarQueries]);
+  const emailCalendarsLoadingByConnectionId = useMemo<
+    Record<string, boolean>
+  >(() => {
+    const byConnectionId: Record<string, boolean> = {};
+    (emailConnections ?? []).forEach((connection, index) => {
+      const query = emailCalendarQueries[index];
+      byConnectionId[connection.connection_id] = Boolean(
+        query?.isLoading || query?.isFetching,
+      );
+    });
+    return byConnectionId;
+  }, [emailConnections, emailCalendarQueries]);
+  const emailCalendarsErrorByConnectionId = useMemo<
+    Record<string, string>
+  >(() => {
+    const byConnectionId: Record<string, string> = {};
+    (emailConnections ?? []).forEach((connection, index) => {
+      const query = emailCalendarQueries[index];
+      const message = getMutationErrorMessage(query?.error);
+      if (message) {
+        byConnectionId[connection.connection_id] = message;
+      }
+    });
+    return byConnectionId;
+  }, [emailConnections, emailCalendarQueries]);
 
   const handleGmailConnected = useCallback(() => {
     void queryClient.invalidateQueries({
@@ -184,6 +238,13 @@ function AuthenticatedApp({
           conn.last_sync_error.trim().length > 0
         ) {
           rawErrors.push(conn.last_sync_error.trim());
+        }
+      }
+      for (const calendarError of Object.values(
+        emailCalendarsErrorByConnectionId,
+      )) {
+        if (calendarError.trim().length > 0) {
+          rawErrors.push(calendarError.trim());
         }
       }
 
@@ -237,6 +298,7 @@ function AuthenticatedApp({
     location.sub,
     emailConnectionsQuery.error,
     emailConnections,
+    emailCalendarsErrorByConnectionId,
     triggerEmailSync.error,
     disconnectEmail.error,
     updateEmailConnection.error,
@@ -264,40 +326,31 @@ function AuthenticatedApp({
     navigate,
   ]);
 
-  const handleConnectGmail = useCallback(async () => {
+  const handleConnectGmail = useCallback(() => {
     const w = 500;
     const h = 600;
     const left = window.screenX + (window.outerWidth - w) / 2;
     const top = window.screenY + (window.outerHeight - h) / 2;
     const popupFeatures = `width=${w},height=${h},left=${left},top=${top}`;
     const returnUrl = `${window.location.origin}/settings/email`;
+    const authorizeUrl = EmailApi.getGmailAuthRedirectUrl(returnUrl);
 
-    const popup = window.open("", "gmail-oauth", popupFeatures);
-    try {
-      const { url } = await EmailApi.getGmailAuthUrl(returnUrl);
-
-      // If popup was blocked, fall back to full-page redirect.
-      if (!popup) {
-        window.location.assign(url);
-        return;
-      }
-
-      popup.document.title = "Connecting…";
-      popup.location.replace(url);
-
-      // Fallback: ensure parent refreshes shortly after popup closes.
-      const pollId = window.setInterval(() => {
-        if (!popup.closed) return;
-        window.clearInterval(pollId);
-        void queryClient.invalidateQueries({
-          queryKey: EMAIL_CONNECTIONS_QUERY_KEY,
-        });
-      }, 500);
-      window.setTimeout(() => window.clearInterval(pollId), 5 * 60_000);
-    } catch (err) {
-      if (popup && !popup.closed) popup.close();
-      console.error("Failed to get Gmail auth URL", err);
+    // Open consent flow directly to reduce extension warnings on about:blank popups.
+    const popup = window.open(authorizeUrl, "gmail-oauth", popupFeatures);
+    if (!popup) {
+      window.location.assign(authorizeUrl);
+      return;
     }
+
+    // Fallback: ensure parent refreshes shortly after popup closes.
+    const pollId = window.setInterval(() => {
+      if (!popup.closed) return;
+      window.clearInterval(pollId);
+      void queryClient.invalidateQueries({
+        queryKey: EMAIL_CONNECTIONS_QUERY_KEY,
+      });
+    }, 500);
+    window.setTimeout(() => window.clearInterval(pollId), 5 * 60_000);
   }, [queryClient]);
 
   // Detect ?gmail=connected for full-page fallback after OAuth callback.
@@ -436,6 +489,13 @@ function AuthenticatedApp({
                 retryJob.isPending ? (retryJob.variables ?? null) : null
               }
               emailConnections={emailConnections}
+              emailCalendarsByConnectionId={emailCalendarsByConnectionId}
+              emailCalendarsLoadingByConnectionId={
+                emailCalendarsLoadingByConnectionId
+              }
+              emailCalendarsErrorByConnectionId={
+                emailCalendarsErrorByConnectionId
+              }
               emailLoading={emailLoading}
               onConnectGmail={handleConnectGmail}
               onEmailSync={(id) => triggerEmailSync.mutate(id)}
@@ -450,6 +510,18 @@ function AuthenticatedApp({
                 updateEmailConnection.mutate({
                   id,
                   patch: { sync_mark_read: markRead },
+                })
+              }
+              onEmailToggleCalendarSync={(id, enabled) =>
+                updateEmailConnection.mutate({
+                  id,
+                  patch: { calendar_sync_enabled: enabled },
+                })
+              }
+              onEmailUpdateCalendarSelection={(id, calendarIds) =>
+                updateEmailConnection.mutate({
+                  id,
+                  patch: { calendar_selected_ids: calendarIds },
                 })
               }
               emailSyncingConnectionId={

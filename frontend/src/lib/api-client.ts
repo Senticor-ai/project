@@ -583,6 +583,12 @@ export type EmailConnectionResponse = {
   oauth_provider: "gmail";
   sync_interval_minutes: number;
   sync_mark_read: boolean;
+  calendar_sync_enabled?: boolean;
+  calendar_selected_ids?: string[];
+  calendar_sync_token?: string | null;
+  last_calendar_sync_at?: string | null;
+  last_calendar_sync_error?: string | null;
+  last_calendar_sync_event_count?: number | null;
   last_sync_at: string | null;
   last_sync_error: string | null;
   last_sync_message_count: number | null;
@@ -597,11 +603,26 @@ export type EmailSyncResponse = {
   created: number;
   skipped: number;
   errors: number;
+  calendar_synced?: number;
+  calendar_created?: number;
+  calendar_updated?: number;
+  calendar_archived?: number;
+  calendar_errors?: number;
+};
+
+export type EmailConnectionCalendarResponse = {
+  calendar_id: string;
+  summary: string;
+  primary: boolean;
+  selected: boolean;
+  access_role: string | null;
 };
 
 export type EmailConnectionUpdateRequest = {
   sync_interval_minutes?: number;
   sync_mark_read?: boolean;
+  calendar_sync_enabled?: boolean;
+  calendar_selected_ids?: string[];
 };
 
 export const EmailApi = {
@@ -610,11 +631,25 @@ export const EmailApi = {
     return request<{ url: string }>(`/email/oauth/gmail/authorize${qs}`);
   },
 
+  getGmailAuthRedirectUrl: (returnUrl?: string) => {
+    const params = new URLSearchParams();
+    if (returnUrl) {
+      params.set("return_url", returnUrl);
+    }
+    params.set("redirect", "true");
+    return `${API_BASE_URL}/email/oauth/gmail/authorize?${params.toString()}`;
+  },
+
   listConnections: () =>
     request<EmailConnectionResponse[]>("/email/connections"),
 
   getConnection: (id: string) =>
     request<EmailConnectionResponse>(`/email/connections/${id}`),
+
+  listConnectionCalendars: (id: string) =>
+    request<EmailConnectionCalendarResponse[]>(
+      `/email/connections/${id}/calendars`,
+    ),
 
   updateConnection: (id: string, patch: EmailConnectionUpdateRequest) =>
     request<EmailConnectionResponse>(`/email/connections/${id}`, {

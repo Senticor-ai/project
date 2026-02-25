@@ -6,6 +6,7 @@ No google-api-python-client dependency.
 
 from __future__ import annotations
 
+import base64
 import logging
 from typing import Any
 
@@ -194,3 +195,38 @@ def messages_list(
             break
 
     return results[:max_results]
+
+
+def send_reply(
+    access_token: str,
+    *,
+    thread_id: str | None,
+    to: str,
+    subject: str,
+    body: str,
+    in_reply_to_message_id: str | None = None,
+) -> dict[str, Any]:
+    """Send a plain-text reply via Gmail API."""
+    headers = [
+        f"To: {to}",
+        f"Subject: {subject}",
+        "Content-Type: text/plain; charset=UTF-8",
+    ]
+    if in_reply_to_message_id:
+        headers.append(f"In-Reply-To: {in_reply_to_message_id}")
+        headers.append(f"References: {in_reply_to_message_id}")
+    raw_email = "\r\n".join(headers) + "\r\n\r\n" + body
+    encoded = base64.urlsafe_b64encode(raw_email.encode("utf-8")).decode("ascii")
+    payload: dict[str, Any] = {"raw": encoded}
+    if thread_id:
+        payload["threadId"] = thread_id
+
+    response = httpx.post(
+        f"{GMAIL_API_BASE}/messages/send",
+        headers=_headers(access_token),
+        json=payload,
+        timeout=_TIMEOUT,
+    )
+    response.raise_for_status()
+    result: dict[str, Any] = response.json()
+    return result

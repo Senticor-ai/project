@@ -17,6 +17,7 @@ from ..db import db_conn, jsonb
 from ..imports.shared import _hash_payload
 from ..outbox import enqueue_event
 from . import gmail_api
+from .calendar_sync import run_calendar_sync
 from .gmail_oauth import get_valid_gmail_token
 from .transform import EmailMessage, build_email_item
 
@@ -32,6 +33,43 @@ class SyncResult:
     skipped: int = 0
     errors: int = 0
     archived: int = 0
+    calendar_synced: int = 0
+    calendar_created: int = 0
+    calendar_updated: int = 0
+    calendar_archived: int = 0
+    calendar_errors: int = 0
+
+
+def _sync_calendar_if_enabled(
+    *,
+    connection: dict,
+    connection_id: str,
+    org_id: str,
+    user_id: str,
+    access_token: str,
+    result: SyncResult,
+) -> None:
+    if not connection.get("calendar_sync_enabled"):
+        return
+    try:
+        cal_result = run_calendar_sync(
+            connection_id=connection_id,
+            org_id=org_id,
+            user_id=user_id,
+            access_token=access_token,
+        )
+        result.calendar_synced = cal_result.fetched
+        result.calendar_created = cal_result.created
+        result.calendar_updated = cal_result.updated
+        result.calendar_archived = cal_result.archived
+        result.calendar_errors += cal_result.errors
+    except Exception:  # noqa: BLE001
+        result.calendar_errors += 1
+        logger.warning(
+            "Calendar sync failed for connection %s",
+            connection_id,
+            exc_info=True,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -256,6 +294,14 @@ def run_email_sync(
 
         if not new_message_ids and not archived_gmail_ids:
             _update_connection_success(connection_id, org_id, 0)
+            _sync_calendar_if_enabled(
+                connection=connection,
+                connection_id=connection_id,
+                org_id=org_id,
+                user_id=user_id,
+                access_token=access_token,
+                result=result,
+            )
             return result
 
         # 5. Fetch full messages, transform, and upsert
@@ -266,6 +312,10 @@ def run_email_sync(
             for msg_id in new_message_ids:
                 try:
                     gmail_msg = gmail_api.message_get(access_token, msg_id)
+                    label_ids = gmail_msg.get("labelIds") or []
+                    if "INBOX" not in label_ids:
+                        result.skipped += 1
+                        continue
 
                     # Update history ID from first fetched message
                     if new_history_id is None:
@@ -380,6 +430,14 @@ def run_email_sync(
 
         # 8. Update connection success
         _update_connection_success(connection_id, org_id, result.synced)
+        _sync_calendar_if_enabled(
+            connection=connection,
+            connection_id=connection_id,
+            org_id=org_id,
+            user_id=user_id,
+            access_token=access_token,
+            result=result,
+        )
 
     except Exception as exc:
         logger.exception("Email sync failed for connection %s", connection_id)
@@ -661,6 +719,13 @@ def enqueue_all_active_syncs() -> int:
 
     Returns the number of events enqueued.
     """
+    disabled = disable_non_fernet_scheduled_connections()
+    if disabled:
+        logger.warning(
+            "Startup: disabled %d invalid-token scheduled email connections before enqueue",
+            disabled,
+        )
+
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -699,6 +764,8 @@ def enqueue_due_syncs() -> int:
 
     Returns the number of events enqueued.
     """
+    disable_non_fernet_scheduled_connections()
+
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -730,6 +797,53 @@ def enqueue_due_syncs() -> int:
     if count:
         logger.info("Enqueued %d email sync jobs", count)
     return count
+
+
+def disable_non_fernet_scheduled_connections() -> int:
+    """Disable active scheduled connections with obviously invalid token format.
+
+    These rows are usually test fixtures with placeholder token strings (for
+    example `enc-access`) that cannot be decrypted by Fernet and would produce
+    repeated worker failures.
+    """
+
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE email_connections
+                SET is_active = false,
+                    sync_interval_minutes = 0,
+                    watch_expiration = NULL,
+                    watch_history_id = NULL,
+                    last_sync_error = COALESCE(
+                        NULLIF(last_sync_error, ''),
+                        'Auto-disabled invalid OAuth token fixture. Reconnect Google.'
+                    ),
+                    updated_at = now()
+                WHERE is_active = true
+                  AND sync_interval_minutes > 0
+                  AND (
+                    COALESCE(encrypted_access_token, '') = ''
+                    OR encrypted_access_token NOT LIKE 'gAAAAA%%'
+                    OR (
+                        COALESCE(encrypted_refresh_token, '') <> ''
+                        AND encrypted_refresh_token NOT LIKE 'gAAAAA%%'
+                    )
+                  )
+                RETURNING connection_id
+                """
+            )
+            rows = cur.fetchall()
+        conn.commit()
+
+    disabled = len(rows)
+    if disabled:
+        logger.warning(
+            "Disabled %d active scheduled email connections with invalid token format",
+            disabled,
+        )
+    return disabled
 
 
 def sync_email_archive(item_row: dict, org_id: str) -> None:

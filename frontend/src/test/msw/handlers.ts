@@ -372,6 +372,44 @@ export const emailHandlers = [
     });
   }),
 
+  http.get(`${API}/email/connections/:id/calendars`, ({ params }) => {
+    const id = params.id as string;
+    const existing = store.emailConnections.get(id);
+    if (!existing) {
+      return HttpResponse.json({ detail: "Not found" }, { status: 404 });
+    }
+    const selected = new Set(existing.calendar_selected_ids ?? ["primary"]);
+    const baseCalendars = store.emailCalendars.get(id) ?? [
+      {
+        calendar_id: "primary",
+        summary: "Primary",
+        primary: true,
+        selected: true,
+        access_role: "owner",
+      },
+      {
+        calendar_id: "team@group.calendar.google.com",
+        summary: "Team",
+        primary: false,
+        selected: false,
+        access_role: "writer",
+      },
+      {
+        calendar_id: "family@group.calendar.google.com",
+        summary: "Family",
+        primary: false,
+        selected: false,
+        access_role: "reader",
+      },
+    ];
+    const calendars = baseCalendars.map((calendar) => ({
+      ...calendar,
+      selected: selected.has(calendar.calendar_id),
+    }));
+    store.emailCalendars.set(id, calendars);
+    return HttpResponse.json(calendars);
+  }),
+
   http.patch(`${API}/email/connections/:id`, async ({ params, request }) => {
     const id = params.id as string;
     const patch = (await request.json()) as EmailConnectionUpdateRequest;
@@ -387,8 +425,25 @@ export const emailHandlers = [
       ...(patch.sync_mark_read !== undefined && {
         sync_mark_read: patch.sync_mark_read,
       }),
+      ...(patch.calendar_sync_enabled !== undefined && {
+        calendar_sync_enabled: patch.calendar_sync_enabled,
+      }),
+      ...(patch.calendar_selected_ids !== undefined && {
+        calendar_selected_ids: patch.calendar_selected_ids,
+      }),
     };
     store.emailConnections.set(id, updated);
+    if (patch.calendar_selected_ids !== undefined) {
+      const selected = new Set(patch.calendar_selected_ids);
+      const calendars = store.emailCalendars.get(id) ?? [];
+      store.emailCalendars.set(
+        id,
+        calendars.map((calendar) => ({
+          ...calendar,
+          selected: selected.has(calendar.calendar_id),
+        })),
+      );
+    }
     return HttpResponse.json(updated);
   }),
 

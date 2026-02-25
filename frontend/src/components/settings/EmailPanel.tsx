@@ -1,28 +1,44 @@
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
 import { EmailConnectionCard } from "./EmailConnectionCard";
-import type { EmailConnectionResponse } from "@/lib/api-client";
+import type {
+  EmailConnectionCalendarResponse,
+  EmailConnectionResponse,
+} from "@/lib/api-client";
 
 export interface EmailPanelProps {
   connections?: EmailConnectionResponse[];
+  calendarsByConnectionId?: Record<string, EmailConnectionCalendarResponse[]>;
+  calendarsLoadingByConnectionId?: Record<string, boolean>;
+  calendarsErrorByConnectionId?: Record<string, string>;
   isLoading?: boolean;
   onConnectGmail?: () => void;
   onSync?: (connectionId: string) => void;
   onDisconnect?: (connectionId: string) => void;
   onUpdateSyncInterval?: (connectionId: string, minutes: number) => void;
   onUpdateMarkRead?: (connectionId: string, markRead: boolean) => void;
+  onToggleCalendarSync?: (connectionId: string, enabled: boolean) => void;
+  onUpdateCalendarSelection?: (
+    connectionId: string,
+    calendarIds: string[],
+  ) => void;
   syncingConnectionId?: string | null;
   className?: string;
 }
 
 export function EmailPanel({
   connections = [],
+  calendarsByConnectionId = {},
+  calendarsLoadingByConnectionId = {},
+  calendarsErrorByConnectionId = {},
   isLoading,
   onConnectGmail,
   onSync,
   onDisconnect,
   onUpdateSyncInterval,
   onUpdateMarkRead,
+  onToggleCalendarSync,
+  onUpdateCalendarSelection,
   syncingConnectionId,
   className,
 }: EmailPanelProps) {
@@ -32,11 +48,11 @@ export function EmailPanel({
     <div className={cn("space-y-6", className)}>
       <section className="space-y-3">
         <h2 className="text-sm font-medium text-text-primary">
-          E-Mail-Verbindungen
+          3rd Party Sync
         </h2>
         <p className="text-xs text-text-subtle">
-          Verbinde dein E-Mail-Konto, um E-Mails direkt in deinem Eingang zu
-          sehen und zu triagieren.
+          Verbinde Google Workspace, um E-Mails und Kalender in Senticor Project
+          zu synchronisieren.
         </p>
       </section>
 
@@ -54,7 +70,7 @@ export function EmailPanel({
         <div className="flex flex-col items-center gap-4 rounded-[var(--radius-lg)] border-2 border-dashed border-border py-10">
           <Icon name="mail" size={40} className="text-text-muted" />
           <p className="text-sm text-text-muted">
-            Keine E-Mail-Verbindung eingerichtet
+            Keine Drittanbieter-Verbindung eingerichtet
           </p>
           <button
             type="button"
@@ -73,6 +89,15 @@ export function EmailPanel({
             <EmailConnectionCard
               key={conn.connection_id}
               connection={conn}
+              availableCalendars={
+                calendarsByConnectionId[conn.connection_id] ?? []
+              }
+              calendarsLoading={
+                calendarsLoadingByConnectionId[conn.connection_id]
+              }
+              calendarLoadError={
+                calendarsErrorByConnectionId[conn.connection_id]
+              }
               onSync={() => onSync?.(conn.connection_id)}
               onDisconnect={() => onDisconnect?.(conn.connection_id)}
               onUpdateSyncInterval={(minutes) =>
@@ -80,6 +105,12 @@ export function EmailPanel({
               }
               onUpdateMarkRead={(markRead) =>
                 onUpdateMarkRead?.(conn.connection_id, markRead)
+              }
+              onToggleCalendarSync={(enabled) =>
+                onToggleCalendarSync?.(conn.connection_id, enabled)
+              }
+              onUpdateCalendarSelection={(calendarIds) =>
+                onUpdateCalendarSelection?.(conn.connection_id, calendarIds)
               }
               isSyncing={syncingConnectionId === conn.connection_id}
             />

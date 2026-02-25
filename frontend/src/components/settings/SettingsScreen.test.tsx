@@ -51,7 +51,7 @@ describe("SettingsScreen", () => {
   it("renders all tab labels", () => {
     render(<SettingsScreen />);
     expect(screen.getByText("Import / Export")).toBeInTheDocument();
-    expect(screen.getByText("Email")).toBeInTheDocument();
+    expect(screen.getByText("3rd Party Sync")).toBeInTheDocument();
     expect(screen.getByText("Labels & Contexts")).toBeInTheDocument();
     expect(screen.getByText("Preferences")).toBeInTheDocument();
   });
@@ -112,10 +112,10 @@ describe("SettingsScreen", () => {
     expect(onTabChange).toHaveBeenCalledWith("developer");
   });
 
-  it("renders all five tab labels including Email and Developer", () => {
+  it("renders all five tab labels including 3rd Party Sync and Developer", () => {
     render(<SettingsScreen />);
     expect(screen.getByText("Import / Export")).toBeInTheDocument();
-    expect(screen.getByText("Email")).toBeInTheDocument();
+    expect(screen.getByText("3rd Party Sync")).toBeInTheDocument();
     expect(screen.getByText("Labels & Contexts")).toBeInTheDocument();
     expect(screen.getByText("Preferences")).toBeInTheDocument();
     expect(screen.getByText("Developer")).toBeInTheDocument();
@@ -124,12 +124,12 @@ describe("SettingsScreen", () => {
   it("switches to Email tab when clicked", async () => {
     const user = userEvent.setup();
     render(<SettingsScreen />);
-    await user.click(screen.getByText("Email"));
+    await user.click(screen.getByText("3rd Party Sync"));
 
-    const emailTab = screen.getByText("Email").closest("button")!;
+    const emailTab = screen.getByRole("tab", { name: "3rd Party Sync" });
     expect(emailTab).toHaveAttribute("aria-selected", "true");
     expect(
-      screen.getByText("Keine E-Mail-Verbindung eingerichtet"),
+      screen.getByText("Keine Drittanbieter-Verbindung eingerichtet"),
     ).toBeInTheDocument();
   });
 

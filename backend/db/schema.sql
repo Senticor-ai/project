@@ -345,6 +345,13 @@ CREATE TABLE IF NOT EXISTS email_connections (
   last_sync_at            TIMESTAMPTZ,
   last_sync_error         TEXT,
   last_sync_message_count INTEGER,
+  calendar_sync_enabled   BOOLEAN NOT NULL DEFAULT false,
+  calendar_sync_token     TEXT,
+  calendar_sync_tokens    JSONB NOT NULL DEFAULT '{}'::jsonb,
+  calendar_selected_ids   JSONB NOT NULL DEFAULT '["primary"]'::jsonb,
+  last_calendar_sync_at   TIMESTAMPTZ,
+  last_calendar_sync_error TEXT,
+  last_calendar_sync_event_count INTEGER,
   is_active               BOOLEAN NOT NULL DEFAULT true,
   created_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -376,9 +383,67 @@ ALTER TABLE email_sync_state DROP COLUMN IF EXISTS uidvalidity;
 
 ALTER TABLE email_connections ADD COLUMN IF NOT EXISTS watch_expiration TIMESTAMPTZ;
 ALTER TABLE email_connections ADD COLUMN IF NOT EXISTS watch_history_id BIGINT;
+ALTER TABLE email_connections ADD COLUMN IF NOT EXISTS calendar_sync_enabled BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE email_connections ADD COLUMN IF NOT EXISTS calendar_sync_token TEXT;
+ALTER TABLE email_connections ADD COLUMN IF NOT EXISTS calendar_sync_tokens JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE email_connections ADD COLUMN IF NOT EXISTS calendar_selected_ids JSONB NOT NULL DEFAULT '["primary"]'::jsonb;
+ALTER TABLE email_connections ADD COLUMN IF NOT EXISTS last_calendar_sync_at TIMESTAMPTZ;
+ALTER TABLE email_connections ADD COLUMN IF NOT EXISTS last_calendar_sync_error TEXT;
+ALTER TABLE email_connections ADD COLUMN IF NOT EXISTS last_calendar_sync_event_count INTEGER;
+
+UPDATE email_connections
+SET calendar_sync_tokens = '{}'::jsonb
+WHERE calendar_sync_tokens IS NULL;
+
+UPDATE email_connections
+SET calendar_selected_ids = '["primary"]'::jsonb
+WHERE calendar_selected_ids IS NULL
+   OR jsonb_typeof(calendar_selected_ids) <> 'array';
+
+UPDATE email_connections
+SET calendar_selected_ids = '["primary"]'::jsonb
+WHERE jsonb_typeof(calendar_selected_ids) = 'array'
+  AND jsonb_array_length(calendar_selected_ids) = 0;
 
 CREATE INDEX IF NOT EXISTS idx_email_connections_watch_expiration
   ON email_connections (watch_expiration) WHERE is_active = true AND watch_expiration IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_email_connections_calendar_sync
+  ON email_connections (last_calendar_sync_at) WHERE is_active = true AND calendar_sync_enabled = true;
+
+-- Google Workspace proposal + audit logs
+CREATE TABLE IF NOT EXISTS connector_action_proposals (
+  proposal_id      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id           UUID NOT NULL REFERENCES organizations(id),
+  user_id          UUID NOT NULL REFERENCES users(id),
+  connection_id    UUID NOT NULL REFERENCES email_connections(connection_id),
+  proposal_type    TEXT NOT NULL,
+  status           TEXT NOT NULL DEFAULT 'pending',
+  source_item_id   UUID REFERENCES items(item_id),
+  payload          JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  decided_at       TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_connector_action_proposals_user_status
+  ON connector_action_proposals (org_id, user_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_connector_action_proposals_source
+  ON connector_action_proposals (source_item_id);
+
+CREATE TABLE IF NOT EXISTS connector_action_audit_log (
+  audit_id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id           UUID NOT NULL REFERENCES organizations(id),
+  user_id          UUID NOT NULL REFERENCES users(id),
+  connection_id    UUID REFERENCES email_connections(connection_id),
+  proposal_id      UUID REFERENCES connector_action_proposals(proposal_id),
+  event_type       TEXT NOT NULL,
+  payload          JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_connector_action_audit_org_time
+  ON connector_action_audit_log (org_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_connector_action_audit_proposal
+  ON connector_action_audit_log (proposal_id, created_at DESC);
 
 -- Chat conversations
 CREATE TABLE IF NOT EXISTS conversations (

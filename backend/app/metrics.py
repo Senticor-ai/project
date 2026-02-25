@@ -96,6 +96,18 @@ APP_IMPORTS_FAILED_TOTAL = Counter(
     ["source"],
 )
 
+APP_CONNECTOR_LAST_SYNC_AGE_SECONDS = Gauge(
+    "app_connector_last_sync_age_seconds",
+    "Age in seconds since last successful connector sync (worst active connection).",
+    ["connector"],
+)
+
+APP_CONNECTOR_ERROR_CONNECTIONS = Gauge(
+    "app_connector_error_connections",
+    "Number of active connections with a non-empty last error.",
+    ["connector"],
+)
+
 
 def metrics_payload() -> bytes:
     return generate_latest()
@@ -322,6 +334,47 @@ def refresh_queue_metrics() -> None:
                         oldest_pending=None,
                         table_available=0,
                     )
+
+                # Connector health snapshots (Gmail + Google Calendar).
+                try:
+                    cur.execute(
+                        """
+                        SELECT
+                            MIN(last_sync_at) AS oldest_email_sync,
+                            SUM(CASE WHEN last_sync_error IS NOT NULL THEN 1 ELSE 0 END)
+                                AS email_error_count,
+                            MIN(last_calendar_sync_at) AS oldest_calendar_sync,
+                            SUM(
+                                CASE
+                                    WHEN calendar_sync_enabled
+                                     AND last_calendar_sync_error IS NOT NULL THEN 1
+                                    ELSE 0
+                                END
+                            ) AS calendar_error_count
+                        FROM email_connections
+                        WHERE is_active = true
+                        """,
+                    )
+                    connector_row = cur.fetchone() or {}
+                    APP_CONNECTOR_LAST_SYNC_AGE_SECONDS.labels(connector="gmail").set(
+                        _age_seconds(connector_row.get("oldest_email_sync"))
+                    )
+                    APP_CONNECTOR_ERROR_CONNECTIONS.labels(connector="gmail").set(
+                        float(int(connector_row.get("email_error_count") or 0))
+                    )
+                    APP_CONNECTOR_LAST_SYNC_AGE_SECONDS.labels(connector="google_calendar").set(
+                        _age_seconds(connector_row.get("oldest_calendar_sync"))
+                    )
+                    APP_CONNECTOR_ERROR_CONNECTIONS.labels(connector="google_calendar").set(
+                        float(int(connector_row.get("calendar_error_count") or 0))
+                    )
+                except psycopg_errors.UndefinedTable:
+                    APP_CONNECTOR_LAST_SYNC_AGE_SECONDS.labels(connector="gmail").set(0.0)
+                    APP_CONNECTOR_ERROR_CONNECTIONS.labels(connector="gmail").set(0.0)
+                    APP_CONNECTOR_LAST_SYNC_AGE_SECONDS.labels(connector="google_calendar").set(
+                        0.0
+                    )
+                    APP_CONNECTOR_ERROR_CONNECTIONS.labels(connector="google_calendar").set(0.0)
     except Exception:
         logger.exception("metrics.queue_refresh_failed")
         for queue_name in ("outbox_events", "push_outbox", "import_jobs", "search_index_jobs"):
@@ -331,3 +384,7 @@ def refresh_queue_metrics() -> None:
                 oldest_pending=None,
                 table_available=0,
             )
+        APP_CONNECTOR_LAST_SYNC_AGE_SECONDS.labels(connector="gmail").set(0.0)
+        APP_CONNECTOR_ERROR_CONNECTIONS.labels(connector="gmail").set(0.0)
+        APP_CONNECTOR_LAST_SYNC_AGE_SECONDS.labels(connector="google_calendar").set(0.0)
+        APP_CONNECTOR_ERROR_CONNECTIONS.labels(connector="google_calendar").set(0.0)

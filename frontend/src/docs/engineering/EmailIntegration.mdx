@@ -318,9 +318,14 @@ kubectl -n <namespace> rollout restart deployment/backend deployment/worker depl
 
 ## Scopes
 
-The integration requests the `https://mail.google.com/` scope which covers
-both Gmail API access and IMAP (legacy fallback). The scope can be customized
-via the `GMAIL_SCOPES` environment variable.
+The integration defaults to least-privilege scopes:
+
+- `https://www.googleapis.com/auth/gmail.readonly`
+- `https://www.googleapis.com/auth/gmail.send`
+- `https://www.googleapis.com/auth/calendar.events`
+- `https://www.googleapis.com/auth/calendar.calendarlist.readonly`
+
+The scope string can be overridden via `GMAIL_SCOPES`.
 
 ---
 
@@ -328,17 +333,19 @@ via the `GMAIL_SCOPES` environment variable.
 
 ### Backend Components
 
-| Module                      | Purpose                                                                                             |
-| --------------------------- | --------------------------------------------------------------------------------------------------- |
-| `app/email/routes.py`       | OAuth endpoints (`/authorize`, `/callback`) + connection CRUD + sync trigger                        |
-| `app/email/gmail_oauth.py`  | Google OAuth helpers (auth URL, code exchange, token refresh)                                       |
-| `app/email/gmail_api.py`    | Gmail REST API v1 client (history, messages, watch, modify)                                         |
-| `app/email/sync.py`         | Sync orchestrator (Gmail API history → parse → upsert → archive) + watch lifecycle + reconciliation |
-| `app/email/transform.py`    | EmailMessage dataclass + `build_email_item()` JSON-LD transform                                     |
-| `app/email/pubsub.py`       | Pub/Sub pull client (service account auth, message parsing)                                         |
-| `app/email/watch_worker.py` | Dedicated Pub/Sub pull loop process (started by `dev:stack`)                                        |
-| `app/email/imap_client.py`  | Generic IMAP client (see IMAP section below)                                                        |
-| `app/crypto.py`             | Fernet encryption/decryption for OAuth tokens at rest                                               |
+| Module                             | Purpose                                                                                             |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `app/email/routes.py`              | OAuth endpoints (`/authorize`, `/callback`) + connection CRUD + sync trigger                        |
+| `app/email/gmail_oauth.py`         | Google OAuth helpers (auth URL, code exchange, token refresh)                                       |
+| `app/email/gmail_api.py`           | Gmail REST API v1 client (history, messages, watch, modify)                                         |
+| `app/email/google_calendar_api.py` | Google Calendar API client (calendar list + event read/write)                                       |
+| `app/email/calendar_sync.py`       | Calendar sync orchestrator (backfill + incremental per selected calendar)                           |
+| `app/email/sync.py`                | Sync orchestrator (Gmail API history → parse → upsert → archive) + watch lifecycle + reconciliation |
+| `app/email/transform.py`           | EmailMessage dataclass + `build_email_item()` JSON-LD transform                                     |
+| `app/email/pubsub.py`              | Pub/Sub pull client (service account auth, message parsing)                                         |
+| `app/email/watch_worker.py`        | Dedicated Pub/Sub pull loop process (started by `dev:stack`)                                        |
+| `app/email/imap_client.py`         | Generic IMAP client (see IMAP section below)                                                        |
+| `app/crypto.py`                    | Fernet encryption/decryption for OAuth tokens at rest                                               |
 
 ### Infrastructure
 
@@ -350,21 +357,23 @@ via the `GMAIL_SCOPES` environment variable.
 
 ### Frontend Components
 
-| Component             | Purpose                                                                           |
-| --------------------- | --------------------------------------------------------------------------------- |
-| `EmailPanel`          | Settings tab — connect button, connection list, sync controls                     |
-| `EmailConnectionCard` | Individual connection display with sync method indicator, sync/disconnect actions |
-| `EmailBodyViewer`     | Inline email body display in ActionRow (sanitized HTML via DOMPurify)             |
+| Component             | Purpose                                                                             |
+| --------------------- | ----------------------------------------------------------------------------------- |
+| `EmailPanel`          | Settings tab — connect button, connection list, sync controls                       |
+| `EmailConnectionCard` | Connection status, Gmail sync controls, and calendar opt-in/out per Google calendar |
+| `EmailBodyViewer`     | Inline email body display in ActionRow (sanitized HTML via DOMPurify)               |
 
 ### Test Coverage
 
-| Test File                                   | Scope                                                                                                     |
-| ------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `backend/tests/test_email_sync.py`          | Sync orchestrator: message parsing, incremental sync, full-sync fallback, reverse archive, reconciliation |
-| `backend/tests/test_email_worker.py`        | Worker event handlers: sync job dispatch, COPILOT→Gmail archive, polling scheduler                        |
-| `backend/tests/test_watch_worker.py`        | Pub/Sub notification processing, watch renewal                                                            |
-| `frontend/.../EmailConnectionCard.test.tsx` | Connection card UI: status badge, sync method indicator, actions                                          |
-| `frontend/.../EmailPanel.test.tsx`          | Panel: empty state, loading, connection list, callbacks                                                   |
+| Test File                                          | Scope                                                                                                         |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `backend/tests/test_email_sync.py`                 | Sync orchestrator: message parsing, incremental sync, full-sync fallback, reverse archive, reconciliation     |
+| `backend/tests/test_calendar_sync.py`              | Calendar backfill/incremental sync, token reset, multi-calendar selection and per-calendar cursor persistence |
+| `backend/tests/test_google_workspace_proposals.py` | Proposal generation + confirm flow with audit log persistence                                                 |
+| `backend/tests/test_email_worker.py`               | Worker event handlers: sync job dispatch, COPILOT→Gmail archive, polling scheduler                            |
+| `backend/tests/test_watch_worker.py`               | Pub/Sub notification processing, watch renewal                                                                |
+| `frontend/.../EmailConnectionCard.test.tsx`        | Connection card UI: status badge, sync method indicator, calendar selection opt-in/out, actions               |
+| `frontend/.../EmailPanel.test.tsx`                 | Panel: empty state, loading, connection list, callbacks (including calendar sync controls)                    |
 
 ---
 

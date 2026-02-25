@@ -12,6 +12,8 @@ const mockConnection: EmailConnectionResponse = {
   oauth_provider: "gmail",
   sync_interval_minutes: 15,
   sync_mark_read: false,
+  calendar_sync_enabled: true,
+  calendar_selected_ids: ["primary"],
   last_sync_at: "2026-02-11T10:00:00Z",
   last_sync_error: null,
   last_sync_message_count: 42,
@@ -25,8 +27,9 @@ describe("EmailPanel", () => {
   it("renders empty state when no connections", () => {
     render(<EmailPanel connections={[]} />);
     expect(
-      screen.getByText("Keine E-Mail-Verbindung eingerichtet"),
+      screen.getByText("Keine Drittanbieter-Verbindung eingerichtet"),
     ).toBeInTheDocument();
+    expect(screen.getByText("3rd Party Sync")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /mit google verbinden/i }),
     ).toBeInTheDocument();
@@ -36,7 +39,7 @@ describe("EmailPanel", () => {
     render(<EmailPanel isLoading />);
     expect(screen.getByText("progress_activity")).toBeInTheDocument();
     expect(
-      screen.queryByText("Keine E-Mail-Verbindung eingerichtet"),
+      screen.queryByText("Keine Drittanbieter-Verbindung eingerichtet"),
     ).not.toBeInTheDocument();
   });
 
@@ -78,7 +81,7 @@ describe("EmailPanel", () => {
     const inactive = { ...mockConnection, is_active: false };
     render(<EmailPanel connections={[inactive]} />);
     expect(
-      screen.getByText("Keine E-Mail-Verbindung eingerichtet"),
+      screen.getByText("Keine Drittanbieter-Verbindung eingerichtet"),
     ).toBeInTheDocument();
   });
 
@@ -132,5 +135,80 @@ describe("EmailPanel", () => {
       />,
     );
     expect(screen.getByText("Synchronisiere...")).toBeInTheDocument();
+  });
+
+  it("calls onToggleCalendarSync with connection id", async () => {
+    const user = userEvent.setup();
+    const onToggleCalendarSync = vi.fn();
+    render(
+      <EmailPanel
+        connections={[mockConnection]}
+        calendarsByConnectionId={{
+          "conn-1": [
+            {
+              calendar_id: "primary",
+              summary: "Primary",
+              primary: true,
+              selected: true,
+              access_role: "owner",
+            },
+          ],
+        }}
+        onToggleCalendarSync={onToggleCalendarSync}
+      />,
+    );
+
+    await user.click(screen.getByLabelText("Enable calendar sync"));
+    expect(onToggleCalendarSync).toHaveBeenCalledWith("conn-1", false);
+  });
+
+  it("calls onUpdateCalendarSelection with connection id", async () => {
+    const user = userEvent.setup();
+    const onUpdateCalendarSelection = vi.fn();
+    render(
+      <EmailPanel
+        connections={[mockConnection]}
+        calendarsByConnectionId={{
+          "conn-1": [
+            {
+              calendar_id: "primary",
+              summary: "Primary",
+              primary: true,
+              selected: true,
+              access_role: "owner",
+            },
+            {
+              calendar_id: "team@group.calendar.google.com",
+              summary: "Team",
+              primary: false,
+              selected: false,
+              access_role: "writer",
+            },
+          ],
+        }}
+        onUpdateCalendarSelection={onUpdateCalendarSelection}
+      />,
+    );
+
+    await user.click(screen.getByRole("checkbox", { name: /team/i }));
+    expect(onUpdateCalendarSelection).toHaveBeenCalledWith("conn-1", [
+      "primary",
+      "team@group.calendar.google.com",
+    ]);
+  });
+
+  it("passes calendar loading errors to connection card", () => {
+    render(
+      <EmailPanel
+        connections={[mockConnection]}
+        calendarsErrorByConnectionId={{
+          "conn-1": "Request had insufficient authentication scopes.",
+        }}
+      />,
+    );
+
+    expect(
+      screen.getByText(/Kalender konnten nicht geladen werden/),
+    ).toBeInTheDocument();
   });
 });

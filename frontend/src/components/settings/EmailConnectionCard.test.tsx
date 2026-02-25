@@ -2,7 +2,10 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { EmailConnectionCard } from "./EmailConnectionCard";
-import type { EmailConnectionResponse } from "@/lib/api-client";
+import type {
+  EmailConnectionCalendarResponse,
+  EmailConnectionResponse,
+} from "@/lib/api-client";
 
 const baseConnection: EmailConnectionResponse = {
   connection_id: "conn-1",
@@ -12,6 +15,8 @@ const baseConnection: EmailConnectionResponse = {
   oauth_provider: "gmail",
   sync_interval_minutes: 15,
   sync_mark_read: false,
+  calendar_sync_enabled: true,
+  calendar_selected_ids: ["primary"],
   last_sync_at: "2026-02-11T10:00:00Z",
   last_sync_error: null,
   last_sync_message_count: 42,
@@ -20,6 +25,23 @@ const baseConnection: EmailConnectionResponse = {
   watch_expires_at: null,
   created_at: "2026-02-01T08:00:00Z",
 };
+
+const calendars: EmailConnectionCalendarResponse[] = [
+  {
+    calendar_id: "primary",
+    summary: "Primary",
+    primary: true,
+    selected: true,
+    access_role: "owner",
+  },
+  {
+    calendar_id: "team@group.calendar.google.com",
+    summary: "Team",
+    primary: false,
+    selected: false,
+    access_role: "writer",
+  },
+];
 
 describe("EmailConnectionCard", () => {
   it("renders email address and display name", () => {
@@ -38,6 +60,20 @@ describe("EmailConnectionCard", () => {
     expect(screen.getByText(/42 E-Mails/)).toBeInTheDocument();
   });
 
+  it("shows calendar sync metadata when available", () => {
+    render(
+      <EmailConnectionCard
+        connection={{
+          ...baseConnection,
+          last_calendar_sync_at: "2026-02-11T10:05:00Z",
+          last_calendar_sync_event_count: 7,
+        }}
+      />,
+    );
+    expect(screen.getByText(/Kalender:/)).toBeInTheDocument();
+    expect(screen.getByText(/7 Ereignisse/)).toBeInTheDocument();
+  });
+
   it("shows error status when last_sync_error is set", () => {
     render(
       <EmailConnectionCard
@@ -46,6 +82,37 @@ describe("EmailConnectionCard", () => {
     );
     expect(screen.getByText("Fehler")).toBeInTheDocument();
     expect(screen.getByText("Token expired")).toBeInTheDocument();
+  });
+
+  it("shows error status when calendar sync has an error", () => {
+    render(
+      <EmailConnectionCard
+        connection={{
+          ...baseConnection,
+          last_calendar_sync_error: "calendar token expired",
+        }}
+      />,
+    );
+    expect(
+      screen.getByText(/Letzter Kalender-Sync-Fehler: calendar token expired/),
+    ).toBeInTheDocument();
+  });
+
+  it("hides stale api-not-enabled calendar error when calendars load successfully", () => {
+    render(
+      <EmailConnectionCard
+        connection={{
+          ...baseConnection,
+          last_calendar_sync_error:
+            "Google Calendar API is not enabled in this Google Cloud project. Enable the Calendar API and reconnect.",
+        }}
+        availableCalendars={calendars}
+      />,
+    );
+
+    expect(
+      screen.queryByText(/Google Calendar API is not enabled in this Google Cloud project/),
+    ).not.toBeInTheDocument();
   });
 
   it("shows syncing status when isSyncing is true", () => {
@@ -169,5 +236,87 @@ describe("EmailConnectionCard", () => {
       />,
     );
     expect(screen.getByText("Nur manuell")).toBeInTheDocument();
+  });
+
+  it("renders calendar opt-in controls when calendars are available", () => {
+    render(
+      <EmailConnectionCard
+        connection={baseConnection}
+        availableCalendars={calendars}
+      />,
+    );
+    expect(screen.getByText("Kalender-Sync")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /primary/i })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /team/i })).not.toBeChecked();
+  });
+
+  it("calls onToggleCalendarSync when sync toggle is changed", async () => {
+    const user = userEvent.setup();
+    const onToggleCalendarSync = vi.fn();
+    render(
+      <EmailConnectionCard
+        connection={baseConnection}
+        availableCalendars={calendars}
+        onToggleCalendarSync={onToggleCalendarSync}
+      />,
+    );
+
+    await user.click(screen.getByLabelText("Enable calendar sync"));
+    expect(onToggleCalendarSync).toHaveBeenCalledWith(false);
+  });
+
+  it("calls onUpdateCalendarSelection when a calendar is opted in", async () => {
+    const user = userEvent.setup();
+    const onUpdateCalendarSelection = vi.fn();
+    render(
+      <EmailConnectionCard
+        connection={baseConnection}
+        availableCalendars={calendars}
+        onUpdateCalendarSelection={onUpdateCalendarSelection}
+      />,
+    );
+
+    await user.click(screen.getByRole("checkbox", { name: /team/i }));
+    expect(onUpdateCalendarSelection).toHaveBeenCalledWith([
+      "primary",
+      "team@group.calendar.google.com",
+    ]);
+  });
+
+  it("disables opt-out for the last selected calendar", () => {
+    render(
+      <EmailConnectionCard
+        connection={baseConnection}
+        availableCalendars={[
+          {
+            calendar_id: "primary",
+            summary: "Primary",
+            primary: true,
+            selected: true,
+            access_role: "owner",
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByRole("checkbox", { name: /primary/i })).toBeDisabled();
+  });
+
+  it("shows calendar load error instead of empty-state hint", () => {
+    render(
+      <EmailConnectionCard
+        connection={baseConnection}
+        calendarLoadError="Request had insufficient authentication scopes."
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        /Kalender konnten nicht geladen werden\. Bitte Verbindung neu herstellen/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Keine Kalender verfügbar."),
+    ).not.toBeInTheDocument();
   });
 });

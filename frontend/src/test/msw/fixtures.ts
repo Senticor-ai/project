@@ -3,6 +3,7 @@ import type {
   SyncResponse,
   FileRecord,
   EmailConnectionResponse,
+  EmailConnectionCalendarResponse,
   OrgResponse,
 } from "@/lib/api-client";
 import type { CanonicalId } from "@/model/canonical-id";
@@ -16,12 +17,14 @@ export const store = {
   items: new Map<string, ItemRecord>(),
   fileContent: new Map<string, string>(),
   emailConnections: new Map<string, EmailConnectionResponse>(),
+  emailCalendars: new Map<string, EmailConnectionCalendarResponse[]>(),
   orgs: new Map<string, OrgResponse>(),
   conversations: new Map<string, ConversationSummary>(),
   clear() {
     this.items.clear();
     this.fileContent.clear();
     this.emailConnections.clear();
+    this.emailCalendars.clear();
     this.orgs.clear();
     this.conversations.clear();
   },
@@ -545,6 +548,8 @@ export function createEmailConnection(
     oauth_provider: "gmail",
     sync_interval_minutes: 15,
     sync_mark_read: false,
+    calendar_sync_enabled: true,
+    calendar_selected_ids: ["primary"],
     last_sync_at: new Date().toISOString(),
     last_sync_error: null,
     last_sync_message_count: 12,
