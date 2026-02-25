@@ -13,6 +13,8 @@ data:
   SESSION_BIND_IP: "false"
   TRUST_PROXY_HEADERS: "true"
   CSRF_ENABLED: "true"
+  HSTS_ENABLED: "true"
+  HSTS_MAX_AGE: "31536000"
   # Demo/dev tenant: keep developer tools enabled for /settings/developer.
   DEV_TOOLS_ENABLED: "true"
   FILE_STORAGE_PATH: /data/storage

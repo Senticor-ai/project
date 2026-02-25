@@ -10,6 +10,11 @@ spec:
       containers:
         - name: agents
           imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: app-config
+            - secretRef:
+                name: agents-secrets
           resources:
             requests:
               cpu: 100m
