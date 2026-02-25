@@ -75,3 +75,4 @@ logs/security/
 
 # Temporary files
 .tmp/
+.claude/
