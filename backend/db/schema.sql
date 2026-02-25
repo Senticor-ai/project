@@ -20,6 +20,14 @@ CREATE TABLE IF NOT EXISTS organizations (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS general_doc_id UUID;
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS user_doc_id UUID;
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS log_doc_id UUID;
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS agent_doc_id UUID;
+
+-- Add deferred foreign key constraints after items table is created
+-- (handled after items table creation below)
+
 CREATE TABLE IF NOT EXISTS org_memberships (
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -95,6 +103,47 @@ CREATE INDEX IF NOT EXISTS idx_items_jsonld_gin
 CREATE INDEX IF NOT EXISTS idx_items_endtime
   ON items ((schema_jsonld->>'endTime'))
   WHERE archived_at IS NULL;
+
+-- Add deferred foreign key constraints from organizations to items
+-- (must be after items table creation due to circular dependency)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_organizations_general_doc_id'
+    ) THEN
+        ALTER TABLE organizations
+        ADD CONSTRAINT fk_organizations_general_doc_id
+        FOREIGN KEY (general_doc_id) REFERENCES items(item_id)
+        DEFERRABLE INITIALLY DEFERRED;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_organizations_user_doc_id'
+    ) THEN
+        ALTER TABLE organizations
+        ADD CONSTRAINT fk_organizations_user_doc_id
+        FOREIGN KEY (user_doc_id) REFERENCES items(item_id)
+        DEFERRABLE INITIALLY DEFERRED;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_organizations_log_doc_id'
+    ) THEN
+        ALTER TABLE organizations
+        ADD CONSTRAINT fk_organizations_log_doc_id
+        FOREIGN KEY (log_doc_id) REFERENCES items(item_id)
+        DEFERRABLE INITIALLY DEFERRED;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_organizations_agent_doc_id'
+    ) THEN
+        ALTER TABLE organizations
+        ADD CONSTRAINT fk_organizations_agent_doc_id
+        FOREIGN KEY (agent_doc_id) REFERENCES items(item_id)
+        DEFERRABLE INITIALLY DEFERRED;
+    END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS assertions (
   assertion_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

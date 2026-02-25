@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from ..db import db_conn
 from ..deps import get_current_org, get_current_user
 from ..models import OrgCreateRequest, OrgMemberAddRequest, OrgMemberResponse, OrgResponse
+from ..org_knowledge import create_org_knowledge_documents
 
 router = APIRouter(prefix="/orgs", tags=["orgs"], dependencies=[Depends(get_current_user)])
 
@@ -13,7 +14,8 @@ def list_orgs(current_user=Depends(get_current_user)):
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT o.id, o.name, o.created_at, m.role
+                SELECT o.id, o.name, o.created_at, m.role,
+                       o.general_doc_id, o.user_doc_id, o.log_doc_id, o.agent_doc_id
                 FROM org_memberships m
                 JOIN organizations o ON o.id = m.org_id
                 WHERE m.user_id = %s AND m.status = 'active'
@@ -29,6 +31,10 @@ def list_orgs(current_user=Depends(get_current_user)):
             name=row["name"],
             role=row["role"],
             created_at=row["created_at"].isoformat(),
+            general_doc_id=str(row["general_doc_id"]) if row["general_doc_id"] else None,
+            user_doc_id=str(row["user_doc_id"]) if row["user_doc_id"] else None,
+            log_doc_id=str(row["log_doc_id"]) if row["log_doc_id"] else None,
+            agent_doc_id=str(row["agent_doc_id"]) if row["agent_doc_id"] else None,
         )
         for row in rows
     ]
@@ -45,6 +51,7 @@ def create_org(payload: OrgCreateRequest, current_user=Depends(get_current_user)
 
     with db_conn() as conn:
         with conn.cursor() as cur:
+            # Step 1: Create org record (without doc IDs yet)
             cur.execute(
                 """
                 INSERT INTO organizations (name, owner_user_id)
@@ -55,6 +62,14 @@ def create_org(payload: OrgCreateRequest, current_user=Depends(get_current_user)
             )
             org = cur.fetchone()
 
+            # Step 2: Create and attach the 4 org knowledge documents.
+            doc_ids = create_org_knowledge_documents(
+                cur,
+                org_id=org["id"],
+                created_by_user_id=current_user["id"],
+            )
+
+            # Step 3: Create membership (existing logic)
             cur.execute(
                 """
                 INSERT INTO org_memberships (org_id, user_id, role, status)
@@ -75,6 +90,10 @@ def create_org(payload: OrgCreateRequest, current_user=Depends(get_current_user)
         name=org["name"],
         role="owner",
         created_at=org["created_at"].isoformat(),
+        general_doc_id=str(doc_ids["general"]),
+        user_doc_id=str(doc_ids["user"]),
+        log_doc_id=str(doc_ids["log"]),
+        agent_doc_id=str(doc_ids["agent"]),
     )
 
 

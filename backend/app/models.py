@@ -563,6 +563,14 @@ class FileCompleteRequest(BaseModel):
     upload_id: str
 
 
+class FilePatchContentRequest(BaseModel):
+    text: str = Field(..., description="New content to replace existing file content.")
+
+
+class FileAppendContentRequest(BaseModel):
+    text: str = Field(..., description="Content to append to existing file content.")
+
+
 class FileRecord(BaseModel):
     file_id: str
     original_name: str
@@ -654,6 +662,12 @@ class OrgResponse(BaseModel):
     name: str
     role: str | None = None
     created_at: str
+    general_doc_id: str | None = Field(default=None, alias="generalDocId")
+    user_doc_id: str | None = Field(default=None, alias="userDocId")
+    log_doc_id: str | None = Field(default=None, alias="logDocId")
+    agent_doc_id: str | None = Field(default=None, alias="agentDocId")
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class OrgMemberAddRequest(BaseModel):

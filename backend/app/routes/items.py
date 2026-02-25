@@ -36,6 +36,8 @@ router = APIRouter(
     dependencies=[Depends(get_current_user)],
 )
 
+ORG_KNOWLEDGE_CANONICAL_PATTERN = "org:%:knowledge:%"
+
 
 def _hash_payload(payload: dict) -> str:
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -340,6 +342,10 @@ def export_items(
     if not include_completed:
         conditions.append("(schema_jsonld->>'endTime') IS NULL")
 
+    # Org knowledge docs are system-managed records and should not be exported.
+    conditions.append("canonical_id NOT LIKE %s")
+    params.append(ORG_KNOWLEDGE_CANONICAL_PATTERN)
+
     where_clause = " AND ".join(conditions)
 
     with db_conn() as conn:
@@ -407,11 +413,14 @@ def list_items(
                         created_at,
                         updated_at
                     FROM items
-                    WHERE archived_at IS NULL AND org_id = %s AND updated_at > %s
+                    WHERE archived_at IS NULL
+                      AND org_id = %s
+                      AND updated_at > %s
+                      AND canonical_id NOT LIKE %s
                     ORDER BY created_at DESC
                     LIMIT %s OFFSET %s
                     """,
-                    (org_id, since_filter, limit, offset),
+                    (org_id, since_filter, ORG_KNOWLEDGE_CANONICAL_PATTERN, limit, offset),
                 )
             else:
                 cur.execute(
@@ -425,11 +434,13 @@ def list_items(
                         created_at,
                         updated_at
                     FROM items
-                    WHERE archived_at IS NULL AND org_id = %s
+                    WHERE archived_at IS NULL
+                      AND org_id = %s
+                      AND canonical_id NOT LIKE %s
                     ORDER BY created_at DESC
                     LIMIT %s OFFSET %s
                     """,
-                    (org_id, limit, offset),
+                    (org_id, ORG_KNOWLEDGE_CANONICAL_PATTERN, limit, offset),
                 )
             rows = cur.fetchall()
 
@@ -522,12 +533,19 @@ def sync_items(
                         updated_at
                     FROM items
                     WHERE archived_at IS NULL AND org_id = %s
+                      AND canonical_id NOT LIKE %s
                       {endtime_clause}
                       AND (created_at, item_id) > (%s, %s)
                     ORDER BY created_at ASC, item_id ASC
                     LIMIT %s
                     """,
-                    (org_id, cursor_filter[0], cursor_filter[1], limit),
+                    (
+                        org_id,
+                        ORG_KNOWLEDGE_CANONICAL_PATTERN,
+                        cursor_filter[0],
+                        cursor_filter[1],
+                        limit,
+                    ),
                 )
             elif since_filter:
                 cur.execute(
@@ -541,12 +559,15 @@ def sync_items(
                         created_at,
                         updated_at
                     FROM items
-                    WHERE archived_at IS NULL AND org_id = %s AND updated_at > %s
+                    WHERE archived_at IS NULL
+                      AND org_id = %s
+                      AND updated_at > %s
+                      AND canonical_id NOT LIKE %s
                       {endtime_clause}
                     ORDER BY created_at ASC, item_id ASC
                     LIMIT %s
                     """,
-                    (org_id, since_filter, limit),
+                    (org_id, since_filter, ORG_KNOWLEDGE_CANONICAL_PATTERN, limit),
                 )
             else:
                 cur.execute(
@@ -561,11 +582,12 @@ def sync_items(
                         updated_at
                     FROM items
                     WHERE archived_at IS NULL AND org_id = %s
+                      AND canonical_id NOT LIKE %s
                       {endtime_clause}
                     ORDER BY created_at ASC, item_id ASC
                     LIMIT %s
                     """,
-                    (org_id, limit),
+                    (org_id, ORG_KNOWLEDGE_CANONICAL_PATTERN, limit),
                 )
             rows = cur.fetchall()
 

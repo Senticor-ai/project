@@ -199,12 +199,12 @@ def get_agent_settings(
 
     return _apply_provider_status(
         AgentSettingsResponse(
-        agentBackend=row["agent_backend"],
-        provider=row["provider"],
-        hasApiKey=row["api_key_encrypted"] is not None,
-        model=row["model"],
-        containerStatus=row["container_status"],
-        containerError=row["container_error"],
+            agentBackend=row["agent_backend"],
+            provider=row["provider"],
+            hasApiKey=row["api_key_encrypted"] is not None,
+            model=row["model"],
+            containerStatus=row["container_status"],
+            containerError=row["container_error"],
         ),
         validation,
     )
@@ -329,11 +329,11 @@ def update_agent_settings(
 
     return _apply_provider_status(
         AgentSettingsResponse(
-        agentBackend=new_backend,
-        provider=new_provider,
-        hasApiKey=encrypted_key is not None
-        or (existing is not None and existing["api_key_encrypted"] is not None),
-        model=new_model,
+            agentBackend=new_backend,
+            provider=new_provider,
+            hasApiKey=encrypted_key is not None
+            or (existing is not None and existing["api_key_encrypted"] is not None),
+            model=new_model,
         ),
         validation,
     )

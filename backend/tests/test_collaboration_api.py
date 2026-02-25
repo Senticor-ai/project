@@ -47,7 +47,9 @@ def _create_project(owner_client: TestClient) -> str:
     return project_id
 
 
-def _setup_shared_project(app) -> tuple[TestClient, TestClient, dict[str, str], dict[str, str], str]:
+def _setup_shared_project(
+    app,
+) -> tuple[TestClient, TestClient, dict[str, str], dict[str, str], str]:
     owner_client = TestClient(app)
     member_client = TestClient(app)
 

@@ -13,11 +13,13 @@ from ..idempotency import (
     store_idempotent_response,
 )
 from ..models import (
+    FileAppendContentRequest,
     FileCompleteRequest,
     FileContentResponse,
     FileInitiateRequest,
     FileInitiateResponse,
     FileMetaResponse,
+    FilePatchContentRequest,
     FileRecord,
     RenderPdfRequest,
     RenderPdfResponse,
@@ -485,6 +487,154 @@ def get_file_content(
         content_type=row["content_type"],
         text=text,
         truncated=truncated,
+    )
+
+
+@router.patch(
+    "/{file_id}/content",
+    response_model=FileContentResponse,
+    summary="Replace file content",
+    description="Overwrites the entire file content with new text.",
+)
+def patch_file_content(
+    file_id: str,
+    payload: FilePatchContentRequest,
+    current_user=Depends(get_current_user),
+    current_org=Depends(get_current_org),
+):
+    org_id = current_org["org_id"]
+
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT original_name, content_type, storage_path
+                FROM files
+                WHERE file_id = %s AND org_id = %s
+                """,
+                (file_id, org_id),
+            )
+            row = cur.fetchone()
+
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+
+    storage = get_storage()
+    content_bytes = payload.text.encode("utf-8")
+    new_size = len(content_bytes)
+    new_hash = hashlib.sha256(content_bytes).hexdigest()
+
+    storage.write(row["storage_path"], content_bytes)
+
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE files
+                SET size_bytes = %s, sha256 = %s
+                WHERE file_id = %s
+                """,
+                (new_size, new_hash, file_id),
+            )
+        conn.commit()
+
+    enqueue_job(
+        org_id=org_id,
+        entity_type="file",
+        entity_id=file_id,
+        action="upsert",
+        requested_by_user_id=str(current_user["id"]),
+    )
+    enqueue_event("file_uploaded", {"file_id": file_id, "org_id": org_id})
+
+    return FileContentResponse(
+        file_id=file_id,
+        original_name=row["original_name"],
+        content_type=row["content_type"],
+        text=payload.text,
+        truncated=False,
+    )
+
+
+@router.post(
+    "/{file_id}/content/append",
+    response_model=FileContentResponse,
+    summary="Append content to file",
+    description="Appends text to the end of the existing file content.",
+)
+def append_file_content(
+    file_id: str,
+    payload: FileAppendContentRequest,
+    current_user=Depends(get_current_user),
+    current_org=Depends(get_current_org),
+):
+    org_id = current_org["org_id"]
+
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT original_name, content_type, storage_path
+                FROM files
+                WHERE file_id = %s AND org_id = %s
+                """,
+                (file_id, org_id),
+            )
+            row = cur.fetchone()
+
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+
+    storage = get_storage()
+    local_path = storage.resolve_path(row["storage_path"])
+    if local_path is None or not local_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File data not found in storage",
+        )
+
+    try:
+        existing_content = local_path.read_bytes().decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Append only supports UTF-8 text files",
+        ) from exc
+
+    new_content = existing_content + payload.text
+    content_bytes = new_content.encode("utf-8")
+    new_size = len(content_bytes)
+    new_hash = hashlib.sha256(content_bytes).hexdigest()
+
+    storage.write(row["storage_path"], content_bytes)
+
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE files
+                SET size_bytes = %s, sha256 = %s
+                WHERE file_id = %s
+                """,
+                (new_size, new_hash, file_id),
+            )
+        conn.commit()
+
+    enqueue_job(
+        org_id=org_id,
+        entity_type="file",
+        entity_id=file_id,
+        action="upsert",
+        requested_by_user_id=str(current_user["id"]),
+    )
+    enqueue_event("file_uploaded", {"file_id": file_id, "org_id": org_id})
+
+    return FileContentResponse(
+        file_id=file_id,
+        original_name=row["original_name"],
+        content_type=row["content_type"],
+        text=new_content,
+        truncated=False,
     )
 
 

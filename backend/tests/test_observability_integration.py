@@ -211,9 +211,7 @@ def test_metrics_request_emits_structured_logs_and_db_trail_correlation(client, 
     assert request_log.get("status_code") == 200
     assert isinstance(request_log.get("duration_ms"), int)
 
-    db_logs = [
-        event for event in events if event.get("event") in {"db.query", "db.executemany"}
-    ]
+    db_logs = [event for event in events if event.get("event") in {"db.query", "db.executemany"}]
     assert any(event.get("trail_id") == "trail-metrics-1" for event in db_logs)
 
 
