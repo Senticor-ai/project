@@ -65,7 +65,10 @@
           "title": "Value"
         }
       },
-      "required": ["propertyID", "value"],
+      "required": [
+        "propertyID",
+        "value"
+      ],
       "title": "PropertyValueModel",
       "type": "object"
     }
@@ -223,7 +226,10 @@
       "title": "Location"
     }
   },
-  "required": ["@id", "@type"],
+  "required": [
+    "@id",
+    "@type"
+  ],
   "title": "EventItemJsonLd",
   "type": "object"
 }

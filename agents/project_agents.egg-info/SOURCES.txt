@@ -7,5 +7,7 @@ project_agents.egg-info/top_level.txt
 tests/test_app.py
 tests/test_backend_client.py
 tests/test_copilot.py
+tests/test_intent_contract.py
 tests/test_jsonld_builders.py
 tests/test_tool_executor.py
+tests/test_web_tools.py

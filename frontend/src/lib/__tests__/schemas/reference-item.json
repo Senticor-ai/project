@@ -65,7 +65,10 @@
           "title": "Value"
         }
       },
-      "required": ["propertyID", "value"],
+      "required": [
+        "propertyID",
+        "value"
+      ],
       "title": "PropertyValueModel",
       "type": "object"
     }
@@ -80,7 +83,10 @@
     },
     "@type": {
       "description": "schema.org CreativeWork or DigitalDocument.",
-      "enum": ["CreativeWork", "DigitalDocument"],
+      "enum": [
+        "CreativeWork",
+        "DigitalDocument"
+      ],
       "title": "@Type",
       "type": "string"
     },
@@ -197,7 +203,10 @@
       "title": "Encodingformat"
     }
   },
-  "required": ["@id", "@type"],
+  "required": [
+    "@id",
+    "@type"
+  ],
   "title": "ReferenceItemJsonLd",
   "type": "object"
 }
