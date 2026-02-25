@@ -83,7 +83,7 @@ jobs:
 
   frontend-security:
     continue-on-error: true
-    runs-on: senticor000-github-runner
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -152,7 +152,7 @@ jobs:
 
   backend-security:
     continue-on-error: true
-    runs-on: senticor000-github-runner
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
