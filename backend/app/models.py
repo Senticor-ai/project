@@ -4,6 +4,22 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag
 
+# Schema.org Action subtypes for validation
+ACTION_SUBTYPES = frozenset({
+    "Action",
+    "ReadAction",
+    "EmailMessage",
+    "CreateAction",
+    "UpdateAction",
+    "DeleteAction",
+    "SearchAction",
+    "FindAction",
+    "CheckAction",
+    "ConfirmAction",
+    "InformAction",
+    "PlanAction",
+})
+
 
 class AuthCredentials(BaseModel):
     email: str
@@ -282,10 +298,23 @@ class ItemJsonLdBase(BaseModel):
 class ActionItemJsonLd(ItemJsonLdBase):
     """schema:Action — all action-type items (inbox, next, waiting, calendar, someday)."""
 
-    type: Literal["Action", "EmailMessage", "ReadAction"] = Field(
+    type: Literal[
+        "Action",
+        "ReadAction",
+        "EmailMessage",
+        "CreateAction",
+        "UpdateAction",
+        "DeleteAction",
+        "SearchAction",
+        "FindAction",
+        "CheckAction",
+        "ConfirmAction",
+        "InformAction",
+        "PlanAction",
+    ] = Field(
         ...,
         alias="@type",
-        description="schema.org Action (also accepts 'EmailMessage', 'ReadAction').",
+        description="schema.org Action subtype (CreateAction, UpdateAction, etc.).",
     )
     startTime: str | None = Field(
         default=None,
@@ -299,6 +328,26 @@ class ActionItemJsonLd(ItemJsonLdBase):
         default=None,
         alias="object",
         description="schema.org object (ThingRef, e.g. for ReadAction).",
+    )
+    instrument: dict | None = Field(
+        default=None,
+        description="schema.org instrument (ThingRef for tool/means used).",
+    )
+    agent: dict | None = Field(
+        default=None,
+        description="schema.org agent (ThingRef for person/entity performing action).",
+    )
+    participant: dict | None = Field(
+        default=None,
+        description="schema.org participant (ThingRef for involved entity).",
+    )
+    result: dict | None = Field(
+        default=None,
+        description="schema.org result (ThingRef for outcome/product).",
+    )
+    location: dict | None = Field(
+        default=None,
+        description="schema.org location (ThingRef for place).",
     )
 
 
@@ -354,15 +403,19 @@ def _resolve_item_type(v: Any) -> str:
     raw_type = str(
         v.get("@type", v.get("type", "")) if isinstance(v, dict) else getattr(v, "type", "")
     )
-    return {
-        "Action": "action",
-        "EmailMessage": "action",
-        "ReadAction": "action",
+
+    # Check if it's an Action subtype
+    if raw_type in ACTION_SUBTYPES:
+        return "action"
+
+    # Check other known types
+    type_mapping = {
         "Project": "project",
         "CreativeWork": "creative_work",
         "DigitalDocument": "creative_work",
         "Event": "event",
-    }.get(raw_type, "action")
+    }
+    return type_mapping.get(raw_type, "action")
 
 
 ItemJsonLd = Annotated[
@@ -381,12 +434,21 @@ class ItemPatchModel(BaseModel):
     type: (
         Literal[
             "Action",
+            "ReadAction",
+            "EmailMessage",
+            "CreateAction",
+            "UpdateAction",
+            "DeleteAction",
+            "SearchAction",
+            "FindAction",
+            "CheckAction",
+            "ConfirmAction",
+            "InformAction",
+            "PlanAction",
             "Project",
             "CreativeWork",
             "DigitalDocument",
             "Event",
-            "EmailMessage",
-            "ReadAction",
         ]
         | None
     ) = Field(
@@ -398,6 +460,26 @@ class ItemPatchModel(BaseModel):
         default=None,
         alias="object",
         description="schema.org object (ThingRef, e.g. for ReadAction).",
+    )
+    instrument: dict | None = Field(
+        default=None,
+        description="schema.org instrument (ThingRef for tool/means used).",
+    )
+    agent: dict | None = Field(
+        default=None,
+        description="schema.org agent (ThingRef for person/entity performing action).",
+    )
+    participant: dict | None = Field(
+        default=None,
+        description="schema.org participant (ThingRef for involved entity).",
+    )
+    result: dict | None = Field(
+        default=None,
+        description="schema.org result (ThingRef for outcome/product).",
+    )
+    location: dict[str, Any] | str | None = Field(
+        default=None,
+        description="schema.org location (ThingRef for action items, string for event items).",
     )
     schemaVersion: int | None = Field(default=None, alias="_schemaVersion")
     name: str | None = None
@@ -413,7 +495,6 @@ class ItemPatchModel(BaseModel):
     startDate: str | None = None
     endDate: str | None = None
     duration: str | None = None
-    location: str | None = None
     additionalProperty: list[PropertyValueModel] | None = None
     sourceMetadata: ItemSourceMetadata | None = None
 

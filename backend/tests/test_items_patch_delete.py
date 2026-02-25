@@ -181,6 +181,65 @@ def test_inbox_patch_without_bucket_change_is_allowed(auth_client):
     assert response.status_code == 200
     assert response.json()["item"]["name"] == "Inbox task updated"
 
+
+def test_patch_action_relationship_fields(auth_client):
+    """Test that PATCH preserves existing relationship fields when not included."""
+    item = {
+        "@id": f"urn:app:action:{uuid.uuid4()}",
+        "@type": "CreateAction",
+        "_schemaVersion": 2,
+        "name": "Task with relationships",
+        "instrument": {"@type": "Thing", "@id": "urn:tool:hammer", "name": "Hammer"},
+        "agent": {"@type": "Person", "@id": "urn:user:alice", "name": "Alice"},
+        "participant": {"@type": "Person", "@id": "urn:user:bob", "name": "Bob"},
+        "additionalProperty": [
+            {
+                "@type": "PropertyValue",
+                "propertyID": "app:bucket",
+                "value": "next",
+            },
+        ],
+    }
+    response = auth_client.post(
+        "/items",
+        json={"item": item, "source": "manual"},
+    )
+    assert response.status_code == 201
+    item_id = response.json()["item_id"]
+
+    # Patch only the instrument field
+    patch = {
+        "item": {
+            "instrument": {"@type": "Thing", "@id": "urn:tool:wrench", "name": "Wrench"},
+        },
+    }
+    response = auth_client.patch(f"/items/{item_id}", json=patch)
+    assert response.status_code == 200
+    updated = response.json()["item"]
+
+    # Verify instrument was updated
+    assert updated["instrument"]["@id"] == "urn:tool:wrench"
+    assert updated["instrument"]["name"] == "Wrench"
+
+    # Verify agent and participant were preserved
+    assert updated["agent"]["@id"] == "urn:user:alice"
+    assert updated["agent"]["name"] == "Alice"
+    assert updated["participant"]["@id"] == "urn:user:bob"
+    assert updated["participant"]["name"] == "Bob"
+
+    # Patch to clear a relationship field by setting to None
+    patch = {"item": {"participant": None}}
+    response = auth_client.patch(f"/items/{item_id}", json=patch)
+    assert response.status_code == 200
+    updated = response.json()["item"]
+
+    # Verify participant was cleared
+    assert updated.get("participant") is None
+
+    # Verify other fields still preserved
+    assert updated["instrument"]["@id"] == "urn:tool:wrench"
+    assert updated["agent"]["@id"] == "urn:user:alice"
+
 # ---------------------------------------------------------------------------
 # Rename provenance
 # ---------------------------------------------------------------------------
