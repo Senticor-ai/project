@@ -1,0 +1,137 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Product/Epics/Self-Aware Copilot" />
+
+# Epic: Self-Aware Copilot — Consolidate on OpenClaw
+
+**Status:** In progress
+**Priority:** Current
+**Last updated:** 2026-02-26
+**Depends on:** [Completed Epic: Copilot V2+](?path=/docs/product-completed-epics-copilot-v2--docs), OpenClaw workspace infrastructure
+**Related:** [Engineering: Agents Service](?path=/docs/engineering-agents-service--docs)
+
+---
+
+## Context
+
+The Haystack copilot has hardcoded knowledge in its Jinja2 system prompt (`agents/prompts/de/copilot_system.j2`).
+Every new feature requires manually updating the prompt — the import/export feature was missed entirely,
+causing the copilot to give incorrect guidance.
+
+Meanwhile, the OpenClaw agent already has a superior self-awareness model: a skills directory with
+`SKILL.md` files, API discovery via `/openapi.json`, Storybook doc access, and autonomous execution
+via `exec` + `curl`.
+
+**Decision:** Consolidate on a single OpenClaw-based agent in a devcontainer. The Haystack copilot
+remains as an opt-in fallback but is no longer the default path.
+
+### Why not HITL Retry Loop?
+
+The previously planned HITL retry loop epic (3-attempt checkpointed retries) is superseded by this
+architecture. OpenClaw is fully autonomous — it sees execution output (curl responses, CLI exit codes)
+and naturally self-corrects without a separate retry state machine. The suggestion-approval flow was a
+Haystack-specific constraint.
+
+## User Story
+
+> "Copilot should know about every feature in the app without needing manual prompt updates.
+> When I ask about import, email, CLI commands, or any feature, Copilot should find and reference
+> the relevant documentation autonomously."
+
+## Goals
+
+1. Agent discovers its capabilities at runtime via skills directory, not hardcoded prompts.
+2. Single OpenClaw agent replaces the Haystack copilot as the default backend.
+3. Agent has access to the project repo, CLI, tests, and coding tools inside a devcontainer.
+4. Agent can search the web and fetch external information.
+5. New features only require adding/updating a `SKILL.md` file — no prompt template changes.
+
+## Out of Scope
+
+- Multi-agent orchestration (single agent with multiple skills).
+- Removing the Haystack code path entirely (kept as fallback).
+- User-facing UI changes beyond existing Settings > Agent Setup.
+
+## Architecture
+
+```
+DevContainer (containers.dev)
+├── Node 24 + Python 3.12 + git + project CLI
+├── /workspace/
+│   ├── AGENTS.md              (identity + rules)
+│   └── skills/
+│       ├── backend-api/       (CRUD via REST)
+│       ├── project-cli/       (CLI commands + help)
+│       ├── import-export/     (import/export feature)
+│       ├── storybook-docs/    (read app docs)
+│       ├── web-search/        (search the internet)
+│       ├── coding/            (test, lint, git)
+│       └── email-calendar/    (email + calendar sync)
+├── /project/                  (repo mount, read-write)
+├── /runtime/token             (delegated JWT)
+└── OpenClaw gateway (dynamic port)
+```
+
+## Implementation Slices
+
+### Slice 1: Skills Directory (done)
+
+Add `SKILL.md` files to `openclaw/workspace/skills/` and update `AGENTS.md`.
+Works immediately with the existing OpenClaw container — the agent gets richer knowledge.
+
+- [x] `import-export/SKILL.md` — import/export feature knowledge
+- [x] `project-cli/SKILL.md` — CLI command reference
+- [x] `storybook-docs/SKILL.md` — Storybook documentation access
+- [x] `email-calendar/SKILL.md` — email and calendar integration
+- [x] `coding/SKILL.md` — test, lint, git, project structure
+- [x] `web-search/SKILL.md` — web search guidelines
+- [x] `AGENTS.md` updated with self-discovery section
+- [x] `backend-api/SKILL.md` enhanced with import endpoints
+
+### Slice 2: DevContainer + Project Mount
+
+Create devcontainer config. Update container manager to mount the project repo.
+
+- [ ] `openclaw/.devcontainer/devcontainer.json` — devcontainer spec
+- [ ] `openclaw/.devcontainer/Dockerfile` — image definition
+- [ ] `backend/app/container/manager.py` — mount project, use devcontainer image
+- [ ] `backend/app/container/workspace.py` — provision coding skill deps
+
+### Slice 3: Default to OpenClaw
+
+Update backend chat routing to default all users to OpenClaw.
+
+- [ ] `backend/app/chat/routes.py` — default backend selection
+- [ ] Feature flag or setting for rollback to Haystack
+
+### Slice 4: Haystack Interim Fix (done)
+
+Quick-fix the Haystack prompt for import awareness so existing users aren't broken.
+
+- [x] `agents/prompts/de/copilot_system.j2` — added import/export section
+- [x] `agents/tests/test_copilot.py` — 3 new tests for import awareness
+
+## Acceptance Criteria
+
+- [ ] OpenClaw agent can answer "How do I import from Nirvana?" by reading skills.
+- [ ] Agent discovers CLI commands via `--help` at runtime.
+- [ ] Agent can read Storybook docs and reference them in answers.
+- [ ] Agent can run tests, lint, and type-check the project.
+- [ ] New features only need a SKILL.md update, not a prompt change.
+- [ ] Haystack fallback remains functional via Settings > Agent Setup.
+- [x] Haystack prompt includes import/export knowledge (interim fix).
+
+## Test Plan
+
+- **Skills discovery:** Start OpenClaw container, ask about import — agent reads `import-export/SKILL.md`.
+- **CLI self-help:** Ask agent to create an item — agent runs `--help` to discover syntax.
+- **Coding capability:** Ask agent to run tests — agent executes `CI=1 npx vitest run`.
+- **Haystack fallback:** Switch to Haystack in settings, ask about import — prompt includes knowledge.
+- **Regression:** Existing agents test suite passes (`uv run python -m pytest tests/`).
+
+## Rollout
+
+1. Slice 1 ships immediately (skills are passive content files).
+2. Slice 2 requires container infrastructure changes — staged rollout.
+3. Slice 3 behind feature flag, internal testing first.
+4. Monitor agent accuracy and response quality vs Haystack baseline.

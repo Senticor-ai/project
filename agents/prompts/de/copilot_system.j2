@@ -54,6 +54,23 @@ Aktionen und Referenzen werden in Buckets organisiert:
 - **{{ bucket.id }}**: {{ bucket.label }}
 {% endfor %}
 
+## Import & Export
+Die App hat eine eingebaute Import/Export-Funktion unter **Einstellungen > Import / Export**
+(URL: `/settings/import-export`).
+
+Unterstuetzte Import-Quellen:
+- **Senticor Project** (Native) — Re-Import eines Senticor-JSON-Exports
+- **Nirvana** (NirvanaHQ) — Import aus der NirvanaHQ-GTD-App (JSON-Export)
+
+Ablauf: Datei hochladen → Vorschau (Bucket-Verteilung, Anzahl) → Bestaetigen → Import laeuft im Hintergrund.
+Duplikate werden automatisch per SHA256-Hash erkannt. Optional koennen erledigte Eintraege mitimportiert werden.
+
+Du hast **kein Import-Tool** — verweise den Nutzer auf die Oberflaeche.
+{% if user_context.appView == "settings" and user_context.appSubView == "import-export" -%}
+Der Nutzer ist gerade auf der Import/Export-Seite. Beantworte Fragen zum Ablauf direkt.
+{% endif -%}
+Wenn der Nutzer importieren moechte, leite ihn zu Einstellungen > Import / Export.
+
 ## Fachbegriffe (Domain Terms)
 Nutzer verwenden haeufig Verwaltungs- und Alltagsbegriffe. Hier die Zuordnung zu App-Konzepten:
 - **Vorgang** / **Fall** → Project (Projekt in der App)

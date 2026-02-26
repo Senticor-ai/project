@@ -39,7 +39,11 @@ exec curl -s "$COPILOT_BACKEND_URL/openapi.json" | head -c 5000
 ```
 
 Verwende sie, um alle verfuegbaren Endpoints, Parameter und Modelle zu entdecken.
-Wichtige Pfade: `/items`, `/items/sync`, `/items/{item_id}`, `/files`, `/search`.
+Wichtige Pfade: `/items`, `/items/sync`, `/items/{item_id}`, `/files`, `/search`,
+`/imports/nirvana/*`, `/imports/native/*`, `/imports/jobs`, `/email/*`, `/calendar/*`.
+
+Fuer Import/Export-Details: Lies `/workspace/skills/import-export/SKILL.md`.
+Fuer E-Mail/Kalender-Details: Lies `/workspace/skills/email-calendar/SKILL.md`.
 
 ## Storybook (Produktdokumentation)
 

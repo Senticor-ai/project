@@ -181,3 +181,42 @@ def test_run_async_from_within_running_loop():
 
     result = asyncio.run(outer())
     assert result == "ok"
+
+
+def test_system_prompt_includes_import_awareness():
+    """System prompt contains import/export feature knowledge."""
+    from copilot import build_system_prompt
+
+    prompt = build_system_prompt()
+    assert "Import & Export" in prompt
+    assert "/settings/import-export" in prompt
+    assert "Nirvana" in prompt
+    assert "NirvanaHQ" in prompt
+    assert "SHA256" in prompt
+    assert "kein Import-Tool" in prompt
+
+
+def test_system_prompt_import_context_on_import_page():
+    """When user is on import-export page, prompt includes contextual guidance."""
+    from copilot import build_system_prompt
+
+    prompt = build_system_prompt(
+        user_context={
+            "appView": "settings",
+            "appSubView": "import-export",
+        }
+    )
+    assert "gerade auf der Import/Export-Seite" in prompt
+
+
+def test_system_prompt_import_context_not_on_other_pages():
+    """Import page contextual guidance does not appear on other pages."""
+    from copilot import build_system_prompt
+
+    prompt = build_system_prompt(
+        user_context={
+            "appView": "workspace",
+            "appSubView": "inbox",
+        }
+    )
+    assert "gerade auf der Import/Export-Seite" not in prompt
