@@ -1,4 +1,11 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import {
+  useState,
+  useRef,
+  useCallback,
+  useEffect,
+  useMemo,
+  type ReactNode,
+} from "react";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
 import { Tooltip } from "@/components/ui/Tooltip";
@@ -38,6 +45,8 @@ export interface ProjectTreeProps {
     id: CanonicalId,
     fields: Partial<ItemEditableFields>,
   ) => void;
+  sharedProjectIds?: CanonicalId[];
+  renderProjectWorkspace?: (project: Project) => ReactNode;
   organizations?: { id: string; name: string }[];
   className?: string;
 }
@@ -55,6 +64,8 @@ export function ProjectTree({
   onCreateProject,
   onUpdateTitle,
   onEditProject,
+  sharedProjectIds = [],
+  renderProjectWorkspace,
   organizations = [],
   className,
 }: ProjectTreeProps) {
@@ -81,6 +92,26 @@ export function ProjectTree({
 
   const activeProjects = projects.filter((p) => p.status === "active");
   const nonActiveProjects = projects.filter((p) => p.status !== "active");
+  const sharedSet = useMemo(
+    () => new Set<CanonicalId>(sharedProjectIds),
+    [sharedProjectIds],
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (expandedId) {
+      params.set("project", expandedId);
+    } else {
+      params.delete("project");
+      params.delete("view");
+      params.delete("tag");
+      params.delete("action");
+    }
+    const query = params.toString();
+    const nextUrl = `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`;
+    window.history.replaceState({}, "", nextUrl);
+  }, [expandedId]);
 
   return (
     <div className={cn("space-y-4", className)}>
@@ -173,6 +204,8 @@ export function ProjectTree({
               onArchiveProject={onArchiveProject}
               onUpdateTitle={onUpdateTitle}
               onEditProject={onEditProject}
+              isShared={sharedSet.has(project.id)}
+              renderProjectWorkspace={renderProjectWorkspace}
               organizations={organizations}
             />
           ))}
@@ -207,6 +240,8 @@ export function ProjectTree({
               onAddAction={(title) => onAddAction(project.id, title)}
               onArchiveProject={onArchiveProject}
               onUpdateTitle={onUpdateTitle}
+              isShared={sharedSet.has(project.id)}
+              renderProjectWorkspace={renderProjectWorkspace}
               statusBadge
             />
           ))}
@@ -248,6 +283,8 @@ interface ProjectRowProps {
     id: CanonicalId,
     fields: Partial<ItemEditableFields>,
   ) => void;
+  isShared?: boolean;
+  renderProjectWorkspace?: (project: Project) => ReactNode;
   organizations?: { id: string; name: string }[];
   statusBadge?: boolean;
 }
@@ -265,6 +302,8 @@ function ProjectRow({
   onArchiveProject,
   onUpdateTitle,
   onEditProject,
+  isShared = false,
+  renderProjectWorkspace,
   organizations = [],
   statusBadge,
 }: ProjectRowProps) {
@@ -335,6 +374,18 @@ function ProjectRow({
         </button>
 
         <Icon name="folder" size={18} className="shrink-0 text-blueprint-500" />
+
+        {isShared && (
+          <Tooltip label="Shared project">
+            <span
+              role="img"
+              aria-label="Shared project"
+              className="shrink-0 text-blueprint-600"
+            >
+              <Icon name="groups" size={14} />
+            </span>
+          </Tooltip>
+        )}
 
         {/* Editable project name */}
         <EditableTitle
@@ -423,102 +474,157 @@ function ProjectRow({
       {/* Expanded content */}
       {isExpanded && (
         <div className="px-2 pb-2 pt-1">
-          {/* Desired outcome */}
-          {project.desiredOutcome && (
-            <p className="mb-2 text-xs text-text-muted italic">
-              {project.desiredOutcome}
-            </p>
-          )}
+          {renderProjectWorkspace ? (
+            <>
+              {renderProjectWorkspace(project)}
+              {references.length > 0 && (
+                <div className="mt-2 space-y-0.5">
+                  {references.map((ref) => {
+                    const fileUrl = ref.downloadUrl
+                      ? getFileUrl(ref.downloadUrl)
+                      : undefined;
+                    return (
+                      <div
+                        key={ref.id}
+                        className="flex items-center gap-1.5 rounded-[var(--radius-sm)] px-1.5 py-0.5 text-xs text-text-muted"
+                      >
+                        <Icon
+                          name={
+                            ref.encodingFormat === "application/pdf"
+                              ? "picture_as_pdf"
+                              : "description"
+                          }
+                          size={14}
+                          className="shrink-0 text-text-subtle"
+                        />
+                        {fileUrl ? (
+                          <a
+                            href={`${fileUrl}?inline=true`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="truncate hover:text-blueprint-500 hover:underline"
+                          >
+                            {getDisplayName(ref)}
+                          </a>
+                        ) : (
+                          <span className="truncate">{getDisplayName(ref)}</span>
+                        )}
+                        {fileUrl && (
+                          <a
+                            href={fileUrl}
+                            download
+                            aria-label={`Download ${getDisplayName(ref)}`}
+                            className="shrink-0 text-text-subtle opacity-0 transition-opacity group-hover:opacity-100 hover:text-blueprint-500"
+                          >
+                            <Icon name="download" size={14} />
+                          </a>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              {/* Desired outcome */}
+              {project.desiredOutcome && (
+                <p className="mb-2 text-xs text-text-muted italic">
+                  {project.desiredOutcome}
+                </p>
+              )}
 
-          {/* Organization assignment */}
-          {organizations.length > 0 && onEditProject && (
-            <div className="mb-2 flex items-center gap-1.5">
-              <Icon
-                name="apartment"
-                size={14}
-                className="shrink-0 text-text-subtle"
-              />
-              <select
-                aria-label="Assign to organization"
-                value={project.orgRef?.id ?? ""}
-                onChange={(e) => {
-                  const org = organizations.find(
-                    (o) => o.id === e.target.value,
-                  );
-                  onEditProject(project.id, {
-                    orgRef: org
-                      ? ({ id: org.id, name: org.name } satisfies OrgRef)
-                      : undefined,
-                  });
-                }}
-                className="rounded-[var(--radius-sm)] border border-border bg-surface px-2 py-0.5 text-xs"
-              >
-                <option value="">No organization</option>
-                {organizations.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Sequential action list */}
-          <ProjectActionList
-            actions={actions}
-            onComplete={onCompleteAction}
-            onToggleFocus={onToggleFocus}
-            onAdd={onAddAction}
-            onUpdateTitle={onUpdateTitle}
-          />
-
-          {/* Reference file chips */}
-          {references.length > 0 && (
-            <div className="mt-2 space-y-0.5">
-              {references.map((ref) => {
-                const fileUrl = ref.downloadUrl
-                  ? getFileUrl(ref.downloadUrl)
-                  : undefined;
-                return (
-                  <div
-                    key={ref.id}
-                    className="flex items-center gap-1.5 rounded-[var(--radius-sm)] px-1.5 py-0.5 text-xs text-text-muted"
+              {/* Organization assignment */}
+              {organizations.length > 0 && onEditProject && (
+                <div className="mb-2 flex items-center gap-1.5">
+                  <Icon
+                    name="apartment"
+                    size={14}
+                    className="shrink-0 text-text-subtle"
+                  />
+                  <select
+                    aria-label="Assign to organization"
+                    value={project.orgRef?.id ?? ""}
+                    onChange={(e) => {
+                      const org = organizations.find(
+                        (o) => o.id === e.target.value,
+                      );
+                      onEditProject(project.id, {
+                        orgRef: org
+                          ? ({ id: org.id, name: org.name } satisfies OrgRef)
+                          : undefined,
+                      });
+                    }}
+                    className="rounded-[var(--radius-sm)] border border-border bg-surface px-2 py-0.5 text-xs"
                   >
-                    <Icon
-                      name={
-                        ref.encodingFormat === "application/pdf"
-                          ? "picture_as_pdf"
-                          : "description"
-                      }
-                      size={14}
-                      className="shrink-0 text-text-subtle"
-                    />
-                    {fileUrl ? (
-                      <a
-                        href={`${fileUrl}?inline=true`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="truncate hover:text-blueprint-500 hover:underline"
+                    <option value="">No organization</option>
+                    {organizations.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Sequential action list */}
+              <ProjectActionList
+                actions={actions}
+                onComplete={onCompleteAction}
+                onToggleFocus={onToggleFocus}
+                onAdd={onAddAction}
+                onUpdateTitle={onUpdateTitle}
+              />
+
+              {/* Reference file chips */}
+              {references.length > 0 && (
+                <div className="mt-2 space-y-0.5">
+                  {references.map((ref) => {
+                    const fileUrl = ref.downloadUrl
+                      ? getFileUrl(ref.downloadUrl)
+                      : undefined;
+                    return (
+                      <div
+                        key={ref.id}
+                        className="flex items-center gap-1.5 rounded-[var(--radius-sm)] px-1.5 py-0.5 text-xs text-text-muted"
                       >
-                        {getDisplayName(ref)}
-                      </a>
-                    ) : (
-                      <span className="truncate">{getDisplayName(ref)}</span>
-                    )}
-                    {fileUrl && (
-                      <a
-                        href={fileUrl}
-                        download
-                        aria-label={`Download ${getDisplayName(ref)}`}
-                        className="shrink-0 text-text-subtle opacity-0 transition-opacity group-hover:opacity-100 hover:text-blueprint-500"
-                      >
-                        <Icon name="download" size={14} />
-                      </a>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                        <Icon
+                          name={
+                            ref.encodingFormat === "application/pdf"
+                              ? "picture_as_pdf"
+                              : "description"
+                          }
+                          size={14}
+                          className="shrink-0 text-text-subtle"
+                        />
+                        {fileUrl ? (
+                          <a
+                            href={`${fileUrl}?inline=true`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="truncate hover:text-blueprint-500 hover:underline"
+                          >
+                            {getDisplayName(ref)}
+                          </a>
+                        ) : (
+                          <span className="truncate">{getDisplayName(ref)}</span>
+                        )}
+                        {fileUrl && (
+                          <a
+                            href={fileUrl}
+                            download
+                            aria-label={`Download ${getDisplayName(ref)}`}
+                            className="shrink-0 text-text-subtle opacity-0 transition-opacity group-hover:opacity-100 hover:text-blueprint-500"
+                          >
+                            <Icon name="download" size={14} />
+                          </a>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
         </div>
       )}

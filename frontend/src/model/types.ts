@@ -272,6 +272,7 @@ export interface Project extends BaseEntity {
   bucket: "project";
   desiredOutcome: string;
   status: "active" | "completed" | "on-hold" | "archived";
+  dueDate?: string;
   reviewDate?: string;
   completedAt?: string;
   isFocused: boolean;

@@ -28,10 +28,18 @@ import {
   useCreateProject,
 } from "@/hooks/use-mutations";
 import { Icon } from "@/components/ui/Icon";
+import {
+  CollaborationApi,
+} from "@/lib/api-client";
 import { buildItemEditPatch } from "@/lib/item-serializer";
-import type { ActionItemBucket, ItemEditableFields } from "@/model/types";
+import type {
+  ActionItemBucket,
+  ItemEditableFields,
+  Project,
+} from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
 import { cn } from "@/lib/utils";
+import { ProjectCollaborationWorkspace } from "./ProjectCollaborationWorkspace";
 
 import type { Bucket } from "@/model/types";
 
@@ -44,6 +52,7 @@ type BackgroundUpload = {
 export interface ConnectedBucketViewProps {
   activeBucket: Bucket;
   onBucketChange: (bucket: Bucket) => void;
+  currentUserId?: string;
   sidebarControls?: ReactNode;
   className?: string;
 }
@@ -51,6 +60,7 @@ export interface ConnectedBucketViewProps {
 export function ConnectedBucketView({
   activeBucket,
   onBucketChange,
+  currentUserId,
   sidebarControls,
   className,
 }: ConnectedBucketViewProps) {
@@ -134,6 +144,38 @@ export function ConnectedBucketView({
 
   const error =
     actionItemsQuery.error ?? projectsQuery.error ?? referencesQuery.error;
+
+  const [sharedProjectIds, setSharedProjectIds] = useState<CanonicalId[]>([]);
+  useEffect(() => {
+    if (activeBucket !== "project") return;
+    let canceled = false;
+    const projects = projectsQuery.data ?? [];
+
+    void (async () => {
+      if (projects.length === 0) {
+        if (!canceled) setSharedProjectIds([]);
+        return;
+      }
+      const memberships = await Promise.allSettled(
+        projects.map((project) => CollaborationApi.listProjectMembers(project.id)),
+      );
+      if (canceled) return;
+      const shared = memberships
+        .map((result, index) => {
+          const project = projects[index];
+          if (!project) return null;
+          return result.status === "fulfilled" && result.value.length > 1
+            ? project.id
+            : null;
+        })
+        .filter((id): id is CanonicalId => Boolean(id));
+      setSharedProjectIds(shared);
+    })();
+
+    return () => {
+      canceled = true;
+    };
+  }, [activeBucket, projectsQuery.data]);
 
   const handleAddActionItem = useCallback(
     async (title: string, bucket: ActionItemBucket) => {
@@ -274,6 +316,18 @@ export function ConnectedBucketView({
     }
     return map;
   }, [actionItemsQuery.data]);
+
+  const renderProjectWorkspace = useCallback(
+    (project: Project) => (
+      <ProjectCollaborationWorkspace
+        project={project}
+        currentUserId={currentUserId}
+        isSharedProject={sharedProjectIds.includes(project.id)}
+        onEditProject={handleEditItem}
+      />
+    ),
+    [currentUserId, handleEditItem, sharedProjectIds],
+  );
 
   if (isLoading) {
     return (
@@ -423,6 +477,8 @@ export function ConnectedBucketView({
         onCreateProject={handleCreateProject}
         onEditReference={handleEditItem}
         onEditProject={handleEditItem}
+        sharedProjectIds={sharedProjectIds}
+        renderProjectWorkspace={renderProjectWorkspace}
         onSetType={handleSetType}
         onFileDrop={handleFileDrop}
         onNavigateToReference={handleNavigateToReference}

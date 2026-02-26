@@ -1,7 +1,8 @@
 import uuid
+from datetime import UTC, datetime
 
 from app.config import settings
-from app.db import db_conn
+from app.db import db_conn, jsonb
 
 
 def _enable_dev_tools():
@@ -104,6 +105,117 @@ def test_flush_preserves_user_and_session(auth_client):
         response = auth_client.get("/auth/me")
         assert response.status_code == 200
         assert response.json()["email"]
+    finally:
+        _disable_dev_tools()
+
+
+def test_flush_resets_email_sync_state_for_active_connections(auth_client):
+    _enable_dev_tools()
+    try:
+        me = auth_client.get("/auth/me")
+        assert me.status_code == 200
+        user_id = me.json()["id"]
+        org_id = auth_client.headers["X-Org-Id"]
+        connection_id = str(uuid.uuid4())
+
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO email_connections (
+                        connection_id,
+                        org_id,
+                        user_id,
+                        email_address,
+                        display_name,
+                        is_active,
+                        sync_interval_minutes,
+                        calendar_sync_enabled,
+                        calendar_selected_ids,
+                        calendar_sync_token,
+                        calendar_sync_tokens,
+                        last_sync_at,
+                        last_sync_error,
+                        last_sync_message_count,
+                        last_calendar_sync_at,
+                        last_calendar_sync_error,
+                        last_calendar_sync_event_count
+                    )
+                    VALUES (
+                        %s, %s, %s, %s, %s, true, 0, true, %s, %s, %s,
+                        %s, %s, %s, %s, %s, %s
+                    )
+                    """,
+                    (
+                        connection_id,
+                        org_id,
+                        user_id,
+                        "flush-sync@example.com",
+                        "Flush Sync",
+                        jsonb(["primary"]),
+                        "calendar-sync-token",
+                        jsonb({"primary": "calendar-sync-token"}),
+                        datetime(2026, 1, 1, tzinfo=UTC),
+                        "email sync failed",
+                        42,
+                        datetime(2026, 1, 1, tzinfo=UTC),
+                        "calendar sync failed",
+                        7,
+                    ),
+                )
+                cur.execute(
+                    """
+                    INSERT INTO email_sync_state (connection_id, folder_name, last_history_id)
+                    VALUES (%s, 'INBOX', %s)
+                    ON CONFLICT (connection_id, folder_name)
+                    DO UPDATE SET last_history_id = EXCLUDED.last_history_id
+                    """,
+                    (connection_id, 123456789),
+                )
+            conn.commit()
+
+        response = auth_client.post("/dev/flush")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["ok"] is True
+        assert payload["deleted"]["email_sync_state_reset"] >= 1
+        assert payload["deleted"]["email_connections_sync_reset"] >= 1
+
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT calendar_sync_token, calendar_sync_tokens,
+                           last_sync_at, last_sync_error, last_sync_message_count,
+                           last_calendar_sync_at, last_calendar_sync_error,
+                           last_calendar_sync_event_count
+                    FROM email_connections
+                    WHERE connection_id = %s
+                    """,
+                    (connection_id,),
+                )
+                connection = cur.fetchone()
+                assert connection is not None
+                assert connection["calendar_sync_token"] is None
+                assert connection["calendar_sync_tokens"] == {}
+                assert connection["last_sync_at"] is None
+                assert connection["last_sync_error"] is None
+                assert connection["last_sync_message_count"] is None
+                assert connection["last_calendar_sync_at"] is None
+                assert connection["last_calendar_sync_error"] is None
+                assert connection["last_calendar_sync_event_count"] is None
+
+                cur.execute(
+                    """
+                    SELECT last_history_id
+                    FROM email_sync_state
+                    WHERE connection_id = %s AND folder_name = 'INBOX'
+                    """,
+                    (connection_id,),
+                )
+                sync_state = cur.fetchone()
+                assert sync_state is not None
+                assert sync_state["last_history_id"] is None
     finally:
         _disable_dev_tools()
 

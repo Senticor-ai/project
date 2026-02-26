@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, act, within } from "@testing-library/react";
+import { render, screen, act, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./App";
 import { ToastProvider } from "./components/ui/ToastProvider";
+import { DevApi, EmailApi } from "./lib/api-client";
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -37,12 +38,21 @@ vi.mock("./components/settings/SettingsScreen", () => ({
   SettingsScreen: ({
     activeTab,
     onImportNirvana,
+    onFlush,
   }: {
     activeTab?: string;
     onImportNirvana?: () => void;
+    onFlush?: () => Promise<unknown>;
   }) => (
     <div data-testid="settings-screen" data-tab={activeTab}>
       <button onClick={onImportNirvana}>Import from Nirvana</button>
+      <button
+        onClick={() => {
+          void onFlush?.();
+        }}
+      >
+        Flush all data
+      </button>
     </div>
   ),
 }));
@@ -208,6 +218,54 @@ describe("App", () => {
     // Click import in settings
     await user.click(screen.getByText("Import from Nirvana"));
     expect(screen.getByTestId("import-dialog")).toBeInTheDocument();
+  });
+
+  it("flush triggers sync for active email connections", async () => {
+    const user = userEvent.setup();
+    window.history.replaceState({}, "", "/settings/developer");
+
+    vi.spyOn(DevApi, "flush").mockResolvedValue({
+      ok: true,
+      deleted: {},
+    });
+    vi.spyOn(EmailApi, "listConnections").mockResolvedValue([
+      {
+        connection_id: "conn-1",
+        email_address: "sync@example.com",
+        display_name: "Sync",
+        auth_method: "oauth2",
+        oauth_provider: "gmail",
+        sync_interval_minutes: 0,
+        sync_mark_read: false,
+        is_active: true,
+        last_sync_at: null,
+        last_sync_error: null,
+        last_sync_message_count: null,
+        watch_active: false,
+        watch_expires_at: null,
+        created_at: "2026-01-01T00:00:00Z",
+        calendar_sync_enabled: false,
+      },
+    ]);
+    const triggerSyncSpy = vi.spyOn(EmailApi, "triggerSync").mockResolvedValue({
+      synced: 0,
+      created: 0,
+      skipped: 0,
+      errors: 0,
+      calendar_synced: 0,
+      calendar_created: 0,
+      calendar_updated: 0,
+      calendar_archived: 0,
+      calendar_errors: 0,
+    });
+
+    renderAuthenticated();
+
+    await user.click(screen.getByText("Flush all data"));
+
+    await waitFor(() => {
+      expect(triggerSyncSpy).toHaveBeenCalledWith("conn-1");
+    });
   });
 
   // -------------------------------------------------------------------------

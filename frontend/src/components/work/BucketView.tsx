@@ -41,6 +41,13 @@ const thingBuckets = new Set<string>([
   "focus",
 ]);
 
+function initialProjectFromUrl(): CanonicalId | null {
+  if (typeof window === "undefined") return null;
+  const params = new URLSearchParams(window.location.search);
+  const projectId = params.get("project");
+  return projectId ? (projectId as CanonicalId) : null;
+}
+
 export interface BucketViewProps {
   activeBucket: Bucket;
   onBucketChange: (bucket: Bucket) => void;
@@ -79,6 +86,8 @@ export interface BucketViewProps {
     id: CanonicalId,
     fields: Partial<ItemEditableFields>,
   ) => void;
+  sharedProjectIds?: CanonicalId[];
+  renderProjectWorkspace?: (project: Project) => ReactNode;
   onSelectReference?: (id: CanonicalId) => void;
   /** Called when files are dropped onto the inbox area. */
   onFileDrop?: (files: File[]) => void;
@@ -125,6 +134,8 @@ export function BucketView({
   onArchiveProject,
   onCreateProject,
   onEditProject,
+  sharedProjectIds = [],
+  renderProjectWorkspace,
   onSelectReference,
   onFileDrop,
   onNavigateToReference,
@@ -143,9 +154,11 @@ export function BucketView({
     (ActionItem | ReferenceMaterial) | null
   >(null);
   const [expandProjectId, setExpandProjectId] = useState<CanonicalId | null>(
-    null,
+    () => initialProjectFromUrl(),
   );
-  const [expandProjectRequest, setExpandProjectRequest] = useState(0);
+  const [expandProjectRequest, setExpandProjectRequest] = useState(() =>
+    initialProjectFromUrl() ? 1 : 0,
+  );
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const item = event.active.data.current?.thing as AppItem | undefined;
@@ -180,6 +193,13 @@ export function BucketView({
     (projectId: CanonicalId) => {
       setExpandProjectId(projectId);
       setExpandProjectRequest((n) => n + 1);
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        params.set("project", projectId);
+        const query = params.toString();
+        const nextUrl = `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`;
+        window.history.replaceState({}, "", nextUrl);
+      }
       onBucketChange("project");
     },
     [onBucketChange],
@@ -289,6 +309,8 @@ export function BucketView({
               onCreateProject={onCreateProject}
               onUpdateTitle={onUpdateTitle}
               onEditProject={onEditProject}
+              sharedProjectIds={sharedProjectIds}
+              renderProjectWorkspace={renderProjectWorkspace}
               organizations={organizations}
             />
           ) : null}

@@ -137,6 +137,7 @@ export function createProject(
     name: overrides.name,
     desiredOutcome: overrides.desiredOutcome,
     status: overrides.status ?? "active",
+    dueDate: overrides.dueDate,
     description: overrides.description,
     tags: overrides.tags ?? [],
     references: overrides.references ?? [],

@@ -22,6 +22,7 @@ RUN_DOCS=0
 RUN_FRONTEND=0
 RUN_BACKEND=0
 RUN_AGENTS=0
+RUN_CORE=0
 
 is_non_negative_int() {
   [[ "$1" =~ ^[0-9]+$ ]]
@@ -262,6 +263,18 @@ is_agents_path() {
   esac
 }
 
+is_core_path() {
+  local path="$1"
+  case "$path" in
+    packages/core/*)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 build_scope_fingerprint() {
   local scope="$1"
   local found=0
@@ -286,6 +299,9 @@ build_scope_fingerprint() {
           ;;
         agents)
           is_agents_path "$rel_path" || continue
+          ;;
+        core)
+          is_core_path "$rel_path" || continue
           ;;
         *)
           continue
@@ -326,6 +342,10 @@ validate_agents_sync_cache() {
   [[ -d "$ROOT_DIR/agents/.venv" ]]
 }
 
+validate_core_sync_cache() {
+  [[ -d "$ROOT_DIR/packages/core/node_modules" ]]
+}
+
 run_step_cached() {
   local step_key="$1"
   local step_fingerprint="$2"
@@ -362,6 +382,7 @@ compute_scopes() {
     RUN_FRONTEND=1
     RUN_BACKEND=1
     RUN_AGENTS=1
+    RUN_CORE=1
     return 0
   fi
 
@@ -379,6 +400,9 @@ compute_scopes() {
     fi
     if is_agents_path "$rel_path"; then
       RUN_AGENTS=1
+    fi
+    if is_core_path "$rel_path"; then
+      RUN_CORE=1
     fi
   done < "$CHANGED_FILE_LIST"
 
@@ -404,6 +428,13 @@ run_in_backend() {
 run_in_agents() {
   (
     cd "$ROOT_DIR/agents"
+    "$@"
+  )
+}
+
+run_in_core() {
+  (
+    cd "$ROOT_DIR/packages/core"
     "$@"
   )
 }
@@ -471,7 +502,7 @@ if [[ -n "$GIT_CHANGE_BASE" ]]; then
 fi
 echo "[preflight] changed files detected: $CHANGED_FILE_COUNT"
 
-if [[ "$RUN_DOCS" != "1" ]] && [[ "$RUN_FRONTEND" != "1" ]] && [[ "$RUN_BACKEND" != "1" ]] && [[ "$RUN_AGENTS" != "1" ]]; then
+if [[ "$RUN_DOCS" != "1" ]] && [[ "$RUN_FRONTEND" != "1" ]] && [[ "$RUN_BACKEND" != "1" ]] && [[ "$RUN_AGENTS" != "1" ]] && [[ "$RUN_CORE" != "1" ]]; then
   echo "[preflight] no impacted preflight scopes detected. exiting."
   exit 0
 fi
@@ -611,6 +642,33 @@ if [[ "$RUN_AGENTS" == "1" ]]; then
     run_in_agents uv run --python 3.12 mypy .
 else
   echo "[preflight] skipping agents checks (no relevant changes)"
+fi
+
+if [[ "$RUN_CORE" == "1" ]]; then
+  CORE_SCOPE_FINGERPRINT="$(build_scope_fingerprint "core")"
+
+  echo "[preflight] syncing @project/core dependencies"
+  run_step_cached \
+    "core-sync" \
+    "$(build_step_fingerprint "$CORE_SCOPE_FINGERPRINT" "core-sync")" \
+    "validate_core_sync_cache" \
+    run_in_core npm ci --ignore-scripts --silent
+
+  echo "[preflight] typechecking @project/core"
+  run_step_cached \
+    "core-typecheck" \
+    "$(build_step_fingerprint "$CORE_SCOPE_FINGERPRINT" "core-typecheck")" \
+    "" \
+    run_in_core npm run typecheck
+
+  echo "[preflight] running @project/core CLI contract tests"
+  run_step_cached \
+    "core-tests" \
+    "$(build_step_fingerprint "$CORE_SCOPE_FINGERPRINT" "core-tests")" \
+    "" \
+    run_in_core npm run test
+else
+  echo "[preflight] skipping @project/core checks (no relevant changes)"
 fi
 
 echo "[preflight] done"

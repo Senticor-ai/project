@@ -1,0 +1,825 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Product/Completed Epics/Collaboration Workspace" />
+
+# Epic: Collaboration Workspace (Shared Projects + Kanban)
+
+**Status:** Closed
+**Closed on:** February 26, 2026
+**Last updated:** February 26, 2026
+**Delivery note:** Collaboration UI, backend, CLI/SDK, and agent deterministic contracts are implemented and validated by local preflight gates.
+**Priority:** Completed
+**Design direction:** Board-first team workflow
+
+## Context
+
+Senticor Project is strong for personal task execution, but the current project experience is
+mostly single-user and list-oriented. To support real joint execution, users need to share a
+project with teammates, collaborate on the same work items, and track progress visually.
+
+**Problem:** Two people working on the same initiative cannot reliably coordinate in one shared
+project with a clear flow from intake to completion.
+
+**Outcome:** A shared project workspace where registered users can collaborate in either list or
+kanban mode, manage action cards together, and track delivery state with a standards-based status model.
+The product model remains schema.org-aligned and portable to graph/triple-store representation later.
+
+---
+
+## User Story
+
+> "I want to share a project with my colleague, switch to a board view when planning execution,
+> and move tasks through clear steps so we can manage joint work in one place."
+
+---
+
+## MVP Scope
+
+### 1) Shared project access (registered users only)
+
+- Project owner can add collaborators by email from project settings.
+- Invite target must already be a registered user in the system.
+- If user is not registered, sharing is blocked with a clear message to register first.
+- Owner can remove collaborators.
+- Collaborators can view and edit project content.
+
+### 1a) Inline project settings (project title -> more options)
+
+- Project settings are inline in the project workspace, not a separate screen for MVP.
+- Clicking the project name opens an inline "More options" section (same interaction style as item edit).
+- Inline settings include:
+  - add/remove collaborators
+  - project due date
+- Owner can edit all settings; members can view settings and edit only allowed fields.
+
+### 2) List to Kanban view toggle per project
+
+- A project can be viewed in either list mode (existing behavior) or kanban mode.
+- Toggle is available in project workspace header.
+- Preference persists per project and user.
+- Both views operate on the same underlying items (no duplicate data models).
+
+### 2a) Deep links for project views
+
+- Project list and board views are addressable via stable URL state.
+- Opening a deep link restores:
+  - selected project
+  - selected view mode (`list` or `kanban`)
+  - active filters where present (for example tag filter)
+- Users can copy/paste URL links to share direct entry points with collaborators.
+
+### 3) Action-only board cards
+
+- Every card shown in kanban is a schema.org `Action`.
+- Card UI supports quick inline edits for frequent fields (title, status, due date, assignee/collaborator, tags).
+- Quick-add supports minimal required fields; simple edits happen directly on the card.
+- Event and asset context is attached to actions through references (for example links to `Event` items or `DigitalDocument`/`CreativeWork` items).
+- Double-clicking a card opens an advanced edit panel for complex edits.
+- Advanced panel supports full description editing with markdown source + rendered preview (WYSIWYG-like editing flow for MVP).
+
+### 3a) Shared project visual indicator
+
+- Shared projects are visually marked in project lists and headers with a collaboration icon/badge.
+- Indicator is visible in both list and kanban views.
+- Tooltip/label clarifies that the project has multiple collaborators.
+
+### 3b) Assignee model (owner of action)
+
+- Quick edit supports assigning an action owner.
+- MVP owner input supports inline owner fields with free-text fallback.
+- Data model supports both structured owner reference and free-text owner.
+
+### 3c) Due date UX
+
+- Due date is quick-set directly on cards.
+- Visual urgency indicators are visible in board and list:
+  - due today
+  - overdue
+- Sorting/filtering can prioritize urgent cards.
+
+### 3d) Tagging and filtering
+
+- Actions support freeform tags in quick edit.
+- Board and list views support filtering by tag.
+- Active filters are visible and easy to clear.
+
+### 3e) Comments and revision history
+
+- Any project member can add comments on an action.
+- Threaded comments are supported.
+- Board cards show a compact comment indicator/count when comments exist.
+- Action edits maintain revision history (what changed, who changed it, when).
+
+### 4) Default action statuses (MVP)
+
+Kanban columns map to schema.org `actionStatus` enum values:
+
+1. `Backlog` -> `PotentialActionStatus`
+2. `In Progress` -> `ActiveActionStatus`
+3. `Done` -> `CompletedActionStatus`
+4. `Blocked` -> `FailedActionStatus`
+
+Cards can be moved between statuses via drag-and-drop and keyboard-accessible move actions.
+
+Additional statuses and custom stage labels are out of MVP scope.
+
+### 4a) Dynamic-ready workflow architecture (no custom UI yet)
+
+- Store workflow policy as a project-level definition object, not hardcoded board columns.
+- Workflow definition contains:
+  - `canonicalStatuses`: the 4 supported `actionStatus` enum values
+  - `transitions`: allowed status-to-status edges
+  - `defaultStatus`, `doneStatuses`, `blockedStatuses`
+  - `columnLabels`: display labels (`Backlog`, `In Progress`, `Done`, `Blocked`)
+  - `policyMode`: `open` (MVP) or `restricted` (future)
+- Each board card persists schema.org `actionStatus` as canonical status.
+- Board columns render from workflow definition (`columnLabels` + mapped `canonicalStatuses`).
+- Transition validation always goes through one backend policy function:
+  - MVP: `policyMode = "open"` (allow transitions between the 4 default statuses)
+  - Future: `policyMode = "restricted"` (enforce transition graph + rules)
+- Future customization path:
+  - add optional custom stage definitions that map to a canonical `actionStatus`
+  - keep `actionStatus` stable for interoperability and reporting
+
+---
+
+## Interaction Model (MVP)
+
+Borrow the following proven patterns:
+
+- Board-first planning with columns as explicit stages
+- Quick card creation inside each column
+- Drag-and-drop card movement between columns
+- Lightweight card details panel for metadata edits
+
+Do not include in MVP:
+
+- Power-ups/automation rules
+- Custom column definitions
+- External guest invites
+- Advanced reporting dashboards
+
+---
+
+## Product Behavior
+
+### Permissions
+
+- `Owner`: manage collaborators, edit all project items, move cards across board states.
+- `Member`: edit project items, move cards across board states.
+- Non-members cannot access the project.
+- Collaboration membership semantics align to schema.org `member` on `Project` (implemented via
+  relational membership records in MVP).
+
+### State model
+
+- Board items are `Action` entities only.
+- Canonical state field is schema.org `actionStatus`.
+- Allowed MVP values:
+  - `PotentialActionStatus` (Backlog)
+  - `ActiveActionStatus` (In Progress)
+  - `CompletedActionStatus` (Done)
+  - `FailedActionStatus` (Blocked)
+- Source-of-truth for movement is immutable transition events; current `actionStatus` is a
+  rebuildable projection for reads.
+- Existing list and kanban views derive grouping/sorting from projected `actionStatus`.
+- `Event` and `DigitalDocument`/`CreativeWork` items are linked context for actions, not standalone board cards in MVP.
+
+### Project settings UX
+
+- Clicking the project name expands inline settings in context.
+- Settings include collaborators and project due date.
+- Changes save in place and apply to both list and kanban views.
+
+### Routing and shareability
+
+- URL/query state carries project + view mode so board/list are deep-linkable.
+- Opening deep links restores view context and relevant filters.
+
+### Collaboration affordances
+
+- Shared projects show a visible collaboration marker in project chrome.
+- Actions expose assignee and comment indicators directly on cards.
+- Threaded discussion semantics align with schema.org `Comment` and parent-child comment
+  relationships.
+
+### Card edit modes
+
+- Single-click/expanded card: quick inline editing for common fields.
+- Double-click: open advanced edit panel for deep edits (full description markdown editing, references, and metadata).
+
+### Multi-user consistency
+
+- Changes by one member are visible to other members on refresh.
+- Activity metadata records `updatedBy` and timestamp for auditability.
+- Comment and revision history preserve actor and timestamp metadata.
+
+---
+
+## Acceptance Criteria
+
+- [x] Project owner can add an existing registered user to a project by email.
+- [x] Sharing with an unregistered email is rejected with actionable feedback.
+- [x] Project header shows a working list/kanban toggle.
+- [x] Project list/board URLs are deep-linkable and restore project + view mode on load.
+- [x] Clicking project name opens inline settings with collaborator management and due date.
+- [x] Shared projects show a visible collaboration icon/badge.
+- [x] Kanban board shows 4 default columns mapped to `actionStatus`: Backlog, In Progress, Done, Blocked.
+- [x] Users can create `Action` cards from board UI.
+- [x] Action cards can attach/link event and asset context (for example Event and DigitalDocument references).
+- [x] Action owner can be set quickly via inline owner fields (free-text fallback supported).
+- [x] Due date can be set quickly on cards and clearly indicates today/overdue states.
+- [x] Freeform tags can be added quickly and filtered in list/kanban.
+- [x] Cards show comment indicator/count; threaded comments are accessible from card/detail.
+- [x] Action edits are revisioned with actor + timestamp.
+- [x] Card quick-edit works inline and double-click opens advanced edit panel.
+- [x] Cards can move between columns and persist after page reload.
+- [x] Board and list views stay consistent via shared `actionStatus` source.
+- [x] Both owner and member can collaborate on the same project without permission leakage.
+- [x] Collaboration commands are available via `senticor-copilot` and `@project/core` SDK wrappers.
+- [x] Copilot can complete the collaboration workflow using only `copilot_cli` (`argv[]`, `--json`, non-interactive).
+
+---
+
+## Delivery Plan
+
+### Phase 1: Sharing foundations
+
+- [x] Project member table + API + permission checks
+- [x] Inline project settings UI (project-name click to open settings section)
+- [x] Collaborator add/remove APIs
+- [x] Project due date in inline project settings
+- [x] Shared project visual marker in project list/header
+- [x] Deep-link routing for project list/kanban views
+- [x] Registered-user lookup and validation messaging
+
+### Phase 2: Kanban read/write
+
+- [x] Project view toggle (list/kanban)
+- [x] Workflow definition endpoint + item queries by projected `actionStatus`
+- [x] Board columns rendered in UI from workflow definition
+- [x] Drag-and-drop plus keyboard move affordance
+- [x] Backend transition validator with policy mode (`open` now, `restricted` later)
+- [x] Append-only transition event writes + state projection updater
+- [x] Assignee backend model/API (`owner_user_id` + `owner_text` fallback)
+- [x] Assignee quick edit UX (inline free-text + owner fields)
+- [x] Due date backend/API support
+- [x] Due date quick-set UX + visual urgency indicators
+- [x] Tag backend/API support + filtering params
+- [x] Tag quick edit + filtering UX in board/list
+
+### Phase 3: Card creation + polish
+
+- [x] Action create API (`POST /projects/{project_id}/actions`)
+- [x] Quick-add for `Action` in board UI
+- [x] Action update API (`PATCH /projects/{project_id}/actions/{action_id}`)
+- [x] Inline card quick-edit behaviors
+- [x] Advanced edit panel on double-click with full markdown description editing
+- [x] Event/asset link field support in action API (`object_ref`)
+- [x] Event/asset linking UX inside action detail
+- [x] Threaded comments API (`POST /comments` with `parent_comment_id`)
+- [x] Threaded comments with card-level indicator
+- [x] Revision history + transition history APIs
+- [x] Revision history timeline in advanced action view
+- [x] Empty states and onboarding hints
+
+### Phase 4: CLI/SDK + Copilot collaboration flows
+
+- [x] Add collaboration command group(s) to CLI (`projects members`, `projects actions`, workflow via `projects get --workflow`)
+- [x] Add matching `@project/core` SDK methods with typed request/response envelopes
+- [x] Ensure write commands return projection + last-event metadata for deterministic agent follow-up
+- [x] Add agent integration tests for create -> transition -> comment -> history flow through `copilot_cli`
+- [x] Add non-interactive contract checks (`--json`, exit codes, structured errors, conflict handling)
+
+---
+
+## Appendix A: Schema-Aligned Architecture and Setup
+
+### A1) Modeling Principles
+
+- Keep ontology and storage concerns separate.
+- Treat each board card as schema.org `Action`.
+- Represent movement between columns as immutable transition facts (events), not destructive status overwrites.
+- Keep schema.org semantics first; extend only where schema.org has no precise construct.
+- Design so relational storage can map cleanly to RDF/triple representation later.
+
+### A2) Conceptual Model (Ontology Layer)
+
+- `Project` with `member` relationships for collaboration access.
+- `Action` as the progressed unit shown on the board.
+- `actionStatus` as canonical lifecycle status.
+- `Comment` for user discussion, with threaded parent-child linkage.
+- `Event`, `DigitalDocument`, `CreativeWork` as referenced context linked to `Action`.
+- `BookmarkAction` can model saved personal view presets/deep links in future iterations.
+
+### A3) Practical Postgres Model (Backend)
+
+Core tables:
+
+1. `action` (stable identity + editable content)
+2. `action_transition_event` (append-only movement/audit log)
+3. `action_state_projection` (current state snapshot for fast reads)
+4. `workflow_state` and `workflow_transition` (workflow as data)
+5. `project_member` (collaboration access)
+6. `action_comment` (threaded comments)
+7. `action_revision` (content change history)
+
+Recommended fields (MVP-level):
+
+1. `action`
+   - `id`, `project_id`, `name`, `description`, `action_status`, `owner_user_id`,
+     `owner_text`, `due_at`, `tags`, `object_ref`, `attributes`, `created_at`, `created_by`
+2. `action_transition_event`
+   - `id`, `ts`, `action_id`, `actor_id`, `from_status`, `to_status`, `reason`, `payload`,
+     `correlation_id`
+3. `action_state_projection`
+   - `action_id`, `status`, `updated_at`, `last_event_id`
+4. `project_member`
+   - `project_id`, `user_id`, `role`, `added_at`, `added_by`
+5. `action_comment`
+   - `id`, `action_id`, `author_id`, `parent_comment_id`, `body`, `created_at`, `updated_at`
+6. `action_revision`
+   - `id`, `action_id`, `actor_id`, `diff`, `created_at`
+
+Notes:
+
+- `action_transition_event` is append-only and becomes the audit/provenance source.
+- `action_state_projection` is rebuildable from events.
+- No backward compatibility constraints are required (pre-release), so model can be introduced directly.
+
+### A4) API/Service Shape
+
+Command-side operations:
+
+1. `createAction`
+2. `updateActionFields` (quick edit and advanced edit)
+3. `transitionActionStatus` (validates workflow, appends event, updates projection)
+4. `addComment` / `replyComment`
+5. `addProjectMember` / `removeProjectMember`
+
+Query-side operations:
+
+1. `listProjectActions` (list/board view from projection)
+2. `getActionDetail` (references, comments, revisions)
+3. `listActionHistory` (transitions + revisions timeline)
+
+Concurrency:
+
+- Use optimistic concurrency for transitions (`expected_last_event_id` or equivalent).
+- Reject stale transitions with actionable UI feedback.
+
+### A5) Frontend Alignment
+
+- Board/list always render from projected `actionStatus`.
+- Move operation calls transition command API (never writes status directly without command path).
+- Quick edit on card: title, status move, assignee, due date, tags.
+- Advanced panel: full description markdown editing, references, threaded comments, revision timeline.
+- Project header holds inline settings and deep-linkable list/board routes.
+
+See **Appendix B** for the full frontend technical spec (component architecture, DnD, state management, routing).
+
+### A6) CLI/SDK + Copilot Enablement
+
+Collaboration flows must be first-class in both:
+
+1. `senticor-copilot` CLI (and `copilot` alias)
+2. `@project/core` SDK wrappers used by frontend and agent tooling
+
+This epic depends on the platform contract in
+[Epic: Platform SDK & Agent CLI](?path=/docs/product-completed-epics-platform-sdk-agent-cli--docs),
+but defines collaboration-specific command coverage and Copilot behavior.
+
+#### A6.1) Required collaboration command surface
+
+Read operations (must be available as CLI + SDK wrappers):
+
+1. `projects list --json`
+2. `projects get <project_id> --members --workflow --json`
+3. `projects actions list --project=<project_id> [--status=<actionStatus>] [--tag=<tag>] [--assignee=<user_id>] [--due-before=<iso8601>] [--due-after=<iso8601>] --json`
+4. `projects actions get --project=<project_id> --action=<action_id> --comments --history --json`
+5. `projects members list --project=<project_id> --json`
+
+Schema compliance note:
+Use schema.org vocabulary at the data layer (`Action`, `actionStatus`) and ISO timestamps for temporal fields.
+Relative filters like `overdue|today|upcoming` are UX aliases, not schema vocabulary, so canonical CLI/API filters remain `due-before`/`due-after`.
+
+Write operations (must be available as CLI + SDK wrappers):
+
+1. `projects members add --project=<project_id> --email=<registered_user_email> --role=member --apply --yes --json`
+2. `projects members remove --project=<project_id> --user=<user_id> --apply --yes --json`
+3. `projects actions create --project=<project_id> --name="<title>" [--description="<markdown>"] [--status=PotentialActionStatus] [--due=<iso8601>] [--assignee-user=<user_id>|--assignee-text="<name>"] [--tag=<tag>]... --apply --yes --json`
+4. `projects actions update --project=<project_id> --action=<action_id> [--name=...] [--description=...] [--due=<iso8601>] [--assignee-user=<user_id>|--assignee-text=...] [--tag-add=<tag>] [--tag-remove=<tag>] --apply --yes --json`
+5. `projects actions transition --project=<project_id> --action=<action_id> --to=<PotentialActionStatus|ActiveActionStatus|CompletedActionStatus|FailedActionStatus> --expected-last-event=<event_id> --correlation-id=<cid> --apply --yes --json`
+6. `projects actions comments add --project=<project_id> --action=<action_id> --body="<markdown>" --apply --yes --json`
+7. `projects actions comments reply --project=<project_id> --action=<action_id> --parent=<comment_id> --body="<markdown>" --apply --yes --json`
+
+#### A6.2) Copilot tool-call contract
+
+Copilot uses the single `copilot_cli` tool only (no direct route-specific tool explosion).
+
+Invocation rules:
+
+1. pass command as `argv: string[]` (never a shell string)
+2. always include `--json`
+3. always include `--non-interactive`
+4. write commands run with `--apply --yes` only after user confirmation in approval UI
+5. for status transitions, always pass `--expected-last-event` and a stable `--correlation-id`
+
+Deterministic output requirements for agent use:
+
+1. stdout returns one `copilot.v1` JSON envelope
+2. stderr contains logs/warnings only
+3. write responses include projection status and event metadata (`last_event_id`, `updated_at`, `correlation_id`)
+
+#### A6.3) Minimal Copilot collaboration workflow
+
+Copilot must be able to complete this workflow entirely via CLI/SDK:
+
+1. discover project + collaborators (`projects get --members --workflow`)
+2. list backlog work (`projects actions list --status=PotentialActionStatus`)
+3. create a new action card (`projects actions create ...`)
+4. move card to in-progress with optimistic concurrency (`projects actions transition ... --expected-last-event=...`)
+5. add execution comment and verify history (`projects actions comments add`, then `projects actions get --history`)
+
+If any step cannot run through `copilot_cli`, collaboration is not yet Copilot-ready.
+
+#### A6.4) Validation and safety requirements
+
+1. all writes enforce actor identity, org/project scope, and role checks at backend boundary
+2. all writes carry correlation IDs for traceability across CLI, agent, and backend logs
+3. stale transition attempts return conflict semantics (non-zero exit + structured error envelope)
+4. unregistered collaborator emails fail fast with actionable validation errors
+
+### A7) Schema Compliance Boundary
+
+Use schema.org terms directly where available:
+
+1. `Project`, `member`
+2. `Action`, `actionStatus`
+3. `Comment`
+4. `Event`, `DigitalDocument`, `CreativeWork`
+5. `BookmarkAction` (optional saved-view capability)
+
+Extend with product namespace only for workflow internals not covered by schema.org:
+
+1. transition-event envelope fields
+2. workflow policy/guard metadata
+3. projection bookkeeping
+
+### A8) Initial Setup Sequence
+
+- [x] Add DB tables for `action_transition_event`, `action_state_projection`, `project_member`,
+      `action_comment`, `action_revision`, workflow policy tables.
+- [x] Implement transition command service + workflow validator.
+- [x] Implement projection updater + rebuild tool from event log.
+- [x] Wire list/board APIs to projection reads.
+- [x] Wire UI quick edit + advanced edit panel to command/query APIs.
+- [x] Add preflight checks for docs + Storybook indexing and collaboration flow tests.
+
+---
+
+## Appendix B: Frontend Technical Spec — Kanban View per Project
+
+This appendix specifies the frontend architecture for the kanban board, focused on enabling a per-project
+kanban view. Patterns were evaluated against a reference kanban implementation
+([senticor-flow](https://github.com/Senticor-ai/senticor-flow)) and adapted to fit our schema.org-aligned
+architecture and existing codebase conventions.
+
+### B1) Reference Analysis (senticor-flow)
+
+`senticor-flow` is a React 18 kanban board app using `@dnd-kit`, Zustand, Framer Motion, and shadcn/ui
+on Supabase. We evaluated its patterns for adoption, deferral, or rejection.
+
+#### Adopt for MVP
+
+| Pattern                                          | Reference source               | Rationale                                                                                                                                  |
+| ------------------------------------------------ | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `SortableContext` per column                     | `BoardPage.tsx`                | Our `BucketView` uses basic `useDraggable`/`useDroppable` (no within-column sorting). `@dnd-kit/sortable` is already installed but unused. |
+| Portal-based `DragOverlay` with spring animation | `BoardDragLayer.tsx`           | Our current overlay is a plain div. Adopt spring scale + subtle rotate for polish.                                                         |
+| Multi-sensor DnD (pointer + keyboard + touch)    | `BoardPage.tsx` sensors        | Our `BucketView` disables DnD entirely on mobile. Adopt `PointerSensor` + `KeyboardSensor` + `TouchSensor`.                                |
+| Per-column quick-add                             | `QuickAddBar.tsx` (simplified) | Title-only rapid entry per column. Skip AI natural-language parsing.                                                                       |
+| Card context menu                                | `CardContextMenu.tsx`          | Right-click for status/assignee/tag changes — good UX density. Use existing shadcn `ContextMenu`.                                          |
+| Inline title editing                             | `InlineEditTitle.tsx`          | We already have `EditableTitle` — reuse on board cards.                                                                                    |
+| Board view settings                              | `BoardViewSettings.tsx`        | Card density (compact/default) and field visibility toggles. Persist to localStorage.                                                      |
+
+#### Skip for post-MVP
+
+| Pattern                                           | Reason                                                               |
+| ------------------------------------------------- | -------------------------------------------------------------------- |
+| Dependency overlay (A\* SVG edge routing)         | Not in epic scope — complex, post-MVP                                |
+| Collaborative presence (live cursors, focus area) | Epic specifies "visible on refresh" — real-time cursors are post-MVP |
+| Offline sync with operation queue                 | App requires connectivity for MVP                                    |
+| AI-powered QuickAdd parsing                       | Simple title entry suffices for MVP                                  |
+| Card color modes (by priority/stage/type)         | Start with stage-colored column headers only                         |
+| HoverCard with rich preview                       | Nice-to-have, not in acceptance criteria                             |
+| Bulk operations floating bar                      | Defer until multi-select UX is validated on the board                |
+
+#### Skip permanently (architectural mismatch)
+
+| Pattern                                             | Reason                                                                         |
+| --------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Zustand for board state                             | We use React Query for server state — no separate store needed                 |
+| Supabase real-time subscriptions                    | We use REST API + React Query invalidation                                     |
+| 6-column model (READY, REVIEW, SEALED)              | Epic specifies 4 columns mapped to schema.org `actionStatus`                   |
+| Stage as string enum (`"BACKLOG"`, `"IN_PROGRESS"`) | We use schema.org values (`PotentialActionStatus`, `ActiveActionStatus`, etc.) |
+| `BLOCKED` mapped to `IN_PROGRESS`                   | Epic gives Blocked its own column (`FailedActionStatus`)                       |
+
+### B2) Component Architecture
+
+#### File tree
+
+```
+frontend/src/
+  model/
+    board-types.ts                    # ActionStatusType, BoardColumn, ProjectAction types
+  lib/
+    collaboration-api.ts              # API client for /projects/* endpoints
+  hooks/
+    use-project-actions.ts            # useProjectActions(), useWorkflowDefinition()
+    use-board-mutations.ts            # useTransitionAction(), useCreateProjectAction(), useUpdateProjectAction()
+  components/
+    board/
+      BoardView.tsx                   # DndContext + 4-column layout (mirrors BucketView pattern)
+      BoardColumn.tsx                 # Droppable column with SortableContext
+      BoardCard.tsx                   # Sortable card with inline fields
+      BoardDragOverlay.tsx            # Portal overlay with Framer Motion spring
+      ProjectViewToggle.tsx           # List/Kanban toggle in project header
+      BoardCardContextMenu.tsx        # Right-click menu (status, assignee, tags)
+      ActionDetailPanel.tsx           # Sheet sidebar for full editing (double-click)
+```
+
+#### Component hierarchy
+
+```
+ProjectWorkspace
+  ├── ProjectHeader
+  │     ├── ProjectViewToggle (list | kanban)
+  │     └── SharedProjectBadge
+  ├── [view === "list"]  → ActionList (existing)
+  └── [view === "kanban"] → BoardView
+        ├── DndContext (sensors: Pointer + Keyboard + Touch)
+        │     ├── BoardColumn × 4 (from workflow definition)
+        │     │     ├── column header (label + count + quick-add button)
+        │     │     ├── SortableContext
+        │     │     │     └── BoardCard × N
+        │     │     │           ├── title (EditableTitle — reuse existing)
+        │     │     │           ├── assignee badge
+        │     │     │           ├── due date chip (urgency colors)
+        │     │     │           ├── tag chips
+        │     │     │           └── comment count indicator
+        │     │     └── quick-add input (collapsed by default)
+        │     └── DragOverlay (BoardDragOverlay — portal)
+        └── ActionDetailPanel (Sheet — opens on double-click)
+```
+
+#### Reuse from existing codebase
+
+| Existing code                                   | Source file                      | Reused in                  |
+| ----------------------------------------------- | -------------------------------- | -------------------------- |
+| `DndContext` + `DragOverlay` pattern            | `components/work/BucketView.tsx` | `BoardView.tsx`            |
+| `EditableTitle`                                 | `components/work/ActionRow.tsx`  | `BoardCard.tsx`            |
+| Due date formatting + urgency colors            | `ActionRow.tsx`                  | `BoardCard.tsx`            |
+| `snapshotActive` / `upsertIntoCache` / rollback | `hooks/use-mutations.ts`         | `use-board-mutations.ts`   |
+| Tag chip rendering                              | `ActionRow.tsx`                  | `BoardCard.tsx`            |
+| `Sheet` (sidebar panel)                         | shadcn/ui                        | `ActionDetailPanel.tsx`    |
+| `ContextMenu`                                   | shadcn/ui                        | `BoardCardContextMenu.tsx` |
+
+### B3) State Management
+
+#### Server state (React Query)
+
+No Zustand — all board data flows through React Query, consistent with the rest of the app.
+
+```
+Query keys:
+  ["project-actions", projectId]           → ProjectAction[]
+  ["workflow-definition", projectId]       → WorkflowDefinition
+  ["action-detail", projectId, actionId]   → ProjectActionDetail (comments, revisions)
+  ["action-history", projectId, actionId]  → transitions + revisions timeline
+  ["project-members", projectId]           → ProjectMember[]
+```
+
+Hooks:
+
+- `useProjectActions(projectId)` — list actions for the board, grouped by `actionStatus` on the client
+- `useWorkflowDefinition(projectId)` — column definitions, transition rules, policy mode
+- `useProjectMembers(projectId)` — for assignee picker
+
+#### Mutation hooks
+
+Follow the `use-mutations.ts` pattern: `onMutate` snapshots cache, applies optimistic update, `onError`
+rolls back, `onSettled` invalidates.
+
+- `useTransitionAction()` — cross-column drag. Sends `{ to_status, expected_last_event_id, correlation_id }`.
+  On optimistic update: move card between column groups in cache. On conflict (409): roll back + show toast.
+- `useCreateProjectAction()` — quick-add from column. Optimistically inserts into target column.
+- `useUpdateProjectAction()` — inline field edits (title, assignee, due date, tags).
+
+#### Board UI state (localStorage)
+
+Persisted per `projectId` under `board-settings:{projectId}`:
+
+- `viewMode: "list" | "kanban"` — which view is active
+- `cardDensity: "compact" | "default"` — card height
+- `visibleFields: { assignee: boolean, dueDate: boolean, tags: boolean, commentCount: boolean }`
+
+### B4) Drag-and-Drop Architecture
+
+Libraries: `@dnd-kit/core` (6.3.1) + `@dnd-kit/sortable` (10.0.0) — both already installed.
+
+#### Sensors
+
+```typescript
+const sensors = useSensors(
+  useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+  useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  useSensor(TouchSensor, {
+    activationConstraint: { delay: 200, tolerance: 5 },
+  }),
+);
+```
+
+- `PointerSensor` with 5px distance threshold to distinguish click from drag.
+- `KeyboardSensor` with `sortableKeyboardCoordinates` for accessible card movement.
+- `TouchSensor` with 200ms delay to distinguish scroll from drag on mobile.
+
+#### Column structure
+
+Each `BoardColumn` wraps its cards in a `SortableContext` with `verticalListSortingStrategy`.
+The column itself is a `useDroppable` target so empty columns accept drops.
+
+#### Drag flow
+
+1. **`onDragStart`** — set `activeCardId` state, render `BoardDragOverlay`.
+2. **`onDragOver`** — (optional) show insertion indicator in target column.
+3. **`onDragEnd`** — determine if cross-column or within-column:
+   - **Cross-column:** call `useTransitionAction().mutate({ actionId, to_status, expected_last_event_id })`.
+   - **Within-column:** call `useUpdateProjectAction().mutate({ actionId, attributes: { rank } })`.
+   - **Cancelled:** clear overlay, no API call.
+
+#### DragOverlay
+
+```typescript
+<DragOverlay dropAnimation={{ duration: 200, easing: "ease" }}>
+  {activeCard && <BoardDragOverlay card={activeCard} />}
+</DragOverlay>
+```
+
+`BoardDragOverlay` uses Framer Motion:
+
+- `scale: 1.03` — slight lift
+- `rotate: 1.5deg` — tilt indicating movement
+- `boxShadow` upgrade — elevated card feel
+- Renders as a portal to avoid column overflow clipping
+
+### B5) Routing and Deep Links
+
+Extend `route-utils.ts` to support project view paths:
+
+```
+/project/{projectId}                    → default view (persisted preference)
+/project/{projectId}?view=kanban        → board view
+/project/{projectId}?view=list          → list view
+/project/{projectId}?view=kanban&tag=X  → board view filtered by tag
+```
+
+Changes to `route-utils.ts`:
+
+- Add `"project"` to `AppView` union type
+- `parsePathname` handles `/project/{id}` as a 2-segment path with `projectId` extraction
+- Query params: `view`, `tag`, `assignee`, `status` — parsed into filter state
+- `buildProjectPath(projectId, view?, filters?)` helper
+- View preference falls back to localStorage when `?view=` is absent
+
+### B6) API Client Layer
+
+New `collaboration-api.ts` mirroring backend routes from `collaboration.py`:
+
+```typescript
+class CollaborationApi {
+  // Workflow
+  static getWorkflowDefinition(projectId: string): Promise<WorkflowDefinition>;
+
+  // Actions (board cards)
+  static listActions(
+    projectId: string,
+    filters?: ActionFilters,
+  ): Promise<ProjectAction[]>;
+  static createAction(
+    projectId: string,
+    body: CreateActionRequest,
+  ): Promise<ProjectAction>;
+  static getActionDetail(
+    projectId: string,
+    actionId: string,
+  ): Promise<ProjectActionDetail>;
+  static updateAction(
+    projectId: string,
+    actionId: string,
+    body: UpdateActionRequest,
+  ): Promise<ProjectAction>;
+  static transitionAction(
+    projectId: string,
+    actionId: string,
+    body: TransitionRequest,
+  ): Promise<ProjectAction>;
+  static getActionHistory(
+    projectId: string,
+    actionId: string,
+  ): Promise<ActionHistory>;
+
+  // Comments
+  static addComment(
+    projectId: string,
+    actionId: string,
+    body: string,
+    parentId?: string,
+  ): Promise<ActionComment>;
+
+  // Members
+  static listMembers(projectId: string): Promise<ProjectMember[]>;
+  static addMember(
+    projectId: string,
+    email: string,
+    role?: string,
+  ): Promise<ProjectMember>;
+  static removeMember(projectId: string, userId: string): Promise<void>;
+}
+```
+
+Follows existing `ItemsApi` patterns:
+
+- Base URL from `VITE_API_BASE_URL`
+- JSON request/response with `credentials: "include"` (HTTP-only cookie auth)
+- `ApiError` class for structured error handling
+- ETag support for concurrency where applicable
+
+### B7) Accessibility
+
+- **Keyboard DnD:** `KeyboardSensor` with `sortableKeyboardCoordinates` — Space to pick up, arrow keys
+  to move, Space to drop, Escape to cancel.
+- **ARIA attributes:** columns have `role="region"` with `aria-label` (e.g. "Backlog — 3 cards").
+  Cards have `role="article"` with `aria-roledescription="kanban card"`.
+- **Focus management:** after creating a card, focus moves to the new card title. After drag-drop,
+  focus returns to the moved card in its new column.
+- **Screen reader announcements:** `DndContext` `announcements` prop provides status updates
+  ("Picked up card X", "Moved to In Progress column", "Dropped in position 2").
+
+### B8) Testing Strategy
+
+#### Unit tests (vitest)
+
+- `board-types.test.ts` — column grouping logic, action filtering, sort order
+- `collaboration-api.test.ts` — API client request/response shapes
+- `use-board-mutations.test.ts` — optimistic update, rollback on error, concurrency conflict handling
+
+#### Storybook stories
+
+- `BoardView.stories.tsx` — full board with MSW handlers for collaboration API
+- `BoardColumn.stories.tsx` — column variants (empty, few cards, many cards)
+- `BoardCard.stories.tsx` — card states (default, dragging, overdue, with comments, compact density)
+- `ActionDetailPanel.stories.tsx` — detail sidebar with comments and history
+
+MSW handlers for collaboration API follow existing `handlers.ts` pattern with in-memory store.
+
+#### E2E tests (Playwright, mocked layer)
+
+- `kanban-board-mocked.spec.ts`:
+  - Board loads with 4 columns
+  - Drag card between columns → status persists on reload
+  - Quick-add creates card in target column
+  - View toggle switches between list and kanban
+  - Inline edit on card (title, due date)
+  - Context menu actions (move, assign)
+  - Deep link restores board view with filters
+
+### B9) Implementation Sequence
+
+Phased delivery for kanban-per-project, aligned with Delivery Plan Phase 2:
+
+- [x] **Step 1 — Data layer:** `board-types.ts` + `collaboration-api.ts` + `use-project-actions.ts` + `use-board-mutations.ts`
+- [x] **Step 2 — Read-only board:** `BoardView` + `BoardColumn` + `BoardCard` (render actions grouped by `actionStatus`)
+- [x] **Step 3 — View toggle + routing:** `ProjectViewToggle` + `route-utils.ts` extension + deep links
+- [x] **Step 4 — Drag-and-drop:** cross-column transitions + within-column reorder + `BoardDragOverlay`
+- [x] **Step 5 — Inline editing:** title, assignee picker, due date picker, tag input on cards
+- [x] **Step 6 — Quick-add:** per-column card creation with title input
+- [x] **Step 7 — Context menu + keyboard:** `BoardCardContextMenu` + keyboard sensor + a11y announcements
+- [x] **Step 8 — Detail panel:** `ActionDetailPanel` (double-click) with markdown editor, comments, history
+
+Each step is independently deployable and testable.
+
+---
+
+## Definition of Done
+
+- [x] Acceptance criteria implemented and tested for owner/member scenarios.
+- [x] Permission boundaries verified on backend routes and frontend guards.
+- [x] Accessibility checks pass for board navigation and card movement actions.
+- [x] List and kanban remain consistent views of action items via `actionStatus`.
+- [x] Workflow policy is data-driven and supports future restricted transitions.
+- [x] Deep links restore project and view context reliably.
+- [x] Due dates, tags, assignees, and comments are usable from quick edit on cards.
+- [x] Threaded comments and revision history capture actor/time for collaboration auditability.
+- [x] Product docs and export order include this epic.
+- [x] CLI/SDK collaboration operations are documented and executable with deterministic machine output.
+- [x] Copilot can run an end-to-end collaboration workflow through `copilot_cli` without manual API wiring.

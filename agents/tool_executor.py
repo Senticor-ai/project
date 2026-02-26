@@ -608,7 +608,37 @@ def _item_name(record: dict[str, Any]) -> str:
     return canonical_id if isinstance(canonical_id, str) else "(unnamed)"
 
 
-def _created_items_from_cli_payload(payload: dict[str, Any]) -> list[CreatedItemRef]:
+def _action_ref_from_projection(payload: dict[str, Any]) -> CreatedItemRef | None:
+    data = payload.get("data")
+    if not isinstance(data, dict):
+        return None
+
+    candidate = data.get("projection")
+    if not isinstance(candidate, dict):
+        candidate = data.get("action")
+    if not isinstance(candidate, dict):
+        return None
+
+    canonical_id = candidate.get("canonical_id")
+    if not isinstance(canonical_id, str) or not canonical_id.strip():
+        return None
+
+    raw_name = candidate.get("name")
+    name = raw_name.strip() if isinstance(raw_name, str) and raw_name.strip() else canonical_id
+
+    return CreatedItemRef(canonical_id=canonical_id, name=name, item_type="action")
+
+
+def _is_projects_actions_create(argv: list[str] | None) -> bool:
+    if not argv or len(argv) < 3:
+        return False
+    return argv[0] == "projects" and argv[1] == "actions" and argv[2] == "create"
+
+
+def _created_items_from_cli_payload(
+    payload: dict[str, Any],
+    argv: list[str] | None = None,
+) -> list[CreatedItemRef]:
     if payload.get("ok") is False:
         raw_error = payload.get("error")
         error: dict[str, Any]
@@ -623,6 +653,11 @@ def _created_items_from_cli_payload(payload: dict[str, Any]) -> list[CreatedItem
 
     data = payload.get("data", {})
     records = _extract_item_records(data)
+
+    if not records and _is_projects_actions_create(argv):
+        action_ref = _action_ref_from_projection(payload)
+        if action_ref:
+            return [action_ref]
 
     seen: set[str] = set()
     out: list[CreatedItemRef] = []
@@ -708,6 +743,6 @@ async def execute_tool(
             )
 
         payload = _parse_json_from_stdout(stdout)
-        created_batches.append(_created_items_from_cli_payload(payload))
+        created_batches.append(_created_items_from_cli_payload(payload, final_argv))
 
     return _merge_created_items(created_batches)

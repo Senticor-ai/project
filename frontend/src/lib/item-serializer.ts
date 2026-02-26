@@ -203,6 +203,9 @@ export function toJsonLd(
     if (project.reviewDate !== undefined) {
       props.push(pv("app:reviewDate", project.reviewDate));
     }
+    if (project.dueDate !== undefined) {
+      props.push(pv("app:dueDate", project.dueDate));
+    }
     if (project.fileId) {
       props.push(pv("app:fileId", project.fileId));
     }
@@ -400,6 +403,8 @@ export function fromJsonLd(record: ItemRecord): AppItem {
           props,
           "app:projectStatus",
         ) as Project["status"]) ?? "active",
+      dueDate:
+        (getAdditionalProperty(props, "app:dueDate") as string) || undefined,
       reviewDate:
         (getAdditionalProperty(props, "app:reviewDate") as string) || undefined,
       completedAt: (t.endTime as string) || undefined,
@@ -544,6 +549,8 @@ export function fromJsonLd(record: ItemRecord): AppItem {
           props,
           "app:projectStatus",
         ) as Project["status"]) ?? "active",
+      dueDate:
+        (getAdditionalProperty(props, "app:dueDate") as string) || undefined,
       reviewDate:
         (getAdditionalProperty(props, "app:reviewDate") as string) || undefined,
       completedAt: (t.endTime as string) || undefined,

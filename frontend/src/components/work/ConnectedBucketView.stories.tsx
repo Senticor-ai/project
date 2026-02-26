@@ -642,8 +642,8 @@ export const ProjectViewWithReferences: Story = {
       }, WAIT);
     });
 
-    await step("Verify project action also appears", async () => {
-      expect(canvas.getByText("Belege sortieren")).toBeInTheDocument();
+    await step("Verify collaboration workspace is visible", async () => {
+      expect(canvas.getByText("Tag filter")).toBeInTheDocument();
     });
   },
 };

@@ -13,7 +13,12 @@ import { useImportJobs } from "./hooks/use-import-jobs";
 import { useImportJobToasts } from "./hooks/use-import-job-toasts";
 import { useIsMobile } from "./hooks/use-is-mobile";
 import { useProposalNotificationStream } from "./hooks/use-proposal-notification-stream";
-import { useAllItems, useProjects, useReferences } from "./hooks/use-items";
+import {
+  ITEMS_QUERY_KEY,
+  useAllItems,
+  useProjects,
+  useReferences,
+} from "./hooks/use-items";
 import {
   EMAIL_CONNECTIONS_QUERY_KEY,
   useEmailConnections,
@@ -436,8 +441,36 @@ function AuthenticatedApp({
   const handleFlush = useCallback(async () => {
     const result = await DevApi.flush();
     await queryClient.resetQueries();
+
+    let connectionsForResync = emailConnections ?? [];
+    try {
+      // Use a fresh read so flush-triggered resync does not depend on cached state.
+      connectionsForResync = await EmailApi.listConnections();
+    } catch {
+      // Keep flush successful even if the fresh connection fetch fails.
+    }
+
+    const activeConnectionIds = connectionsForResync
+      .filter((connection) => connection.is_active)
+      .map((connection) => connection.connection_id);
+    if (activeConnectionIds.length > 0) {
+      await Promise.allSettled(
+        activeConnectionIds.map((connectionId) =>
+          EmailApi.triggerSync(connectionId),
+        ),
+      );
+      await queryClient.invalidateQueries({
+        queryKey: EMAIL_CONNECTIONS_QUERY_KEY,
+      });
+      await queryClient.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
+      await queryClient.refetchQueries({
+        queryKey: ITEMS_QUERY_KEY,
+        type: "active",
+      });
+    }
+
     return result;
-  }, [queryClient]);
+  }, [emailConnections, queryClient]);
 
   const handleNavigate = useCallback(
     (view: AppView) => {
@@ -488,6 +521,7 @@ function AuthenticatedApp({
           <ConnectedBucketView
             activeBucket={location.sub as Bucket}
             onBucketChange={handleBucketChange}
+            currentUserId={user.id}
           />
         )}
 

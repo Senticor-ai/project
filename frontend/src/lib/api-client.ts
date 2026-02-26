@@ -412,6 +412,253 @@ export type ItemContentResponse = {
 };
 
 // ---------------------------------------------------------------------------
+// Collaboration API
+// ---------------------------------------------------------------------------
+
+export type WorkflowTransitionResponse = {
+  from_status: string;
+  to_status: string;
+};
+
+export type WorkflowDefinitionResponse = {
+  policy_mode: string;
+  default_status: string;
+  done_statuses: string[];
+  blocked_statuses: string[];
+  canonical_statuses: string[];
+  column_labels: Record<string, string>;
+  transitions: WorkflowTransitionResponse[];
+};
+
+export type ProjectMemberResponse = {
+  project_id: string;
+  user_id: string;
+  email: string;
+  role: string;
+  is_owner: boolean;
+  added_at: string;
+  added_by: string | null;
+};
+
+export type ProjectMemberDeleteResponse = {
+  ok: boolean;
+  project_id: string;
+  user_id: string;
+};
+
+export type ProjectActionCommentResponse = {
+  id: string;
+  action_id: string;
+  author_id: string;
+  parent_comment_id: string | null;
+  body: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ProjectActionRevisionResponse = {
+  id: number;
+  action_id: string;
+  actor_id: string;
+  diff: Record<string, unknown>;
+  created_at: string;
+};
+
+export type ProjectActionTransitionEventResponse = {
+  id: number;
+  action_id: string;
+  ts: string;
+  actor_id: string;
+  from_status: string | null;
+  to_status: string;
+  reason: string | null;
+  payload: Record<string, unknown>;
+  correlation_id: string | null;
+};
+
+export type ProjectActionResponse = {
+  id: string;
+  canonical_id: string;
+  project_id: string;
+  name: string;
+  description: string | null;
+  action_status: string;
+  owner_user_id: string | null;
+  owner_text: string | null;
+  due_at: string | null;
+  tags: string[];
+  object_ref: Record<string, unknown> | null;
+  attributes: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+  last_event_id: number | null;
+  comment_count: number;
+};
+
+export type ProjectActionDetailResponse = ProjectActionResponse & {
+  comments: ProjectActionCommentResponse[];
+  revisions: ProjectActionRevisionResponse[];
+};
+
+export type ProjectActionHistoryResponse = {
+  transitions: ProjectActionTransitionEventResponse[];
+  revisions: ProjectActionRevisionResponse[];
+};
+
+export type ProjectActionListRequest = {
+  status?: string[];
+  tag?: string;
+  owner_user_id?: string;
+  due_before?: string;
+  due_after?: string;
+};
+
+export type ProjectActionCreateRequest = {
+  canonical_id?: string;
+  name: string;
+  description?: string;
+  action_status?: string;
+  owner_user_id?: string;
+  owner_text?: string;
+  due_at?: string;
+  tags?: string[];
+  object_ref?: Record<string, unknown>;
+  attributes?: Record<string, unknown>;
+  correlation_id?: string;
+};
+
+export type ProjectActionUpdateRequest = {
+  name?: string;
+  description?: string;
+  owner_user_id?: string;
+  owner_text?: string | null;
+  due_at?: string | null;
+  tags?: string[];
+  object_ref?: Record<string, unknown> | null;
+  attributes?: Record<string, unknown>;
+};
+
+export type ProjectActionTransitionRequest = {
+  to_status: string;
+  reason?: string;
+  payload?: Record<string, unknown>;
+  correlation_id?: string;
+  expected_last_event_id?: number;
+};
+
+export type ProjectActionCommentRequest = {
+  body: string;
+  parent_comment_id?: string;
+};
+
+export const CollaborationApi = {
+  getProjectWorkflow: (projectId: string) =>
+    request<WorkflowDefinitionResponse>(
+      `/projects/${encodeURIComponent(projectId)}/workflow`,
+    ),
+
+  listProjectMembers: (projectId: string) =>
+    request<ProjectMemberResponse[]>(
+      `/projects/${encodeURIComponent(projectId)}/members`,
+    ),
+
+  addProjectMember: (
+    projectId: string,
+    payload: { email: string; role?: string },
+  ) =>
+    request<ProjectMemberResponse>(
+      `/projects/${encodeURIComponent(projectId)}/members`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+    ),
+
+  removeProjectMember: (projectId: string, targetUserId: string) =>
+    request<ProjectMemberDeleteResponse>(
+      `/projects/${encodeURIComponent(projectId)}/members/${encodeURIComponent(targetUserId)}`,
+      {
+        method: "DELETE",
+      },
+    ),
+
+  listProjectActions: (projectId: string, params?: ProjectActionListRequest) => {
+    const searchParams = new URLSearchParams();
+    for (const status of params?.status ?? []) {
+      if (status) searchParams.append("status", status);
+    }
+    if (params?.tag) searchParams.set("tag", params.tag);
+    if (params?.owner_user_id) {
+      searchParams.set("owner_user_id", params.owner_user_id);
+    }
+    if (params?.due_before) searchParams.set("due_before", params.due_before);
+    if (params?.due_after) searchParams.set("due_after", params.due_after);
+    const qs = searchParams.toString();
+    return request<ProjectActionResponse[]>(
+      `/projects/${encodeURIComponent(projectId)}/actions${qs ? `?${qs}` : ""}`,
+    );
+  },
+
+  getProjectAction: (projectId: string, actionId: string) =>
+    request<ProjectActionDetailResponse>(
+      `/projects/${encodeURIComponent(projectId)}/actions/${encodeURIComponent(actionId)}`,
+    ),
+
+  getProjectActionHistory: (projectId: string, actionId: string) =>
+    request<ProjectActionHistoryResponse>(
+      `/projects/${encodeURIComponent(projectId)}/actions/${encodeURIComponent(actionId)}/history`,
+    ),
+
+  createProjectAction: (projectId: string, payload: ProjectActionCreateRequest) =>
+    request<ProjectActionResponse>(
+      `/projects/${encodeURIComponent(projectId)}/actions`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+    ),
+
+  updateProjectAction: (
+    projectId: string,
+    actionId: string,
+    payload: ProjectActionUpdateRequest,
+  ) =>
+    request<ProjectActionResponse>(
+      `/projects/${encodeURIComponent(projectId)}/actions/${encodeURIComponent(actionId)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      },
+    ),
+
+  transitionProjectAction: (
+    projectId: string,
+    actionId: string,
+    payload: ProjectActionTransitionRequest,
+  ) =>
+    request<ProjectActionResponse>(
+      `/projects/${encodeURIComponent(projectId)}/actions/${encodeURIComponent(actionId)}/transition`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+    ),
+
+  addProjectActionComment: (
+    projectId: string,
+    actionId: string,
+    payload: ProjectActionCommentRequest,
+  ) =>
+    request<ProjectActionCommentResponse>(
+      `/projects/${encodeURIComponent(projectId)}/actions/${encodeURIComponent(actionId)}/comments`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+    ),
+};
+
+// ---------------------------------------------------------------------------
 // Files API (chunked upload)
 // ---------------------------------------------------------------------------
 

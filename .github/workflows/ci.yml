@@ -437,6 +437,7 @@ jobs:
       POSTGRES_PASSWORD: ci_test_password
       POSTGRES_DB: project
       DATABASE_URL: postgresql://project:ci_test_password@localhost:5432/project
+      ENCRYPTION_KEY: t9se0op9pzW1QFbY3nnGn-5zzElb4Tjl84fjnCb6zCY=
       VITE_API_BASE_URL: http://localhost:8000
       MEILI_URL: ''
     steps:

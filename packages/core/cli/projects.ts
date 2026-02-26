@@ -109,6 +109,23 @@ function formatProjectAction(action: ProjectActionRecord): Record<string, unknow
   };
 }
 
+function formatActionProjection(
+  action: ProjectActionRecord,
+): {
+  projection: Record<string, unknown>;
+  action: Record<string, unknown>;
+  last_event_id: number | null;
+  updated_at: string;
+} {
+  const projection = formatProjectAction(action);
+  return {
+    projection,
+    action: projection,
+    last_event_id: action.last_event_id,
+    updated_at: action.updated_at,
+  };
+}
+
 async function resolveProject(api: Awaited<ReturnType<typeof createApi>>["api"], id: string) {
   const all = await api.listAllItems({ completed: "all" });
   const normalized = id.trim().toLowerCase();
@@ -475,7 +492,10 @@ export function registerProjectsCommands(program: Command): void {
       });
 
       if (options.json) {
-        printSuccessJson({ mode: "applied", action: formatProjectAction(created) });
+        printSuccessJson({
+          mode: "applied",
+          ...formatActionProjection(created),
+        });
       } else {
         printHuman(JSON.stringify(formatProjectAction(created), null, 2));
       }
@@ -546,7 +566,10 @@ export function registerProjectsCommands(program: Command): void {
 
       const updated = await api.updateProjectAction(cmdOpts.project, cmdOpts.action, payload);
       if (options.json) {
-        printSuccessJson({ mode: "applied", action: formatProjectAction(updated) });
+        printSuccessJson({
+          mode: "applied",
+          ...formatActionProjection(updated),
+        });
       } else {
         printHuman(JSON.stringify(formatProjectAction(updated), null, 2));
       }
@@ -589,7 +612,10 @@ export function registerProjectsCommands(program: Command): void {
       });
 
       if (options.json) {
-        printSuccessJson({ mode: "applied", action: formatProjectAction(transitioned) });
+        printSuccessJson({
+          mode: "applied",
+          ...formatActionProjection(transitioned),
+        });
       } else {
         printHuman(JSON.stringify(formatProjectAction(transitioned), null, 2));
       }
@@ -616,8 +642,13 @@ export function registerProjectsCommands(program: Command): void {
       const created = await api.addProjectActionComment(cmdOpts.project, cmdOpts.action, {
         body: cmdOpts.body,
       });
+      const projected = await api.getProjectAction(cmdOpts.project, cmdOpts.action);
       if (options.json) {
-        printSuccessJson({ mode: "applied", comment: created });
+        printSuccessJson({
+          mode: "applied",
+          comment: created,
+          ...formatActionProjection(projected),
+        });
       } else {
         printHuman(JSON.stringify(created, null, 2));
       }
@@ -645,8 +676,13 @@ export function registerProjectsCommands(program: Command): void {
         body: cmdOpts.body,
         parent_comment_id: cmdOpts.parent,
       });
+      const projected = await api.getProjectAction(cmdOpts.project, cmdOpts.action);
       if (options.json) {
-        printSuccessJson({ mode: "applied", comment: created });
+        printSuccessJson({
+          mode: "applied",
+          comment: created,
+          ...formatActionProjection(projected),
+        });
       } else {
         printHuman(JSON.stringify(created, null, 2));
       }

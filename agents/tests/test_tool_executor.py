@@ -650,3 +650,203 @@ async def test_envelope_parity(auth_ctx):
 
         # Verify meta is a dict
         assert isinstance(payload["meta"], dict), "meta field must be a dict"
+
+
+@pytest.mark.anyio
+async def test_collaboration_flow_create_transition_comment_history(auth_ctx):
+    create_payload = {
+        "schema_version": "copilot.v1",
+        "ok": True,
+        "data": {
+            "mode": "applied",
+            "projection": {
+                "id": "a1",
+                "canonical_id": "urn:app:action:a1",
+                "name": "Collaboration action",
+                "action_status": "PotentialActionStatus",
+                "last_event_id": 10,
+            },
+            "action": {
+                "id": "a1",
+                "canonical_id": "urn:app:action:a1",
+                "name": "Collaboration action",
+                "action_status": "PotentialActionStatus",
+            },
+            "last_event_id": 10,
+            "updated_at": "2026-02-26T10:00:00Z",
+        },
+        "meta": {},
+    }
+    transition_payload = {
+        "schema_version": "copilot.v1",
+        "ok": True,
+        "data": {
+            "mode": "applied",
+            "projection": {
+                "id": "a1",
+                "canonical_id": "urn:app:action:a1",
+                "action_status": "ActiveActionStatus",
+                "last_event_id": 11,
+            },
+            "action": {
+                "id": "a1",
+                "canonical_id": "urn:app:action:a1",
+                "action_status": "ActiveActionStatus",
+            },
+            "last_event_id": 11,
+            "updated_at": "2026-02-26T10:02:00Z",
+        },
+        "meta": {},
+    }
+    comment_payload = {
+        "schema_version": "copilot.v1",
+        "ok": True,
+        "data": {
+            "mode": "applied",
+            "comment": {"id": "c1", "action_id": "a1", "body": "Started implementation"},
+            "projection": {
+                "id": "a1",
+                "canonical_id": "urn:app:action:a1",
+                "action_status": "ActiveActionStatus",
+                "last_event_id": 11,
+                "comment_count": 1,
+            },
+            "action": {
+                "id": "a1",
+                "canonical_id": "urn:app:action:a1",
+                "action_status": "ActiveActionStatus",
+            },
+            "last_event_id": 11,
+            "updated_at": "2026-02-26T10:03:00Z",
+        },
+        "meta": {},
+    }
+    history_payload = {
+        "schema_version": "copilot.v1",
+        "ok": True,
+        "data": {
+            "transitions": [
+                {
+                    "id": 10,
+                    "action_id": "a1",
+                    "from_status": None,
+                    "to_status": "PotentialActionStatus",
+                },
+                {
+                    "id": 11,
+                    "action_id": "a1",
+                    "from_status": "PotentialActionStatus",
+                    "to_status": "ActiveActionStatus",
+                },
+            ],
+            "revisions": [],
+        },
+        "meta": {},
+    }
+
+    processes = [
+        _DummyProcess(0, stdout=json.dumps(create_payload)),
+        _DummyProcess(0, stdout=json.dumps(transition_payload)),
+        _DummyProcess(0, stdout=json.dumps(comment_payload)),
+        _DummyProcess(0, stdout=json.dumps(history_payload)),
+    ]
+
+    with patch(
+        "tool_executor.asyncio.create_subprocess_exec",
+        new=AsyncMock(side_effect=processes),
+    ) as create_proc:
+        created = await execute_tool(
+            ToolCallInput(
+                name="copilot_cli",
+                arguments={
+                    "argv": [
+                        "projects",
+                        "actions",
+                        "create",
+                        "--project",
+                        "urn:app:project:p1",
+                        "--name",
+                        "Collaboration action",
+                        "--apply",
+                    ]
+                },
+            ),
+            conversation_id="conv-collab",
+            auth=auth_ctx,
+        )
+        transitioned = await execute_tool(
+            ToolCallInput(
+                name="copilot_cli",
+                arguments={
+                    "argv": [
+                        "projects",
+                        "actions",
+                        "transition",
+                        "--project",
+                        "urn:app:project:p1",
+                        "--action",
+                        "a1",
+                        "--to",
+                        "ActiveActionStatus",
+                        "--expected-last-event",
+                        "10",
+                        "--apply",
+                    ]
+                },
+            ),
+            conversation_id="conv-collab",
+            auth=auth_ctx,
+        )
+        commented = await execute_tool(
+            ToolCallInput(
+                name="copilot_cli",
+                arguments={
+                    "argv": [
+                        "projects",
+                        "actions",
+                        "comments",
+                        "add",
+                        "--project",
+                        "urn:app:project:p1",
+                        "--action",
+                        "a1",
+                        "--body",
+                        "Started implementation",
+                        "--apply",
+                    ]
+                },
+            ),
+            conversation_id="conv-collab",
+            auth=auth_ctx,
+        )
+        history = await execute_tool(
+            ToolCallInput(
+                name="copilot_cli",
+                arguments={
+                    "argv": [
+                        "projects",
+                        "actions",
+                        "history",
+                        "--project",
+                        "urn:app:project:p1",
+                        "--action",
+                        "a1",
+                    ]
+                },
+            ),
+            conversation_id="conv-collab",
+            auth=auth_ctx,
+        )
+
+    assert len(created) == 1
+    assert created[0].canonical_id == "urn:app:action:a1"
+    assert transitioned == []
+    assert commented == []
+    assert history == []
+
+    assert create_proc.await_count == 4
+    for call in create_proc.call_args_list:
+        args, _ = call
+        assert "--json" in args
+        assert "--non-interactive" in args
+        assert "--yes" in args

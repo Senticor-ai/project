@@ -86,7 +86,7 @@ export const SelectComplexity: Story = {
 export const AddContext: Story = {
   args: { values: defaults },
   play: async ({ canvas, userEvent, args }) => {
-    const input = canvas.getByPlaceholderText("@Büro, @Telefon...");
+    const input = canvas.getByRole("textbox", { name: "Add label or context" });
     await userEvent.type(input, "@errands{Enter}");
     await expect(args.onChange).toHaveBeenCalledWith({
       contexts: ["@errands"],
@@ -105,7 +105,7 @@ export const WithTags: Story = {
 export const AddTag: Story = {
   args: { values: defaults },
   play: async ({ canvas, userEvent, args }) => {
-    const input = canvas.getByPlaceholderText("Steuerrecht, Eilig...");
+    const input = canvas.getByRole("textbox", { name: "Add tag" });
     await userEvent.type(input, "w-2{Enter}");
     await expect(args.onChange).toHaveBeenCalledWith({ tags: ["w-2"] });
   },

@@ -100,6 +100,42 @@ def flush_org_data(
             )
             deleted["files"] = cur.rowcount
 
+            # Keep email connections, but reset sync cursors/tokens so the next
+            # sync performs a full inbox/calendar backfill.
+            cur.execute(
+                """
+                UPDATE email_sync_state AS state
+                SET last_history_id = NULL
+                FROM email_connections AS conn
+                WHERE state.connection_id = conn.connection_id
+                  AND conn.org_id = %s
+                  AND conn.is_active = true
+                  AND conn.archived_at IS NULL
+                """,
+                (org_id,),
+            )
+            deleted["email_sync_state_reset"] = cur.rowcount
+
+            cur.execute(
+                """
+                UPDATE email_connections
+                SET calendar_sync_token = NULL,
+                    calendar_sync_tokens = '{}'::jsonb,
+                    last_sync_at = NULL,
+                    last_sync_error = NULL,
+                    last_sync_message_count = NULL,
+                    last_calendar_sync_at = NULL,
+                    last_calendar_sync_error = NULL,
+                    last_calendar_sync_event_count = NULL,
+                    updated_at = now()
+                WHERE org_id = %s
+                  AND is_active = true
+                  AND archived_at IS NULL
+                """,
+                (org_id,),
+            )
+            deleted["email_connections_sync_reset"] = cur.rowcount
+
         conn.commit()
 
     logger.info("dev.flush.completed", org_id=org_id, deleted=deleted)
