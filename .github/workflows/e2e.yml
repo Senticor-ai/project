@@ -2,7 +2,8 @@ name: E2E
 
 on:
   schedule:
-    - cron: '0 2 * * *'
+    - cron: '0 2 * * *'   # nightly smoke
+    - cron: '0 3 * * *'   # nightly fullstack
   workflow_dispatch:
     inputs:
       suite:
@@ -27,12 +28,14 @@ env:
   PIP_CACHE_DIR: ~/.cache/pip
 
 concurrency:
-  group: e2e-${{ github.workflow }}-${{ github.ref }}
+  group: e2e-${{ github.workflow }}-${{ github.ref }}-${{ github.event.schedule || github.event.inputs.suite || 'default' }}
   cancel-in-progress: false
 
 jobs:
   e2e-smoke:
-    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.suite == 'smoke')
+    if: >-
+      (github.event_name == 'schedule' && github.event.schedule == '0 2 * * *')
+      || (github.event_name == 'workflow_dispatch' && github.event.inputs.suite == 'smoke')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -76,8 +79,10 @@ jobs:
           if-no-files-found: ignore
 
   e2e-fullstack:
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.suite == 'fullstack'
-    runs-on: senticor000-github-runner
+    if: >-
+      (github.event_name == 'schedule' && github.event.schedule == '0 3 * * *')
+      || (github.event_name == 'workflow_dispatch' && github.event.inputs.suite == 'fullstack')
+    runs-on: ubuntu-latest
     services:
       postgres:
         image: postgres:16

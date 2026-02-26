@@ -1,0 +1,301 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Product/Epics/Mobile Polish and Resilience" />
+
+# Epic: Mobile Polish & Resilience
+
+**Status:** Draft
+**Priority:** Current
+**Last updated:** 2026-02-26
+**Depends on:** [PWA Readiness](?path=/docs/product-completed-epics-pwa-readiness--docs)
+**Related:** [Routing](?path=/docs/engineering-routing--docs), [Paperclip Principles](?path=/docs/design-paperclip-principles--docs)
+
+---
+
+## Context
+
+Mobile UX feedback from early testers (German federal clerks using PWA on Android Chrome) identified
+five friction areas that undermine trust and usability on mobile. None are architectural blockers —
+they are polish and resilience gaps in the existing desktop-first codebase.
+
+### Current state
+
+1. **No safe-area inset support.** The viewport meta tag in `index.html` uses
+   `width=device-width, initial-scale=1.0` without `viewport-fit=cover`. No CSS uses
+   `env(safe-area-inset-*)`. The FAB at `fixed bottom-4 right-4` (`App.tsx` line 606),
+   the toast container at `fixed right-4 bottom-4` (`ToastContainer.tsx` line 36), and
+   the chat panel at `fixed inset-y-0` (`CopilotChatPanel.tsx` line 113) all render behind
+   the home indicator and notch on modern devices.
+
+2. **URLs render as raw text.** `getDisplayName()` in `types.ts` (line 383) returns
+   `item.name` or `item.rawCapture` verbatim. Long URLs captured via inbox display as
+   unbroken strings, pushing layout on narrow viewports.
+
+3. **Login page has no resilience UX.** `LoginPage.tsx` catches errors generically
+   ("Something went wrong."). No retry button, no connection status indicator, and
+   `OfflineBanner` is only rendered inside `AuthenticatedApp` — not on the login page.
+
+4. **Tag and context inputs lack grouping.** `ItemEditor.tsx` renders "Labels / contexts"
+   and "Tags" as visually identical input sections with no section headers, no icons, and
+   no explanation of GTD contexts vs. freeform tags.
+
+5. **Metadata buttons are icon-only.** `ActionRow.tsx` uses `<Tooltip>` wrappers around
+   icon-only buttons. Tooltips require hover — they never appear on touch devices.
+
+---
+
+## User Story
+
+> "Als Sachbearbeiter möchte ich die App auf meinem Diensthandy genauso zuverlässig nutzen
+> können wie am Desktop — mit lesbaren Titeln, verständlichen Aktionsknöpfen und klarer
+> Rückmeldung, wenn der Server nicht erreichbar ist."
+
+---
+
+## Goals
+
+1. All fixed-position UI elements respect device safe areas (notch, home indicator, rounded corners).
+2. URL-based item titles are readable and tappable on narrow screens.
+3. Login page is resilient: connection feedback, specific error messages, retry affordance.
+4. Users have clear visual guidance on GTD contexts vs. freeform tags.
+5. Metadata action buttons show labels on touch devices.
+
+---
+
+## Out of Scope
+
+- Full URL preview cards with favicons and OG metadata (requires backend fetch + cache)
+- Offline login with credential caching
+- Advanced tag management (autocomplete, categories, bulk operations)
+- Redesigning the login page layout or branding
+
+---
+
+## MVP Scope
+
+### 1) Safe-area inset support
+
+**Changes:**
+
+- `frontend/index.html` — add `viewport-fit=cover` to viewport meta tag:
+  ```html
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  ```
+- `frontend/src/App.tsx` — FAB: add safe-area bottom/right offset using `env(safe-area-inset-*, 0px)`
+- `frontend/src/App.tsx` — main content wrapper: add safe-area padding on all sides
+- `frontend/src/components/chat/CopilotChatPanel.tsx` — add safe-area top/bottom insets
+- `frontend/src/components/ui/ToastContainer.tsx` — add safe-area bottom/right offset
+
+Define CSS custom properties or Tailwind utilities for safe-area values so all fixed elements
+share consistent offsets. `env()` with fallback `0px` ensures non-notched devices are unaffected.
+
+### 2) URL auto-detection and display formatting
+
+**Changes:**
+
+- `frontend/src/model/types.ts` — add `isUrl()` and `formatUrlForDisplay()` utilities:
+  ```typescript
+  const URL_PATTERN = /^https?:\/\/\S+$/i;
+
+  export function isUrl(text: string): boolean {
+    return URL_PATTERN.test(text.trim());
+  }
+
+  export function formatUrlForDisplay(url: string): string {
+    try {
+      const parsed = new URL(url.trim());
+      const host = parsed.hostname.replace(/^www\./, "");
+      const path = parsed.pathname.length > 1
+        ? parsed.pathname.slice(0, 30) + (parsed.pathname.length > 30 ? "…" : "")
+        : "";
+      return `${host}${path}`;
+    } catch {
+      return url;
+    }
+  }
+  ```
+- Update `getDisplayName()` to detect URL-shaped names and return formatted version
+- `EditableTitle.tsx` — render link icon prefix for URL titles, apply `break-all` on mobile
+- Raw URL stays in `item.name` / `item.rawCapture` — this is display-only formatting
+
+### 3) Login page resilience
+
+**Changes:**
+
+- Extract `useOnlineStatus()` hook from `OfflineBanner.tsx` subscribe/getSnapshot pattern
+- Integrate `OfflineBanner` (or equivalent) above the login form
+- Add connection status indicator (green/red dot) near the submit button
+- Classify errors in `catch` block:
+
+| HTTP status | German message |
+|-------------|----------------|
+| Network error | "Server nicht erreichbar. Bitte prüfen Sie Ihre Verbindung und versuchen Sie es erneut." |
+| 401 | "E-Mail oder Passwort ist falsch." |
+| 429 | "Zu viele Anmeldeversuche. Bitte warten Sie einen Moment." |
+| Other | "Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es erneut." |
+
+- Add "Erneut versuchen" retry button after any error
+- Disable submit when offline
+
+### 4) Tag and context section restructuring
+
+**Changes in `ItemEditor.tsx`:**
+
+**Contexts section:**
+- Section header with `location_on` icon and label "Kontexte"
+- Helper text: "Wo oder womit? z.B. @Computer, @Büro, @Telefon"
+- Chips: `bg-blueprint-50 text-blueprint-700`
+- Placeholder: `@Büro, @Telefon...`
+
+**Tags section:**
+- Section header with `sell` icon and label "Schlagwörter"
+- Helper text: "Themen und Kategorien, z.B. Steuerrecht, Eilig"
+- Chips: `bg-amber-50 text-amber-700`
+- Placeholder: `Steuerrecht, Eilig...`
+
+- Visual divider (`h-px bg-border`) between sections
+
+### 5) Metadata button text labels on mobile
+
+**Changes in `ActionRow.tsx`:**
+
+Use `@media (pointer: coarse)` or `useIsMobile()` to show short text labels on touch devices:
+
+| Button | Mobile label |
+|--------|-------------|
+| Complete checkbox | "Erledigt" |
+| Focus star | "Fokus" |
+| Edit/collapse | "Bearbeiten" / "Zuklappen" |
+| More menu | "Mehr" |
+
+Desktop keeps icon-only with tooltips. Labels are concise (one word) to minimize layout impact.
+
+---
+
+## i18n Keys
+
+| Key | en | de |
+|-----|----|----|
+| `login.error.networkUnreachable` | Server unreachable. Check your connection and try again. | Server nicht erreichbar. Bitte prüfen Sie Ihre Verbindung und versuchen Sie es erneut. |
+| `login.error.invalidCredentials` | Invalid email or password. | E-Mail oder Passwort ist falsch. |
+| `login.error.rateLimited` | Too many login attempts. Please wait a moment. | Zu viele Anmeldeversuche. Bitte warten Sie einen Moment. |
+| `login.error.unexpected` | An unexpected error occurred. Please try again. | Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es erneut. |
+| `login.retry` | Try again | Erneut versuchen |
+| `login.status.offline` | No internet connection | Keine Internetverbindung |
+| `login.status.online` | Connected | Verbunden |
+| `editor.section.contexts` | Contexts | Kontexte |
+| `editor.section.contexts.hint` | Where or with what? e.g. @Computer, @Office, @Phone | Wo oder womit? z.B. @Computer, @Büro, @Telefon |
+| `editor.section.tags` | Tags | Schlagwörter |
+| `editor.section.tags.hint` | Topics and categories, e.g. tax-law, urgent | Themen und Kategorien, z.B. Steuerrecht, Eilig |
+| `action.label.complete` | Done | Erledigt |
+| `action.label.focus` | Focus | Fokus |
+| `action.label.edit` | Edit | Bearbeiten |
+| `action.label.collapse` | Collapse | Zuklappen |
+| `action.label.more` | More | Mehr |
+
+---
+
+## Acceptance Criteria
+
+- [ ] `index.html` contains `viewport-fit=cover` in the viewport meta tag
+- [ ] FAB renders above the home indicator on Android with gesture navigation
+- [ ] Chat panel does not overlap status bar or home indicator
+- [ ] Toast container renders above the home indicator
+- [ ] Main content padding includes safe-area insets
+- [ ] Item with URL `name` shows formatted display (`domain.tld/path…`) with link icon
+- [ ] Item with URL `rawCapture` shows same formatted display
+- [ ] URL formatting is display-only — stored values not modified
+- [ ] Editing a URL title shows the full raw URL in the input
+- [ ] Login page shows `OfflineBanner` when `navigator.onLine` is false
+- [ ] Login page shows connection status indicator (online/offline dot)
+- [ ] Network errors show "Server nicht erreichbar" message
+- [ ] 401 errors show "E-Mail oder Passwort ist falsch" message
+- [ ] 429 errors show "Zu viele Anmeldeversuche" message
+- [ ] "Erneut versuchen" retry button appears after any login error
+- [ ] ItemEditor shows "Kontexte" section with `location_on` icon and helper text
+- [ ] ItemEditor shows "Schlagwörter" section with `sell` icon and helper text
+- [ ] Visual divider separates contexts from tags
+- [ ] On touch devices, ActionRow buttons show visible text labels
+- [ ] On desktop (pointer: fine), ActionRow buttons remain icon-only with tooltips
+- [ ] All i18n keys added to both `messages.en.ts` and `messages.de.ts`
+
+---
+
+## Delivery Plan
+
+### Phase 1: Safe-area foundations
+
+- Add `viewport-fit=cover` to `frontend/index.html`
+- Define CSS custom properties for safe-area offsets
+- Update FAB positioning in `App.tsx`
+- Update chat panel in `CopilotChatPanel.tsx`
+- Update toast container in `ToastContainer.tsx`
+- Update main content padding in `App.tsx`
+- Verify on Android Chrome with gesture navigation
+
+### Phase 2: URL display formatting
+
+- Add `isUrl()` and `formatUrlForDisplay()` to `types.ts`
+- Update `getDisplayName()` for URL-shaped names
+- Update `EditableTitle.tsx` with link icon and `break-all`
+- Unit tests for URL detection and formatting
+- Storybook story for ActionRow with URL title
+
+### Phase 3: Login page resilience
+
+- Add i18n keys to messages files
+- Extract `useOnlineStatus()` hook from `OfflineBanner.tsx`
+- Add offline banner and status indicator to `LoginPage.tsx`
+- Classify errors by type (network, 401, 429, other)
+- Add retry button
+- Unit tests for error classification
+- Storybook stories: offline, network error, invalid credentials, rate limited
+
+### Phase 4: Tag/context restructuring
+
+- Restructure `ItemEditor.tsx` contexts section with icon, header, helper text
+- Restructure tags section with icon, header, helper text
+- Add visual divider
+- Update placeholder text
+- Update stories and tests
+
+### Phase 5: Metadata button labels
+
+- Add `pointer-coarse:` Tailwind variant if needed
+- Update ActionRow buttons with conditional text labels
+- Verify labels don't break layout at 390px minimum width
+- Update stories with mobile viewport variants
+
+---
+
+## Key Files
+
+| File | Change |
+|------|--------|
+| `frontend/index.html` | `viewport-fit=cover` |
+| `frontend/src/App.tsx` | Safe-area padding on FAB and main content |
+| `frontend/src/components/chat/CopilotChatPanel.tsx` | Safe-area insets on fixed panel |
+| `frontend/src/components/ui/ToastContainer.tsx` | Safe-area insets on toast |
+| `frontend/src/model/types.ts` | `isUrl()`, `formatUrlForDisplay()`, update `getDisplayName()` |
+| `frontend/src/components/work/EditableTitle.tsx` | Link icon for URL titles, `break-all` |
+| `frontend/src/components/auth/LoginPage.tsx` | Offline banner, error classification, retry |
+| `frontend/src/components/ui/OfflineBanner.tsx` | Extract `useOnlineStatus()` hook |
+| `frontend/src/components/work/ItemEditor.tsx` | Section headers, icons, helper text, divider |
+| `frontend/src/components/work/ActionRow.tsx` | Text labels on touch devices |
+| `frontend/src/i18n/messages.en.ts` | Add 15 i18n keys |
+| `frontend/src/i18n/messages.de.ts` | Add 15 i18n keys |
+
+---
+
+## Definition of Done
+
+- [ ] All acceptance criteria implemented and passing
+- [ ] All i18n keys in both English and German
+- [ ] Safe-area rendering verified on Android Chrome with gesture navigation
+- [ ] URL display verified on 390px viewport with long URLs
+- [ ] Login resilience verified with simulated offline and error states
+- [ ] Unit tests pass (`CI=1 npx vitest run --project=unit`)
+- [ ] TypeScript clean (`npx tsc -b --noEmit`)
+- [ ] ESLint clean (`npx eslint src/`)
+- [ ] Prettier clean (`npx prettier --check src/`)
+- [ ] `npm run preflight:local` passes

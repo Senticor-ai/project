@@ -1,0 +1,285 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Product/Epics/Inline Editing and Metadata Chips" />
+
+# Epic: Inline Editing & Metadata Chips
+
+**Status:** Draft
+**Priority:** Current
+**Last updated:** 2026-02-26
+**Design direction:** Mobile-first inline metadata editing
+**Related:** [Paperclip Principles](?path=/docs/design-paperclip-principles--docs), [Collect to Engage](?path=/docs/flows-collect-to-engage--docs)
+
+---
+
+## Context
+
+Senticor's GTD workflow depends on rapid triage and metadata assignment. Mobile UX testing
+revealed that setting energy level and time estimate on an item requires too many taps,
+and key metadata is invisible in the collapsed row.
+
+**Current problems:**
+
+1. **Energy is gated behind "More options."** In inbox triage, expanding an item shows triage
+   buttons (Next, Waiting, Calendar, Later, Reference, Archive), but energy and all other
+   metadata fields are hidden behind a second "More options" toggle (`ActionRow.tsx` lines 644–665).
+   Non-inbox items show the `ItemEditor` immediately on expand, but energy is still buried at the
+   bottom of a 7-field form.
+
+2. **Time estimate has no editing UI.** `ComputationPort` in `types.ts` defines
+   `timeEstimate?: TimeEstimate`, and `TimeFilterDropdown` uses it for filtering, but
+   `ItemEditableFields` does not include `timeEstimate`. There is no way to set it from the UI.
+
+3. **Collapsed row hides energy/time.** `ActionRow.tsx` renders tag chips, project badge,
+   type badge, and due date in the collapsed state (lines 367–406), but energy and time
+   estimate are absent. Users cannot scan these values without expanding each item.
+
+4. **Terminology inconsistency.** `EnergyFilterBar.tsx` uses the icon `speed` with
+   `aria-label="Filter by energy"`. `ItemEditor.tsx` labels the same field "Complexity"
+   with the same `speed` icon. The data model calls it `energyLevel`. Three names for one concept.
+
+5. **Move menu is a flat list.** The overflow menu in `ActionRow.tsx` (lines 446–533) mixes
+   bucket state moves, project assignment, type changes, and archive in one flat dropdown.
+   On mobile this is hard to scan.
+
+6. **Metadata buttons lack text labels.** In the expanded detail view, buttons for edit and
+   move use only Material Symbol icons. On mobile, icon-only buttons increase error rate
+   because hover tooltips are unavailable.
+
+**Design principle alignment:**
+
+- *Speed over ceremony* — reducing taps from 3+ to 1 for energy/time editing
+- *Everything is an object* — metadata chips are visible, tappable objects on the item row
+- *Relationships over navigation* — metadata is edited in-place, not behind a separate form
+
+---
+
+## User Story
+
+> "Als Sachbearbeiterin will ich beim Durchsehen meiner Aufgaben sofort sehen, wie viel
+> Energie und Zeit ein Vorgang braucht, und diese Werte mit einem Tipp direkt an der
+> Aufgabe setzen — ohne ein Formular aufklappen zu müssen."
+
+---
+
+## Goals
+
+1. **1-tap metadata editing:** Energy and time estimate are editable with a single tap on a
+   chip, both in collapsed and expanded states.
+2. **Scannable item rows:** Energy, time, and due date are visible as colored chips in the
+   collapsed row, enabling rapid list scanning.
+3. **Consistent terminology:** One German term ("Aufwand") for the energy concept across
+   filter bar, editor, and chips.
+4. **Structured move menu:** The overflow menu groups actions into labeled sections with
+   visual dividers.
+5. **Accessible touch targets:** All chip buttons meet 44×44pt minimum touch target size.
+
+---
+
+## MVP Scope
+
+### In scope
+
+1. **Add `timeEstimate` to `ItemEditableFields`** in `frontend/src/model/types.ts`.
+2. **Add `timeEstimate` serialization** to `buildItemEditPatch()` in
+   `frontend/src/lib/item-serializer.ts`, mirroring the `energyLevel` pattern.
+3. **New `MetadataChip` component** — a reusable tappable chip for inline metadata editing.
+   Supports two modes: toggle-cycle (energy) and dropdown (time).
+4. **`EnergyChip`** — wraps `MetadataChip` with energy-specific values. Tap cycles through
+   `Niedrig` → `Mittel` → `Hoch` → (clear). Uses existing `EnergyLevel` type.
+5. **`TimeChip`** — wraps `MetadataChip` with time-specific values. Tap opens a small
+   popover with options: `5 Min`, `15 Min`, `30 Min`, `1 Std`, `2 Std`, plus `Keine` to clear.
+6. **Show chips in collapsed `ActionRow`** — render `EnergyChip` and `TimeChip` alongside
+   existing tag chips, project badge, and due date badge.
+7. **Show chips in expanded `ActionRow`** — render chips above the `ItemEditor`, visible on
+   first expand without "More options" gate.
+8. **Remove "More options" gate for inbox items** — show `ItemEditor` fields directly on
+   expand. The second toggle is removed; all metadata is visible on first expand.
+9. **Unify terminology to "Aufwand" (effort):**
+   - `ItemEditor.tsx`: change label from "Complexity" to "Aufwand"
+   - `EnergyFilterBar.tsx`: change aria-label to "Nach Aufwand filtern"
+   - Chip label: "Aufwand"
+10. **Restructure move menu** — group into labeled sections:
+    - "Verschieben" (Move): bucket targets
+    - "Projekt" (Project): project targets
+    - "Typ ändern" (Change type): type options
+    - "Archivieren" (Archive): visually separated at bottom
+11. **Add text labels to action buttons** on mobile viewports.
+
+### Out of scope
+
+- Full `ItemEditor` redesign (form layout for notes, project, org, date, contexts, tags stays as-is)
+- Drag-to-reorder chips
+- Custom energy/time scale values
+- Batch editing of energy/time across multiple items
+- Backend API changes (`additionalProperty` + `app:ports` serialization already handles both fields)
+
+---
+
+## Product Behavior
+
+### MetadataChip interaction model
+
+**Energy chip (toggle-cycle):**
+
+| State | Chip appearance | Tap action |
+|-------|----------------|------------|
+| Unset | Ghost chip: "Aufwand" in muted text with `speed` icon | Set to `low` |
+| `low` | Filled chip: green background, "Niedrig" | Cycle to `medium` |
+| `medium` | Filled chip: amber background, "Mittel" | Cycle to `high` |
+| `high` | Filled chip: red background, "Hoch" | Clear (unset) |
+
+Long-press or right-click opens a 3-option popover to jump directly to any level.
+
+**Time chip (popover):**
+
+| State | Chip appearance | Tap action |
+|-------|----------------|------------|
+| Unset | Ghost chip: "Zeit" in muted text with `schedule` icon | Open popover |
+| Set | Filled chip: blue background, e.g. "15 Min" | Open popover |
+
+Popover shows: `5 Min`, `15 Min`, `30 Min`, `1 Std`, `2 Std`, `Keine` (clear).
+
+### Collapsed row chip layout
+
+```
+[checkbox] [star] [title...] [EnergyChip] [TimeChip] [tags] [project] [type] [due date] [menu]
+```
+
+On narrow viewports (< 640px), if space is constrained, chips collapse to icon-only with
+the value as a tooltip. Priority when truncating: due date > energy > time > tags > project > type.
+
+### Expanded row behavior
+
+On expand, the following appear immediately (no "More options" gate):
+
+1. For inbox items: triage buttons at top
+2. Energy and time chips (same components, slightly larger variant)
+3. Full `ItemEditor` below (notes, project, org, date, contexts, tags)
+
+### Move menu restructure
+
+```
+── Verschieben ──────────
+  Inbox
+  Nächste Schritte
+  Warten auf
+  Kalender
+  Irgendwann
+── Projekt ──────────────
+  Projekt A
+  Projekt B
+── Typ ändern ───────────
+  Kaufen
+  Planen
+  Kommunizieren
+  ...
+  Kein Typ
+─────────────────────────
+  Archivieren
+```
+
+### Serialization
+
+When both energy and time are set, they merge into a single `ComputationPort`:
+
+```json
+{ "kind": "computation", "energyLevel": "high", "timeEstimate": "15min" }
+```
+
+The implementation must read the existing computation port, overlay the changed field,
+and serialize the merged result. The optimistic update in `useUpdateItem` merges
+`additionalProperty` by `propertyID`, which correctly handles `app:ports` merges.
+
+---
+
+## Acceptance Criteria
+
+- [ ] Tapping energy chip in collapsed row cycles through `low` → `medium` → `high` → (clear) and persists via optimistic update
+- [ ] Tapping time chip in collapsed row opens a popover; selecting a value persists via optimistic update
+- [ ] Energy and time chips are visible in collapsed `ActionRow` without expanding
+- [ ] Expanding an inbox item shows the `ItemEditor` immediately (no "More options" gate)
+- [ ] `timeEstimate` field is present in `ItemEditableFields` interface
+- [ ] `buildItemEditPatch()` serializes `timeEstimate` into `app:ports` `ComputationPort`
+- [ ] `actionItemToEditorValues()` extracts `timeEstimate` from the computation port
+- [ ] Energy label reads "Aufwand" in `ItemEditor`, `EnergyFilterBar`, and chips
+- [ ] Time label reads "Zeit" in chips and "Zeitschätzung" in `ItemEditor`
+- [ ] Move menu is visually grouped into Verschieben / Projekt / Typ ändern / Archivieren sections
+- [ ] All chip buttons meet 44×44pt minimum touch target (`min-h-11 min-w-11`)
+- [ ] Keyboard: chips are focusable, Enter/Space triggers toggle/popover, Escape closes popover
+- [ ] Screen readers announce chip state (e.g. "Aufwand: Mittel, Taste zum Ändern")
+- [ ] Existing vitest unit tests pass (`CI=1 npx vitest run --project=unit`)
+- [ ] New unit tests cover `MetadataChip`, `EnergyChip`, `TimeChip` toggle/popover behavior
+- [ ] New unit test covers `buildItemEditPatch` with `timeEstimate`
+- [ ] `npx tsc -b --noEmit` passes
+- [ ] `npx eslint src/` passes
+
+---
+
+## Delivery Plan
+
+### Phase 1: Data model + serialization (no UI changes)
+
+- Add `timeEstimate?: TimeEstimate` to `ItemEditableFields` in `frontend/src/model/types.ts`
+- Add `timeEstimate` serialization to `buildItemEditPatch()` in `frontend/src/lib/item-serializer.ts`
+- Extend `actionItemToEditorValues()` in `ActionRow.tsx` to extract `timeEstimate`
+- Add `timeEstimate` editing row to `ItemEditor` (button-group, same pattern as energy)
+- Unit test for `buildItemEditPatch({ timeEstimate: "15min" })`
+
+### Phase 2: MetadataChip component + chips in collapsed row
+
+- Create `MetadataChip.tsx` — generic tappable chip with `variant: "toggle" | "popover"`
+- Create `EnergyChip.tsx` and `TimeChip.tsx` wrappers
+- Storybook stories for all chip states
+- Render chips in collapsed `ActionRow`
+- Wire `onChange` to `onEdit` with optimistic update
+
+### Phase 3: Remove "More options" gate + chips in expanded state
+
+- Remove "More options" toggle from inbox expanded view
+- Show `ItemEditor` directly on expand for inbox items
+- Render energy/time chips above `ItemEditor` in expanded state
+
+### Phase 4: Terminology unification + move menu restructure
+
+- Rename "Complexity" to "Aufwand" in `ItemEditor.tsx`
+- Update `EnergyFilterBar.tsx` aria-label
+- Add i18n keys for chip labels (de + en)
+- Restructure move menu with section headers
+- Add text labels to action buttons on mobile
+
+### Phase 5: Polish + accessibility
+
+- Keyboard navigation for chips
+- ARIA roles and live regions
+- Responsive chip collapse on narrow viewports
+- Integration test: `inline-editing-mocked.spec.ts`
+- `npm run preflight:local` — all checks green
+
+---
+
+## Key Files
+
+| File | Change |
+|------|--------|
+| `frontend/src/model/types.ts` | Add `timeEstimate` to `ItemEditableFields` |
+| `frontend/src/lib/item-serializer.ts` | Serialize `timeEstimate` in `buildItemEditPatch()` |
+| `frontend/src/components/work/ActionRow.tsx` | Chips in collapsed/expanded, remove gate, menu restructure |
+| `frontend/src/components/work/ItemEditor.tsx` | Time editing row, rename "Complexity" to "Aufwand" |
+| `frontend/src/components/work/EnergyFilterBar.tsx` | Update aria-label |
+| `frontend/src/components/work/MetadataChip.tsx` | New — generic chip component |
+| `frontend/src/components/work/EnergyChip.tsx` | New — energy-specific wrapper |
+| `frontend/src/components/work/TimeChip.tsx` | New — time-specific wrapper |
+
+---
+
+## Definition of Done
+
+- [ ] All acceptance criteria checked
+- [ ] Energy and time chips visible and tappable in collapsed and expanded `ActionRow`
+- [ ] No "More options" gate remains for inbox items
+- [ ] Terminology unified to "Aufwand" across all surfaces
+- [ ] Move menu grouped with section headers
+- [ ] `npm run preflight:local` passes
+- [ ] Storybook stories render correctly for all chip states
+- [ ] Accessibility: keyboard navigation and screen reader announcements verified
