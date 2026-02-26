@@ -193,3 +193,9 @@ Deployment updates written by CI.
 - Updated `infra/k8s/overlays/production/kustomization.yaml` image tags to `3f4f569854cfab6679be6760d067e29c9ba783a4`.
 - Workflow run: https://github.com/Senticor-ai/project/actions/runs/22435743170
 - Actor: `wolfgangihloff`
+
+## 2026-02-26 10:01:15 UTC - 5d7ed198b72098d43362307f68d21157cccb768b
+
+- Updated `infra/k8s/overlays/production/kustomization.yaml` image tags to `5d7ed198b72098d43362307f68d21157cccb768b`.
+- Workflow run: https://github.com/Senticor-ai/project/actions/runs/22436958088
+- Actor: `wolfgangihloff`
