@@ -25,6 +25,7 @@ from app.email.gmail_oauth import (
     exchange_gmail_code,
     get_gmail_user_email,
     get_valid_gmail_token,
+    revoke_google_token,
 )
 from app.email.sync import register_watch, run_email_sync, stop_watch_for_connection
 
@@ -868,6 +869,41 @@ def disconnect(
         stop_watch_for_connection(connection_id, org["org_id"])
     except Exception:
         logger.warning("Failed to stop watch for %s", connection_id, exc_info=True)
+
+    # Revoke Google OAuth tokens before clearing them (best-effort).
+    # We read the encrypted tokens, decrypt, and call the revocation endpoint.
+    # Failures are logged but do not block the disconnect.
+    try:
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT encrypted_access_token, encrypted_refresh_token
+                    FROM email_connections
+                    WHERE connection_id = %s AND user_id = %s AND org_id = %s AND is_active = true
+                    """,
+                    (connection_id, str(current_user["id"]), org["org_id"]),
+                )
+                token_row = cur.fetchone()
+        if token_row:
+            crypto = CryptoService()
+            # Prefer revoking the refresh token (revokes both); fall back to access token.
+            for field in ("encrypted_refresh_token", "encrypted_access_token"):
+                encrypted = token_row.get(field)
+                if encrypted:
+                    try:
+                        plaintext = crypto.decrypt(encrypted)
+                        revoke_google_token(plaintext)
+                        break  # one successful revocation is sufficient
+                    except Exception:
+                        logger.warning(
+                            "Failed to decrypt/revoke %s for connection %s",
+                            field,
+                            connection_id,
+                            exc_info=True,
+                        )
+    except Exception:
+        logger.warning("Token revocation step failed for %s", connection_id, exc_info=True)
 
     with db_conn() as conn:
         with conn.cursor() as cur:

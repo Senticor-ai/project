@@ -3,20 +3,21 @@ kind: Kustomization
 resources:
   - ../../base
   - configmap.yaml
+  - secrets-per-workload.yaml
 
 images:
   - name: project-backend
     newName: registry.onstackit.cloud/senticor/project/backend
-    newTag: "53346b10ab1fd7845577dfdfbf6c45f94c58f1d8"
+    newTag: "1b1877181a29a0d4fd6dd648879882096442849c"
   - name: project-frontend
     newName: registry.onstackit.cloud/senticor/project/frontend
-    newTag: "53346b10ab1fd7845577dfdfbf6c45f94c58f1d8"
+    newTag: "1b1877181a29a0d4fd6dd648879882096442849c"
   - name: project-storybook
     newName: registry.onstackit.cloud/senticor/project/storybook
-    newTag: "53346b10ab1fd7845577dfdfbf6c45f94c58f1d8"
+    newTag: "1b1877181a29a0d4fd6dd648879882096442849c"
   - name: project-agents
     newName: registry.onstackit.cloud/senticor/project/agents
-    newTag: "53346b10ab1fd7845577dfdfbf6c45f94c58f1d8"
+    newTag: "1b1877181a29a0d4fd6dd648879882096442849c"
 
 patches:
   - path: patches/backend.yaml

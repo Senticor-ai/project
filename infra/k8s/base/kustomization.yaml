@@ -10,3 +10,4 @@ resources:
   - agents.yaml
   - frontend.yaml
   - storybook.yaml
+  - network-policies.yaml

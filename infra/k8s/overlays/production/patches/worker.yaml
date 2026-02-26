@@ -9,6 +9,11 @@ spec:
         - name: stackit-registry
       initContainers:
         - name: wait-for-postgres
+          envFrom:
+            - configMapRef:
+                name: app-config
+            - secretRef:
+                name: worker-secrets
           resources:
             requests:
               cpu: 50m
@@ -19,6 +24,11 @@ spec:
       containers:
         - name: worker
           imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: app-config
+            - secretRef:
+                name: worker-secrets
           resources:
             requests:
               cpu: 100m
