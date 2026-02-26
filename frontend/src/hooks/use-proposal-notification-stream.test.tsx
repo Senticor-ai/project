@@ -5,6 +5,16 @@ import { useProposalNotificationStream } from "./use-proposal-notification-strea
 
 const toastSpy = vi.fn();
 
+type StreamEvent = {
+  event_id: string;
+  kind: string;
+  title: string;
+  body: string;
+  url: string | null;
+  payload?: Record<string, unknown>;
+  created_at: string;
+};
+
 class MockEventSource {
   static instances: MockEventSource[] = [];
   readonly url: string;
@@ -98,12 +108,18 @@ function setVisibilityState(state: DocumentVisibilityState) {
   });
 }
 
-function Harness() {
-  useProposalNotificationStream();
+function Harness({
+  onUrgentProposal,
+}: {
+  onUrgentProposal?: (event: StreamEvent) => void;
+}) {
+  useProposalNotificationStream({
+    onUrgentProposal,
+  });
   return null;
 }
 
-function renderHarness() {
+function renderHarness(onUrgentProposal?: (event: StreamEvent) => void) {
   return render(
     <ToastContext.Provider
       value={{
@@ -112,7 +128,7 @@ function renderHarness() {
         toasts: [],
       }}
     >
-      <Harness />
+      <Harness onUrgentProposal={onUrgentProposal} />
     </ToastContext.Provider>,
   );
 }
@@ -155,6 +171,30 @@ describe("useProposalNotificationStream", () => {
         action: expect.objectContaining({ label: "Review" }),
         persistent: true,
       }),
+    );
+  });
+
+  it("invokes callback when urgent proposal arrives", () => {
+    const onUrgentProposal = vi.fn();
+    renderHarness(onUrgentProposal);
+    const source = MockEventSource.instances[0];
+    expect(source).toBeDefined();
+    if (!source) {
+      throw new Error("EventSource not initialized");
+    }
+
+    source.emit({
+      event_id: "evt-callback",
+      kind: "proposal_urgent_created",
+      title: "Urgent callback",
+      body: "Open copilot.",
+      url: "/settings/email?proposal=callback",
+      payload: { proposal_id: "callback" },
+      created_at: "2026-02-25T18:00:00Z",
+    });
+
+    expect(onUrgentProposal).toHaveBeenCalledWith(
+      expect.objectContaining({ event_id: "evt-callback" }),
     );
   });
 

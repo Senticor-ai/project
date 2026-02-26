@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import uuid
 from contextlib import contextmanager
 from unittest.mock import MagicMock
 
@@ -501,6 +502,42 @@ class TestExecuteTool:
         response = auth_client.post("/chat/execute-tool", json=_CLI_EXECUTE_REQUEST)
         assert response.status_code == 504
 
+    def test_relays_agents_401_for_reauth(self, auth_client, monkeypatch):
+        _patch_settings(monkeypatch, agents_url="http://localhost:8002")
+
+        mock_response = httpx.Response(
+            401,
+            json={"detail": "Invalid delegated token"},
+            request=_DUMMY_EXECUTE_REQUEST,
+        )
+        monkeypatch.setattr("app.chat.routes.httpx.post", lambda *a, **kw: mock_response)
+
+        response = auth_client.post("/chat/execute-tool", json=_CLI_EXECUTE_REQUEST)
+        assert response.status_code == 401
+        assert "Invalid delegated token" in response.json()["detail"]
+
+    def test_relays_agents_structured_401_detail(self, auth_client, monkeypatch):
+        _patch_settings(monkeypatch, agents_url="http://localhost:8002")
+
+        mock_response = httpx.Response(
+            401,
+            json={
+                "detail": {
+                    "message": "Invalid delegated token",
+                    "code": "UNAUTHENTICATED",
+                    "needsReauth": True,
+                }
+            },
+            request=_DUMMY_EXECUTE_REQUEST,
+        )
+        monkeypatch.setattr("app.chat.routes.httpx.post", lambda *a, **kw: mock_response)
+
+        response = auth_client.post("/chat/execute-tool", json=_CLI_EXECUTE_REQUEST)
+        assert response.status_code == 401
+        body = response.json()
+        assert body["detail"]["code"] == "UNAUTHENTICATED"
+        assert body["detail"]["needsReauth"] is True
+
     def test_semantic_tool_handled_locally(self, auth_client, monkeypatch):
         """Semantic tool names (create_action, etc.) are handled by the backend
         without forwarding to the agents service."""
@@ -562,6 +599,10 @@ class TestExecuteTool:
             }
         )
         monkeypatch.setattr("app.chat.routes._patch_item_local", mock_triage)
+        monkeypatch.setattr(
+            "app.chat.routes._resolve_item_id_for_patch",
+            lambda item_id, _org_id: item_id,
+        )
 
         request = {
             "toolCall": {
@@ -602,6 +643,10 @@ class TestExecuteTool:
             }
         )
         monkeypatch.setattr("app.chat.routes._patch_item_local", mock_triage)
+        monkeypatch.setattr(
+            "app.chat.routes._resolve_item_id_for_patch",
+            lambda item_id, _org_id: item_id,
+        )
 
         request = {
             "toolCall": {
@@ -644,6 +689,10 @@ class TestExecuteTool:
             }
         )
         monkeypatch.setattr("app.chat.routes._patch_item_local", mock_triage)
+        monkeypatch.setattr(
+            "app.chat.routes._resolve_item_id_for_patch",
+            lambda item_id, _org_id: item_id,
+        )
 
         request = {
             "toolCall": {
@@ -694,6 +743,74 @@ class TestExecuteTool:
 
         response = auth_client.post("/chat/execute-tool", json=request)
         assert response.status_code == 200
+
+    def test_cli_triage_resolves_canonical_id_and_updates_item(self, auth_client, monkeypatch):
+        _patch_settings(monkeypatch, agents_url=None)
+
+        item_payload = {
+            "item": {
+                "@id": f"urn:app:action:{uuid.uuid4()}",
+                "@type": "Action",
+                "_schemaVersion": 2,
+                "name": "Needs triage",
+                "additionalProperty": [
+                    {"@type": "PropertyValue", "propertyID": "app:bucket", "value": "inbox"},
+                ],
+            },
+            "source": "manual",
+        }
+        create_resp = auth_client.post("/items", json=item_payload)
+        assert create_resp.status_code == 201
+        created = create_resp.json()
+        item_id = created["item_id"]
+        canonical_id = created["canonical_id"]
+
+        request = {
+            "toolCall": {
+                "name": "copilot_cli",
+                "arguments": {
+                    "argv": ["items", "triage", "--id", canonical_id, "--bucket", "reference", "--apply"],
+                },
+            },
+            "conversationId": "conv-42",
+        }
+
+        triage_resp = auth_client.post("/chat/execute-tool", json=request)
+        assert triage_resp.status_code == 200
+
+        item_resp = auth_client.get(f"/items/{item_id}")
+        assert item_resp.status_code == 200
+        props = {
+            p["propertyID"]: p["value"]
+            for p in item_resp.json()["item"]["additionalProperty"]
+            if isinstance(p, dict) and "propertyID" in p and "value" in p
+        }
+        assert props["app:bucket"] == "reference"
+
+    def test_cli_triage_missing_item_returns_404_not_500(self, auth_client, monkeypatch):
+        _patch_settings(monkeypatch, agents_url=None)
+
+        request = {
+            "toolCall": {
+                "name": "copilot_cli",
+                "arguments": {
+                    "argv": [
+                        "items",
+                        "triage",
+                        "--id",
+                        "urn:app:action:does-not-exist",
+                        "--bucket",
+                        "reference",
+                        "--apply",
+                    ]
+                },
+            },
+            "conversationId": "conv-42",
+        }
+
+        response = auth_client.post("/chat/execute-tool", json=request)
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Item not found"
 
 
 # ---------------------------------------------------------------------------

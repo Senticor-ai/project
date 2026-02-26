@@ -696,6 +696,29 @@ class TestExecuteTool:
         assert resp.status_code == 500
         assert "Backend down" in resp.json()["detail"]
 
+    def test_auth_error_returns_401(self, client: TestClient):
+        from app import CopilotCliError
+
+        with patch(
+            "app.execute_tool",
+            new_callable=AsyncMock,
+            side_effect=CopilotCliError(
+                return_code=3,
+                command="items focus urn:app:action:a1 --off --apply",
+                detail="Invalid delegated token",
+                error_code="UNAUTHENTICATED",
+                retryable=False,
+            ),
+        ):
+            resp = client.post("/execute-tool", json=self._make_request())
+
+        assert resp.status_code == 401
+        detail = resp.json()["detail"]
+        assert detail["message"] == "Invalid delegated token"
+        assert detail["code"] == "UNAUTHENTICATED"
+        assert detail["needsReauth"] is True
+        assert detail["retryable"] is False
+
     def test_validation_error_returns_422(self, client: TestClient):
         # Missing required fields
         resp = client.post("/execute-tool", json={"toolCall": {"name": "x"}})

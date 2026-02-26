@@ -56,6 +56,7 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MiB (icon font is ~4MB)
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
         globIgnores: ["**/storybook-*"],
+        navigateFallbackDenylist: [/^\/storybook(?:\/|$)/],
         runtimeCaching: [
           {
             urlPattern: /\/api\/items\/sync/,

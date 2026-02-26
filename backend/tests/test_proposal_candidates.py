@@ -5,9 +5,12 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime, timedelta
 
+from app.db import db_conn, jsonb
 from app.email.proposals import enqueue_proposal_candidate, process_proposal_candidates
 
-from app.db import db_conn, jsonb
+
+def _parse_iso_z(value: str) -> datetime:
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(UTC)
 
 
 def _seed_connection(*, org_id: str, user_id: str) -> str:
@@ -280,6 +283,66 @@ def test_process_candidates_reuses_existing_pending_proposal(auth_client):
             row = cur.fetchone()
             assert row is not None
             assert row["cnt"] == 1
+
+
+def test_process_candidates_schedules_urgent_meeting_in_next_available_15m_slot(auth_client):
+    org_id = auth_client.headers["X-Org-Id"]
+    me = auth_client.get("/auth/me")
+    assert me.status_code == 200
+    user_id = me.json()["id"]
+
+    connection_id = _seed_connection(org_id=org_id, user_id=user_id)
+    email_item_id = _seed_email_item(
+        org_id=org_id,
+        user_id=user_id,
+        subject="Urgent: can we schedule a meeting ASAP?",
+        description="Need a quick sync as soon as possible.",
+    )
+    busy_start = datetime.now(UTC) + timedelta(minutes=5)
+    _seed_calendar_item(
+        org_id=org_id,
+        user_id=user_id,
+        start_at=busy_start,
+    )
+
+    candidate_id = enqueue_proposal_candidate(
+        org_id=org_id,
+        user_id=user_id,
+        connection_id=connection_id,
+        source_item_id=email_item_id,
+        trigger_kind="email_new",
+    )
+    assert candidate_id is not None
+
+    result = process_proposal_candidates(org_id=org_id, user_id=user_id, limit=10)
+    assert result.processed == 1
+    assert result.created >= 1
+
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT proposal_type, payload
+                FROM connector_action_proposals
+                WHERE org_id = %s
+                  AND user_id = %s
+                  AND source_item_id = %s
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (org_id, user_id, email_item_id),
+            )
+            proposal = cur.fetchone()
+            assert proposal is not None
+            assert proposal["proposal_type"] == "Proposal.PersonalRequest"
+            assert proposal["payload"]["urgency"] == "urgent"
+
+            event_start = _parse_iso_z(proposal["payload"]["event_start"])
+            event_end = _parse_iso_z(proposal["payload"]["event_end"])
+            assert event_end - event_start == timedelta(minutes=15)
+
+            busy_end = busy_start + timedelta(minutes=30)
+            assert event_start >= busy_end
 
 
 def test_process_candidates_dead_letters_after_max_attempts(auth_client, monkeypatch):

@@ -97,6 +97,21 @@ async function parseJson(response: Response) {
   }
 }
 
+function detailMessage(detail: unknown): string | null {
+  if (typeof detail === "string") {
+    return detail;
+  }
+  if (
+    detail &&
+    typeof detail === "object" &&
+    "message" in detail &&
+    typeof (detail as { message?: unknown }).message === "string"
+  ) {
+    return (detail as { message: string }).message;
+  }
+  return null;
+}
+
 let currentUserId: string | null = null;
 let csrfToken: string | null = null;
 let onSessionExpired: (() => void) | null = null;
@@ -183,10 +198,8 @@ async function requestWithResponse<T>(
 
   if (!response.ok) {
     const details = await parseJson(response);
-    const detailReason =
-      typeof details?.detail === "string"
-        ? details.detail
-        : `HTTP ${response.status}`;
+    const parsedMessage = detailMessage(details?.detail);
+    const detailReason = parsedMessage ?? `HTTP ${response.status}`;
     logFrontendRequest({
       request_id: requestId,
       user_id: currentUserId ?? undefined,
@@ -245,7 +258,7 @@ async function requestWithResponse<T>(
 
     const detail = details?.detail;
     throw new ApiError({
-      message: typeof detail === "string" ? detail : "Request failed",
+      message: detailMessage(detail) ?? "Request failed",
       status: response.status,
       details,
     });

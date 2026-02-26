@@ -27,7 +27,7 @@ load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 from backend_client import AuthContext  # noqa: E402 — must load env before importing
 from copilot import MODELS, RuntimeLlmConfig, create_agent  # noqa: E402
 from secrets_manager import SecretsManager, get_secrets_manager  # noqa: E402
-from tool_executor import ToolCallInput, execute_tool  # noqa: E402
+from tool_executor import CopilotCliError, ToolCallInput, execute_tool  # noqa: E402
 from tracing import configure_tracing, shutdown_tracing  # noqa: E402
 # fmt: on
 
@@ -221,6 +221,38 @@ class ExecuteToolResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
+
+def _status_code_for_tool_error(exc: CopilotCliError) -> int:
+    code = (exc.error_code or "").upper()
+
+    if code in {
+        "UNAUTHENTICATED",
+        "INVALID_DELEGATED_TOKEN",
+        "INVALID_TOKEN",
+        "TOKEN_EXPIRED",
+    }:
+        return 401
+
+    if code in {"PERMISSION_DENIED", "FORBIDDEN"}:
+        return 403
+
+    if code in {
+        "VALIDATION_ERROR",
+        "INVALID_ARGUMENT",
+        "INVALID_BUCKET",
+        "APPROVAL_REQUIRED",
+        "ITEM_NOT_FOUND",
+        "PROJECT_NOT_FOUND",
+        "ACTION_NOT_FOUND",
+    }:
+        return 400
+
+    detail_lower = exc.detail.lower()
+    if "invalid delegated token" in detail_lower or "unauthenticated" in detail_lower:
+        return 401
+
+    return 500
 
 
 @app.get("/health")
@@ -512,6 +544,21 @@ async def execute_tool_endpoint(req: ExecuteToolRequest):
             conversation_id=req.conversationId,
             auth=auth,
         )
+    except CopilotCliError as exc:
+        status_code = _status_code_for_tool_error(exc)
+        if status_code >= 500:
+            logger.exception("Tool execution error")
+        else:
+            logger.warning("Tool execution failed with status %s: %s", status_code, exc)
+        detail: dict[str, object] = {
+            "message": exc.detail,
+            "needsReauth": status_code == 401,
+        }
+        if exc.error_code:
+            detail["code"] = exc.error_code
+        if exc.retryable is not None:
+            detail["retryable"] = exc.retryable
+        raise HTTPException(status_code=status_code, detail=detail) from exc
     except Exception as exc:
         logger.exception("Tool execution error")
         raise HTTPException(status_code=500, detail=str(exc)) from exc

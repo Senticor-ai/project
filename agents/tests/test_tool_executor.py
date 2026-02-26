@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from backend_client import AuthContext
-from tool_executor import ToolCallInput, execute_tool
+from tool_executor import CopilotCliError, ToolCallInput, execute_tool
 
 
 @pytest.fixture
@@ -231,6 +231,39 @@ async def test_cli_failure_raises(auth_ctx):
                 conversation_id="conv-1",
                 auth=auth_ctx,
             )
+
+
+@pytest.mark.anyio
+async def test_cli_failure_extracts_structured_error(auth_ctx):
+    error_payload = {
+        "schema_version": "copilot.v1",
+        "ok": False,
+        "error": {
+            "code": "UNAUTHENTICATED",
+            "message": "Invalid delegated token",
+            "details": {"detail": "Invalid delegated token"},
+            "retryable": False,
+        },
+    }
+    process = _DummyProcess(3, stdout=json.dumps(error_payload), stderr="")
+
+    with patch(
+        "tool_executor.asyncio.create_subprocess_exec",
+        new=AsyncMock(return_value=process),
+    ):
+        with pytest.raises(CopilotCliError, match="code=UNAUTHENTICATED") as exc_info:
+            await execute_tool(
+                ToolCallInput(
+                    name="copilot_cli",
+                    arguments={"argv": ["items", "focus", "urn:app:action:a1", "--off", "--apply"]},
+                ),
+                conversation_id="conv-1",
+                auth=auth_ctx,
+            )
+
+    assert exc_info.value.error_code == "UNAUTHENTICATED"
+    assert exc_info.value.detail == "Invalid delegated token"
+    assert exc_info.value.retryable is False
 
 
 @pytest.mark.anyio

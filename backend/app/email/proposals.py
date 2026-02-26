@@ -15,6 +15,15 @@ logger = logging.getLogger(__name__)
 
 _RESCHEDULE_KEYWORDS = ("reschedule", "verschieb", "verschieben", "move", "verlegen")
 _PICKUP_KEYWORDS = ("pick up", "pickup", "abholen", "kinder", "kids")
+_SCHEDULE_KEYWORDS = (
+    "schedule",
+    "as soon as possible",
+    "meeting",
+    "meet",
+    "appointment",
+    "termin",
+    "call",
+)
 _URGENT_KEYWORDS = ("urgent", "asap", "today", "heute", "now", "sofort")
 _URGENT_WINDOW = timedelta(hours=4)
 
@@ -81,6 +90,51 @@ def _calendar_attendees(calendar_item: dict[str, Any]) -> set[str]:
         if isinstance(email, str) and email.strip():
             emails.add(email.strip().lower())
     return emails
+
+
+def _round_up_to_quarter(value: datetime) -> datetime:
+    rounded = value.astimezone(UTC).replace(second=0, microsecond=0)
+    minute_mod = rounded.minute % 15
+    if minute_mod == 0 and value.second == 0 and value.microsecond == 0:
+        return rounded
+    add_minutes = 15 - minute_mod if minute_mod else 15
+    return rounded + timedelta(minutes=add_minutes)
+
+
+def _next_available_slot(
+    *,
+    calendar_items: list[dict[str, Any]],
+    duration_minutes: int,
+) -> tuple[datetime, datetime]:
+    now = datetime.now(UTC)
+    cursor = _round_up_to_quarter(now)
+    duration = timedelta(minutes=max(duration_minutes, 1))
+
+    busy_intervals: list[tuple[datetime, datetime]] = []
+    for calendar_item in calendar_items:
+        start_dt = _calendar_start(calendar_item)
+        if start_dt is None:
+            continue
+        end_dt = _calendar_end(calendar_item) or (start_dt + timedelta(minutes=30))
+        if end_dt <= now:
+            continue
+        busy_intervals.append((start_dt, end_dt))
+
+    busy_intervals.sort(key=lambda interval: interval[0])
+
+    for start_dt, end_dt in busy_intervals:
+        if end_dt <= cursor:
+            continue
+        if start_dt > cursor:
+            if (start_dt - cursor) >= duration:
+                return cursor, cursor + duration
+            # The free gap before this event is too short for the meeting.
+            cursor = _round_up_to_quarter(end_dt)
+            continue
+        if start_dt <= cursor < end_dt:
+            cursor = _round_up_to_quarter(end_dt)
+
+    return cursor, cursor + duration
 
 
 def _list_recent_email_items(
@@ -227,6 +281,40 @@ def _build_personal_payload(email_item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _build_schedule_payload(
+    email_item: dict[str, Any],
+    calendar_items: list[dict[str, Any]],
+) -> dict[str, Any]:
+    email_schema = email_item.get("schema_jsonld") or {}
+    email_raw = (email_schema.get("sourceMetadata") or {}).get("raw") or {}
+    text = _email_text(email_item)
+    start_dt, end_dt = _next_available_slot(
+        calendar_items=calendar_items,
+        duration_minutes=15,
+    )
+    urgent = any(keyword in text for keyword in _URGENT_KEYWORDS)
+    summary = str(email_schema.get("name") or "").strip() or "Quick meeting"
+    return {
+        "why": "Inbound email asks for a near-term meeting; suggest next available 15-minute slot.",
+        "confidence": "medium",
+        "requires_confirmation": True,
+        "suggested_actions": ["gcal_create_event", "gmail_send_reply"],
+        "gmail_message_id": email_raw.get("gmailMessageId"),
+        "thread_id": email_raw.get("threadId"),
+        "to": email_raw.get("from") or "",
+        "reply_subject": f"Re: {email_schema.get('name') or 'Update'}",
+        "reply_body": (
+            "Thanks for your note. I found the next available 15-minute slot and "
+            "scheduled it."
+        ),
+        "event_summary": summary,
+        "event_start": _iso_z(start_dt),
+        "event_end": _iso_z(end_dt),
+        "event_duration_minutes": 15,
+        "urgency": "urgent" if urgent else "normal",
+    }
+
+
 def _evaluate_email_candidate(
     *,
     email_item: dict[str, Any],
@@ -243,6 +331,11 @@ def _evaluate_email_candidate(
                 email_item,
                 calendar_item,
             )
+    if any(keyword in text for keyword in _SCHEDULE_KEYWORDS):
+        return "Proposal.PersonalRequest", _build_schedule_payload(
+            email_item,
+            calendar_items,
+        )
     if any(keyword in text for keyword in _PICKUP_KEYWORDS):
         return "Proposal.PersonalRequest", _build_personal_payload(email_item)
     return None

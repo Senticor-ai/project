@@ -25,6 +25,34 @@ class ToolCallInput(BaseModel):
     arguments: dict
 
 
+class CopilotCliError(RuntimeError):
+    """Structured failure for copilot_cli subprocess calls."""
+
+    def __init__(
+        self,
+        *,
+        return_code: int,
+        command: str,
+        detail: str,
+        error_code: str | None = None,
+        retryable: bool | None = None,
+    ) -> None:
+        self.return_code = return_code
+        self.command = command
+        self.detail = detail
+        self.error_code = error_code
+        self.retryable = retryable
+
+        display_detail = detail
+        if error_code:
+            display_detail = f"{display_detail} (code={error_code})"
+
+        super().__init__(
+            f"copilot_cli failed with exit code {return_code} "
+            f"while running '{command}...': {display_detail}"
+        )
+
+
 def _resolve_cli_command() -> tuple[list[str], str]:
     """Resolve the CLI command and working directory.
 
@@ -291,6 +319,50 @@ def _normalize_commands(tool_call: ToolCallInput, conversation_id: str) -> list[
     return [_with_required_cli_flags(command, conversation_id) for command in commands]
 
 
+def _extract_cli_error(stdout: str, stderr: str) -> tuple[str, str | None, bool | None]:
+    """Prefer structured copilot.v1 error envelope details when available."""
+
+    fallback_detail = stderr.strip() or stdout.strip() or "unknown error"
+    for raw_text in (stderr.strip(), stdout.strip()):
+        if not raw_text:
+            continue
+        try:
+            payload = json.loads(raw_text)
+        except json.JSONDecodeError:
+            continue
+
+        if not isinstance(payload, dict) or payload.get("ok") is not False:
+            continue
+
+        error = payload.get("error")
+        if not isinstance(error, dict):
+            continue
+
+        message = error.get("message")
+        detail = (
+            message.strip()
+            if isinstance(message, str) and message.strip()
+            else fallback_detail
+        )
+
+        details = error.get("details")
+        detail_text = details.get("detail") if isinstance(details, dict) else None
+        if isinstance(detail_text, str):
+            detail_text = detail_text.strip()
+            if detail_text and detail_text != detail:
+                detail = f"{detail} ({detail_text})"
+
+        error_code = error.get("code")
+        retryable = error.get("retryable")
+        return (
+            detail,
+            error_code if isinstance(error_code, str) and error_code else None,
+            retryable if isinstance(retryable, bool) else None,
+        )
+
+    return fallback_detail, None, None
+
+
 async def _run_cli_process(
     cli_base: list[str],
     argv: list[str],
@@ -329,11 +401,14 @@ async def _run_cli_json(
 
     return_code, stdout, stderr = await _run_cli_process(cli_base, normalized, cwd, env)
     if return_code != 0:
-        detail = stderr.strip() or stdout.strip() or "unknown error"
+        detail, error_code, retryable = _extract_cli_error(stdout, stderr)
         command = " ".join(normalized[:6])
-        raise RuntimeError(
-            f"copilot_cli lookup failed with exit code {return_code} "
-            f"while running '{command}...': {detail}"
+        raise CopilotCliError(
+            return_code=return_code,
+            command=command,
+            detail=detail,
+            error_code=error_code,
+            retryable=retryable,
         )
 
     return _parse_json_from_stdout(stdout)
@@ -622,11 +697,14 @@ async def execute_tool(
         )
 
         if return_code != 0:
-            detail = stderr.strip() or stdout.strip() or "unknown error"
+            detail, error_code, retryable = _extract_cli_error(stdout, stderr)
             command = " ".join(final_argv[:6])
-            raise RuntimeError(
-                f"copilot_cli failed with exit code {return_code} "
-                f"while running '{command}...': {detail}"
+            raise CopilotCliError(
+                return_code=return_code,
+                command=command,
+                detail=detail,
+                error_code=error_code,
+                retryable=retryable,
             )
 
         payload = _parse_json_from_stdout(stdout)

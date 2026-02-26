@@ -3,7 +3,6 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { EmailPanel } from "./EmailPanel";
 import type { EmailConnectionResponse } from "@/lib/api-client";
-import type { EmailProposalResponse } from "@/lib/api-client";
 
 const mockConnection: EmailConnectionResponse = {
   connection_id: "conn-1",
@@ -24,17 +23,6 @@ const mockConnection: EmailConnectionResponse = {
   created_at: "2026-02-01T08:00:00Z",
 };
 
-const mockProposal: EmailProposalResponse = {
-  proposal_id: "proposal-1",
-  proposal_type: "Proposal.RescheduleMeeting",
-  why: "Inbound email suggests moving meeting by 30 minutes.",
-  confidence: "medium",
-  requires_confirmation: true,
-  suggested_actions: ["gcal_update_event", "gmail_send_reply"],
-  status: "pending",
-  created_at: "2026-02-25T10:00:00Z",
-};
-
 describe("EmailPanel", () => {
   it("renders empty state when no connections", () => {
     render(<EmailPanel connections={[]} />);
@@ -52,6 +40,14 @@ describe("EmailPanel", () => {
     expect(screen.getByText("progress_activity")).toBeInTheDocument();
     expect(
       screen.queryByText("Keine Drittanbieter-Verbindung eingerichtet"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not render proposal controls in sync settings", () => {
+    render(<EmailPanel connections={[mockConnection]} />);
+    expect(screen.queryByText("Copilot Proposals")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /vorschläge generieren/i }),
     ).not.toBeInTheDocument();
   });
 
@@ -224,50 +220,4 @@ describe("EmailPanel", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders pending proposals and confirms one", async () => {
-    const user = userEvent.setup();
-    const onConfirmProposal = vi.fn();
-    render(
-      <EmailPanel
-        connections={[mockConnection]}
-        proposals={[mockProposal]}
-        onConfirmProposal={onConfirmProposal}
-      />,
-    );
-
-    expect(screen.getByText("Meeting reschedule")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Confirm" }));
-    expect(onConfirmProposal).toHaveBeenCalledWith("proposal-1");
-  });
-
-  it("dismisses a pending proposal", async () => {
-    const user = userEvent.setup();
-    const onDismissProposal = vi.fn();
-    render(
-      <EmailPanel
-        connections={[mockConnection]}
-        proposals={[mockProposal]}
-        onDismissProposal={onDismissProposal}
-      />,
-    );
-
-    await user.click(screen.getByRole("button", { name: "Dismiss" }));
-    expect(onDismissProposal).toHaveBeenCalledWith("proposal-1");
-  });
-
-  it("calls onGenerateProposals from proposal section", async () => {
-    const user = userEvent.setup();
-    const onGenerateProposals = vi.fn();
-    render(
-      <EmailPanel
-        connections={[mockConnection]}
-        onGenerateProposals={onGenerateProposals}
-      />,
-    );
-
-    await user.click(
-      screen.getByRole("button", { name: /vorschläge generieren/i }),
-    );
-    expect(onGenerateProposals).toHaveBeenCalledOnce();
-  });
 });

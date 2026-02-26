@@ -15,7 +15,6 @@ import {
 import type {
   EmailConnectionCalendarResponse,
   EmailConnectionResponse,
-  EmailProposalResponse,
   OrgResponse,
 } from "@/lib/api-client";
 import type { ImportJobData } from "./ImportJobRow";
@@ -62,10 +61,6 @@ export interface SettingsScreenProps {
   >;
   emailCalendarsLoadingByConnectionId?: Record<string, boolean>;
   emailCalendarsErrorByConnectionId?: Record<string, string>;
-  emailProposals?: EmailProposalResponse[];
-  emailProposalsLoading?: boolean;
-  emailProposalsError?: string | null;
-  highlightedProposalId?: string | null;
   emailLoading?: boolean;
   onConnectGmail?: () => void;
   onEmailSync?: (connectionId: string) => void;
@@ -77,11 +72,6 @@ export interface SettingsScreenProps {
     connectionId: string,
     calendarIds: string[],
   ) => void;
-  onEmailGenerateProposals?: () => void;
-  onEmailConfirmProposal?: (proposalId: string) => void;
-  onEmailDismissProposal?: (proposalId: string) => void;
-  emailProposalBusyId?: string | null;
-  emailGeneratingProposals?: boolean;
   emailSyncingConnectionId?: string | null;
   organizations?: OrgResponse[];
   organizationsLoading?: boolean;
@@ -120,10 +110,6 @@ export function SettingsScreen({
   emailCalendarsByConnectionId,
   emailCalendarsLoadingByConnectionId,
   emailCalendarsErrorByConnectionId,
-  emailProposals,
-  emailProposalsLoading,
-  emailProposalsError,
-  highlightedProposalId,
   emailLoading,
   onConnectGmail,
   onEmailSync,
@@ -132,11 +118,6 @@ export function SettingsScreen({
   onEmailUpdateMarkRead,
   onEmailToggleCalendarSync,
   onEmailUpdateCalendarSelection,
-  onEmailGenerateProposals,
-  onEmailConfirmProposal,
-  onEmailDismissProposal,
-  emailProposalBusyId,
-  emailGeneratingProposals,
   emailSyncingConnectionId,
   organizations,
   organizationsLoading,
@@ -203,10 +184,6 @@ export function SettingsScreen({
                 emailCalendarsLoadingByConnectionId
               }
               calendarsErrorByConnectionId={emailCalendarsErrorByConnectionId}
-              proposals={emailProposals}
-              proposalsLoading={emailProposalsLoading}
-              proposalsError={emailProposalsError}
-              highlightedProposalId={highlightedProposalId}
               isLoading={emailLoading}
               onConnectGmail={onConnectGmail}
               onSync={onEmailSync}
@@ -215,11 +192,6 @@ export function SettingsScreen({
               onUpdateMarkRead={onEmailUpdateMarkRead}
               onToggleCalendarSync={onEmailToggleCalendarSync}
               onUpdateCalendarSelection={onEmailUpdateCalendarSelection}
-              onGenerateProposals={onEmailGenerateProposals}
-              onConfirmProposal={onEmailConfirmProposal}
-              onDismissProposal={onEmailDismissProposal}
-              proposalBusyId={emailProposalBusyId}
-              isGeneratingProposals={emailGeneratingProposals}
               syncingConnectionId={emailSyncingConnectionId}
             />
           )}

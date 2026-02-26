@@ -374,6 +374,9 @@ def run_email_sync(
                     source_meta = entity.get("sourceMetadata", {})
                     raw = source_meta.get("raw", {})
                     raw["gmailMessageId"] = msg_id
+                    thread_id = gmail_msg.get("threadId")
+                    if thread_id:
+                        raw["threadId"] = str(thread_id)
                     source_meta["raw"] = raw
                     entity["sourceMetadata"] = source_meta
 

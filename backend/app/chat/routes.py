@@ -19,6 +19,7 @@ from pydantic import BaseModel
 
 from ..config import settings
 from ..container.manager import ensure_running, write_token_file
+from ..db import db_conn
 from ..delegation import create_delegated_token
 from ..deps import get_current_org, get_current_user
 from ..routes.agent_settings import get_user_agent_backend, get_user_llm_config
@@ -497,11 +498,8 @@ async def _patch_item_local(
     token: str,
     org_id: str | None,
 ) -> dict:
-    """PATCH /items/{item_id} using the backend's own URL (self-call)."""
-    import os
-
-    port = os.getenv("PORT", "8000")
-    base_url = f"http://localhost:{port}"
+    """PATCH /items/{item_id} through the local ASGI app (no external hop)."""
+    from app.main import app as fastapi_app
 
     headers: dict[str, str] = {
         "Authorization": f"Bearer {token}",
@@ -510,14 +508,54 @@ async def _patch_item_local(
     if org_id:
         headers["X-Org-Id"] = org_id
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    transport = httpx.ASGITransport(app=fastapi_app)
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://backend.local",
+        timeout=30.0,
+    ) as client:
         response = await client.patch(
-            f"{base_url}/items/{item_id}",
+            f"/items/{item_id}",
             json={"item": patch_jsonld, "source": "copilot"},
             headers=headers,
         )
-        response.raise_for_status()
+        if response.status_code >= 400:
+            detail: str | dict = f"Items API error: {response.status_code}"
+            try:
+                payload = response.json()
+            except ValueError:
+                payload = None
+
+            if isinstance(payload, dict) and "detail" in payload:
+                response_detail = payload["detail"]
+                if isinstance(response_detail, (str, dict)):
+                    detail = response_detail
+
+            raise HTTPException(status_code=response.status_code, detail=detail)
         return response.json()
+
+
+def _resolve_item_id_for_patch(item_id_or_canonical: str, org_id: str) -> str | None:
+    """Resolve either item_id or canonical_id to the internal item_id."""
+
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT item_id::text AS item_id
+                FROM items
+                WHERE org_id = %s
+                  AND archived_at IS NULL
+                  AND (item_id::text = %s OR canonical_id = %s)
+                LIMIT 1
+                """,
+                (org_id, item_id_or_canonical, item_id_or_canonical),
+            )
+            row = cur.fetchone()
+    if row is None:
+        return None
+    value = row.get("item_id")
+    return value if isinstance(value, str) and value else None
 
 
 def _item_type_from_jsonld(schema_jsonld: dict) -> str:
@@ -533,6 +571,19 @@ def _item_type_from_jsonld(schema_jsonld: dict) -> str:
     if local == "Project":
         return "project"
     return "reference"
+
+
+def _upstream_error_detail(response: httpx.Response) -> str | dict:
+    try:
+        payload = response.json()
+    except ValueError:
+        return f"Agents service error: {response.status_code}"
+
+    if isinstance(payload, dict) and "detail" in payload:
+        detail = payload["detail"]
+        if isinstance(detail, (str, dict)):
+            return detail
+    return f"Agents service error: {response.status_code}"
 
 
 @router.post("/execute-tool", response_model=ExecuteToolResponse)
@@ -594,6 +645,10 @@ async def execute_tool_endpoint(
                 from datetime import UTC, datetime
 
                 item_id = triage["id"]
+                resolved_item_id = _resolve_item_id_for_patch(item_id, org_id)
+                if resolved_item_id is None:
+                    raise HTTPException(status_code=404, detail="Item not found")
+
                 patch: dict = {}
 
                 if triage.get("status") == "completed":
@@ -608,7 +663,7 @@ async def execute_tool_endpoint(
                         }
                     ]
 
-                result = await _patch_item_local(item_id, patch, delegated_token, org_id)
+                result = await _patch_item_local(resolved_item_id, patch, delegated_token, org_id)
                 name = result.get("schema_jsonld", {}).get("name", item_id)
                 item_type = _item_type_from_jsonld(result.get("schema_jsonld", {}))
 
@@ -621,6 +676,8 @@ async def execute_tool_endpoint(
                         )
                     ]
                 )
+            except HTTPException:
+                raise
             except Exception as exc:
                 logger.exception("Local triage execution error")
                 raise HTTPException(status_code=500, detail=str(exc)) from exc
@@ -648,8 +705,16 @@ async def execute_tool_endpoint(
     except httpx.TimeoutException as exc:
         raise HTTPException(status_code=504, detail="Agents service timeout") from exc
     except httpx.HTTPStatusError as exc:
+        upstream_status = exc.response.status_code
+        if upstream_status in {400, 401, 403, 404, 409, 422, 429}:
+            raise HTTPException(
+                status_code=upstream_status,
+                detail=_upstream_error_detail(exc.response),
+            ) from exc
+
         raise HTTPException(
-            status_code=502, detail=f"Agents service error: {exc.response.status_code}"
+            status_code=502,
+            detail=f"Agents service error: {upstream_status}",
         ) from exc
 
     return resp.json()

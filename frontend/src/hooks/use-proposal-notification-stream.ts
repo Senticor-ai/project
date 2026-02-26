@@ -30,7 +30,10 @@ function isUrgentProposalEvent(kind: string) {
   return kind === "proposal_urgent_created";
 }
 
-function maybeShowBrowserNotification(event: NotificationEvent) {
+function maybeShowBrowserNotification(
+  event: NotificationEvent,
+  onUrgentProposal?: (event: NotificationEvent) => void,
+) {
   if (typeof Notification === "undefined") return;
   if (Notification.permission !== "granted") return;
   if (document.visibilityState === "visible") return;
@@ -40,7 +43,9 @@ function maybeShowBrowserNotification(event: NotificationEvent) {
     data: { event_id: event.event_id, url: event.url },
   });
   browserNotification.onclick = () => {
-    if (event.url) {
+    if (onUrgentProposal) {
+      onUrgentProposal(event);
+    } else if (event.url) {
       window.location.assign(event.url);
     }
     window.focus();
@@ -48,10 +53,17 @@ function maybeShowBrowserNotification(event: NotificationEvent) {
   };
 }
 
-export function useProposalNotificationStream() {
+type ProposalNotificationStreamOptions = {
+  onUrgentProposal?: (event: NotificationEvent) => void;
+};
+
+export function useProposalNotificationStream(
+  options?: ProposalNotificationStreamOptions,
+) {
   const toastContext = useContext(ToastContext);
   const seenEventIds = useRef(new Set<string>());
   const seenOrder = useRef<string[]>([]);
+  const onUrgentProposal = options?.onUrgentProposal;
 
   useEffect(() => {
     if (!toastContext) {
@@ -103,16 +115,23 @@ export function useProposalNotificationStream() {
 
         if (!isUrgentProposalEvent(event.kind)) return;
 
+        onUrgentProposal?.(event);
         toastContext.toast(event.title, "info", {
           action: event.url
             ? {
                 label: "Review",
-                onClick: () => window.location.assign(event.url || "/settings/email"),
+                onClick: () => {
+                  if (onUrgentProposal) {
+                    onUrgentProposal(event);
+                    return;
+                  }
+                  window.location.assign(event.url || "/settings/email");
+                },
               }
             : undefined,
           persistent: true,
         });
-        maybeShowBrowserNotification(event);
+        maybeShowBrowserNotification(event, onUrgentProposal);
       };
       source.onmessage = (message) => {
         handlePayload(message.data);
@@ -150,5 +169,5 @@ export function useProposalNotificationStream() {
         source.close();
       }
     };
-  }, [toastContext]);
+  }, [toastContext, onUrgentProposal]);
 }
