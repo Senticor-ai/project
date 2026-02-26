@@ -103,6 +103,7 @@ export default defineConfig({
         "src/**/*.d.ts",
         "src/generated/**",
         "src/docs/**",
+        "src/components/docs/**",
         "src/vite-env.d.ts",
         "src/main.tsx",
       ],

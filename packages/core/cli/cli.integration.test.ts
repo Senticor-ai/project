@@ -23,7 +23,12 @@ const CLI = path.resolve(ROOT, "cli/index.ts");
 type ErrorEnvelope = {
   schema_version: string;
   ok: false;
-  error: { code: string; message: string; retryable: boolean; details?: Array<{ code: string }> };
+  error: {
+    code: string;
+    message: string;
+    retryable: boolean;
+    details?: Array<{ code: string }>;
+  };
 };
 
 type SuccessEnvelope = {
@@ -38,7 +43,12 @@ type Envelope = ErrorEnvelope | SuccessEnvelope;
 function runCli(
   args: string[],
   extraEnv?: Record<string, string>,
-): { exitCode: number; stdout: string; stderr: string; envelope: Envelope | null } {
+): {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+  envelope: Envelope | null;
+} {
   const result = spawnSync(TSX, [CLI, ...args], {
     encoding: "utf-8",
     env: {
@@ -132,7 +142,15 @@ describe("CLI integration — validation rejection → copilot.v1 error envelope
 
   it("rejects invalid triage target bucket via CEL bucket-enum rule → exit 4", () => {
     const { exitCode, envelope } = runCli(
-      ["items", "triage", "some-item-id", "--bucket", "GARBAGE", "--propose", "--json"],
+      [
+        "items",
+        "triage",
+        "some-item-id",
+        "--bucket",
+        "GARBAGE",
+        "--propose",
+        "--json",
+      ],
       { COPILOT_CONFIG_DIR: configDir },
     );
 
@@ -183,7 +201,15 @@ describe("CLI integration — valid propose → copilot.v1 success envelope", ()
 
   it("valid triage --propose returns proposal in copilot.v1 envelope", () => {
     const { exitCode, envelope } = runCli(
-      ["items", "triage", "some-item-id", "--bucket", "next", "--propose", "--json"],
+      [
+        "items",
+        "triage",
+        "some-item-id",
+        "--bucket",
+        "next",
+        "--propose",
+        "--json",
+      ],
       { COPILOT_CONFIG_DIR: configDir },
     );
 
@@ -249,5 +275,97 @@ describe("CLI integration — copilot.v1 envelope structure contract", () => {
     expect(typeof (envelope as ErrorEnvelope).error.code).toBe("string");
     expect(typeof (envelope as ErrorEnvelope).error.message).toBe("string");
     expect(typeof (envelope as ErrorEnvelope).error.retryable).toBe("boolean");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Orgs docs: client-side validation (no backend needed)
+// ---------------------------------------------------------------------------
+
+describe("CLI integration — orgs docs validation", () => {
+  it("orgs docs update rejects --doc log (must use append) → exit 2, error envelope", () => {
+    const { exitCode, envelope } = runCli([
+      "orgs",
+      "docs",
+      "update",
+      "some-org",
+      "--doc",
+      "log",
+      "--text",
+      "should fail",
+      "--json",
+    ]);
+
+    expect(exitCode).toBe(2);
+    expect(envelope?.ok).toBe(false);
+    expect((envelope as ErrorEnvelope).error.message).toContain("append");
+  });
+
+  it("orgs docs append rejects --doc agent (must use update) → exit 2, error envelope", () => {
+    const { exitCode, envelope } = runCli([
+      "orgs",
+      "docs",
+      "append",
+      "some-org",
+      "--doc",
+      "agent",
+      "--text",
+      "should fail",
+      "--json",
+    ]);
+
+    expect(exitCode).toBe(2);
+    expect(envelope?.ok).toBe(false);
+    expect((envelope as ErrorEnvelope).error.message).toContain("update");
+  });
+
+  it("orgs docs update requires --text → commander error", () => {
+    const { exitCode, stderr } = runCli([
+      "orgs",
+      "docs",
+      "update",
+      "some-org",
+      "--doc",
+      "agent",
+      "--json",
+    ]);
+
+    expect(exitCode).not.toBe(0);
+    expect(stderr).toContain("--text");
+  });
+
+  it("orgs docs append requires --text → commander error", () => {
+    const { exitCode, stderr } = runCli([
+      "orgs",
+      "docs",
+      "append",
+      "some-org",
+      "--doc",
+      "log",
+      "--json",
+    ]);
+
+    expect(exitCode).not.toBe(0);
+    expect(stderr).toContain("--text");
+  });
+
+  it("orgs docs update rejects invalid doc type → exit 2, error envelope", () => {
+    const { exitCode, envelope } = runCli([
+      "orgs",
+      "docs",
+      "update",
+      "some-org",
+      "--doc",
+      "INVALID",
+      "--text",
+      "test",
+      "--json",
+    ]);
+
+    expect(exitCode).toBe(2);
+    expect(envelope?.ok).toBe(false);
+    expect((envelope as ErrorEnvelope).error.message).toContain(
+      "general, user, agent",
+    );
   });
 });

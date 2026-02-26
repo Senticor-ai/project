@@ -127,7 +127,10 @@ export const GOLDEN_SCENARIOS: GoldenScenario[] = [
             },
             actions: [
               { name: "Umzugskartons besorgen", bucket: "next" },
-              { name: "Angebote von Umzugsunternehmen einholen", bucket: "next" },
+              {
+                name: "Angebote von Umzugsunternehmen einholen",
+                bucket: "next",
+              },
               { name: "Umzugstermin mit Vermieter abstimmen", bucket: "next" },
             ],
           },
@@ -147,6 +150,45 @@ export const GOLDEN_SCENARIOS: GoldenScenario[] = [
           "Umzugstermin mit Vermieter abstimmen",
         ],
         structural: true, // E2E: LLM chooses its own action names
+      },
+    ],
+  },
+  // --- Org-awareness: Person creation via copilot_cli ---
+  {
+    id: "org-create-person",
+    description: "Kontaktperson für Organisation anlegen (copilot_cli)",
+    prompt:
+      "Lege bitte Steuerberater Schmidt als Kontakt an, " +
+      "Rolle Buchhalter, E-Mail schmidt@steuer.de",
+    expectedToolCall: "copilot_cli",
+    cannedResponse: {
+      text: "Ich lege Herrn Schmidt als Kontakt an.",
+      toolCalls: [
+        {
+          name: "copilot_cli",
+          arguments: {
+            argv: [
+              "items",
+              "create",
+              "--type",
+              "Person",
+              "--name",
+              "Steuerberater Schmidt",
+              "--role",
+              "accountant",
+              "--email",
+              "schmidt@steuer.de",
+              "--apply",
+            ],
+          },
+        },
+      ],
+    },
+    assertions: [
+      {
+        bucket: "Reference",
+        itemNames: ["Steuerberater Schmidt"],
+        structural: true, // E2E: LLM picks its own person name
       },
     ],
   },

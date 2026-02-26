@@ -5,6 +5,10 @@ export type OrgResponse = {
   name: string;
   role: string;
   created_at: string;
+  general_doc_id?: string | null;
+  user_doc_id?: string | null;
+  log_doc_id?: string | null;
+  agent_doc_id?: string | null;
 };
 
 export type ItemRecord = {
@@ -218,9 +222,12 @@ export class CopilotApi {
 
   // Items
   listItems(limit = 100, offset = 0) {
-    return this.client.requestJson<ItemRecord[]>(`/items?limit=${limit}&offset=${offset}`, {
-      method: "GET",
-    });
+    return this.client.requestJson<ItemRecord[]>(
+      `/items?limit=${limit}&offset=${offset}`,
+      {
+        method: "GET",
+      },
+    );
   }
 
   syncItems(params?: {
@@ -235,9 +242,12 @@ export class CopilotApi {
     if (params?.since) searchParams.set("since", params.since);
     if (params?.completed) searchParams.set("completed", params.completed);
     const query = searchParams.toString();
-    return this.client.requestJson<SyncResponse>(`/items/sync${query ? `?${query}` : ""}`, {
-      method: "GET",
-    });
+    return this.client.requestJson<SyncResponse>(
+      `/items/sync${query ? `?${query}` : ""}`,
+      {
+        method: "GET",
+      },
+    );
   }
 
   async listAllItems(options?: {
@@ -269,13 +279,18 @@ export class CopilotApi {
   }
 
   getItem(itemId: string) {
-    return this.client.requestJson<ItemRecord>(`/items/${itemId}`, { method: "GET" });
+    return this.client.requestJson<ItemRecord>(`/items/${itemId}`, {
+      method: "GET",
+    });
   }
 
   getItemContent(itemId: string) {
-    return this.client.requestJson<ItemContentRecord>(`/items/${itemId}/content`, {
-      method: "GET",
-    });
+    return this.client.requestJson<ItemContentRecord>(
+      `/items/${itemId}/content`,
+      {
+        method: "GET",
+      },
+    );
   }
 
   createItem(item: Record<string, unknown>, source = "senticor-copilot-cli") {
@@ -323,24 +338,55 @@ export class CopilotApi {
     );
   }
 
+  patchFileContent(itemId: string, text: string) {
+    return this.client.requestJson<{ ok: boolean }>(
+      `/items/${itemId}/file-content`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      },
+    );
+  }
+
+  appendContent(itemId: string, text: string) {
+    return this.client.requestJson<{ ok: boolean }>(
+      `/items/${itemId}/append-content`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      },
+    );
+  }
+
   // Projects
   listProjectItems(projectId: string) {
-    return this.client.requestJson<Array<Record<string, unknown>>>(`/items/by-project/${projectId}`, {
-      method: "GET",
-    });
+    return this.client.requestJson<Array<Record<string, unknown>>>(
+      `/items/by-project/${projectId}`,
+      {
+        method: "GET",
+      },
+    );
   }
 
   // Collaboration
   getProjectWorkflow(projectId: string) {
-    return this.client.requestJson<WorkflowDefinitionRecord>(`/projects/${projectId}/workflow`, {
-      method: "GET",
-    });
+    return this.client.requestJson<WorkflowDefinitionRecord>(
+      `/projects/${projectId}/workflow`,
+      {
+        method: "GET",
+      },
+    );
   }
 
   listProjectMembers(projectId: string) {
-    return this.client.requestJson<ProjectMemberRecord[]>(`/projects/${projectId}/members`, {
-      method: "GET",
-    });
+    return this.client.requestJson<ProjectMemberRecord[]>(
+      `/projects/${projectId}/members`,
+      {
+        method: "GET",
+      },
+    );
   }
 
   addProjectMember(
@@ -431,7 +477,11 @@ export class CopilotApi {
     );
   }
 
-  updateProjectAction(projectId: string, actionId: string, payload: ProjectActionUpdatePayload) {
+  updateProjectAction(
+    projectId: string,
+    actionId: string,
+    payload: ProjectActionUpdatePayload,
+  ) {
     return this.client.requestJson<ProjectActionRecord>(
       `/projects/${projectId}/actions/${actionId}`,
       {

@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Optional  # noqa: UP035 — Haystack needs typing.Optional
 
 from haystack.components.agents import Agent
-from haystack.tools import Tool
+from haystack.tools import Tool, Toolset
 from haystack.utils.auth import Secret
 from jinja2 import Environment, FileSystemLoader
 
@@ -379,7 +379,7 @@ def create_agent(
         trace_context=trace_context,
     )
 
-    tools = list(TOOLS)
+    tools: list[Tool | Toolset] = list(TOOLS)
     tools.extend(build_web_read_tools())
     if auth:
         tools.extend(_build_workspace_read_tools(auth))

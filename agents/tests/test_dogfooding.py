@@ -368,3 +368,184 @@ def test_workspace_overview_text_response(client: TestClient):
     # Verify text response
     assert body["text"].startswith("Du hast 3 Projekte")
     assert body.get("toolCalls") is None
+
+
+# ---------------------------------------------------------------------------
+# Org-Awareness Scenarios
+# ---------------------------------------------------------------------------
+
+
+def test_org_context_read_scenario(client: TestClient):
+    """Agent reads org documents when user asks about an org.
+
+    Simulates the agent responding with org context after reading
+    documents via inline read tools (no write tool calls needed).
+    """
+    reply = ChatMessage.from_assistant(
+        "Nueva Tierra ist als GmbH eingetragen. "
+        "Hier sind die Details aus deinen Org-Dokumenten."
+    )
+
+    with patch("app.run_agent", new_callable=AsyncMock, return_value=reply):
+        resp = client.post(
+            "/chat/completions",
+            json={
+                "messages": _msgs("Was weißt du über Nueva Tierra?"),
+                "conversationId": "dogfood-org-read-1",
+            },
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "Nueva Tierra" in body["text"]
+    assert body.get("toolCalls") is None
+
+
+def test_org_agent_notes_update_scenario(client: TestClient):
+    """Agent updates AGENT.md after learning about an org."""
+    tool_calls = [
+        ToolCall(
+            tool_name="copilot_cli",
+            arguments={
+                "argv": [
+                    "orgs",
+                    "docs",
+                    "update",
+                    "nueva-tierra",
+                    "--doc",
+                    "agent",
+                    "--text",
+                    "# Agent-Notizen\n\nSteuerberater: Herr Schmidt",
+                    "--apply",
+                ]
+            },
+        ),
+    ]
+    reply = ChatMessage.from_assistant(
+        "Ich habe mir notiert, dass Herr Schmidt der Steuerberater ist.",
+        tool_calls=tool_calls,
+    )
+
+    with patch("app.run_agent", new_callable=AsyncMock, return_value=reply):
+        resp = client.post(
+            "/chat/completions",
+            json={
+                "messages": _msgs(
+                    "Mein Steuerberater für Nueva Tierra ist Herr Schmidt"
+                ),
+                "conversationId": "dogfood-org-notes-1",
+            },
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["toolCalls"]) == 1
+    tc = body["toolCalls"][0]
+    assert tc["name"] == "copilot_cli"
+    argv = tc["arguments"]["argv"]
+    assert "orgs" in argv
+    assert "docs" in argv
+    assert "update" in argv
+    assert "--doc" in argv
+    assert "agent" in argv
+    assert "--apply" in argv
+
+
+def test_org_log_append_scenario(client: TestClient):
+    """Agent appends to LOG.md to record an important event."""
+    tool_calls = [
+        ToolCall(
+            tool_name="copilot_cli",
+            arguments={
+                "argv": [
+                    "orgs",
+                    "docs",
+                    "append",
+                    "nueva-tierra",
+                    "--doc",
+                    "log",
+                    "--text",
+                    "Steuererklärung 2025 eingereicht",
+                    "--apply",
+                ]
+            },
+        ),
+    ]
+    reply = ChatMessage.from_assistant(
+        "Ich habe den Eintrag im Protokoll festgehalten.",
+        tool_calls=tool_calls,
+    )
+
+    with patch("app.run_agent", new_callable=AsyncMock, return_value=reply):
+        resp = client.post(
+            "/chat/completions",
+            json={
+                "messages": _msgs(
+                    "Die Steuererklärung 2025 für Nueva Tierra wurde eingereicht"
+                ),
+                "conversationId": "dogfood-org-log-1",
+            },
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["toolCalls"]) == 1
+    tc = body["toolCalls"][0]
+    assert tc["name"] == "copilot_cli"
+    argv = tc["arguments"]["argv"]
+    assert "append" in argv
+    assert "--doc" in argv
+    assert "log" in argv
+    assert "--apply" in argv
+
+
+def test_org_create_person_scenario(client: TestClient):
+    """Agent creates a Person item linked to an org."""
+    tool_calls = [
+        ToolCall(
+            tool_name="copilot_cli",
+            arguments={
+                "argv": [
+                    "items",
+                    "create",
+                    "--type",
+                    "Person",
+                    "--name",
+                    "Steuerberater Schmidt",
+                    "--org",
+                    "nueva-tierra",
+                    "--role",
+                    "accountant",
+                    "--email",
+                    "schmidt@steuer.de",
+                    "--apply",
+                ]
+            },
+        ),
+    ]
+    reply = ChatMessage.from_assistant(
+        "Ich lege Herrn Schmidt als Kontakt für Nueva Tierra an.",
+        tool_calls=tool_calls,
+    )
+
+    with patch("app.run_agent", new_callable=AsyncMock, return_value=reply):
+        resp = client.post(
+            "/chat/completions",
+            json={
+                "messages": _msgs(
+                    "Lege bitte Steuerberater Schmidt als Kontakt für Nueva Tierra an"
+                ),
+                "conversationId": "dogfood-org-person-1",
+            },
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["toolCalls"]) == 1
+    tc = body["toolCalls"][0]
+    assert tc["name"] == "copilot_cli"
+    argv = tc["arguments"]["argv"]
+    assert "Person" in argv
+    assert "--org" in argv
+    assert "--role" in argv
+    assert "--apply" in argv

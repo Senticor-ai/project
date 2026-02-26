@@ -263,7 +263,7 @@ class CachedTracedChatGenerator(OpenAIChatGenerator):
                 messages=messages,
                 streaming_callback=streaming_callback,
                 generation_kwargs=generation_kwargs,
-                tools=tools,
+                tools=tools,  # type: ignore[arg-type]  # list variance: list[Tool] ⊂ list[Tool|Toolset]
                 tools_strict=tools_strict,
             )
         except Exception as exc:
@@ -307,7 +307,7 @@ class CachedTracedChatGenerator(OpenAIChatGenerator):
                 messages=messages,
                 streaming_callback=streaming_callback,
                 generation_kwargs=generation_kwargs,
-                tools=tools,
+                tools=tools,  # type: ignore[arg-type]  # list variance: list[Tool] ⊂ list[Tool|Toolset]
                 tools_strict=tools_strict,
             )
         except Exception as exc:

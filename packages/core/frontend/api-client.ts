@@ -302,6 +302,10 @@ export type OrgResponse = {
   name: string;
   role: string;
   created_at: string;
+  general_doc_id?: string | null;
+  user_doc_id?: string | null;
+  log_doc_id?: string | null;
+  agent_doc_id?: string | null;
 };
 
 export const OrgsApi = {

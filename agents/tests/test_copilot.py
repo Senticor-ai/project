@@ -131,6 +131,29 @@ def test_system_prompt_includes_workspace_overview_tool():
     assert "web_fetch" in prompt
 
 
+def test_system_prompt_includes_org_awareness():
+    """System prompt includes org-awareness section with all 4 doc types."""
+    from copilot import build_system_prompt
+
+    prompt = build_system_prompt()
+    # Section header
+    assert "Organisationen" in prompt
+    # All 4 document types
+    assert "GENERAL.md" in prompt
+    assert "USER.md" in prompt
+    assert "LOG.md" in prompt
+    assert "AGENT.md" in prompt
+    # CLI commands for org operations
+    assert "orgs docs update" in prompt
+    assert "orgs docs append" in prompt
+    # Inline read tool referenced
+    assert "read_item_content" in prompt
+    # Agent memory pattern keyword
+    assert "Arbeitsspeicher" in prompt
+    # Org workflow section
+    assert "Org-Workflow" in prompt
+
+
 def test_tools_defined():
     """Single CLI exit-condition tool is defined."""
     from copilot import TOOLS
