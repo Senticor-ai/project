@@ -16,7 +16,7 @@ explicitly and mark the task as incomplete until resolved or explicitly waived b
 <!-- gitnexus:start -->
 # GitNexus MCP
 
-This project is indexed by GitNexus as **project-backend-team** (13801 symbols, 34820 relationships, 300 execution flows).
+This project is indexed by GitNexus as **project-backend-team** (14361 symbols, 36084 relationships, 300 execution flows).
 
 GitNexus provides a knowledge graph over this codebase — call chains, blast radius, execution flows, and semantic search.
 

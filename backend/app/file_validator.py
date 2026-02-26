@@ -22,6 +22,7 @@ from fastapi import HTTPException, status
 # Allowed MIME types whitelist
 ALLOWED_MIME_TYPES = {
     "application/pdf",
+    "application/json",
     "image/jpeg",
     "image/png",
     "text/plain",

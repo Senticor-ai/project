@@ -161,6 +161,8 @@ class TestGmailCallback:
         monkeypatch.setattr("app.email.routes.register_watch", lambda *_args: None)
 
         class DummyCrypto:
+            active_version = 7
+
             def encrypt(self, value: str) -> str:
                 return f"enc:{value}"
 
@@ -189,6 +191,22 @@ class TestGmailCallback:
         assert list_res.status_code == 200
         emails = [c["email_address"] for c in list_res.json()]
         assert "multi-account@example.com" in emails
+
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT encrypted_access_token, encrypted_refresh_token, encryption_key_version
+                    FROM email_connections
+                    WHERE org_id = %s AND email_address = %s AND is_active = true
+                    """,
+                    (auth_client.headers["X-Org-Id"], "multi-account@example.com"),
+                )
+                row = cur.fetchone()
+        assert row is not None
+        assert row["encrypted_access_token"] == "enc:access-token"
+        assert row["encrypted_refresh_token"] == "enc:refresh-token"
+        assert row["encryption_key_version"] == 7
 
 
 class TestListConnections:

@@ -183,46 +183,70 @@ PGPASSWORD='<new-password>' psql -h localhost -U project_user -d project_db -c "
 # Generate new Fernet key
 python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 
-# Store in secrets manager
+# Build keyring value (new active key first, then previous keys)
+# Format: "<new-key>,<previous-key-1>,<previous-key-2>"
+# Example:
+# ENCRYPTION_KEY="NEW_KEY,OLD_KEY"
+
+# Store keyring in secrets manager
 aws secretsmanager create-secret \
   --name project/prod/encryption-key \
-  --secret-string "<new-key>" \
+  --secret-string "<new-key>,<old-key>" \
   --region us-east-1
 ```
 
 **Deployment:**
-- **REQUIRES DATA MIGRATION:** Existing encrypted OAuth tokens must be re-encrypted
-- Implement key rotation script:
-  ```python
-  # backend/scripts/rotate_encryption_key.py
-  from cryptography.fernet import Fernet
-  from app.database import get_db
-  from app.models import User
+- Deploy backend with keyring-based `ENCRYPTION_KEY` (new key first).
+- New token writes automatically:
+  - Prefix ciphertext as `v<N>:...`
+  - Persist `email_connections.encryption_key_version = <N>`
+- Existing ciphertext remains decryptable because decryption tries the full keyring.
 
-  old_key = Fernet(b"<old-key>")
-  new_key = Fernet(b"<new-key>")
+**Backfill Plan (metadata only):**
+```sql
+-- Backfill missing encryption_key_version from existing access token format.
+-- v<N>:...  -> N
+-- gAAAAA... -> 1 (legacy pre-version format)
+UPDATE email_connections
+SET encryption_key_version = CASE
+  WHEN encrypted_access_token ~ '^v[0-9]+:' THEN
+    substring(encrypted_access_token from '^v([0-9]+):')::integer
+  WHEN encrypted_access_token ~ '^gAAAAA' THEN 1
+  ELSE encryption_key_version
+END
+WHERE encrypted_access_token IS NOT NULL
+  AND encryption_key_version IS NULL;
+```
 
-  db = next(get_db())
-  users = db.query(User).filter(User.gmail_token_encrypted.isnot(None)).all()
-
-  for user in users:
-      # Decrypt with old key
-      decrypted = old_key.decrypt(user.gmail_token_encrypted.encode())
-      # Re-encrypt with new key
-      user.gmail_token_encrypted = new_key.encrypt(decrypted).decode()
-
-  db.commit()
-  ```
-- Run migration script before deploying new key
-- Verify all tokens decrypt successfully before proceeding
+**Optional Full Re-encryption (to force latest key version):**
+- Run a one-off worker/script that:
+  - Reads active rows from `email_connections`
+  - Decrypts `encrypted_access_token` and `encrypted_refresh_token` with current keyring
+  - Re-encrypts both with active key
+  - Sets `encryption_key_version` to active version
+- Execute during low traffic and monitor disconnect/reconnect events.
 
 **Verification:**
 ```bash
-# Test Gmail integration after rotation
-curl -X POST http://localhost:8000/gmail/send \
-  -H "Cookie: project_session=<valid-session>" \
-  -d '{"to":"test@example.com","subject":"test","body":"test"}'
-# Should succeed with 200 response
+# 1) Ensure metadata backfill is complete
+psql "$DATABASE_URL" -c "
+SELECT COUNT(*) AS missing_versions
+FROM email_connections
+WHERE encrypted_access_token IS NOT NULL
+  AND encryption_key_version IS NULL;
+"
+
+# 2) Check distribution by key version
+psql "$DATABASE_URL" -c "
+SELECT encryption_key_version, COUNT(*)
+FROM email_connections
+WHERE encrypted_access_token IS NOT NULL
+GROUP BY encryption_key_version
+ORDER BY encryption_key_version;
+"
+
+# 3) Smoke-test Gmail refresh path
+# (trigger sync or open inbox/calendar API for a connected account)
 ```
 
 ---

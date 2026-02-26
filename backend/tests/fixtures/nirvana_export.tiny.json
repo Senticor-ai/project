@@ -1,0 +1,27 @@
+[
+  {
+    "id": "TASK-TINY-001",
+    "type": 0,
+    "state": 1,
+    "name": "Tiny import smoke task",
+    "note": "",
+    "tags": ",Work,",
+    "created": 1738601000,
+    "updated": 1738604600,
+    "completed": 0,
+    "parentid": "",
+    "duedate": "",
+    "startdate": "",
+    "waitingfor": "",
+    "energy": 1,
+    "etime": 15,
+    "recurring": "",
+    "reminder": "",
+    "seq": 1,
+    "seqp": 0,
+    "seqt": 0,
+    "ps": 0,
+    "cancelled": 0,
+    "deleted": 0
+  }
+]

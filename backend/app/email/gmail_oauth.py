@@ -122,10 +122,17 @@ def refresh_gmail_token(connection_id: str, org_id: str) -> str:
                 UPDATE email_connections
                 SET encrypted_access_token = %s,
                     token_expires_at = %s,
+                    encryption_key_version = %s,
                     updated_at = now()
                 WHERE connection_id = %s AND org_id = %s
                 """,
-                (crypto.encrypt(access_token), expires_at, connection_id, org_id),
+                (
+                    crypto.encrypt(access_token),
+                    expires_at,
+                    crypto.active_version,
+                    connection_id,
+                    org_id,
+                ),
             )
         conn.commit()
 

@@ -541,6 +541,7 @@ def gmail_callback(
                     SET encrypted_access_token = %s,
                         encrypted_refresh_token = COALESCE(%s, encrypted_refresh_token),
                         token_expires_at = %s,
+                        encryption_key_version = %s,
                         calendar_sync_enabled = true,
                         calendar_selected_ids = COALESCE(calendar_selected_ids, %s),
                         calendar_sync_tokens = COALESCE(
@@ -558,6 +559,7 @@ def gmail_callback(
                         crypto.encrypt(access_token),
                         crypto.encrypt(refresh_token) if refresh_token else None,
                         expires_at,
+                        crypto.active_version,
                         jsonb(["primary"]),
                         existing["connection_id"],
                     ),
@@ -570,9 +572,9 @@ def gmail_callback(
                     INSERT INTO email_connections
                         (org_id, user_id, email_address, display_name,
                          encrypted_access_token, encrypted_refresh_token,
-                         token_expires_at, calendar_sync_enabled,
+                         token_expires_at, encryption_key_version, calendar_sync_enabled,
                          calendar_selected_ids, calendar_sync_tokens)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, true, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, true, %s, %s)
                     RETURNING connection_id
                     """,
                     (
@@ -583,6 +585,7 @@ def gmail_callback(
                         crypto.encrypt(access_token),
                         crypto.encrypt(refresh_token),
                         expires_at,
+                        crypto.active_version,
                         jsonb(["primary"]),
                         jsonb({}),
                     ),
@@ -913,6 +916,7 @@ def disconnect(
                 SET is_active = false,
                     encrypted_access_token = NULL,
                     encrypted_refresh_token = NULL,
+                    encryption_key_version = NULL,
                     token_expires_at = NULL,
                     watch_expiration = NULL,
                     watch_history_id = NULL,

@@ -106,6 +106,85 @@ def _drain_worker_until_completed(auth_client: TestClient, job_id: str) -> dict:
     raise AssertionError(f"job {job_id} did not complete (last status: {last_status})")
 
 
+def _upload_fixture_via_file_api(
+    auth_client: TestClient,
+    fixture_name: str,
+    content_type: str = "application/json",
+) -> dict:
+    fixture_path = ROOT_DIR / "backend" / "tests" / "fixtures" / fixture_name
+    content = fixture_path.read_bytes()
+
+    initiate = auth_client.post(
+        "/files/initiate",
+        json={
+            "filename": fixture_path.name,
+            "content_type": content_type,
+            "total_size": len(content),
+        },
+    )
+    assert initiate.status_code == 201
+    initiate_payload = initiate.json()
+    upload_id = initiate_payload["upload_id"]
+    chunk_size = int(initiate_payload["chunk_size"])
+    chunk_total = int(initiate_payload["chunk_total"])
+
+    for chunk_index in range(chunk_total):
+        start = chunk_index * chunk_size
+        end = start + chunk_size
+        chunk = content[start:end]
+        upload = auth_client.put(
+            f"/files/upload/{upload_id}",
+            content=chunk,
+            headers={
+                "X-Chunk-Index": str(chunk_index),
+                "X-Chunk-Total": str(chunk_total),
+            },
+        )
+        assert upload.status_code == 200
+
+    complete = auth_client.post("/files/complete", json={"upload_id": upload_id})
+    assert complete.status_code == 201
+    complete_payload = complete.json()
+    assert complete_payload["content_type"] == content_type
+    return complete_payload
+
+
+def test_import_from_uploaded_json_file_flow(auth_client):
+    file_record = _upload_fixture_via_file_api(auth_client, "nirvana_export.tiny.json")
+    file_id = file_record["file_id"]
+
+    inspect = auth_client.post(
+        "/imports/nirvana/inspect",
+        json={
+            "file_id": file_id,
+            "include_completed": False,
+        },
+    )
+    assert inspect.status_code == 200
+    summary = inspect.json()
+    assert summary["total"] == 1
+    assert summary["errors"] == 0
+
+    queued = auth_client.post(
+        "/imports/nirvana/from-file",
+        json={
+            "file_id": file_id,
+            "include_completed": False,
+            "emit_events": False,
+        },
+    )
+    assert queued.status_code == 202
+    job_id = queued.json()["job_id"]
+
+    payload = _drain_worker_until_completed(auth_client, job_id)
+    assert payload["status"] == "completed"
+    assert payload["summary"]["total"] == 1
+    assert payload["summary"]["errors"] == 0
+
+    items = auth_client.get("/items?limit=100").json()
+    assert any(t["canonical_id"] == "urn:app:action:TASK-TINY-001" for t in items)
+
+
 def test_import_from_file_flow(auth_client):
     user_id = auth_client.get("/auth/me").json()["id"]
     org_id = auth_client.headers["X-Org-Id"]
