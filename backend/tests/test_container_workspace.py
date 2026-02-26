@@ -99,3 +99,18 @@ def test_provision_workspace_keeps_custom_identity(monkeypatch, tmp_path):
 
     assert (user_workspace_dir / "BOOTSTRAP.md").read_text() == "template bootstrap"
     assert (user_workspace_dir / "IDENTITY.md").read_text() == "Name: OpenClaw Prime\n"
+
+
+@pytest.mark.unit
+def test_provision_workspace_disables_control_ui_for_embedded_container(tmp_path):
+    storage_base = tmp_path / "storage"
+    workspace_dir, _runtime_dir = workspace_mod.provision_workspace(
+        user_id="user-control-ui",
+        storage_base=storage_base,
+        port=18803,
+        model="openrouter/google/gemini-3-flash-preview",
+        token="gateway-token",
+    )
+
+    config = json.loads((workspace_dir / "openclaw.json").read_text())
+    assert config["gateway"]["controlUi"]["enabled"] is False

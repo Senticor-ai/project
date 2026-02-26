@@ -1,11 +1,9 @@
 {
-  "name": "OpenClaw Copilot",
-  "image": "ghcr.io/openclaw/openclaw:latest",
+  "name": "OpenClaw",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:22",
   "mounts": [
     "source=${localWorkspaceFolder},target=/project,type=bind,readonly"
   ],
-  "containerEnv": {
-    "OPENCLAW_CONFIG_PATH": "/openclaw.json"
-  },
-  "remoteUser": "root"
+  "postCreateCommand": "npm install -g openclaw",
+  "remoteUser": "node"
 }

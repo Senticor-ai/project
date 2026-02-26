@@ -1,0 +1,13 @@
+FROM mcr.microsoft.com/devcontainers/typescript-node:22
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+# One-off dev runtime: install OpenClaw CLI on top of a flexible Node 22 base.
+RUN npm install -g openclaw@latest && openclaw --version
+
+ENV OPENCLAW_PREFER_PNPM=1
+
+USER node
+WORKDIR /workspace
+
+CMD ["openclaw", "gateway", "run", "--allow-unconfigured", "--bind", "lan"]

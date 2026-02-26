@@ -155,7 +155,7 @@ describe("AppBootstrap", () => {
     const content = await screen.findByTestId("app-content");
     const shell = content.parentElement as HTMLElement;
     expect(shell.style.opacity).toBe("0");
-    expect(raf).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(raf).toHaveBeenCalledTimes(2));
     expect(container.firstElementChild).toBe(shell);
 
     await waitFor(() => {

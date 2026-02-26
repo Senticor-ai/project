@@ -322,7 +322,7 @@ Dev stack uses `${PROJECT_PREFIX}.localhost` (e.g. `copilot.localhost`) as the h
 <!-- gitnexus:start -->
 # GitNexus MCP
 
-This project is indexed by GitNexus as **project-backend-team** (14657 symbols, 37628 relationships, 300 execution flows).
+This project is indexed by GitNexus as **project-backend-team** (14786 symbols, 38007 relationships, 300 execution flows).
 
 GitNexus provides a knowledge graph over this codebase — call chains, blast radius, execution flows, and semantic search.
 
