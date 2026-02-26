@@ -24,9 +24,11 @@ class TestDefaultBackend:
     def test_new_user_gets_openclaw_default(self, auth_client, monkeypatch):
         """When DEFAULT_AGENT_BACKEND=openclaw, a fresh user sees openclaw."""
         _patch_settings(monkeypatch, default_agent_backend="openclaw")
+        monkeypatch.setattr("app.routes.agent_settings.get_identity_name", lambda _user_id: None)
         response = auth_client.get("/agent/settings")
         assert response.status_code == 200
         assert response.json()["agentBackend"] == "openclaw"
+        assert response.json()["agentName"] == "OpenClaw"
 
     def test_new_user_gets_haystack_when_rollback(self, auth_client, monkeypatch):
         """When DEFAULT_AGENT_BACKEND=haystack (rollback), a fresh user sees haystack."""
@@ -34,6 +36,15 @@ class TestDefaultBackend:
         response = auth_client.get("/agent/settings")
         assert response.status_code == 200
         assert response.json()["agentBackend"] == "haystack"
+        assert response.json()["agentName"] == "Copilot"
+
+    def test_openclaw_name_from_identity_is_returned(self, auth_client, monkeypatch):
+        _patch_settings(monkeypatch, default_agent_backend="openclaw")
+        monkeypatch.setattr("app.routes.agent_settings.get_identity_name", lambda _user_id: "Nora")
+
+        response = auth_client.get("/agent/settings")
+        assert response.status_code == 200
+        assert response.json()["agentName"] == "Nora"
 
     def test_explicit_haystack_user_keeps_haystack(self, auth_client, monkeypatch):
         """A user who explicitly chose haystack keeps it even when default is openclaw."""

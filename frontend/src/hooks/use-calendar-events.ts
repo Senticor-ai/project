@@ -19,10 +19,15 @@ function invalidateRelated(queryClient: ReturnType<typeof useQueryClient>) {
   void queryClient.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
 }
 
-export function useCalendarEvents(enabled = true) {
+export function useCalendarEvents(
+  enabled = true,
+  params?: { dateFrom?: string; dateTo?: string },
+) {
   return useQuery({
-    queryKey: CALENDAR_EVENTS_QUERY_KEY,
-    queryFn: () => CalendarApi.listEvents({ limit: 800 }),
+    queryKey: params
+      ? [...CALENDAR_EVENTS_QUERY_KEY, params.dateFrom, params.dateTo]
+      : CALENDAR_EVENTS_QUERY_KEY,
+    queryFn: () => CalendarApi.listEvents({ limit: 800, ...params }),
     enabled,
     staleTime: 15_000,
   });

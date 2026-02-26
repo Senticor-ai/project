@@ -61,14 +61,22 @@ function formatDayLabel(value: string): string {
   });
 }
 
+function isAllDay(startDate: string | null): boolean {
+  return Boolean(startDate && !startDate.includes("T"));
+}
+
 function formatTimeRange(
   startDate: string | null,
   endDate: string | null,
+  source?: string,
 ): string {
   const start = parseCalendarDate(startDate);
   if (!start) return "All day";
   const hasTime = (startDate || "").includes("T");
-  if (!hasTime) return "All day";
+  if (!hasTime) {
+    if (source === "google_calendar") return "All day";
+    return "Time not set";
+  }
   const timeFormat: Intl.DateTimeFormatOptions = {
     hour: "2-digit",
     minute: "2-digit",
@@ -109,6 +117,14 @@ function byStartDate(
   a: CalendarEventResponse,
   b: CalendarEventResponse,
 ): number {
+  const aDay = (a.start_date ?? "").slice(0, 10);
+  const bDay = (b.start_date ?? "").slice(0, 10);
+  if (aDay === bDay) {
+    const aAllDay = isAllDay(a.start_date);
+    const bAllDay = isAllDay(b.start_date);
+    if (aAllDay && !bAllDay) return -1;
+    if (!aAllDay && bAllDay) return 1;
+  }
   const left =
     parseCalendarDate(a.start_date)?.getTime() ?? Number.MAX_SAFE_INTEGER;
   const right =
@@ -179,7 +195,7 @@ function EventPill({
     >
       <div className="truncate font-medium">{event.name}</div>
       <div className="truncate text-[11px] text-text-muted">
-        {formatTimeRange(event.start_date, event.end_date)}
+        {formatTimeRange(event.start_date, event.end_date, event.source)}
       </div>
     </button>
   );
@@ -202,18 +218,18 @@ export function CalendarView({
   const [editor, setEditor] = useState<EventEditorState | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [patchError, setPatchError] = useState<string | null>(null);
-  const [activeProjectFilter, setActiveProjectFilter] = useState<string | null>(
-    null,
+  const [activeProjectFilter, setActiveProjectFilter] = useState<Set<string>>(
+    new Set(),
   );
   const viewerTimeZone = useMemo(() => resolveViewerTimeZone(), []);
 
   const sortedEvents = useMemo(() => [...events].sort(byStartDate), [events]);
 
   const filteredEvents = useMemo(() => {
-    if (!activeProjectFilter) return sortedEvents;
+    if (activeProjectFilter.size === 0) return sortedEvents;
     return sortedEvents.filter((event) => {
       const projectIds = (event as CalendarEvent).project_ids;
-      return projectIds?.includes(activeProjectFilter);
+      return projectIds?.some((id) => activeProjectFilter.has(id));
     });
   }, [sortedEvents, activeProjectFilter]);
 
@@ -228,10 +244,16 @@ export function CalendarView({
     return Array.from(groups.entries());
   }, [filteredEvents, viewerTimeZone]);
 
-  const anchorDate = useMemo(() => {
-    const first = filteredEvents[0];
-    return parseCalendarDate(first?.start_date) ?? new Date();
-  }, [filteredEvents]);
+  const [anchorDate, setAnchorDate] = useState<Date>(() => new Date());
+
+  const navigate = (direction: -1 | 1) => {
+    setAnchorDate((prev) => {
+      const next = new Date(prev);
+      if (mode === "week") next.setDate(next.getDate() + direction * 7);
+      else next.setMonth(next.getMonth() + direction);
+      return next;
+    });
+  };
 
   const weekDays = useMemo(() => makeWeekDays(anchorDate), [anchorDate]);
   const monthDays = useMemo(() => makeMonthGrid(anchorDate), [anchorDate]);
@@ -309,7 +331,7 @@ export function CalendarView({
 
   return (
     <div className={cn("space-y-4", className)}>
-      <div className="flex items-center justify-between rounded-[var(--radius-lg)] border border-paper-200 bg-paper-50 px-3 py-2">
+      <div className="flex flex-wrap items-center gap-2 rounded-[var(--radius-lg)] border border-paper-200 bg-paper-50 px-3 py-2">
         <div className="text-sm font-medium text-text-primary">Calendar</div>
         <div className="inline-flex rounded-[var(--radius-md)] border border-paper-300 bg-white p-0.5">
           {(["list", "week", "month"] as const).map((entryMode) => (
@@ -328,6 +350,34 @@ export function CalendarView({
             </button>
           ))}
         </div>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            disabled={mode === "list"}
+            aria-label="Previous"
+            className="rounded-[var(--radius-sm)] border border-paper-300 px-2 py-1 text-xs text-text-muted hover:bg-paper-100 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            ←
+          </button>
+          <button
+            type="button"
+            onClick={() => setAnchorDate(new Date())}
+            disabled={mode === "list"}
+            className="rounded-[var(--radius-sm)] border border-paper-300 px-2 py-1 text-xs font-medium text-text-primary hover:bg-paper-100 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Today
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate(1)}
+            disabled={mode === "list"}
+            aria-label="Next"
+            className="rounded-[var(--radius-sm)] border border-paper-300 px-2 py-1 text-xs text-text-muted hover:bg-paper-100 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            →
+          </button>
+        </div>
       </div>
 
       {/* Project filter bar */}
@@ -335,10 +385,10 @@ export function CalendarView({
         <div className="flex flex-wrap gap-1.5">
           <button
             type="button"
-            onClick={() => setActiveProjectFilter(null)}
+            onClick={() => setActiveProjectFilter(new Set())}
             className={cn(
               "rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
-              activeProjectFilter === null
+              activeProjectFilter.size === 0
                 ? "bg-blueprint-600 text-white"
                 : "bg-paper-100 text-text-muted hover:bg-paper-200",
             )}
@@ -350,13 +400,19 @@ export function CalendarView({
               key={project.id}
               type="button"
               onClick={() =>
-                setActiveProjectFilter(
-                  activeProjectFilter === project.id ? null : project.id,
-                )
+                setActiveProjectFilter((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(project.id)) {
+                    next.delete(project.id);
+                  } else {
+                    next.add(project.id);
+                  }
+                  return next;
+                })
               }
               className={cn(
                 "rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
-                activeProjectFilter === project.id
+                activeProjectFilter.has(project.id)
                   ? "bg-blueprint-600 text-white"
                   : "bg-paper-100 text-text-muted hover:bg-paper-200",
               )}
@@ -433,7 +489,11 @@ export function CalendarView({
                         {event.name}
                       </div>
                       <div className="text-xs text-text-muted">
-                        {formatTimeRange(event.start_date, event.end_date)}
+                        {formatTimeRange(
+                          event.start_date,
+                          event.end_date,
+                          event.source,
+                        )}
                       </div>
                     </button>
                     <span
@@ -456,6 +516,12 @@ export function CalendarView({
         <div className="grid grid-cols-1 gap-3 md:grid-cols-7">
           {weekDays.map((day) => {
             const dayEvents = eventsForDay(filteredEvents, day, viewerTimeZone);
+            const allDayEvents = dayEvents.filter((e) =>
+              isAllDay(e.start_date),
+            );
+            const timedEvents = dayEvents.filter(
+              (e) => !isAllDay(e.start_date),
+            );
             return (
               <section
                 key={dayKeyFromDate(day, viewerTimeZone)}
@@ -468,17 +534,35 @@ export function CalendarView({
                     day: "numeric",
                   })}
                 </header>
-                <div className="space-y-2 p-2">
+                <div className="p-2">
                   {dayEvents.length === 0 ? (
                     <div className="text-[11px] text-text-muted">No events</div>
                   ) : (
-                    dayEvents.map((event) => (
-                      <EventPill
-                        key={event.canonical_id}
-                        event={event}
-                        onOpen={openEvent}
-                      />
-                    ))
+                    <>
+                      {allDayEvents.length > 0 && (
+                        <div
+                          data-testid="all-day-lane"
+                          className="mb-1 space-y-1 border-b border-paper-100 pb-1"
+                        >
+                          {allDayEvents.map((event) => (
+                            <EventPill
+                              key={event.canonical_id}
+                              event={event}
+                              onOpen={openEvent}
+                            />
+                          ))}
+                        </div>
+                      )}
+                      <div className="space-y-2">
+                        {timedEvents.map((event) => (
+                          <EventPill
+                            key={event.canonical_id}
+                            event={event}
+                            onOpen={openEvent}
+                          />
+                        ))}
+                      </div>
+                    </>
                   )}
                 </div>
               </section>
@@ -490,12 +574,17 @@ export function CalendarView({
       {!isLoading && filteredEvents.length > 0 && mode === "month" && (
         <div className="grid grid-cols-2 gap-2 md:grid-cols-7">
           {monthDays.map((day) => {
-            const allDayEvents = eventsForDay(
+            const cellEvents = eventsForDay(
               filteredEvents,
               day,
               viewerTimeZone,
             );
-            const dayEvents = allDayEvents.slice(0, 3);
+            const allDayEventsInCell = cellEvents.filter((e) =>
+              isAllDay(e.start_date),
+            );
+            const timedEventsInCell = cellEvents.filter(
+              (e) => !isAllDay(e.start_date),
+            );
             const isCurrentMonth = day.getMonth() === anchorDate.getMonth();
             return (
               <section
@@ -509,16 +598,32 @@ export function CalendarView({
                   {day.getDate()}
                 </div>
                 <div className="space-y-1">
-                  {dayEvents.map((event) => (
-                    <EventPill
-                      key={event.canonical_id}
-                      event={event}
-                      onOpen={openEvent}
-                    />
-                  ))}
-                  {allDayEvents.length > 3 && (
+                  {allDayEventsInCell.length > 0 && (
+                    <div
+                      data-testid="all-day-lane"
+                      className="mb-0.5 border-b border-paper-100 pb-0.5"
+                    >
+                      {allDayEventsInCell.slice(0, 2).map((event) => (
+                        <EventPill
+                          key={event.canonical_id}
+                          event={event}
+                          onOpen={openEvent}
+                        />
+                      ))}
+                    </div>
+                  )}
+                  {timedEventsInCell
+                    .slice(0, 3 - Math.min(allDayEventsInCell.length, 2))
+                    .map((event) => (
+                      <EventPill
+                        key={event.canonical_id}
+                        event={event}
+                        onOpen={openEvent}
+                      />
+                    ))}
+                  {cellEvents.length > 3 && (
                     <div className="text-[11px] text-text-muted">
-                      +{allDayEvents.length - 3} more
+                      +{cellEvents.length - 3} more
                     </div>
                   )}
                 </div>
@@ -631,17 +736,27 @@ export function CalendarView({
                     selected as CalendarEvent
                   ).project_ids?.includes(project.id);
                   return (
-                    <span
+                    <button
                       key={project.id}
+                      type="button"
+                      disabled={!onPatchEvent || busyKey !== null}
+                      onClick={() => {
+                        const currentIds =
+                          (selected as CalendarEvent).project_ids ?? [];
+                        const nextIds = isLinked
+                          ? currentIds.filter((id) => id !== project.id)
+                          : [...currentIds, project.id];
+                        void handlePatch({ project_ids: nextIds });
+                      }}
                       className={cn(
-                        "rounded-full px-2 py-0.5 text-[11px] font-medium",
+                        "rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
                         isLinked
-                          ? "bg-app-project/10 text-app-project"
-                          : "bg-paper-100 text-text-muted",
+                          ? "bg-app-project/10 text-app-project hover:bg-app-project/20"
+                          : "bg-paper-100 text-text-muted hover:bg-paper-200",
                       )}
                     >
                       {project.name}
-                    </span>
+                    </button>
                   );
                 })}
               </div>

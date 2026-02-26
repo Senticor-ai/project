@@ -582,7 +582,10 @@ export const CollaborationApi = {
       },
     ),
 
-  listProjectActions: (projectId: string, params?: ProjectActionListRequest) => {
+  listProjectActions: (
+    projectId: string,
+    params?: ProjectActionListRequest,
+  ) => {
     const searchParams = new URLSearchParams();
     for (const status of params?.status ?? []) {
       if (status) searchParams.append("status", status);
@@ -609,7 +612,10 @@ export const CollaborationApi = {
       `/projects/${encodeURIComponent(projectId)}/actions/${encodeURIComponent(actionId)}/history`,
     ),
 
-  createProjectAction: (projectId: string, payload: ProjectActionCreateRequest) =>
+  createProjectAction: (
+    projectId: string,
+    payload: ProjectActionCreateRequest,
+  ) =>
     request<ProjectActionResponse>(
       `/projects/${encodeURIComponent(projectId)}/actions`,
       {
@@ -1052,6 +1058,7 @@ export type CalendarEventPatchRequest = {
   description?: string;
   start_date?: string;
   end_date?: string;
+  project_ids?: string[];
 };
 
 export type CalendarEventRsvpRequest = {
@@ -1229,6 +1236,8 @@ export const ChatApi = {
 
 export type AgentSettingsResponse = {
   agentBackend: "haystack" | "openclaw";
+  agentName?: string | null;
+  devToolsEnabled?: boolean;
   provider: "openrouter" | "openai" | "anthropic";
   hasApiKey: boolean;
   model: string;
@@ -1250,6 +1259,12 @@ export type AgentContainerStatusResponse = {
   startedAt: string | null;
   lastActivityAt: string | null;
   port: number | null;
+};
+
+export type AgentContainerHardRefreshResponse = {
+  ok: boolean;
+  removedWorkspace: boolean;
+  removedRuntime: boolean;
 };
 
 export type AgentSettingsUpdateRequest = {
@@ -1283,6 +1298,14 @@ export const AgentApi = {
     request<{ ok: boolean; url: string }>("/agent/container/restart", {
       method: "POST",
     }),
+
+  hardRefreshContainer: () =>
+    request<AgentContainerHardRefreshResponse>(
+      "/agent/container/hard-refresh",
+      {
+        method: "POST",
+      },
+    ),
 };
 
 // ---------------------------------------------------------------------------

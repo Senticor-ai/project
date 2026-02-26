@@ -637,6 +637,8 @@ export const ChatApi = {
 
 export type AgentSettingsResponse = {
   agentBackend: "haystack" | "openclaw";
+  agentName?: string | null;
+  devToolsEnabled?: boolean;
   provider: "openrouter" | "openai" | "anthropic";
   hasApiKey: boolean;
   model: string;
@@ -651,6 +653,12 @@ export type AgentContainerStatusResponse = {
   startedAt: string | null;
   lastActivityAt: string | null;
   port: number | null;
+};
+
+export type AgentContainerHardRefreshResponse = {
+  ok: boolean;
+  removedWorkspace: boolean;
+  removedRuntime: boolean;
 };
 
 export type AgentSettingsUpdateRequest = {
@@ -682,6 +690,11 @@ export const AgentApi = {
 
   restartContainer: () =>
     request<{ ok: boolean; url: string }>("/agent/container/restart", {
+      method: "POST",
+    }),
+
+  hardRefreshContainer: () =>
+    request<AgentContainerHardRefreshResponse>("/agent/container/hard-refresh", {
       method: "POST",
     }),
 };

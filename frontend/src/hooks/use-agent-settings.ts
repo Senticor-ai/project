@@ -74,3 +74,18 @@ export function useRestartContainer() {
     },
   });
 }
+
+export function useHardRefreshContainer() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => AgentApi.hardRefreshContainer(),
+    onSettled: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: AGENT_SETTINGS_QUERY_KEY,
+      });
+      await queryClient.invalidateQueries({
+        queryKey: AGENT_CONTAINER_STATUS_KEY,
+      });
+    },
+  });
+}

@@ -158,6 +158,30 @@ describe("CalendarView", () => {
   });
 
   // ---------------------------------------------------------------------------
+  // Sync badge states (FR-3 / UX spec)
+  // ---------------------------------------------------------------------------
+
+  it.each([
+    { sync_state: "Synced" as const },
+    { sync_state: "Local only" as const },
+    { sync_state: "Sync failed" as const },
+    { sync_state: "Saving" as const },
+  ])(
+    "renders '$sync_state' sync badge in detail panel",
+    async ({ sync_state }) => {
+      const user = userEvent.setup();
+      const event: CalendarEventResponse = { ...baseEvent, sync_state };
+
+      render(<CalendarView events={[event]} />);
+      await user.click(screen.getByText("Client sync"));
+
+      // Badge appears both in the list row and the detail panel
+      const badges = screen.getAllByText(sync_state);
+      expect(badges.length).toBeGreaterThanOrEqual(1);
+    },
+  );
+
+  // ---------------------------------------------------------------------------
   // P2: Recurrence label
   // ---------------------------------------------------------------------------
 
@@ -265,5 +289,245 @@ describe("CalendarView", () => {
     expect(
       screen.getByText(/modified elsewhere|conflict/i),
     ).toBeInTheDocument();
+  });
+
+  // ---------------------------------------------------------------------------
+  // GAP 4: Multi-select project filter
+  // ---------------------------------------------------------------------------
+
+  it("supports multi-select project filter with Any-selected semantics", async () => {
+    const user = userEvent.setup();
+    const projects = [
+      { id: "proj-1", name: "Alpha" },
+      { id: "proj-2", name: "Beta" },
+    ];
+    const events = [
+      { ...baseEvent, project_ids: ["proj-1"] } as CalendarEventResponse & {
+        project_ids: string[];
+      },
+      {
+        ...baseEvent,
+        canonical_id: "urn:app:event:gcal:primary:evt-2",
+        item_id: "evt-2",
+        name: "Beta meeting",
+        project_ids: ["proj-2"],
+      } as CalendarEventResponse & { project_ids: string[] },
+      {
+        ...baseEvent,
+        canonical_id: "urn:app:event:gcal:primary:evt-3",
+        item_id: "evt-3",
+        name: "No project",
+      },
+    ];
+
+    render(<CalendarView events={events} projects={projects} />);
+
+    // Click Alpha
+    await user.click(screen.getByRole("button", { name: "Alpha" }));
+    expect(screen.getByText("Client sync")).toBeInTheDocument();
+    expect(screen.queryByText("Beta meeting")).not.toBeInTheDocument();
+    expect(screen.queryByText("No project")).not.toBeInTheDocument();
+
+    // Click Beta too — both Alpha and Beta events should show
+    await user.click(screen.getByRole("button", { name: "Beta" }));
+    expect(screen.getByText("Client sync")).toBeInTheDocument();
+    expect(screen.getByText("Beta meeting")).toBeInTheDocument();
+    expect(screen.queryByText("No project")).not.toBeInTheDocument();
+
+    // Click All — everything shows
+    await user.click(screen.getByRole("button", { name: "All" }));
+    expect(screen.getByText("No project")).toBeInTheDocument();
+  });
+
+  // ---------------------------------------------------------------------------
+  // GAP 1: Calendar grid navigation
+  // ---------------------------------------------------------------------------
+
+  it("renders navigation buttons (Previous, Today, Next)", () => {
+    render(<CalendarView events={[baseEvent]} />);
+    expect(
+      screen.getByRole("button", { name: /previous/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /today/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /next/i })).toBeInTheDocument();
+  });
+
+  it("navigation buttons are disabled in list mode", () => {
+    render(<CalendarView events={[baseEvent]} />);
+    expect(screen.getByRole("button", { name: /previous/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /today/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /next/i })).toBeDisabled();
+  });
+
+  it("navigation buttons are enabled in week mode", async () => {
+    const user = userEvent.setup();
+    render(<CalendarView events={[baseEvent]} />);
+    await user.click(screen.getByRole("button", { name: "week" }));
+    expect(
+      screen.getByRole("button", { name: /previous/i }),
+    ).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: /next/i })).not.toBeDisabled();
+  });
+
+  // ---------------------------------------------------------------------------
+  // GAP 5: All-day events sorted first within a day
+  // ---------------------------------------------------------------------------
+
+  it("sorts all-day events before timed events on the same day", () => {
+    const allDay = {
+      ...baseEvent,
+      canonical_id: "urn:app:event:local:allday",
+      item_id: "allday",
+      name: "Holiday",
+      start_date: "2026-03-01",
+      end_date: null,
+      source: "google_calendar",
+    };
+    const timed = {
+      ...baseEvent,
+      canonical_id: "urn:app:event:gcal:primary:timed",
+      item_id: "timed",
+      name: "Morning standup",
+      start_date: "2026-03-01T10:00:00Z",
+    };
+
+    // Pass timed first — component should sort all-day before timed
+    render(<CalendarView events={[timed, allDay]} />);
+    const items = screen.getAllByRole("listitem");
+    expect(items[0]).toHaveTextContent("Holiday");
+    expect(items[1]).toHaveTextContent("Morning standup");
+  });
+
+  // ---------------------------------------------------------------------------
+  // GAP 6: All-day lane in week grid
+  // ---------------------------------------------------------------------------
+
+  it("renders all-day events in a dedicated lane in week mode", async () => {
+    const user = userEvent.setup();
+    // Use a date within the current week to ensure it shows up
+    const today = new Date();
+    const todayStr = today.toISOString().slice(0, 10);
+    const allDay = {
+      ...baseEvent,
+      canonical_id: "urn:app:event:local:allday-w",
+      item_id: "allday-w",
+      name: "Team offsite",
+      start_date: todayStr,
+      end_date: null,
+      source: "google_calendar",
+    };
+
+    render(<CalendarView events={[allDay]} />);
+    await user.click(screen.getByRole("button", { name: "week" }));
+
+    const lane = screen.getByTestId("all-day-lane");
+    expect(lane).toBeInTheDocument();
+    expect(within(lane).getByText("Team offsite")).toBeInTheDocument();
+  });
+
+  // ---------------------------------------------------------------------------
+  // GAP 7: "Time not set" label for legacy events
+  // ---------------------------------------------------------------------------
+
+  it("shows 'Time not set' for manual events with date-only start_date", () => {
+    const legacyEvent = {
+      ...baseEvent,
+      canonical_id: "urn:app:event:local:legacy",
+      item_id: "legacy",
+      name: "Converted action",
+      start_date: "2026-03-01",
+      end_date: null,
+      source: "manual",
+      provider: null,
+    };
+
+    render(<CalendarView events={[legacyEvent]} />);
+    expect(screen.getByText("Time not set")).toBeInTheDocument();
+  });
+
+  it("shows 'All day' for google calendar events with date-only start_date", () => {
+    const allDayGoogle = {
+      ...baseEvent,
+      canonical_id: "urn:app:event:gcal:primary:allday",
+      item_id: "allday-g",
+      name: "Google holiday",
+      start_date: "2026-03-01",
+      end_date: null,
+      source: "google_calendar",
+    };
+
+    render(<CalendarView events={[allDayGoogle]} />);
+    expect(screen.getByText("All day")).toBeInTheDocument();
+  });
+
+  // ---------------------------------------------------------------------------
+  // GAP 3: Project association editing (clickable chips)
+  // ---------------------------------------------------------------------------
+
+  it("clicking a linked project chip calls onPatchEvent to remove it", async () => {
+    const user = userEvent.setup();
+    const projects = [
+      { id: "proj-1", name: "Alpha" },
+      { id: "proj-2", name: "Beta" },
+    ];
+    const onPatchEvent = vi.fn().mockResolvedValue(undefined);
+    const event = {
+      ...baseEvent,
+      project_ids: ["proj-1"],
+    } as CalendarEventResponse & { project_ids: string[] };
+
+    render(
+      <CalendarView
+        events={[event]}
+        projects={projects}
+        onPatchEvent={onPatchEvent}
+      />,
+    );
+
+    // Open detail panel
+    await user.click(screen.getByText("Client sync"));
+
+    // Find the project chips — they should now be buttons
+    const projectSection = screen.getByText("Projects").parentElement!;
+    const alphaBtn = within(projectSection).getByRole("button", {
+      name: "Alpha",
+    });
+    await user.click(alphaBtn);
+
+    expect(onPatchEvent).toHaveBeenCalledWith(
+      baseEvent.canonical_id,
+      expect.objectContaining({ project_ids: [] }),
+    );
+  });
+
+  it("clicking an unlinked project chip calls onPatchEvent to add it", async () => {
+    const user = userEvent.setup();
+    const projects = [{ id: "proj-1", name: "Alpha" }];
+    const onPatchEvent = vi.fn().mockResolvedValue(undefined);
+    const event = {
+      ...baseEvent,
+      project_ids: [],
+    } as CalendarEventResponse & { project_ids: string[] };
+
+    render(
+      <CalendarView
+        events={[event]}
+        projects={projects}
+        onPatchEvent={onPatchEvent}
+      />,
+    );
+
+    await user.click(screen.getByText("Client sync"));
+
+    const projectSection = screen.getByText("Projects").parentElement!;
+    const alphaBtn = within(projectSection).getByRole("button", {
+      name: "Alpha",
+    });
+    await user.click(alphaBtn);
+
+    expect(onPatchEvent).toHaveBeenCalledWith(
+      baseEvent.canonical_id,
+      expect.objectContaining({ project_ids: ["proj-1"] }),
+    );
   });
 });

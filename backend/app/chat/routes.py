@@ -223,7 +223,7 @@ async def _stream_openclaw(
     headers = {
         "Authorization": f"Bearer {openclaw_token}",
         "Content-Type": "application/json",
-        "x-openclaw-agent-id": "copilot",
+        "x-openclaw-agent-id": "openclaw",
     }
 
     try:

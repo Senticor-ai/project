@@ -402,3 +402,68 @@ def test_process_candidates_dead_letters_after_max_attempts(auth_client, monkeyp
             assert row["attempts"] == 2
             assert row["dead_lettered_at"] is not None
             assert "proposal engine busy" in (row["last_error"] or "")
+
+
+def test_expired_lease_reclaimed_and_processed(auth_client):
+    """Candidates stuck in 'processing' with expired lease are reclaimed."""
+    org_id = auth_client.headers["X-Org-Id"]
+    me = auth_client.get("/auth/me")
+    assert me.status_code == 200
+    user_id = me.json()["id"]
+
+    connection_id = _seed_connection(org_id=org_id, user_id=user_id)
+    email_item_id = _seed_email_item(
+        org_id=org_id,
+        user_id=user_id,
+        subject="Can we reschedule tomorrow?",
+        description="Please move our meeting by 30 minutes.",
+    )
+    _seed_calendar_item(
+        org_id=org_id,
+        user_id=user_id,
+        start_at=datetime.now(UTC) + timedelta(hours=2),
+    )
+
+    candidate_id = enqueue_proposal_candidate(
+        org_id=org_id,
+        user_id=user_id,
+        connection_id=connection_id,
+        source_item_id=email_item_id,
+        trigger_kind="email_new",
+    )
+    assert candidate_id is not None
+
+    # Simulate a stuck agent: set status to 'processing' with an expired lease
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE proposal_candidates
+                SET status = 'processing',
+                    attempts = 1,
+                    lease_expires_at = now() - INTERVAL '10 seconds'
+                WHERE candidate_id = %s
+                """,
+                (candidate_id,),
+            )
+        conn.commit()
+
+    # process_proposal_candidates should reclaim the expired candidate
+    result = process_proposal_candidates(org_id=org_id, user_id=user_id, limit=10)
+    assert result.processed == 1
+
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT status, attempts, processed_at
+                FROM proposal_candidates
+                WHERE candidate_id = %s
+                """,
+                (candidate_id,),
+            )
+            row = cur.fetchone()
+            assert row is not None
+            assert row["status"] == "completed"
+            assert row["attempts"] == 2  # original 1 + reclaim
+            assert row["processed_at"] is not None

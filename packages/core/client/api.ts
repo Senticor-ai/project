@@ -173,6 +173,8 @@ export type SyncResponse = {
 export type NotificationEventRecord = {
   event_id: string;
   kind: string;
+  severity?: "info" | "warning" | "critical";
+  proposal_id?: string;
   title: string;
   body: string;
   url: string | null;

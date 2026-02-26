@@ -5,11 +5,17 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from ..config import settings
-from ..container.manager import ensure_running, get_status, stop_container
+from ..container.manager import (
+    ensure_running,
+    get_identity_name,
+    get_status,
+    hard_refresh_container,
+    stop_container,
+)
 from ..db import db_conn
 from ..deps import get_current_user
 from ..email.crypto import CryptoService
@@ -27,6 +33,8 @@ router = APIRouter(prefix="/agent", tags=["agent"], dependencies=[Depends(get_cu
 
 class AgentSettingsResponse(BaseModel):
     agentBackend: str  # "haystack" | "openclaw"
+    agentName: str
+    devToolsEnabled: bool = False
     provider: str  # "openrouter" | "openai" | "anthropic"
     hasApiKey: bool
     model: str
@@ -131,6 +139,18 @@ def _apply_provider_status(
     return response
 
 
+def _resolve_agent_name(user_id: str, agent_backend: str) -> str:
+    if agent_backend != "openclaw":
+        return "Copilot"
+    return get_identity_name(user_id) or "OpenClaw"
+
+
+def _require_dev_tools_enabled() -> None:
+    if settings.dev_tools_enabled:
+        return
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+
+
 def get_user_agent_backend(user_id: str) -> str:
     """Get the user's configured agent backend.
 
@@ -175,8 +195,11 @@ def get_agent_settings(
             row = cur.fetchone()
 
     if not row:
+        default_backend = settings.default_agent_backend
         return AgentSettingsResponse(
-            agentBackend=settings.default_agent_backend,
+            agentBackend=default_backend,
+            agentName=_resolve_agent_name(user_id, default_backend),
+            devToolsEnabled=settings.dev_tools_enabled,
             provider="openrouter",
             hasApiKey=False,
             model=DEFAULT_MODEL,
@@ -204,6 +227,8 @@ def get_agent_settings(
     return _apply_provider_status(
         AgentSettingsResponse(
             agentBackend=row["agent_backend"],
+            agentName=_resolve_agent_name(user_id, row["agent_backend"]),
+            devToolsEnabled=settings.dev_tools_enabled,
             provider=row["provider"],
             hasApiKey=row["api_key_encrypted"] is not None,
             model=row["model"],
@@ -334,6 +359,8 @@ def update_agent_settings(
     return _apply_provider_status(
         AgentSettingsResponse(
             agentBackend=new_backend,
+            agentName=_resolve_agent_name(user_id, new_backend),
+            devToolsEnabled=settings.dev_tools_enabled,
             provider=new_provider,
             hasApiKey=encrypted_key is not None
             or (existing is not None and existing["api_key_encrypted"] is not None),
@@ -398,3 +425,14 @@ def restart_user_container(
     stop_container(user_id)
     url, _token = ensure_running(user_id)
     return {"ok": True, "url": url}
+
+
+@router.post("/container/hard-refresh")
+def hard_refresh_user_container(
+    current_user: dict = Depends(get_current_user),  # noqa: B008
+):
+    """Stop container and delete persisted OpenClaw state (dev only)."""
+    _require_dev_tools_enabled()
+    user_id = str(current_user["id"])
+    result = hard_refresh_container(user_id)
+    return {"ok": True, **result}

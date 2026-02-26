@@ -249,7 +249,7 @@ jobs:
         run: |
           cd frontend
           npm ci --ignore-scripts --silent
-          CI=1 npx vitest run --project=unit --coverage --coverage.reporter=text --coverage.reporter=cobertura --coverage.reporter=json-summary --coverage.reportsDirectory=coverage/unit
+          CI=1 npx vitest run --project=unit --coverage.enabled --coverage.reporter=text --coverage.reporter=cobertura --coverage.reporter=json-summary --coverage.reportsDirectory=coverage/unit
       - name: Check unit-only thresholds (50%)
         if: always()
         run: |

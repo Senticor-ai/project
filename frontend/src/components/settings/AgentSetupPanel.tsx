@@ -11,6 +11,7 @@ export interface AgentSettings {
   provider: AgentProvider;
   hasApiKey: boolean;
   model: string;
+  devToolsEnabled?: boolean;
   containerStatus: string | null;
   containerError: string | null;
   validationStatus?: ValidationStatus | null;
@@ -33,6 +34,7 @@ export interface AgentSetupPanelProps {
   onDeleteApiKey?: () => void;
   onStopContainer?: () => void;
   onRestartContainer?: () => void;
+  onHardRefreshContainer?: () => void;
   isSaving?: boolean;
   saveError?: string | null;
   isContainerActionPending?: boolean;
@@ -260,6 +262,7 @@ export function AgentSetupPanel({
   onDeleteApiKey,
   onStopContainer,
   onRestartContainer,
+  onHardRefreshContainer,
   isSaving,
   saveError,
   isContainerActionPending,
@@ -287,6 +290,10 @@ export function AgentSetupPanel({
     onRestartContainer &&
     settings.hasApiKey &&
     settings.containerStatus != null &&
+    settings.containerStatus !== "starting";
+  const canHardRefresh =
+    settings.devToolsEnabled &&
+    onHardRefreshContainer &&
     settings.containerStatus !== "starting";
 
   const modelPlaceholder = useMemo(
@@ -408,7 +415,27 @@ export function AgentSetupPanel({
                 Restart
               </button>
             )}
+            {canHardRefresh && (
+              <button
+                type="button"
+                onClick={onHardRefreshContainer}
+                disabled={isContainerActionPending}
+                className={cn(
+                  "flex items-center gap-1 rounded-[var(--radius-sm)] border border-status-error/40 px-2 py-1 text-xs text-status-error",
+                  isContainerActionPending ? "opacity-60" : "hover:bg-red-50",
+                )}
+              >
+                <Icon name="delete_forever" size={12} />
+                Hard refresh (dev)
+              </button>
+            )}
           </div>
+          {settings.devToolsEnabled && (
+            <p className="text-[10px] text-text-muted">
+              Hard refresh stops the container and resets OpenClaw workspace +
+              runtime state for this user.
+            </p>
+          )}
         </section>
       )}
 

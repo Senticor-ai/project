@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import uuid
 from datetime import UTC, datetime
 from typing import Annotated, Any, Literal
 
@@ -45,11 +46,20 @@ class CalendarEventResponse(BaseModel):
     updated_at: str
 
 
+class CalendarEventCreateRequest(BaseModel):
+    name: str
+    start_date: str
+    end_date: str | None = None
+    description: str | None = None
+    project_ids: list[str] | None = None
+
+
 class CalendarEventPatchRequest(BaseModel):
     name: str | None = None
     description: str | None = None
     start_date: str | None = None
     end_date: str | None = None
+    project_ids: list[str] | None = None
 
 
 class CalendarEventRsvpRequest(BaseModel):
@@ -130,9 +140,9 @@ def _extract_provider_fields(item: dict[str, Any]) -> tuple[str | None, str | No
     )
 
 
-def _event_sync_state(item: dict[str, Any], source: str) -> Literal[
-    "Synced", "Saving", "Sync failed", "Local only"
-]:
+def _event_sync_state(
+    item: dict[str, Any], source: str
+) -> Literal["Synced", "Saving", "Sync failed", "Local only"]:
     explicit = _get_additional_property(item, "app:syncState")
     if explicit in {"Synced", "Saving", "Sync failed", "Local only"}:
         return explicit
@@ -448,6 +458,103 @@ def list_calendar_events(
     return events
 
 
+@router.post(
+    "/events",
+    response_model=CalendarEventResponse,
+    status_code=201,
+    summary="Create a local calendar event",
+)
+def create_calendar_event(
+    payload: CalendarEventCreateRequest,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+    current_user=Depends(get_current_user),
+    org=Depends(get_current_org),
+):
+    org_id = org["org_id"]
+    user_id = str(current_user["id"])
+
+    request_payload = payload.model_dump(mode="json")
+    path = "/calendar/events"
+    if idempotency_key:
+        request_hash = compute_request_hash("POST", path, request_payload)
+        cached = get_idempotent_response(org_id, idempotency_key, request_hash)
+        if cached is not None:
+            return JSONResponse(status_code=cached["status_code"], content=cached["response"])
+
+    canonical_id = f"urn:app:event:local:{uuid.uuid4()}"
+
+    normalized_start = _normalize_event_time_value(payload.start_date)
+    if normalized_start is None:
+        raise HTTPException(status_code=400, detail="Invalid start_date value")
+    normalized_end = _normalize_event_time_value(payload.end_date) if payload.end_date else None
+
+    additional_props: list[dict[str, Any]] = [
+        {"@type": "PropertyValue", "propertyID": "app:bucket", "value": "calendar"},
+        {"@type": "PropertyValue", "propertyID": "app:calendarSyncState", "value": "local_only"},
+    ]
+    if payload.project_ids:
+        additional_props.append(
+            {
+                "@type": "PropertyValue",
+                "propertyID": "app:projectRefs",
+                "value": payload.project_ids,
+            }
+        )
+
+    schema_jsonld: dict[str, Any] = {
+        "@context": "https://schema.org",
+        "@id": canonical_id,
+        "@type": "Event",
+        "name": payload.name,
+        "startDate": normalized_start,
+        "additionalProperty": additional_props,
+    }
+    if normalized_end:
+        schema_jsonld["endDate"] = normalized_end
+    if payload.description:
+        schema_jsonld["description"] = payload.description
+
+    content_hash = _hash_payload(schema_jsonld)
+
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO items
+                    (item_id, org_id, created_by_user_id, canonical_id,
+                     schema_jsonld, source, content_hash, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, now(), now())
+                RETURNING item_id, canonical_id, source, schema_jsonld, content_hash, updated_at
+                """,
+                (
+                    str(uuid.uuid4()),
+                    org_id,
+                    user_id,
+                    canonical_id,
+                    jsonb(schema_jsonld),
+                    "manual",
+                    content_hash,
+                ),
+            )
+            row = cur.fetchone()
+        conn.commit()
+
+    response = _to_event_response(row, access_roles={})
+    response_payload = response.model_dump(mode="json")
+
+    if idempotency_key:
+        request_hash = compute_request_hash("POST", path, request_payload)
+        store_idempotent_response(
+            org_id,
+            idempotency_key,
+            request_hash,
+            response_payload,
+            201,
+        )
+
+    return JSONResponse(status_code=201, content=response_payload)
+
+
 @router.patch(
     "/events/{canonical_id}",
     response_model=CalendarEventResponse,
@@ -465,6 +572,7 @@ def patch_calendar_event(
         and payload.description is None
         and payload.start_date is None
         and payload.end_date is None
+        and payload.project_ids is None
     ):
         raise HTTPException(status_code=400, detail="No update fields provided")
 
@@ -483,14 +591,10 @@ def patch_calendar_event(
     item = copy.deepcopy(row["schema_jsonld"] or {})
     provider, calendar_id, event_id = _extract_provider_fields(item)
     normalized_start_date = (
-        _normalize_event_time_value(payload.start_date)
-        if payload.start_date is not None
-        else None
+        _normalize_event_time_value(payload.start_date) if payload.start_date is not None else None
     )
     normalized_end_date = (
-        _normalize_event_time_value(payload.end_date)
-        if payload.end_date is not None
-        else None
+        _normalize_event_time_value(payload.end_date) if payload.end_date is not None else None
     )
     if payload.start_date is not None and normalized_start_date is None:
         raise HTTPException(status_code=400, detail="Invalid start_date value")
@@ -572,6 +676,8 @@ def patch_calendar_event(
         item["startTime"] = normalized_start_date
     if payload.end_date is not None:
         item["endDate"] = normalized_end_date
+    if payload.project_ids is not None:
+        _set_additional_property(item, "app:projectRefs", payload.project_ids)
 
     updated = _update_item_schema(org_id=org_id, canonical_id=canonical_id, schema_jsonld=item)
     response = _to_event_response(updated, access_roles=roles)

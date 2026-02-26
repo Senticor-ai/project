@@ -62,4 +62,27 @@ describe("AgentSetupPanel", () => {
     expect(screen.getByText(/\$42\.50/i)).toBeInTheDocument();
     expect(screen.getByText(/Last checked:/i)).toBeInTheDocument();
   });
+
+  it("shows hard refresh action in dev mode and triggers callback", async () => {
+    const user = userEvent.setup();
+    const onHardRefreshContainer = vi.fn();
+    render(
+      <AgentSetupPanel
+        settings={{
+          ...baseSettings,
+          agentBackend: "openclaw",
+          hasApiKey: true,
+          containerStatus: "running",
+          devToolsEnabled: true,
+        }}
+        onUpdate={vi.fn()}
+        onHardRefreshContainer={onHardRefreshContainer}
+      />,
+    );
+
+    const button = screen.getByRole("button", { name: /Hard refresh/i });
+    await user.click(button);
+
+    expect(onHardRefreshContainer).toHaveBeenCalledTimes(1);
+  });
 });

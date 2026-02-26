@@ -32,6 +32,7 @@ import {
   useDeleteAgentApiKey,
   useStopContainer,
   useRestartContainer,
+  useHardRefreshContainer,
 } from "./hooks/use-agent-settings";
 import {
   useOrganizations,
@@ -229,6 +230,7 @@ function AuthenticatedApp({
   const deleteAgentApiKey = useDeleteAgentApiKey();
   const stopContainer = useStopContainer();
   const restartContainer = useRestartContainer();
+  const hardRefreshContainer = useHardRefreshContainer();
   const chatContext = useMemo<Partial<ChatClientContext>>(() => {
     const rawErrors: string[] = [];
 
@@ -607,6 +609,8 @@ function AuthenticatedApp({
                         agentSettingsData.creditsLimitUsd ?? null,
                       lastValidatedAt:
                         agentSettingsData.lastValidatedAt ?? null,
+                      devToolsEnabled:
+                        agentSettingsData.devToolsEnabled ?? false,
                     }
                   : undefined
               }
@@ -614,12 +618,15 @@ function AuthenticatedApp({
               onAgentDeleteApiKey={() => deleteAgentApiKey.mutate()}
               onAgentStopContainer={() => stopContainer.mutate()}
               onAgentRestartContainer={() => restartContainer.mutate()}
+              onAgentHardRefreshContainer={() => hardRefreshContainer.mutate()}
               agentSaving={updateAgentSettings.isPending}
               agentSaveError={getMutationErrorMessage(
                 updateAgentSettings.error,
               )}
               isContainerActionPending={
-                stopContainer.isPending || restartContainer.isPending
+                stopContainer.isPending ||
+                restartContainer.isPending ||
+                hardRefreshContainer.isPending
               }
               canInstall={canInstall}
               onInstall={promptInstall}
@@ -676,9 +683,10 @@ function AuthenticatedApp({
         onNewConversation={chat.startNewConversation}
         onLoadConversation={chat.loadConversation}
         agentName={
-          agentSettingsData?.agentBackend === "openclaw"
+          agentSettingsData?.agentName ??
+          (agentSettingsData?.agentBackend === "openclaw"
             ? "OpenClaw"
-            : "Copilot"
+            : "Copilot")
         }
       />
     </div>

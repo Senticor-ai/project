@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import secrets
+import shutil
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -30,6 +32,13 @@ API_KEY_ENV_MAP = {
     "openai": "OPENAI_API_KEY",
     "anthropic": "ANTHROPIC_API_KEY",
 }
+
+COMPOSE_PROJECT_LABEL = "project"
+OPENCLAW_SERVICE_LABEL = "openclaw"
+IDENTITY_NAME_PATTERN = re.compile(
+    r"^\s*(?:-\s*)?(?:\*\*)?name(?:\*\*)?\s*:\s*(.+?)\s*$",
+    re.IGNORECASE,
+)
 
 
 @dataclass
@@ -131,6 +140,25 @@ def _build_volume_args(workspace_dir: Path, runtime_dir: Path) -> list[str]:
     return args
 
 
+def _build_container_name(user_id: str) -> str:
+    """Build a stable per-user container name using the full user id."""
+    return f"openclaw-{user_id}"
+
+
+def _build_label_args(user_id: str) -> list[str]:
+    """Build --label args for managed container metadata and Rancher grouping."""
+    labels = [
+        f"copilot.user_id={user_id}",
+        "copilot.managed=true",
+        f"com.docker.compose.project={COMPOSE_PROJECT_LABEL}",
+        f"com.docker.compose.service={OPENCLAW_SERVICE_LABEL}",
+    ]
+    args: list[str] = []
+    for label in labels:
+        args.extend(["--label", label])
+    return args
+
+
 # ---------------------------------------------------------------------------
 # Start / Stop
 # ---------------------------------------------------------------------------
@@ -161,7 +189,7 @@ def start_container(user_id: str) -> ContainerInfo:
 
             port = _allocate_port(cur)
             gateway_token = secrets.token_urlsafe(32)
-            container_name = f"copilot-openclaw-{user_id[:8]}"
+            container_name = _build_container_name(user_id)
 
             # Mark as starting + reserve port
             cur.execute(
@@ -203,11 +231,19 @@ def start_container(user_id: str) -> ContainerInfo:
     api_key = _decrypt_api_key(row["api_key_encrypted"])
     api_key_env = API_KEY_ENV_MAP.get(provider, "OPENROUTER_API_KEY")
 
+    # Ensure we run the configured image tag/digest as provided.
+    pull_result = run_cmd(["pull", settings.openclaw_image], timeout=120)
+    if pull_result.returncode != 0:
+        detail = (pull_result.stderr or pull_result.stdout or "image pull failed").strip()
+        _mark_error(user_id, f"Image pull failed: {detail[:240]}")
+        raise RuntimeError(f"Image pull failed: {detail[:200]}")
+
     # Remove any old container with the same name
     run_cmd(["rm", "-f", container_name])
 
     # Build volume mounts
     volume_args = _build_volume_args(workspace_dir, runtime_dir)
+    label_args = _build_label_args(user_id)
 
     # Start container
     result = run_cmd(
@@ -231,10 +267,7 @@ def start_container(user_id: str) -> ContainerInfo:
             f"COPILOT_STORYBOOK_URL={_to_container_url(settings.storybook_url)}",
             "-e",
             "OPENCLAW_CONFIG_PATH=/openclaw.json",
-            "--label",
-            f"copilot.user_id={user_id}",
-            "--label",
-            "copilot.managed=true",
+            *label_args,
             settings.openclaw_image,
         ]
     )
@@ -334,6 +367,38 @@ def stop_container(user_id: str) -> None:
     logger.info("container.stopped", extra={"user_id": user_id})
 
 
+def hard_refresh_container(user_id: str) -> dict[str, bool]:
+    """Stop the container and delete persisted per-user OpenClaw state."""
+    stop_container(user_id)
+
+    storage_root = settings.file_storage_path.resolve()
+    workspace_dir = storage_root / "openclaw" / user_id
+    runtime_dir = storage_root / "openclaw-runtime" / user_id
+
+    removed_workspace = False
+    if workspace_dir.exists():
+        shutil.rmtree(workspace_dir)
+        removed_workspace = True
+
+    removed_runtime = False
+    if runtime_dir.exists():
+        shutil.rmtree(runtime_dir)
+        removed_runtime = True
+
+    logger.info(
+        "container.hard_refreshed",
+        extra={
+            "user_id": user_id,
+            "removed_workspace": removed_workspace,
+            "removed_runtime": removed_runtime,
+        },
+    )
+    return {
+        "removedWorkspace": removed_workspace,
+        "removedRuntime": removed_runtime,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Token file for OpenClaw skills
 # ---------------------------------------------------------------------------
@@ -400,6 +465,33 @@ def _read_gateway_token(user_id: str) -> str:
     config_path = settings.file_storage_path.resolve() / "openclaw" / user_id / "openclaw.json"
     config = json.loads(config_path.read_text())
     return config["gateway"]["auth"]["token"]
+
+
+def get_identity_name(user_id: str) -> str | None:
+    """Read the agent display name from workspace/IDENTITY.md when available."""
+    identity_path = (
+        settings.file_storage_path.resolve() / "openclaw" / user_id / "workspace" / "IDENTITY.md"
+    )
+    try:
+        content = identity_path.read_text()
+    except FileNotFoundError:
+        return None
+    except OSError:
+        logger.warning("container.identity_read_failed", extra={"user_id": user_id}, exc_info=True)
+        return None
+
+    for line in content.splitlines():
+        match = IDENTITY_NAME_PATTERN.match(line)
+        if not match:
+            continue
+        value = match.group(1).strip()
+        if not value:
+            continue
+        if value.startswith("_("):
+            # Template placeholder; not a real user-selected name.
+            return None
+        return value
+    return None
 
 
 # ---------------------------------------------------------------------------

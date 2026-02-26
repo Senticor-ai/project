@@ -3,7 +3,7 @@
 // Usage: node check-coverage-thresholds.mjs <coverage-summary.json> <lines> <statements> <functions> <branches>
 // Example: node check-coverage-thresholds.mjs ./coverage/unit/coverage-summary.json 50 50 50 40
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const [reportPath, ...thresholdArgs] = process.argv.slice(2);
@@ -15,6 +15,15 @@ if (!reportPath) {
   process.exit(2);
 }
 
+const resolved = resolve(reportPath);
+if (!existsSync(resolved)) {
+  console.error(
+    `FAIL: Coverage report not found at ${resolved}\n` +
+      "The coverage generation step probably failed — check its output above.",
+  );
+  process.exit(1);
+}
+
 const thresholds = {
   lines: Number(thresholdArgs[0] ?? 80),
   statements: Number(thresholdArgs[1] ?? 80),
@@ -22,7 +31,7 @@ const thresholds = {
   branches: Number(thresholdArgs[3] ?? 70),
 };
 
-const summary = JSON.parse(readFileSync(resolve(reportPath), "utf-8"));
+const summary = JSON.parse(readFileSync(resolved, "utf-8"));
 const { total } = summary;
 
 let failed = false;

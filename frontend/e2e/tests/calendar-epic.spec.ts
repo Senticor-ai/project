@@ -85,4 +85,51 @@ test.describe("Calendar Epic E2E", () => {
     ).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText(proposalId)).toBeVisible({ timeout: 15_000 });
   });
+
+  test("event detail panel shows sync state badge", async ({
+    authenticatedPage: page,
+    apiSeed,
+  }) => {
+    const ws = new WorkspacePage(page);
+    await acknowledgeDisclaimerIfVisible(page);
+
+    const eventName = `Sync badge event ${Date.now()}`;
+    await apiSeed.createCalendarEvent(eventName);
+    await ws.navigateTo("Calendar");
+
+    await expect(page.getByText(eventName)).toBeVisible();
+    await page.getByText(eventName).first().click();
+    await expect(page.getByText("Event details")).toBeVisible();
+
+    // Local-only events created via apiSeed show "Local only" badge
+    await expect(page.getByText("Local only")).toBeVisible();
+  });
+
+  test("inbox triage to calendar creates Event type and shows in calendar", async ({
+    authenticatedPage: page,
+    apiSeed,
+  }) => {
+    const ws = new WorkspacePage(page);
+    await acknowledgeDisclaimerIfVisible(page);
+
+    const itemTitle = `Triage to cal ${Date.now()}`;
+    await apiSeed.createInboxItem(itemTitle);
+    await page.reload();
+    await page.waitForSelector('nav[aria-label="Buckets"]', {
+      timeout: 10_000,
+    });
+
+    await expect(page.getByText(itemTitle)).toBeVisible();
+
+    // Triage to Calendar — triggers date picker
+    await ws.triageButton("Calendar").click();
+    await page.getByLabel("Schedule date").fill("2026-04-15");
+
+    // Item should leave inbox
+    await expect(page.getByText(itemTitle)).not.toBeVisible();
+
+    // Navigate to Calendar and verify item appears
+    await ws.navigateTo("Calendar");
+    await expect(page.getByText(itemTitle)).toBeVisible();
+  });
 });

@@ -86,6 +86,7 @@ export interface SettingsScreenProps {
   onAgentDeleteApiKey?: () => void;
   onAgentStopContainer?: () => void;
   onAgentRestartContainer?: () => void;
+  onAgentHardRefreshContainer?: () => void;
   agentSaving?: boolean;
   agentSaveError?: string | null;
   isContainerActionPending?: boolean;
@@ -128,6 +129,7 @@ export function SettingsScreen({
   onAgentDeleteApiKey,
   onAgentStopContainer,
   onAgentRestartContainer,
+  onAgentHardRefreshContainer,
   agentSaving,
   agentSaveError,
   isContainerActionPending,
@@ -237,6 +239,7 @@ export function SettingsScreen({
               onDeleteApiKey={onAgentDeleteApiKey}
               onStopContainer={onAgentStopContainer}
               onRestartContainer={onAgentRestartContainer}
+              onHardRefreshContainer={onAgentHardRefreshContainer}
               isSaving={agentSaving}
               saveError={agentSaveError}
               isContainerActionPending={isContainerActionPending}
