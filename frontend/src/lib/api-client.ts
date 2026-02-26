@@ -817,16 +817,47 @@ export type CalendarEventDeleteResponse = {
   provider_action: "deleted" | "declined_fallback" | "local_only";
 };
 
+export type CalendarEventCreateRequest = {
+  name: string;
+  description?: string;
+  start_date: string;
+  end_date?: string;
+  project_ids?: string[];
+};
+
 export const CalendarApi = {
-  listEvents: (params?: { dateFrom?: string; dateTo?: string; limit?: number }) => {
+  listEvents: (params?: {
+    dateFrom?: string;
+    dateTo?: string;
+    limit?: number;
+    projectIds?: string[];
+  }) => {
     const searchParams = new URLSearchParams();
     if (params?.dateFrom) searchParams.set("date_from", params.dateFrom);
     if (params?.dateTo) searchParams.set("date_to", params.dateTo);
     if (params?.limit) searchParams.set("limit", String(params.limit));
+    if (params?.projectIds) {
+      for (const id of params.projectIds) {
+        searchParams.append("project_ids", id);
+      }
+    }
     const qs = searchParams.toString();
     return request<CalendarEventResponse[]>(
       `/calendar/events${qs ? `?${qs}` : ""}`,
     );
+  },
+
+  createEvent: (
+    payload: CalendarEventCreateRequest,
+    idempotencyKey?: string,
+  ) => {
+    const headers: Record<string, string> = {};
+    if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
+    return request<CalendarEventResponse>("/calendar/events", {
+      method: "POST",
+      body: JSON.stringify(payload),
+      headers,
+    });
   },
 
   patchEvent: (

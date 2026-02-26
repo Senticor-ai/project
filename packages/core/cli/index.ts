@@ -4,6 +4,7 @@ import { Command } from "commander";
 
 import { ApiError } from "../client/http.js";
 import { registerAuthCommands } from "./auth.js";
+import { registerCalendarCommands } from "./calendar.js";
 import { registerItemsCommands } from "./items.js";
 import {
   errorCodeFromStatus,
@@ -43,6 +44,7 @@ async function main(argv: string[]): Promise<void> {
     .option("--no-color", "Disable ANSI colors");
 
   registerAuthCommands(program);
+  registerCalendarCommands(program);
   registerItemsCommands(program);
   registerProjectsCommands(program);
   registerOrgsCommands(program);

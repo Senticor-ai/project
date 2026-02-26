@@ -154,6 +154,7 @@ export function ActionRow({
   const [showMore, setShowMore] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [showCalendarPicker, setShowCalendarPicker] = useState(false);
+  const [showCancelOptions, setShowCancelOptions] = useState(false);
   const dateInputRef = useRef<HTMLInputElement>(null);
   const [prevExpanded, setPrevExpanded] = useState(isExpanded);
   // Track the latest projectId from the ItemEditor so triage buttons can use it
@@ -171,6 +172,7 @@ export function ActionRow({
     if (!isExpanded) {
       setIsEditingTitle(false);
       setShowCalendarPicker(false);
+      setShowCancelOptions(false);
     }
   }
 
@@ -622,7 +624,7 @@ export function ActionRow({
               </div>
 
               {/* Inline date picker for Calendar triage */}
-              {showCalendarPicker && (
+              {showCalendarPicker && !showCancelOptions && (
                 <div className="mb-3 flex items-center gap-2">
                   <input
                     type="date"
@@ -633,20 +635,53 @@ export function ActionRow({
                         onEdit?.(thing.id, { scheduledDate: e.target.value });
                         onMove(thing.id, "calendar", editorProjectRef.current);
                         setShowCalendarPicker(false);
+                        setShowCancelOptions(false);
                       }
                     }}
                     onKeyDown={(e) => {
-                      if (e.key === "Escape") setShowCalendarPicker(false);
+                      if (e.key === "Escape") {
+                        setShowCalendarPicker(false);
+                        setShowCancelOptions(false);
+                      }
                     }}
                     className="rounded-[var(--radius-sm)] border border-border bg-surface px-2 py-1 text-xs"
                   />
                   <button
                     type="button"
-                    onClick={() => setShowCalendarPicker(false)}
+                    onClick={() => {
+                      setShowCancelOptions(true);
+                    }}
                     aria-label="Cancel date selection"
                     className="text-xs text-text-subtle hover:text-text"
                   >
                     Cancel
+                  </button>
+                </div>
+              )}
+
+              {/* Cancel flow options: Keep in Inbox / Move to Next */}
+              {showCancelOptions && (
+                <div className="mb-3 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCalendarPicker(false);
+                      setShowCancelOptions(false);
+                    }}
+                    className="rounded-[var(--radius-sm)] border border-border px-3 py-1.5 text-xs font-medium hover:bg-paper-100"
+                  >
+                    Keep in Inbox
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onMove(thing.id, "next", editorProjectRef.current);
+                      setShowCalendarPicker(false);
+                      setShowCancelOptions(false);
+                    }}
+                    className="rounded-[var(--radius-sm)] border border-border px-3 py-1.5 text-xs font-medium hover:bg-paper-100"
+                  >
+                    Move to Next
                   </button>
                 </div>
               )}

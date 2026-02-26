@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CalendarApi,
+  type CalendarEventCreateRequest,
   type CalendarEventPatchRequest,
   type CalendarEventResponse,
   type CalendarEventRsvpRequest,
@@ -24,6 +25,15 @@ export function useCalendarEvents(enabled = true) {
     queryFn: () => CalendarApi.listEvents({ limit: 800 }),
     enabled,
     staleTime: 15_000,
+  });
+}
+
+export function useCreateCalendarEvent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CalendarEventCreateRequest) =>
+      CalendarApi.createEvent(payload, randomIdempotencyKey("calendar-create")),
+    onSuccess: () => invalidateRelated(queryClient),
   });
 }
 

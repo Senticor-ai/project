@@ -878,7 +878,7 @@ describe("ActionRow calendar triage", () => {
     expect(screen.queryByLabelText("Schedule date")).not.toBeInTheDocument();
   });
 
-  it("dismisses date picker on Cancel click", async () => {
+  it("shows cancel options (Keep in Inbox / Move to Next) when cancel clicked", async () => {
     const user = userEvent.setup();
     renderRow({
       thing: createActionItem({ name: "Schedule me", bucket: "inbox" }),
@@ -888,6 +888,63 @@ describe("ActionRow calendar triage", () => {
     });
     await user.click(screen.getByLabelText("Move to Calendar"));
     await user.click(screen.getByLabelText("Cancel date selection"));
+
+    // Should show cancel options instead of immediately dismissing
+    expect(
+      screen.getByRole("button", { name: /Keep in Inbox/i }),
+    ).toBeInTheDocument();
+    // "Move to Next" appears both as triage button and cancel option
+    expect(
+      screen.getAllByRole("button", { name: /Move to Next/i }).length,
+    ).toBeGreaterThanOrEqual(2);
+  });
+
+  it("keeps in inbox when Keep in Inbox cancel option is clicked", async () => {
+    const user = userEvent.setup();
+    const { props } = renderRow({
+      thing: createActionItem({ name: "Schedule me", bucket: "inbox" }),
+      isExpanded: true,
+      onToggleExpand: vi.fn(),
+      onEdit: vi.fn(),
+    });
+    await user.click(screen.getByLabelText("Move to Calendar"));
+    await user.click(screen.getByLabelText("Cancel date selection"));
+    await user.click(screen.getByRole("button", { name: /Keep in Inbox/i }));
+
+    // Should NOT have moved the item
+    expect(props.onMove).not.toHaveBeenCalled();
+    // Picker and cancel options should be dismissed
+    expect(screen.queryByLabelText("Schedule date")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Keep in Inbox/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("moves to next when Move to Next cancel option is clicked", async () => {
+    const user = userEvent.setup();
+    const { props } = renderRow({
+      thing: createActionItem({ name: "Schedule me", bucket: "inbox" }),
+      isExpanded: true,
+      onToggleExpand: vi.fn(),
+      onEdit: vi.fn(),
+    });
+    await user.click(screen.getByLabelText("Move to Calendar"));
+    await user.click(screen.getByLabelText("Cancel date selection"));
+
+    // The cancel flow options appear — find the specific "Move to Next" cancel button
+    // (not the triage button which has aria-label "Move to Next")
+    const cancelOptions = screen.getAllByRole("button", {
+      name: /Move to Next/i,
+    });
+    // Click the last one (cancel option, not the triage button)
+    await user.click(cancelOptions.at(-1)!);
+
+    expect(props.onMove).toHaveBeenCalledWith(
+      props.thing.id,
+      "next",
+      undefined,
+    );
+    // Picker and cancel options should be dismissed
     expect(screen.queryByLabelText("Schedule date")).not.toBeInTheDocument();
   });
 

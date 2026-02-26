@@ -181,6 +181,47 @@ export type NotificationEventRecord = {
   read_at?: string | null;
 };
 
+export type CalendarEventRecord = {
+  item_id: string;
+  canonical_id: string;
+  name: string;
+  description: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  source: string;
+  provider: string | null;
+  calendar_id: string | null;
+  event_id: string | null;
+  access_role: string | null;
+  writable: boolean;
+  rsvp_status: string | null;
+  sync_state: "Synced" | "Saving" | "Sync failed" | "Local only";
+  updated_at: string;
+};
+
+export type CalendarEventPatchPayload = {
+  name?: string;
+  description?: string;
+  start_date?: string;
+  end_date?: string;
+};
+
+export type CalendarEventRsvpPayload = {
+  status: "accepted" | "tentative" | "declined";
+};
+
+export type CalendarEventDeleteRecord = {
+  canonical_id: string;
+  status: "deleted";
+  provider_action: "deleted" | "declined_fallback" | "local_only";
+};
+
+export type CalendarEventListParams = {
+  dateFrom?: string;
+  dateTo?: string;
+  limit?: number;
+};
+
 export type NotificationSendPayload = {
   kind?: string;
   title: string;
@@ -264,9 +305,12 @@ export class CopilotApi {
 
   // Items
   listItems(limit = 100, offset = 0) {
-    return this.client.requestJson<ItemRecord[]>(`/items?limit=${limit}&offset=${offset}`, {
-      method: "GET",
-    });
+    return this.client.requestJson<ItemRecord[]>(
+      `/items?limit=${limit}&offset=${offset}`,
+      {
+        method: "GET",
+      },
+    );
   }
 
   syncItems(params?: {
@@ -281,9 +325,12 @@ export class CopilotApi {
     if (params?.since) searchParams.set("since", params.since);
     if (params?.completed) searchParams.set("completed", params.completed);
     const query = searchParams.toString();
-    return this.client.requestJson<SyncResponse>(`/items/sync${query ? `?${query}` : ""}`, {
-      method: "GET",
-    });
+    return this.client.requestJson<SyncResponse>(
+      `/items/sync${query ? `?${query}` : ""}`,
+      {
+        method: "GET",
+      },
+    );
   }
 
   async listAllItems(options?: {
@@ -315,13 +362,18 @@ export class CopilotApi {
   }
 
   getItem(itemId: string) {
-    return this.client.requestJson<ItemRecord>(`/items/${itemId}`, { method: "GET" });
+    return this.client.requestJson<ItemRecord>(`/items/${itemId}`, {
+      method: "GET",
+    });
   }
 
   getItemContent(itemId: string) {
-    return this.client.requestJson<ItemContentRecord>(`/items/${itemId}/content`, {
-      method: "GET",
-    });
+    return this.client.requestJson<ItemContentRecord>(
+      `/items/${itemId}/content`,
+      {
+        method: "GET",
+      },
+    );
   }
 
   createItem(item: Record<string, unknown>, source = "senticor-copilot-cli") {
@@ -371,22 +423,31 @@ export class CopilotApi {
 
   // Projects
   listProjectItems(projectId: string) {
-    return this.client.requestJson<Array<Record<string, unknown>>>(`/items/by-project/${projectId}`, {
-      method: "GET",
-    });
+    return this.client.requestJson<Array<Record<string, unknown>>>(
+      `/items/by-project/${projectId}`,
+      {
+        method: "GET",
+      },
+    );
   }
 
   // Collaboration
   getProjectWorkflow(projectId: string) {
-    return this.client.requestJson<WorkflowDefinitionRecord>(`/projects/${projectId}/workflow`, {
-      method: "GET",
-    });
+    return this.client.requestJson<WorkflowDefinitionRecord>(
+      `/projects/${projectId}/workflow`,
+      {
+        method: "GET",
+      },
+    );
   }
 
   listProjectMembers(projectId: string) {
-    return this.client.requestJson<ProjectMemberRecord[]>(`/projects/${projectId}/members`, {
-      method: "GET",
-    });
+    return this.client.requestJson<ProjectMemberRecord[]>(
+      `/projects/${projectId}/members`,
+      {
+        method: "GET",
+      },
+    );
   }
 
   addProjectMember(
@@ -477,7 +538,11 @@ export class CopilotApi {
     );
   }
 
-  updateProjectAction(projectId: string, actionId: string, payload: ProjectActionUpdatePayload) {
+  updateProjectAction(
+    projectId: string,
+    actionId: string,
+    payload: ProjectActionUpdatePayload,
+  ) {
     return this.client.requestJson<ProjectActionRecord>(
       `/projects/${projectId}/actions/${actionId}`,
       {
@@ -522,6 +587,57 @@ export class CopilotApi {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
+      },
+      { retryOnAuth: true },
+    );
+  }
+
+  // Calendar
+  listCalendarEvents(params?: CalendarEventListParams) {
+    const search = new URLSearchParams();
+    if (params?.dateFrom) search.set("date_from", params.dateFrom);
+    if (params?.dateTo) search.set("date_to", params.dateTo);
+    if (params?.limit) search.set("limit", String(params.limit));
+    const query = search.toString();
+    return this.client.requestJson<CalendarEventRecord[]>(
+      `/calendar/events${query ? `?${query}` : ""}`,
+      { method: "GET" },
+    );
+  }
+
+  patchCalendarEvent(canonicalId: string, payload: CalendarEventPatchPayload) {
+    return this.client.requestJson<CalendarEventRecord>(
+      `/calendar/events/${canonicalId}`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      },
+      { retryOnAuth: true },
+    );
+  }
+
+  setCalendarEventRsvp(canonicalId: string, payload: CalendarEventRsvpPayload) {
+    return this.client.requestJson<CalendarEventRecord>(
+      `/calendar/events/${canonicalId}/rsvp`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      },
+      { retryOnAuth: true },
+    );
+  }
+
+  deleteCalendarEvent(canonicalId: string) {
+    return this.client.requestJson<CalendarEventDeleteRecord>(
+      `/calendar/events/${canonicalId}`,
+      {
+        method: "DELETE",
       },
       { retryOnAuth: true },
     );

@@ -4,10 +4,10 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 # Epic: Inbox to Calendar Event Workflow
 
-**Status:** Delivery in progress (spec + implementation slices active)
+**Status:** Complete (alpha)
 **Priority:** Current
-**Checklist audit:** February 25, 2026 -- rewritten to development-ready contract; all acceptance criteria remain unchecked until implementation lands.
-**Last updated:** 2026-02-25
+**Checklist audit:** February 26, 2026 -- all acceptance criteria verified against implementation; 20/21 done, 1 N/A (migration not needed in alpha).
+**Last updated:** 2026-02-26
 **Depends on:** Google Workspace connector baseline, Items/Event serializer parity, Calendar bucket UX, project association model, sync worker reliability
 **Related:** [Completed Epic: Gmail + Google Calendar MVP Integration](?path=/docs/product-completed-epics-gmail-google-calendar-mvp-integration--docs)
 
@@ -98,7 +98,7 @@ Users expect calendar sync to behave as a single, reliable system:
 - Browser alert for urgent proposals, with in-app fallback when notification permission is unavailable.
 - Confirmation-required execution for all Copilot write actions.
 - Google propagation behavior for those actions (subject to permissions/source).
-- Migration/compat logic for existing calendar `Action` items.
+- Migration/compat logic for existing calendar `Action` items (N/A in alpha; runtime `mergeCalendarEvents()` fallback sufficient).
 - Telemetry, audit, and test coverage for critical flows.
 
 ### Out of scope (for this epic)
@@ -606,27 +606,27 @@ Alert thresholds:
 
 ## Acceptance criteria
 
-- [ ] Enabling calendar sync makes current-day and future synced events visible in Project calendar views.
-- [ ] Inbox `Move to Calendar` persists `@type: "Event"` with required date semantics.
-- [ ] Calendar supports List and Grid (Month + Week) with parity for core event actions.
-- [ ] Project filter works in both modes with `Any selected` semantics for multi-project events.
-- [ ] User can accept/tentative/decline eligible events in Project and changes propagate to Google.
-- [ ] User can reschedule writable events in Project and changes propagate to Google.
-- [ ] User can delete writable events in Project and deletion propagates to Google.
-- [ ] Non-writable events show correct disabled states and explanatory feedback.
-- [ ] Local and provider sync states are visible (`Synced`, `Saving`, `Sync failed`, `Local only`).
-- [ ] Copilot proposal generation is automatically triggered by new email/event sync signals (no manual generate step required for normal flow).
-- [ ] Urgent proposals generate browser notifications (or in-app high-priority fallback when notification permission is unavailable).
-- [ ] Urgent proposal pipeline uses unified notification envelope and deduplicates by `event_id`.
-- [ ] Agent runtime can be woken via backend SSE notification stream without direct Postgres access.
-- [ ] CLI supports stream watching and notification send commands via the same backend notification pipeline.
-- [ ] Busy agent does not cause missed proposal candidates; queued work is processed after capacity returns.
-- [ ] Lease timeout recovers stuck agent tasks and re-queues candidate processing automatically.
-- [ ] Dead-lettered candidate tasks are visible with error diagnostics and retry metadata.
-- [ ] Confirming urgent reschedule proposal updates Google Calendar and sends confirmation email reply.
-- [ ] Confirming urgent personal-request proposal performs mapped calendar/email actions with audit log.
-- [ ] Existing calendar `Action` items are migrated (or compatibly rendered) without data loss.
-- [ ] Audit logs capture all provider write attempts and outcomes.
+- [x] Enabling calendar sync makes current-day and future synced events visible in Project calendar views.
+- [x] Inbox `Move to Calendar` persists `@type: "Event"` with required date semantics.
+- [x] Calendar supports List and Grid (Month + Week) with parity for core event actions.
+- [x] Project filter works in both modes with `Any selected` semantics for multi-project events.
+- [x] User can accept/tentative/decline eligible events in Project and changes propagate to Google.
+- [x] User can reschedule writable events in Project and changes propagate to Google.
+- [x] User can delete writable events in Project and deletion propagates to Google.
+- [x] Non-writable events show correct disabled states and explanatory feedback.
+- [x] Local and provider sync states are visible (`Synced`, `Saving`, `Sync failed`, `Local only`).
+- [x] Copilot proposal generation is automatically triggered by new email/event sync signals (no manual generate step required for normal flow).
+- [x] Urgent proposals generate browser notifications (or in-app high-priority fallback when notification permission is unavailable).
+- [x] Urgent proposal pipeline uses unified notification envelope and deduplicates by `event_id`.
+- [x] Agent runtime can be woken via backend SSE notification stream without direct Postgres access.
+- [x] CLI supports stream watching and notification send commands via the same backend notification pipeline.
+- [x] Busy agent does not cause missed proposal candidates; queued work is processed after capacity returns.
+- [x] Lease timeout recovers stuck agent tasks and re-queues candidate processing automatically.
+- [x] Dead-lettered candidate tasks are visible with error diagnostics and retry metadata.
+- [x] Confirming urgent reschedule proposal updates Google Calendar and sends confirmation email reply.
+- [x] Confirming urgent personal-request proposal performs mapped calendar/email actions with audit log.
+- [x] Existing calendar `Action` items are migrated (or compatibly rendered) without data loss. _(N/A in alpha — runtime `mergeCalendarEvents()` fallback handles edge cases.)_
+- [x] Audit logs capture all provider write attempts and outcomes.
 
 ## Test plan
 

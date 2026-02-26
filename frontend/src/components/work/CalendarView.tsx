@@ -15,10 +15,20 @@ import {
 
 export type CalendarMode = "list" | "week" | "month";
 
+/** Extended event type that includes optional project_ids and recurring flag. */
+type CalendarEvent = CalendarEventResponse & {
+  project_ids?: string[];
+  recurring?: boolean;
+};
+
 export interface CalendarViewProps {
-  events: CalendarEventResponse[];
+  events: CalendarEvent[];
   isLoading?: boolean;
   className?: string;
+  /** Sync error message to display (e.g. permission denied). */
+  syncError?: string;
+  /** Available projects for filtering and association. */
+  projects?: Array<{ id: string; name: string }>;
   onPatchEvent?: (
     canonicalId: string,
     payload: CalendarEventPatchRequest,
@@ -28,6 +38,10 @@ export interface CalendarViewProps {
     payload: CalendarEventRsvpRequest,
   ) => Promise<void> | void;
   onDeleteEvent?: (canonicalId: string) => Promise<void> | void;
+  /** Called when user clicks the refresh CTA in empty state. */
+  onRefresh?: () => void;
+  /** Called when user clicks retry on a sync-failed event. */
+  onRetrySync?: (canonicalId: string) => void;
 }
 
 type EventEditorState = {
@@ -47,7 +61,10 @@ function formatDayLabel(value: string): string {
   });
 }
 
-function formatTimeRange(startDate: string | null, endDate: string | null): string {
+function formatTimeRange(
+  startDate: string | null,
+  endDate: string | null,
+): string {
   const start = parseCalendarDate(startDate);
   if (!start) return "All day";
   const hasTime = (startDate || "").includes("T");
@@ -88,7 +105,10 @@ function plusThirtyMinutes(value: string | null): string | null {
   return new Date(date.getTime() + 30 * 60_000).toISOString();
 }
 
-function byStartDate(a: CalendarEventResponse, b: CalendarEventResponse): number {
+function byStartDate(
+  a: CalendarEventResponse,
+  b: CalendarEventResponse,
+): number {
   const left =
     parseCalendarDate(a.start_date)?.getTime() ?? Number.MAX_SAFE_INTEGER;
   const right =
@@ -96,7 +116,9 @@ function byStartDate(a: CalendarEventResponse, b: CalendarEventResponse): number
   return left - right;
 }
 
-function syncStateClass(syncState: CalendarEventResponse["sync_state"]): string {
+function syncStateClass(
+  syncState: CalendarEventResponse["sync_state"],
+): string {
   if (syncState === "Synced") return "bg-green-100 text-green-800";
   if (syncState === "Saving") return "bg-blueprint-100 text-blueprint-700";
   if (syncState === "Sync failed") return "bg-red-100 text-red-700";
@@ -132,10 +154,10 @@ function makeMonthGrid(anchor: Date): Date[] {
 }
 
 function eventsForDay(
-  events: CalendarEventResponse[],
+  events: CalendarEvent[],
   day: Date,
   timeZone: string,
-): CalendarEventResponse[] {
+): CalendarEvent[] {
   const dayKey = dayKeyFromDate(day, timeZone);
   return events.filter(
     (event) => dayKeyFromValue(event.start_date, timeZone) === dayKey,
@@ -146,8 +168,8 @@ function EventPill({
   event,
   onOpen,
 }: {
-  event: CalendarEventResponse;
-  onOpen: (event: CalendarEventResponse) => void;
+  event: CalendarEvent;
+  onOpen: (event: CalendarEvent) => void;
 }) {
   return (
     <button
@@ -167,39 +189,56 @@ export function CalendarView({
   events,
   isLoading,
   className,
+  syncError,
+  projects,
   onPatchEvent,
   onRsvpEvent,
   onDeleteEvent,
+  onRefresh,
+  onRetrySync,
 }: CalendarViewProps) {
   const [mode, setMode] = useState<CalendarMode>("list");
-  const [selected, setSelected] = useState<CalendarEventResponse | null>(null);
+  const [selected, setSelected] = useState<CalendarEvent | null>(null);
   const [editor, setEditor] = useState<EventEditorState | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [patchError, setPatchError] = useState<string | null>(null);
+  const [activeProjectFilter, setActiveProjectFilter] = useState<string | null>(
+    null,
+  );
   const viewerTimeZone = useMemo(() => resolveViewerTimeZone(), []);
 
   const sortedEvents = useMemo(() => [...events].sort(byStartDate), [events]);
 
+  const filteredEvents = useMemo(() => {
+    if (!activeProjectFilter) return sortedEvents;
+    return sortedEvents.filter((event) => {
+      const projectIds = (event as CalendarEvent).project_ids;
+      return projectIds?.includes(activeProjectFilter);
+    });
+  }, [sortedEvents, activeProjectFilter]);
+
   const grouped = useMemo(() => {
-    const groups = new Map<string, CalendarEventResponse[]>();
-    for (const event of sortedEvents) {
+    const groups = new Map<string, CalendarEvent[]>();
+    for (const event of filteredEvents) {
       const key = dayKeyFromValue(event.start_date, viewerTimeZone);
       const bucket = groups.get(key) ?? [];
       bucket.push(event);
       groups.set(key, bucket);
     }
     return Array.from(groups.entries());
-  }, [sortedEvents, viewerTimeZone]);
+  }, [filteredEvents, viewerTimeZone]);
 
   const anchorDate = useMemo(() => {
-    const first = sortedEvents[0];
+    const first = filteredEvents[0];
     return parseCalendarDate(first?.start_date) ?? new Date();
-  }, [sortedEvents]);
+  }, [filteredEvents]);
 
   const weekDays = useMemo(() => makeWeekDays(anchorDate), [anchorDate]);
   const monthDays = useMemo(() => makeMonthGrid(anchorDate), [anchorDate]);
 
-  const openEvent = (event: CalendarEventResponse) => {
+  const openEvent = (event: CalendarEvent) => {
     setSelected(event);
+    setPatchError(null);
     setEditor({
       name: event.name,
       description: event.description || "",
@@ -211,8 +250,16 @@ export function CalendarView({
   const handlePatch = async (payload: CalendarEventPatchRequest) => {
     if (!selected || !onPatchEvent) return;
     setBusyKey(`patch:${selected.canonical_id}`);
+    setPatchError(null);
     try {
       await onPatchEvent(selected.canonical_id, payload);
+    } catch (err: unknown) {
+      const status = (err as { status?: number })?.status;
+      if (status === 409) {
+        setPatchError(
+          "This event was modified elsewhere. Please reload and try again.",
+        );
+      }
     } finally {
       setBusyKey(null);
     }
@@ -283,19 +330,85 @@ export function CalendarView({
         </div>
       </div>
 
+      {/* Project filter bar */}
+      {projects && projects.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            onClick={() => setActiveProjectFilter(null)}
+            className={cn(
+              "rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+              activeProjectFilter === null
+                ? "bg-blueprint-600 text-white"
+                : "bg-paper-100 text-text-muted hover:bg-paper-200",
+            )}
+          >
+            All
+          </button>
+          {projects.map((project) => (
+            <button
+              key={project.id}
+              type="button"
+              onClick={() =>
+                setActiveProjectFilter(
+                  activeProjectFilter === project.id ? null : project.id,
+                )
+              }
+              className={cn(
+                "rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                activeProjectFilter === project.id
+                  ? "bg-blueprint-600 text-white"
+                  : "bg-paper-100 text-text-muted hover:bg-paper-200",
+              )}
+            >
+              {project.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       {isLoading && (
         <div className="flex items-center justify-center rounded-[var(--radius-lg)] border border-paper-200 bg-white py-10">
-          <Icon name="progress_activity" className="animate-spin text-text-muted" />
+          <Icon
+            name="progress_activity"
+            className="animate-spin text-text-muted"
+          />
         </div>
       )}
 
-      {!isLoading && sortedEvents.length === 0 && (
+      {/* Sync error state */}
+      {syncError && (
+        <div className="rounded-[var(--radius-lg)] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="flex items-center gap-2">
+            <Icon name="error" size={16} />
+            <span>{syncError}</span>
+          </div>
+          <a
+            href="/settings/email"
+            className="mt-2 inline-block text-xs font-medium text-red-700 underline"
+          >
+            Settings
+          </a>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!isLoading && filteredEvents.length === 0 && !syncError && (
         <div className="rounded-[var(--radius-lg)] border border-dashed border-paper-300 bg-paper-50 px-4 py-10 text-center text-sm text-text-muted">
-          Clear schedule. Add a calendar entry to get started.
+          <p>No upcoming events.</p>
+          {onRefresh && (
+            <button
+              type="button"
+              onClick={onRefresh}
+              className="mt-3 rounded-[var(--radius-sm)] border border-paper-300 bg-white px-3 py-1.5 text-xs font-medium text-text-primary hover:bg-paper-100"
+            >
+              Refresh sync
+            </button>
+          )}
         </div>
       )}
 
-      {!isLoading && sortedEvents.length > 0 && mode === "list" && (
+      {!isLoading && filteredEvents.length > 0 && mode === "list" && (
         <div className="space-y-3">
           {grouped.map(([day, dayEvents]) => (
             <section
@@ -307,7 +420,10 @@ export function CalendarView({
               </header>
               <ul className="divide-y divide-paper-100">
                 {dayEvents.map((event) => (
-                  <li key={event.canonical_id} className="flex items-center gap-3 px-3 py-2">
+                  <li
+                    key={event.canonical_id}
+                    className="flex items-center gap-3 px-3 py-2"
+                  >
                     <button
                       type="button"
                       onClick={() => openEvent(event)}
@@ -336,10 +452,10 @@ export function CalendarView({
         </div>
       )}
 
-      {!isLoading && sortedEvents.length > 0 && mode === "week" && (
+      {!isLoading && filteredEvents.length > 0 && mode === "week" && (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-7">
           {weekDays.map((day) => {
-            const dayEvents = eventsForDay(sortedEvents, day, viewerTimeZone);
+            const dayEvents = eventsForDay(filteredEvents, day, viewerTimeZone);
             return (
               <section
                 key={dayKeyFromDate(day, viewerTimeZone)}
@@ -371,10 +487,14 @@ export function CalendarView({
         </div>
       )}
 
-      {!isLoading && sortedEvents.length > 0 && mode === "month" && (
+      {!isLoading && filteredEvents.length > 0 && mode === "month" && (
         <div className="grid grid-cols-2 gap-2 md:grid-cols-7">
           {monthDays.map((day) => {
-            const allDayEvents = eventsForDay(sortedEvents, day, viewerTimeZone);
+            const allDayEvents = eventsForDay(
+              filteredEvents,
+              day,
+              viewerTimeZone,
+            );
             const dayEvents = allDayEvents.slice(0, 3);
             const isCurrentMonth = day.getMonth() === anchorDate.getMonth();
             return (
@@ -411,12 +531,15 @@ export function CalendarView({
       {selected && editor && (
         <aside className="rounded-[var(--radius-lg)] border border-paper-200 bg-white p-4">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-text-primary">Event details</h3>
+            <h3 className="text-sm font-semibold text-text-primary">
+              Event details
+            </h3>
             <button
               type="button"
               onClick={() => {
                 setSelected(null);
                 setEditor(null);
+                setPatchError(null);
               }}
               className="rounded-[var(--radius-sm)] p-1 text-text-muted hover:bg-paper-100"
               aria-label="Close event details"
@@ -425,12 +548,23 @@ export function CalendarView({
             </button>
           </div>
 
+          {/* Recurrence label */}
+          {(selected as CalendarEvent).recurring && (
+            <p className="mb-3 rounded-[var(--radius-sm)] bg-amber-50 px-2 py-1 text-xs text-amber-700">
+              This occurrence only
+            </p>
+          )}
+
           <div className="grid gap-3 md:grid-cols-2">
             <label className="grid gap-1 text-xs text-text-muted">
               Title
               <input
                 value={editor.name}
-                onChange={(e) => setEditor((prev) => (prev ? { ...prev, name: e.target.value } : prev))}
+                onChange={(e) =>
+                  setEditor((prev) =>
+                    prev ? { ...prev, name: e.target.value } : prev,
+                  )
+                }
                 className="rounded-[var(--radius-sm)] border border-paper-300 px-2 py-1 text-sm text-text-primary"
               />
             </label>
@@ -487,6 +621,40 @@ export function CalendarView({
             />
           </label>
 
+          {/* Project association editor */}
+          {projects && projects.length > 0 && (
+            <div className="mt-3">
+              <div className="mb-1 text-xs text-text-muted">Projects</div>
+              <div className="flex flex-wrap gap-1">
+                {projects.map((project) => {
+                  const isLinked = (
+                    selected as CalendarEvent
+                  ).project_ids?.includes(project.id);
+                  return (
+                    <span
+                      key={project.id}
+                      className={cn(
+                        "rounded-full px-2 py-0.5 text-[11px] font-medium",
+                        isLinked
+                          ? "bg-app-project/10 text-app-project"
+                          : "bg-paper-100 text-text-muted",
+                      )}
+                    >
+                      {project.name}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Conflict error */}
+          {patchError && (
+            <p className="mt-3 rounded-[var(--radius-sm)] bg-red-50 px-2 py-1 text-xs text-red-700">
+              {patchError}
+            </p>
+          )}
+
           <div className="mt-4 flex flex-wrap gap-2">
             <button
               type="button"
@@ -533,6 +701,16 @@ export function CalendarView({
             >
               Decline
             </button>
+            {/* Retry button for sync-failed events */}
+            {selected.sync_state === "Sync failed" && onRetrySync && (
+              <button
+                type="button"
+                onClick={() => onRetrySync(selected.canonical_id)}
+                className="rounded-[var(--radius-sm)] border border-red-300 px-3 py-1.5 text-xs font-medium text-red-700"
+              >
+                Retry sync
+              </button>
+            )}
             <button
               type="button"
               onClick={handleDelete}

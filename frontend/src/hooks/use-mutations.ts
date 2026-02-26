@@ -180,7 +180,9 @@ function removeFromCache(qc: QueryClient, canonicalId: CanonicalId) {
 
 /** Determine the correct @type for a target bucket. */
 function targetTypeForBucket(bucket: string): string {
-  return bucket === "reference" ? "CreativeWork" : "Action";
+  if (bucket === "reference") return "CreativeWork";
+  if (bucket === "calendar") return "Event";
+  return "Action";
 }
 
 /** Extract app:bucket from a raw ItemRecord. */

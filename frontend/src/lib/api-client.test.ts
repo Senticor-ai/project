@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   ApiError,
   AuthApi,
+  CalendarApi,
   ItemsApi,
   FilesApi,
   ImportsApi,
@@ -526,5 +527,87 @@ describe("401 session recovery", () => {
     await expect(AuthApi.me()).rejects.toThrow(ApiError);
     // Only 1 call (no refresh attempt)
     expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CalendarApi
+// ---------------------------------------------------------------------------
+
+describe("CalendarApi", () => {
+  it("listEvents sends GET with query params", async () => {
+    const events = [{ item_id: "i-1", name: "Standup" }];
+    fetchSpy.mockResolvedValueOnce(jsonResponse(events));
+
+    const result = await CalendarApi.listEvents({
+      dateFrom: "2026-03-01",
+      dateTo: "2026-03-31",
+      limit: 100,
+      projectIds: ["p-1", "p-2"],
+    });
+
+    expect(result).toEqual(events);
+    const [url] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/calendar/events?");
+    expect(url).toContain("date_from=2026-03-01");
+    expect(url).toContain("date_to=2026-03-31");
+    expect(url).toContain("limit=100");
+    expect(url).toContain("project_ids=p-1");
+    expect(url).toContain("project_ids=p-2");
+  });
+
+  it("createEvent sends POST with Idempotency-Key", async () => {
+    const created = { item_id: "i-1", name: "New event" };
+    fetchSpy.mockResolvedValueOnce(jsonResponse(created));
+
+    const result = await CalendarApi.createEvent(
+      { name: "New event", start_date: "2026-03-01" },
+      "idem-key-1",
+    );
+
+    expect(result).toEqual(created);
+    const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/calendar/events");
+    const headers = new Headers(init.headers);
+    expect(headers.get("Idempotency-Key")).toBe("idem-key-1");
+    const body = JSON.parse(init.body as string);
+    expect(body.name).toBe("New event");
+    expect(body.start_date).toBe("2026-03-01");
+  });
+
+  it("patchEvent sends PATCH to correct canonical ID path", async () => {
+    const patched = { item_id: "i-1", name: "Updated" };
+    fetchSpy.mockResolvedValueOnce(jsonResponse(patched));
+
+    await CalendarApi.patchEvent("cal-123", { name: "Updated" }, "idem-2");
+
+    const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/calendar/events/cal-123");
+    const headers = new Headers(init.headers);
+    expect(headers.get("Idempotency-Key")).toBe("idem-2");
+  });
+
+  it("setRsvp sends POST to /rsvp subpath", async () => {
+    const updated = { item_id: "i-1", rsvp_status: "accepted" };
+    fetchSpy.mockResolvedValueOnce(jsonResponse(updated));
+
+    await CalendarApi.setRsvp("cal-123", { status: "accepted" }, "idem-3");
+
+    const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/calendar/events/cal-123/rsvp");
+    const body = JSON.parse(init.body as string);
+    expect(body.status).toBe("accepted");
+  });
+
+  it("deleteEvent sends DELETE to correct path", async () => {
+    const deleted = { canonical_id: "cal-123", status: "deleted" };
+    fetchSpy.mockResolvedValueOnce(jsonResponse(deleted));
+
+    await CalendarApi.deleteEvent("cal-123", "idem-4");
+
+    const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/calendar/events/cal-123");
+    const headers = new Headers(init.headers);
+    expect(headers.get("Idempotency-Key")).toBe("idem-4");
   });
 });
