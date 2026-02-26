@@ -1,0 +1,11 @@
+{
+  "name": "OpenClaw Copilot",
+  "image": "ghcr.io/openclaw/openclaw:latest",
+  "mounts": [
+    "source=${localWorkspaceFolder},target=/project,type=bind,readonly"
+  ],
+  "containerEnv": {
+    "OPENCLAW_CONFIG_PATH": "/openclaw.json"
+  },
+  "remoteUser": "root"
+}

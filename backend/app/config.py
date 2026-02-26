@@ -130,6 +130,8 @@ class Settings:
     # Agents service (Copilot agent)
     agents_url: str | None
     agent_require_user_api_key: bool
+    # Agent backend default
+    default_agent_backend: str
     # OpenClaw (alternative agent backend)
     openclaw_url: str | None
     openclaw_token: str | None
@@ -139,6 +141,7 @@ class Settings:
     openclaw_port_range_end: int
     openclaw_idle_timeout_seconds: int
     openclaw_health_check_timeout: int
+    openclaw_project_mount_path: str
     # Email integration (Gmail OAuth)
     encryption_key: str | None
     gmail_client_id: str
@@ -313,6 +316,7 @@ def load_settings() -> Settings:
         ],
         agents_url=_get_env("AGENTS_URL"),
         agent_require_user_api_key=_get_bool_env("AGENT_REQUIRE_USER_API_KEY", False),
+        default_agent_backend=_get_env("DEFAULT_AGENT_BACKEND", "openclaw") or "openclaw",
         openclaw_url=_get_env("OPENCLAW_URL"),
         openclaw_token=_get_secret("OPENCLAW_GATEWAY_TOKEN"),
         openclaw_image=_get_env("OPENCLAW_IMAGE", "ghcr.io/openclaw/openclaw:latest")
@@ -323,6 +327,7 @@ def load_settings() -> Settings:
             _get_env("OPENCLAW_IDLE_TIMEOUT_SECONDS", "1800") or "1800"
         ),
         openclaw_health_check_timeout=int(_get_env("OPENCLAW_HEALTH_CHECK_TIMEOUT", "30") or "30"),
+        openclaw_project_mount_path=_get_env("OPENCLAW_PROJECT_MOUNT_PATH", str(ROOT_DIR)) or "",
         delegation_jwt_secret=(
             _get_secret("DELEGATION_JWT_SECRET") or _get_secret("JWT_SECRET") or ""
         ),

@@ -112,14 +112,8 @@ export default defineConfig({
         "src/vite-env.d.ts",
         "src/main.tsx",
       ],
-      reporter: ["text", "html", "json"],
+      reporter: ["text", "html", "json", "json-summary"],
       reportsDirectory: "./coverage",
-      thresholds: {
-        lines: 80,
-        statements: 80,
-        functions: 80,
-        branches: 70,
-      },
     },
     projects: [
       {

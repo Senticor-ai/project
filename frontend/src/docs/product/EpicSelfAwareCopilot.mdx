@@ -61,7 +61,7 @@ DevContainer (containers.dev)
 │   ├── AGENTS.md              (identity + rules)
 │   └── skills/
 │       ├── backend-api/       (CRUD via REST)
-│       ├── project-cli/       (CLI commands + help)
+│       ├── project/           (CLI commands + org knowledge docs)
 │       ├── import-export/     (import/export feature)
 │       ├── storybook-docs/    (read app docs)
 │       ├── web-search/        (search the internet)
@@ -80,7 +80,7 @@ Add `SKILL.md` files to `openclaw/workspace/skills/` and update `AGENTS.md`.
 Works immediately with the existing OpenClaw container — the agent gets richer knowledge.
 
 - [x] `import-export/SKILL.md` — import/export feature knowledge
-- [x] `project-cli/SKILL.md` — CLI command reference
+- [x] `project/SKILL.md` — CLI commands + org knowledge documents (merged from `project-cli/` + `org/`)
 - [x] `storybook-docs/SKILL.md` — Storybook documentation access
 - [x] `email-calendar/SKILL.md` — email and calendar integration
 - [x] `coding/SKILL.md` — test, lint, git, project structure
@@ -88,23 +88,39 @@ Works immediately with the existing OpenClaw container — the agent gets richer
 - [x] `AGENTS.md` updated with self-discovery section
 - [x] `backend-api/SKILL.md` enhanced with import endpoints
 
-### Slice 2: DevContainer + Project Mount
+### Slice 2: DevContainer + Project Mount (done)
 
-Create devcontainer config. Update container manager to mount the project repo.
+Create devcontainer config. Update container manager to mount the project repo read-only.
 
-- [ ] `openclaw/.devcontainer/devcontainer.json` — devcontainer spec
-- [ ] `openclaw/.devcontainer/Dockerfile` — image definition
-- [ ] `backend/app/container/manager.py` — mount project, use devcontainer image
-- [ ] `backend/app/container/workspace.py` — provision coding skill deps
+- [x] `openclaw/.devcontainer/devcontainer.json` — reference devcontainer spec
+- [x] `backend/app/config.py` — `OPENCLAW_PROJECT_MOUNT_PATH` setting (defaults to repo root)
+- [x] `backend/app/container/manager.py` — extracted `_build_volume_args()`, optional `/project:ro` mount
+- [x] `backend/tests/test_container_mount.py` — 4 tests for volume arg assembly
+- [ ] `openclaw/.devcontainer/Dockerfile` — image definition (future: custom image with project CLI)
 
-### Slice 3: Default to OpenClaw
+### Slice 3: Default to OpenClaw (done)
 
-Update backend chat routing to default all users to OpenClaw.
+Config-driven default backend. New users get OpenClaw; rollback via `DEFAULT_AGENT_BACKEND=haystack`.
 
-- [ ] `backend/app/chat/routes.py` — default backend selection
-- [ ] Feature flag or setting for rollback to Haystack
+- [x] `backend/app/config.py` — `DEFAULT_AGENT_BACKEND` setting (default: `"openclaw"`)
+- [x] `backend/app/routes/agent_settings.py` — 3 locations use `settings.default_agent_backend`
+- [x] `.env.example` — documented both new settings
+- [x] `backend/tests/test_default_backend.py` — 4 tests for config-driven default
+- [x] `backend/tests/test_chat_routes.py` — updated `_patch_settings` to preserve haystack path in existing tests
 
-### Slice 4: Haystack Interim Fix (done)
+### Slice 4: Org-Awareness via Skills (done)
+
+Add org-aware Copilot flows. OpenClaw discovers org operations through the merged `project/` skill
+and AGENTS.md guardrails — no legacy per-tool Python pathways needed.
+
+_Migrated from [#56](https://github.com/Senticor-ai/project/issues/56)._
+
+- [x] `openclaw/workspace/skills/project/SKILL.md` — org knowledge docs section (list orgs, read/write docs, append log, agent notes)
+- [x] `openclaw/workspace/AGENTS.md` — org-awareness behavior and guardrails (rules 13-15)
+- [x] Org-aware flows work with approval-gated writes and deterministic JSON output
+- [ ] Haystack prompt updated with org-awareness section — deferred, agent i18n tracked in [i18n Epic](?path=/docs/product-epics-internationalization-localization--docs)
+
+### Slice 5: Haystack Interim Fix (done)
 
 Quick-fix the Haystack prompt for import awareness so existing users aren't broken.
 
@@ -119,6 +135,7 @@ Quick-fix the Haystack prompt for import awareness so existing users aren't brok
 - [ ] Agent can run tests, lint, and type-check the project.
 - [ ] New features only need a SKILL.md update, not a prompt change.
 - [ ] Haystack fallback remains functional via Settings > Agent Setup.
+- [ ] Agent can perform org-aware read/write operations by reading `project/SKILL.md`.
 - [x] Haystack prompt includes import/export knowledge (interim fix).
 
 ## Test Plan

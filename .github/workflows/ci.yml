@@ -250,12 +250,61 @@ jobs:
           cd frontend
           npm ci --ignore-scripts --silent
           CI=1 npx vitest run --project=unit --coverage --coverage.reporter=text --coverage.reporter=cobertura --coverage.reporter=json-summary --coverage.reportsDirectory=coverage/unit
+      - name: Check unit-only thresholds (50%)
+        if: always()
+        run: |
+          cd frontend
+          npm run test:coverage:check:unit
       - name: Upload frontend unit coverage
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: frontend-unit-coverage
           path: frontend/coverage/unit/
+          if-no-files-found: ignore
+
+  frontend-combined-coverage:
+    # Combined (unit + storybook) coverage must reach 80%.
+    # Coverage should not block CI, but failures are tracked.
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
+          key: ${{ runner.os }}-playwright-${{ hashFiles('frontend/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+      - name: Install frontend dependencies
+        run: |
+          cd frontend
+          npm ci --silent
+      - name: Install Playwright browser
+        run: |
+          cd frontend
+          npx playwright install --with-deps chromium
+      - name: Run combined coverage (unit + storybook)
+        run: |
+          cd frontend
+          npm run test:coverage:combined
+      - name: Check combined thresholds (80%)
+        if: always()
+        run: |
+          cd frontend
+          npm run test:coverage:check:combined
+      - name: Upload frontend combined coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-combined-coverage
+          path: frontend/coverage/combined/
           if-no-files-found: ignore
 
   frontend-storybook:

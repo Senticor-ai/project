@@ -132,7 +132,11 @@ def _apply_provider_status(
 
 
 def get_user_agent_backend(user_id: str) -> str:
-    """Get the user's configured agent backend. Returns 'haystack' if not set."""
+    """Get the user's configured agent backend.
+
+    Returns the config-driven default (DEFAULT_AGENT_BACKEND) when the user
+    has no row in user_agent_settings.
+    """
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -141,7 +145,7 @@ def get_user_agent_backend(user_id: str) -> str:
             )
             row = cur.fetchone()
     if not row:
-        return "haystack"
+        return settings.default_agent_backend
     return row["agent_backend"]
 
 
@@ -172,7 +176,7 @@ def get_agent_settings(
 
     if not row:
         return AgentSettingsResponse(
-            agentBackend="haystack",
+            agentBackend=settings.default_agent_backend,
             provider="openrouter",
             hasApiKey=False,
             model=DEFAULT_MODEL,
@@ -248,7 +252,7 @@ def update_agent_settings(
         new_model = requested_model or existing["model"]
         existing_encrypted = existing["api_key_encrypted"]
     else:
-        new_backend = req.agentBackend or "haystack"
+        new_backend = req.agentBackend or settings.default_agent_backend
         new_provider = req.provider or "openrouter"
         new_model = requested_model or DEFAULT_MODEL
         existing_encrypted = None

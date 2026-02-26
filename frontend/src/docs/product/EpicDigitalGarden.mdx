@@ -1,0 +1,549 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Product/Epics/Digital Garden & Zettelkasten" />
+
+# Epic: Digital Garden & Zettelkasten — Schema.org Knowledge Lifecycle
+
+**Status:** Draft
+**Priority:** Next
+**Last updated:** 2026-02-26
+**Depends on:** [Completed Epic: Org Knowledge](?path=/docs/product-completed-epics-org-knowledge--docs), [Self-Aware Copilot](?path=/docs/product-epics-self-aware-copilot--docs)
+**Related:** [Engineering: Data Model](?path=/docs/engineering-data-model--docs)
+**Inspiration:** [Digitaler Garten (heise)](https://www.heise.de/hintergrund/Nerd-Trend-Digitaler-Garten-Die-eigene-Website-als-persoenliches-Wissensarchiv-10344169.html), [Zettelkastenmethode: Workflow (c't)](https://www.heise.de/ratgeber/Zettelkastenmethode-Mit-diesen-Apps-organisieren-Sie-Ihre-digitalen-Notizen-9778603.html), [Sönke Ahrens: Das Zettelkastenprinzip](https://www.soenkeahrens.de/en/takesmartnotes)
+
+---
+
+## Context
+
+The reference bucket already holds `CreativeWork` and `DigitalDocument` items — notes, files, org
+knowledge docs, persons. But all reference items are flat and static: once triaged, they sit there.
+There's no lifecycle, no maturity model, no way to express how ideas connect and grow.
+
+Two complementary methodologies address this:
+
+- **Digital Garden** (Maggie Appleton): notes grow organically through maturity stages
+  (seedling → budding → evergreen), get "tended" through regular review, and interconnect
+  into a living knowledge web. The "Slow Web" philosophy: intentional curation over algorithmic feeds.
+- **Zettelkasten** (Niklas Luhmann): atomic notes with explicit typed links.
+  Luhmann wrote ~90,000 handwritten slips over 45 years (1952–1997), generating 70 books
+  and hundreds of lectures. The method strictly separates note types and relies on
+  connections rather than folders to organize knowledge.
+
+Both map naturally onto schema.org's `CreativeWork` vocabulary, which already defines properties for
+content lifecycle (`creativeWorkStatus`), source attribution (`isBasedOn`), and summaries (`abstract`).
+
+**Decision:** Enrich `CreativeWork` with native schema.org properties and a new LexCEL `GrowthPort`.
+No new `@type`, no new bucket, no new entity kind. Garden notes are reference items with richer metadata.
+
+### Why this matters for Bundesbeamte
+
+- **Institutional memory** — knowledge survives personnel turnover when it's documented, linked, and tended
+- **Case file growth** — legal proceedings accumulate context over months; maturity stages track readiness
+- **Regulatory knowledge** — laws and interpretations evolve; `contradicts` and `supports` links
+  make intellectual tension explicit
+- **Cross-domain connections** — a formula from one regulation may be essential for another domain
+  (Luhmann's core insight: discoveries happen at the intersections)
+- **No-delete policy** — already in place, perfectly aligned with garden philosophy (nothing is thrown away)
+- **Longevity** — Zettelkasten is designed to last decades; our JSON-LD/schema.org foundation ensures
+  data is never locked into a proprietary format
+
+---
+
+## Zettelkasten Principles (from Sönke Ahrens / c't)
+
+The following principles from Luhmann's method and Ahrens' book inform our data model decisions:
+
+### 1. Strict separation of note types
+
+Ahrens identifies five categories. Our system maps them directly:
+
+| Zettelkasten Category | German | Our Mapping | Where it lives |
+|----------------------|--------|-------------|----------------|
+| **Fleeting notes** | Flüchtige Notizen | Inbox items | `bucket: "inbox"` — quick captures, processed within days |
+| **Literature notes** | Literaturnotizen | CreativeWork + `isBasedOn` | `bucket: "reference"`, `noteType: "literature"` — page-specific annotations from a source |
+| **Permanent notes** | Dauerhafte Notizen | CreativeWork | `bucket: "reference"`, `noteType: "permanent"` — atomic, self-formulated, one idea |
+| **Topic overviews** | Themenübersichten | CreativeWork | `bucket: "reference"`, `noteType: "index"` — curated entry points linking to key permanent notes |
+| **Project notes** | Projektnotizen | Project items | `bucket: "project"` — compilations toward a publication or deliverable |
+
+### 2. Atomicity — one thought per note
+
+Each permanent note contains exactly one idea, self-formulated in the user's own words
+(not copied, not AI-generated). Luhmann limited himself to what fits on a DIN-A6 card — a few
+sentences. Ahrens recommends ~100 words maximum.
+
+The `abstract` field captures this atomic idea as a structured property. The full `description`
+can elaborate, but the abstract must stand alone.
+
+### 3. No folder-based organization
+
+Zettelkasten deliberately avoids thematic folders — they become unmanageable over time, and a note
+relevant to multiple topics would need to exist in multiple folders. Instead:
+
+- **Tags** (`keywords`) for keyword discovery
+- **Typed references** for explicit connections between notes
+- **Topic overview notes** (`noteType: "index"`) replace folder hierarchies — they're curated
+  entry points that link to the most important permanent notes on a topic
+
+This maps perfectly to our existing reference bucket: flat list, no sub-folders, tags + typed
+references for navigation.
+
+### 4. Fixed identity, never moved
+
+Each note gets a unique identifier and a fixed position. In Luhmann's system: cascading
+alphanumeric codes (11, 11a, 11b, 11b1...). In ours: `CanonicalId` (`urn:app:reference:{uuid}`).
+Once assigned, the ID never changes — the no-delete policy ensures this.
+
+### 5. Backlinks create a "second brain"
+
+When note A links to note B, note B should show that A links to it. Over time this creates
+a dense network resembling neural connections. Researchers at Uni Bielefeld call Luhmann's
+system a "Zweitgedächtnis" (second memory).
+
+Our `TypedReference` system is currently unidirectional (stored on the source). **Backlinks
+are a UI/query concern**: when viewing note B, query all items whose `references` contain B's id.
+No schema change needed — this is a display feature (Slice 4).
+
+### 6. The copilot as gardener, not ghost-writer
+
+> "KI-Funktionen bleiben beim Zettelkasten außen vor. Denn er ist vornehmlich ein Denkwerkzeug,
+> das Ihnen hilft, Texte zu verstehen und Ihre eigenen Gedanken zu publizieren."
+> — c't Magazin
+
+The Zettelkasten is a **thinking tool** ("Fitnessstudio für Ihr Gehirn"). The copilot must
+**never write or reformulate permanent notes** for the user. Instead, it assists the gardening
+process:
+
+- Remind about stale fleeting notes that need processing
+- Suggest connections between notes the user might have missed
+- Flag literature notes missing their source (`isBasedOn`)
+- Recommend maturity promotions based on connection density
+- Help with the mechanical work (linking, metadata, tending timestamps)
+
+This is codified as a guardrail in `AGENTS.md`.
+
+---
+
+## User Stories
+
+> "I want my notes to grow over time. When I capture a quick thought, it starts as a seedling.
+> As I refine it, add sources, and connect it to other notes, it matures. The copilot should
+> remind me when notes need tending and suggest connections I haven't made yet."
+
+> "When I read a regulation or court decision, I want to capture literature notes with a link
+> back to the source. Later I process them into permanent notes in my own words — one idea per note.
+> The copilot should remind me when fleeting notes pile up unprocessed."
+
+> "I need topic overview notes that serve as entry points into a subject area — linking to the most
+> important permanent notes. When I start writing a report (Vermerk), I follow the links through
+> my Zettelkasten and compile the project from there."
+
+---
+
+## Workflow: Capture → Process → Link → Publish
+
+The Zettelkasten workflow maps to existing app concepts plus the new note lifecycle:
+
+```
+┌─────────────┐     triage      ┌──────────────────┐     process      ┌──────────────────┐
+│  INBOX      │ ──────────────→ │  REFERENCE       │ ──────────────→  │  REFERENCE       │
+│  (fleeting) │   noteType:     │  (literature)    │   noteType:      │  (permanent)     │
+│             │   "fleeting"    │  + isBasedOn     │   "permanent"    │  atomic, linked   │
+└─────────────┘                 └──────────────────┘                  └────────┬─────────┘
+                                                                               │
+                                                      ┌────────────────────────┤ develops / supports
+                                                      ▼                        ▼
+                                               ┌──────────────┐       ┌──────────────────┐
+                                               │  REFERENCE   │       │  PROJECT         │
+                                               │  (index)     │       │  (publication)   │
+                                               │  topic entry │       │  compiled from   │
+                                               │  point       │       │  permanent notes │
+                                               └──────────────┘       └──────────────────┘
+```
+
+**Step 1 — Capture:** Quick thoughts land in the inbox. URLs, files, emails auto-classify
+as `DigitalDocument` or `CreativeWork`. All start as `noteType: "fleeting"`, `maturity: "seedling"`.
+
+**Step 2 — Literature notes:** When reading a source, create a reference item with `isBasedOn`
+pointing to the source (URL, file, or another item). Annotate page-specific observations.
+`noteType: "literature"`, `maturity: "seedling"`.
+
+**Step 3 — Permanent notes:** Process fleeting and literature notes into permanent notes.
+Each contains one self-formulated thought (~100 words). Add tags, link to related notes via
+typed references (`develops`, `supports`, `contradicts`). `noteType: "permanent"`.
+
+**Step 4 — Topic overviews:** Create index notes that curate entry points into a subject area.
+These link to key permanent notes under thematic headings. `noteType: "index"`.
+
+**Step 5 — Publication:** Create a Project item. Follow links through the Zettelkasten to compile
+a Vermerk, Stellungnahme, or other deliverable. The project's actions track the writing tasks;
+the permanent notes provide the intellectual foundation.
+
+---
+
+## Schema.org Properties (top-level JSON-LD)
+
+These are native `CreativeWork` properties, serialized at the top level alongside existing
+`url`, `encodingFormat`, `keywords`:
+
+| Property | Schema.org Type | Values | Purpose |
+|----------|----------------|--------|---------|
+| `creativeWorkStatus` | Text | `"seedling"` \| `"budding"` \| `"evergreen"` | Note maturity lifecycle stage |
+| `abstract` | Text | Free text | One-sentence atomic idea summary (distinct from `description`) |
+| `isBasedOn` | `{@id}[]` / URL[] | CanonicalId refs or external URLs | Source attribution — where this idea came from |
+| `version` | Integer | Auto-incrementing | Revision count — how many times materially edited |
+
+### Why these four
+
+- **`creativeWorkStatus`** is literally defined as "the status of a creative work in terms of its stage
+  in a lifecycle" — it was designed for exactly this.
+- **`abstract`** is distinct from `description` (which serves as the full markdown body/notes).
+  The abstract is the "one idea" that a Zettelkasten note captures.
+- **`isBasedOn`** is "a resource from which this work is derived." This is the Zettelkasten
+  literature note → source link. Supports both internal items (`@id` refs) and external URLs.
+- **`version`** tracks organic growth. Combined with `Provenance.history`, it provides both a
+  counter and a full audit trail.
+
+### What we're NOT adding (and why)
+
+| Property | Reason to skip |
+|----------|---------------|
+| `about` | Overlaps with existing `TypedReference` system — use `refers_to` or `context_of` |
+| `mentions` | Would create a parallel to `TypedReference` — use `refers_to` for lightweight links |
+| `citation` | Covered by `isBasedOn` (source) + `supports` reference type (evidence) |
+| `hasPart` / `isPartOf` | Already covered by existing `part_of` reference type |
+| `datePublished` | Can derive from provenance entry when note is promoted to `evergreen` |
+| `learningResourceType` | Meant for formal educational resources, not personal knowledge management |
+
+---
+
+## App-Namespace Properties (`additionalProperty`)
+
+| Property | Type | Values | Purpose |
+|----------|------|--------|---------|
+| `app:noteType` | string | `"fleeting"` \| `"literature"` \| `"permanent"` \| `"index"` | Zettelkasten classification (orthogonal to maturity) |
+| `app:tendedAt` | ISO datetime | Auto-set on review | Last intentional human review (distinct from `dateModified`) |
+
+### Maturity vs. Note Type
+
+These are orthogonal dimensions:
+
+| | Fleeting | Literature | Permanent | Index |
+|---|---------|-----------|-----------|-------|
+| **Seedling** | Quick capture, needs processing | Just triaged from a source, unrefined | Rare — newly created from scratch | Stub with a few links |
+| **Budding** | Being developed, some links | Source analyzed, connections forming | Core idea solid, still growing | Covers the topic partially |
+| **Evergreen** | Should be promoted or archived | Fully processed, standing reference | Atomic, well-connected, stable | Comprehensive topic entry point |
+
+---
+
+## New LexCEL Port: `GrowthPort`
+
+Following the existing port pattern (`ComputationPort` bundles `energyLevel` + `timeEstimate`),
+`GrowthPort` bundles garden metadata:
+
+```typescript
+export type NoteMaturity = "seedling" | "budding" | "evergreen";
+export type NoteType = "fleeting" | "literature" | "permanent" | "index";
+
+export interface GrowthPort {
+  kind: "growth";
+  maturity: NoteMaturity;
+  noteType: NoteType;
+  tendedAt?: string;               // ISO datetime
+  connectionThreshold?: number;    // min refs before "budding" (default: 2)
+}
+```
+
+**Serialization rule:** `GrowthPort.maturity` is the internal source of truth.
+The serializer writes it to **both** top-level `creativeWorkStatus` (schema.org interop)
+**and** inside `app:ports` (copilot/internal consumption). On deserialization, `creativeWorkStatus`
+populates the GrowthPort.
+
+---
+
+## New Reference Types
+
+Four knowledge-linking types added to the existing eight:
+
+| Type | Meaning | Use case |
+|------|---------|----------|
+| `develops` | "This note extends/continues the idea in target" | Zettelkasten Folgezettel — a direct continuation of thought |
+| `contradicts` | "This note challenges/disputes the target" | Evolving regulations, conflicting interpretations |
+| `supports` | "This note provides evidence for the target" | Court decisions backing an interpretation |
+| `inspired_by` | "This note was sparked by target, but is original" | Weaker than `isBasedOn` — creative attribution |
+
+These complement existing types: `refers_to` (generic link), `context_of` (provides context),
+`part_of` (hierarchical), `depends_on` (prerequisite).
+
+---
+
+## New Provenance Actions
+
+| Action | Trigger |
+|--------|---------|
+| `tended` | User or copilot reviews a note (sets `tendedAt`) |
+| `promoted` | Maturity upgrade (seedling → budding → evergreen) |
+| `linked` | Typed reference added between items |
+
+---
+
+## Extended `ReferenceMaterial` Interface
+
+```typescript
+export interface ReferenceMaterial extends BaseEntity {
+  bucket: "reference";
+  projectIds: CanonicalId[];
+  encodingFormat?: string;
+  url?: string;
+  origin?: ReferenceOrigin;
+  orgRef?: OrgRef;
+  // Digital Garden
+  abstract?: string;
+  creativeWorkStatus?: NoteMaturity;
+  noteType?: NoteType;
+  isBasedOn?: (CanonicalId | string)[];  // internal refs or external URLs
+  version?: number;
+  tendedAt?: string;
+  /** Word count of the description — supports atomicity check (~100 words for permanent notes). */
+  wordCount?: number;
+}
+```
+
+---
+
+## CLI
+
+### New flags on `items create --type CreativeWork`
+
+```bash
+# Fleeting note (quick capture)
+items create --type CreativeWork --name "Wissensbewahrung" \
+  --bucket reference --maturity seedling --note-type fleeting --apply
+
+# Literature note (from a source)
+items create --type CreativeWork --name "Erkenntnisse BVerwG 2014" \
+  --bucket reference --maturity seedling --note-type literature \
+  --based-on "urn:app:reference:source-123" \
+  --abstract "Verwaltungsgerichte verlangen lückenlose Aktenführung" --apply
+
+# Permanent note (atomic, self-formulated)
+items create --type CreativeWork --name "Lückenlose Aktenführung als Grundrecht" \
+  --bucket reference --maturity budding --note-type permanent \
+  --abstract "Lückenlose Aktenführung ist Voraussetzung für rechtliches Gehör." \
+  --description "Ohne vollständige Akten kann der Bürger sein Recht auf Akteneinsicht nicht ausüben..." \
+  --apply
+
+# Topic overview (entry point into a subject area)
+items create --type CreativeWork --name "Übersicht: Aktenführung" \
+  --bucket reference --maturity seedling --note-type index \
+  --description "## Aktenführung\n\n- [[Lückenlose Aktenführung als Grundrecht]]\n- [[BVerwG 2014 Urteil]]" \
+  --apply
+```
+
+### New commands
+
+```bash
+# Promote maturity
+items patch <id> --maturity budding --apply
+
+# Link two notes (Zettelkasten connections)
+items link <source-id> --type develops --target <target-id> --apply
+items link <source-id> --type supports --target <target-id> --note "BVerwG 2014" --apply
+items link <source-id> --type contradicts --target <target-id> --apply
+
+# Tend a note (mark as reviewed, update tendedAt)
+items tend <id> --apply
+
+# List stale notes (not tended in N+ days)
+items list --bucket reference --stale 14
+
+# List notes by type
+items list --bucket reference --note-type permanent
+items list --bucket reference --note-type index
+items list --bucket reference --note-type literature --maturity seedling
+
+# List orphan notes (no incoming backlinks)
+items list --bucket reference --orphans
+```
+
+---
+
+## Copilot Garden Tending
+
+New skill: `openclaw/workspace/skills/garden-tending/SKILL.md`
+
+### Guardrail: Assist, don't replace thinking
+
+The Zettelkasten is a thinking tool. The copilot **must never**:
+- Write or reformulate permanent notes for the user
+- Auto-generate abstracts or descriptions
+- Create typed references without user confirmation
+
+The copilot **should**:
+- Remind, suggest, and flag — the mechanical gardening work
+- Help with metadata (tags, links, tending timestamps)
+- Surface connections the user might have missed
+
+This guardrail is codified in `AGENTS.md`.
+
+### Tending actions
+
+1. **Seedling patrol** — find `creativeWorkStatus=seedling` with stale `tendedAt` (>7 days).
+   Suggest review to user.
+2. **Connection suggestions** — notes with fewer than `connectionThreshold` outgoing refs.
+   Compare `abstract` and `keywords` with other notes to suggest links.
+3. **Maturity promotion** — when a note has 2+ outgoing refs and has been tended recently,
+   suggest promoting seedling → budding. At 5+ refs, suggest evergreen.
+4. **Fleeting cleanup** — `noteType=fleeting` older than 14 days, not promoted.
+   Suggest promoting to literature/permanent or archiving.
+5. **Source verification** — `noteType=literature` without `isBasedOn` set.
+   Prompt user to add the source.
+6. **Atomicity check** — permanent notes with `wordCount > 150`: suggest splitting into
+   two notes connected via `develops`.
+7. **Orphan detection** — permanent notes with zero incoming backlinks: suggest connecting
+   them to a topic overview or related notes.
+8. **Topic overview gaps** — when a tag has 5+ permanent notes but no `noteType=index` note
+   with that tag: suggest creating a topic overview.
+
+---
+
+## JSON-LD Examples
+
+### Permanent note (dauerhafte Notiz)
+
+```json
+{
+  "@id": "urn:app:reference:abc-123",
+  "@type": "CreativeWork",
+  "_schemaVersion": 2,
+  "name": "Lückenlose Aktenführung als Grundrecht",
+  "abstract": "Lückenlose Aktenführung ist Voraussetzung für rechtliches Gehör nach Art. 103 GG.",
+  "description": "Ohne vollständige Akten kann der Bürger sein Recht auf Akteneinsicht...",
+  "keywords": ["aktenführung", "grundrecht", "verwaltungsrecht"],
+  "creativeWorkStatus": "budding",
+  "version": 3,
+  "isBasedOn": [
+    { "@id": "urn:app:reference:source-doc-456" },
+    { "@id": "https://www.bmi.bund.de/wissensmanagement-leitfaden" }
+  ],
+  "dateCreated": "2026-01-15T10:00:00Z",
+  "dateModified": "2026-02-20T14:30:00Z",
+  "additionalProperty": [
+    { "@type": "PropertyValue", "propertyID": "app:bucket", "value": "reference" },
+    { "@type": "PropertyValue", "propertyID": "app:noteType", "value": "permanent" },
+    { "@type": "PropertyValue", "propertyID": "app:tendedAt", "value": "2026-02-20T14:30:00Z" },
+    { "@type": "PropertyValue", "propertyID": "app:ports", "value": [
+      {
+        "kind": "growth",
+        "maturity": "budding",
+        "noteType": "permanent",
+        "tendedAt": "2026-02-20T14:30:00Z",
+        "connectionThreshold": 2
+      }
+    ]},
+    { "@type": "PropertyValue", "propertyID": "app:typedReferences", "value": [
+      { "type": "develops", "targetId": "urn:app:reference:related-789", "createdAt": "2026-02-18T09:00:00Z" },
+      { "type": "supports", "targetId": "urn:app:reference:evidence-321", "note": "BVerwG 2014 Urteil", "createdAt": "2026-02-19T11:00:00Z" }
+    ]}
+  ]
+}
+```
+
+### Topic overview (Themenübersicht)
+
+```json
+{
+  "@id": "urn:app:reference:idx-456",
+  "@type": "CreativeWork",
+  "_schemaVersion": 2,
+  "name": "Übersicht: Aktenführung im Verwaltungsrecht",
+  "abstract": "Einstiegspunkt für alle Notizen zur Aktenführungspflicht und verwandten Themen.",
+  "description": "## Grundlagen\n\n- Lückenlose Aktenführung als Grundrecht\n- Vollständigkeitsprinzip...\n\n## Rechtsprechung\n\n- BVerwG 2014...",
+  "keywords": ["aktenführung", "verwaltungsrecht"],
+  "creativeWorkStatus": "seedling",
+  "version": 1,
+  "dateCreated": "2026-02-20T15:00:00Z",
+  "dateModified": "2026-02-20T15:00:00Z",
+  "additionalProperty": [
+    { "@type": "PropertyValue", "propertyID": "app:bucket", "value": "reference" },
+    { "@type": "PropertyValue", "propertyID": "app:noteType", "value": "index" },
+    { "@type": "PropertyValue", "propertyID": "app:ports", "value": [
+      { "kind": "growth", "maturity": "seedling", "noteType": "index", "connectionThreshold": 5 }
+    ]},
+    { "@type": "PropertyValue", "propertyID": "app:typedReferences", "value": [
+      { "type": "refers_to", "targetId": "urn:app:reference:abc-123", "createdAt": "2026-02-20T15:00:00Z" },
+      { "type": "refers_to", "targetId": "urn:app:reference:evidence-321", "createdAt": "2026-02-20T15:00:00Z" }
+    ]}
+  ]
+}
+```
+
+---
+
+## Implementation Slices
+
+### Slice 1: Types & Serialization
+
+- [ ] `frontend/src/model/types.ts` — `GrowthPort`, `NoteMaturity`, `NoteType`, extended `ReferenceType`, extended `ReferenceMaterial`, extended `ProvenanceAction`, extended `Port` union
+- [ ] `frontend/src/lib/item-serializer.ts` — serialize/deserialize `creativeWorkStatus`, `abstract`, `isBasedOn`, `version` top-level; parse `GrowthPort`
+- [ ] `frontend/src/model/factories.ts` — `growthPort()` factory, updated `createReferenceMaterial()`
+- [ ] `frontend/src/lib/messages.ts` — i18n keys (en + de) for maturity labels, note types, new reference types
+- [ ] `packages/core/serializers/jsonld.ts` — mirror frontend serializer changes
+- [ ] `backend/app/models.py` — add `creativeWorkStatus`, `abstract`, `isBasedOn`, `version` to `ReferenceItemJsonLd`
+- [ ] Round-trip test: `toJsonLd(fromJsonLd(gardenNote))` preserves all new properties
+
+### Slice 2: CLI
+
+- [ ] `packages/core/cli/items.ts` — `--maturity`, `--note-type`, `--abstract`, `--based-on` flags
+- [ ] `packages/core/cli/items.ts` — `items link` command
+- [ ] `packages/core/cli/items.ts` — `items tend` command
+- [ ] `packages/core/cli/items.ts` — `items list --stale N` filter
+- [ ] `openclaw/workspace/skills/project/SKILL.md` — document new CLI flags
+
+### Slice 3: Copilot Garden Tending
+
+- [ ] `openclaw/workspace/skills/garden-tending/SKILL.md` — garden tending skill
+- [ ] `openclaw/workspace/AGENTS.md` — garden-awareness behavior rules
+
+### Slice 4: UI (future)
+
+- [ ] Maturity badge on `ReferenceRow.tsx` (seedling/budding/evergreen icon + color)
+- [ ] Note type badge (fleeting/literature/permanent/index)
+- [ ] Connection count display (outgoing refs + incoming backlinks)
+- [ ] "Tend" action in row menu (sets `tendedAt`, adds provenance entry)
+- [ ] Backlinks panel (when viewing a note, show all notes that reference it)
+- [ ] `isBasedOn` display — source chain visualization (literature note → source)
+- [ ] Abstract preview in list view (one-line summary without expanding)
+- [ ] Filter/group by `noteType` in reference list
+- [ ] Garden overview dashboard (maturity distribution, stale notes, orphans, connection graph)
+- [ ] Split-screen processing view (fleeting/literature on left → permanent note editor on right,
+      following Obsidian's Zettelkasten workflow pattern)
+
+---
+
+## Acceptance Criteria
+
+- [ ] `creativeWorkStatus`, `abstract`, `isBasedOn`, `version` round-trip through JSON-LD without loss
+- [ ] GrowthPort serializes to both `creativeWorkStatus` (top-level) and `app:ports` (internal)
+- [ ] All four note types (`fleeting`, `literature`, `permanent`, `index`) create and display correctly
+- [ ] New reference types (`develops`, `contradicts`, `supports`, `inspired_by`) serialize and display
+- [ ] CLI: `items create` with `--maturity`, `--note-type`, `--abstract`, `--based-on` works
+- [ ] CLI: `items link`, `items tend`, `items list --stale`, `items list --orphans` work
+- [ ] Copilot can read garden metadata and suggest tending actions via skill
+- [ ] Copilot guardrail: agent never auto-writes permanent note content (tested via skill rules)
+- [ ] Backlinks query: given note B, can find all notes referencing B (UI or CLI)
+- [ ] All existing reference items continue to work (backward compatible — no migration needed)
+
+---
+
+## Test Plan
+
+- **Serialization round-trip:** Unit test: create garden notes of each noteType with all new properties → `toJsonLd` → `fromJsonLd` → assert all fields preserved
+- **CLI create:** `items create --type CreativeWork --maturity seedling --note-type literature --based-on <url> --apply` → verify JSON-LD output
+- **CLI create index:** `items create --type CreativeWork --note-type index --apply` → verify `app:noteType: "index"`
+- **CLI link:** `items link <a> --type develops --target <b>` → verify `typedReferences` updated
+- **CLI tend:** `items tend <id>` → verify `tendedAt` set, `tended` provenance entry added
+- **CLI stale:** `items list --bucket reference --stale 14` → returns only notes with `tendedAt` older than 14 days
+- **CLI orphans:** `items list --bucket reference --orphans` → returns notes with zero incoming backlinks
+- **Backend passthrough:** POST a garden note JSON-LD to API → GET it back → verify new top-level fields preserved
+- **Backward compat:** Existing reference items without garden properties continue to serialize/deserialize unchanged
+- **Copilot skill:** Agent reads `garden-tending/SKILL.md` and can reason about stale seedlings, suggest connections, flag orphans

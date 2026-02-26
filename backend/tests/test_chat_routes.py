@@ -21,9 +21,14 @@ _DUMMY_REQUEST = httpx.Request("POST", "http://localhost:8002/chat/completions")
 
 
 def _patch_settings(monkeypatch, **overrides):
-    """Replace module-level settings with a copy that has overrides applied."""
+    """Replace module-level settings with a copy that has overrides applied.
+
+    Defaults to haystack backend so existing tests keep hitting the Haystack path.
+    """
+    overrides.setdefault("default_agent_backend", "haystack")
     patched = dataclasses.replace(settings, **overrides)
     monkeypatch.setattr("app.chat.routes.settings", patched)
+    monkeypatch.setattr("app.routes.agent_settings.settings", patched)
     return patched
 
 

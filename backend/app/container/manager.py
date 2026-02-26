@@ -12,6 +12,7 @@ import logging
 import secrets
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
 import httpx
@@ -114,6 +115,22 @@ def _build_model_string(provider: str, model: str) -> str:
     return model
 
 
+def _build_volume_args(workspace_dir: Path, runtime_dir: Path) -> list[str]:
+    """Build the -v flags for the container run command."""
+    args: list[str] = [
+        "-v", f"{workspace_dir / 'workspace'}:/workspace",
+        "-v", f"{workspace_dir / 'openclaw.json'}:/openclaw.json:ro",
+        "-v", f"{runtime_dir}:/runtime",
+    ]
+    if settings.openclaw_project_mount_path:
+        project_path = Path(settings.openclaw_project_mount_path).resolve()
+        if project_path.is_dir():
+            args.extend(["-v", f"{project_path}:/project:ro"])
+        else:
+            logger.warning("container.project_mount_skipped", extra={"path": str(project_path)})
+    return args
+
+
 # ---------------------------------------------------------------------------
 # Start / Stop
 # ---------------------------------------------------------------------------
@@ -189,6 +206,9 @@ def start_container(user_id: str) -> ContainerInfo:
     # Remove any old container with the same name
     run_cmd(["rm", "-f", container_name])
 
+    # Build volume mounts
+    volume_args = _build_volume_args(workspace_dir, runtime_dir)
+
     # Start container
     result = run_cmd(
         [
@@ -198,12 +218,7 @@ def start_container(user_id: str) -> ContainerInfo:
             container_name,
             "-p",
             f"{port}:{port}",
-            "-v",
-            f"{workspace_dir / 'workspace'}:/workspace",
-            "-v",
-            f"{workspace_dir / 'openclaw.json'}:/openclaw.json:ro",
-            "-v",
-            f"{runtime_dir}:/runtime",
+            *volume_args,
             "-e",
             f"{api_key_env}={api_key}",
             "-e",

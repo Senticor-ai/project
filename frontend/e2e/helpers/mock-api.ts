@@ -301,7 +301,7 @@ export function buildAgentSettings(
   overrides?: Partial<AgentSettingsResponse>,
 ): AgentSettingsResponse {
   return {
-    agentBackend: overrides?.agentBackend ?? "haystack",
+    agentBackend: overrides?.agentBackend ?? "openclaw",
     provider: overrides?.provider ?? "openrouter",
     hasApiKey: overrides?.hasApiKey ?? false,
     model: overrides?.model ?? "anthropic/claude-sonnet-4",

@@ -275,6 +275,16 @@ ADR-005 will be updated to reflect:
 - [ ] Browser detection in LocaleProvider
 - [ ] End-to-end manual verification
 
+### Phase 5: Agent i18n
+
+Localize the OpenClaw agent's system prompt and skill files so the agent responds in the user's preferred language.
+
+- [ ] `openclaw/workspace/AGENTS.md` — localized version or language-detection instructions
+- [ ] `openclaw/workspace/skills/*/SKILL.md` — localized skill files (or keep English with language-aware response rules)
+- [ ] Agent receives user's language preference via chat context or environment variable
+- [ ] Agent responds in the user's selected language (de/en), not hardcoded
+- [ ] Haystack system prompt `agents/prompts/de/copilot_system.j2` — add English variant or make language-conditional
+
 ---
 
 ## Appendix: Current Hardcoded Strings Audit
