@@ -5,6 +5,8 @@ import {
   isProject,
   isReferenceMaterial,
   getDisplayName,
+  isUrl,
+  formatUrlForDisplay,
 } from "../types";
 import type { AppItem, TriageResult } from "../types";
 import {
@@ -345,5 +347,97 @@ describe("Ports", () => {
     expect(action.ports).toHaveLength(2);
     expect(action.ports[0]?.kind).toBe("definition");
     expect(action.ports[1]?.kind).toBe("procedure");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// URL Detection & Display
+// ---------------------------------------------------------------------------
+
+describe("isUrl", () => {
+  it("detects https URLs", () => {
+    expect(isUrl("https://example.com")).toBe(true);
+  });
+
+  it("detects http URLs", () => {
+    expect(isUrl("http://example.com/path")).toBe(true);
+  });
+
+  it("rejects plain text", () => {
+    expect(isUrl("not a url")).toBe(false);
+  });
+
+  it("rejects partial URLs without protocol", () => {
+    expect(isUrl("example.com")).toBe(false);
+  });
+
+  it("detects long German government URLs", () => {
+    expect(
+      isUrl("https://www.bundesfinanzministerium.de/Content/DE/long/path/here"),
+    ).toBe(true);
+  });
+
+  it("trims whitespace before checking", () => {
+    expect(isUrl("  https://example.com  ")).toBe(true);
+  });
+});
+
+describe("formatUrlForDisplay", () => {
+  it("strips www prefix and shows host + path", () => {
+    expect(formatUrlForDisplay("https://www.example.com/foo/bar")).toBe(
+      "example.com/foo/bar",
+    );
+  });
+
+  it("truncates paths longer than 30 characters", () => {
+    const result = formatUrlForDisplay(
+      "https://www.bundesfinanzministerium.de/Content/DE/Standardartikel/Themen/very-long-path-that-exceeds-thirty",
+    );
+    expect(result).toContain("bundesfinanzministerium.de");
+    expect(result).toContain("…");
+    // Path portion should be exactly 30 chars + ellipsis
+    const pathPart = result.replace("bundesfinanzministerium.de", "");
+    expect(pathPart.length).toBeLessThanOrEqual(31); // 30 chars + "…"
+  });
+
+  it("omits path for root URLs", () => {
+    expect(formatUrlForDisplay("https://example.com")).toBe("example.com");
+    expect(formatUrlForDisplay("https://example.com/")).toBe("example.com");
+  });
+
+  it("returns input verbatim for invalid URLs", () => {
+    expect(formatUrlForDisplay("not-a-url")).toBe("not-a-url");
+  });
+});
+
+describe("getDisplayName with URL detection", () => {
+  it("formats URL names for display", () => {
+    const item = createActionItem({
+      name: "https://linkedin.com/post/123",
+      bucket: "inbox",
+      rawCapture: "https://linkedin.com/post/123",
+    });
+    expect(getDisplayName(item)).toBe("linkedin.com/post/123");
+  });
+
+  it("returns non-URL names verbatim", () => {
+    const item = createActionItem({
+      name: "Normal title",
+      bucket: "inbox",
+      rawCapture: "Normal title",
+    });
+    expect(getDisplayName(item)).toBe("Normal title");
+  });
+
+  it("formats URL rawCapture when name is absent", () => {
+    const item = createActionItem({
+      name: undefined as unknown as string,
+      bucket: "inbox",
+      rawCapture: "https://github.com/org/repo/issues/42",
+    });
+    const unnamed = { ...item, name: undefined };
+    expect(getDisplayName(unnamed as AppItem)).toBe(
+      "github.com/org/repo/issues/42",
+    );
   });
 });

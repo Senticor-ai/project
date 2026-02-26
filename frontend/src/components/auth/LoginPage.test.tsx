@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { LoginPage } from "./LoginPage";
+import { ApiError } from "@/lib/api-client";
 
 describe("LoginPage", () => {
   const defaultProps = {
@@ -60,8 +61,12 @@ describe("LoginPage", () => {
     });
   });
 
-  it("displays error when login fails", async () => {
-    const onLogin = vi.fn().mockRejectedValue(new Error("Invalid credentials"));
+  it("displays error when login fails with 401", async () => {
+    const onLogin = vi
+      .fn()
+      .mockRejectedValue(
+        new ApiError({ status: 401, message: "Invalid credentials" }),
+      );
     const user = userEvent.setup();
     render(<LoginPage {...defaultProps} onLogin={onLogin} />);
 
@@ -70,7 +75,62 @@ describe("LoginPage", () => {
     await user.click(screen.getByRole("button", { name: /sign in/i }));
 
     await waitFor(() => {
-      expect(screen.getByText("Invalid credentials")).toBeInTheDocument();
+      // Error classified by status code, not raw message
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+  });
+
+  it("displays rate limit error for 429", async () => {
+    const onLogin = vi
+      .fn()
+      .mockRejectedValue(
+        new ApiError({ status: 429, message: "Too many requests" }),
+      );
+    const user = userEvent.setup();
+    render(<LoginPage {...defaultProps} onLogin={onLogin} />);
+
+    await user.type(screen.getByLabelText("Email"), "test@example.com");
+    await user.type(screen.getByLabelText("Password"), "password1");
+    await user.click(screen.getByRole("button", { name: /sign in/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+  });
+
+  it("displays network error for TypeError", async () => {
+    const onLogin = vi.fn().mockRejectedValue(new TypeError("Failed to fetch"));
+    const user = userEvent.setup();
+    render(<LoginPage {...defaultProps} onLogin={onLogin} />);
+
+    await user.type(screen.getByLabelText("Email"), "test@example.com");
+    await user.type(screen.getByLabelText("Password"), "password1");
+    await user.click(screen.getByRole("button", { name: /sign in/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+  });
+
+  it("shows retry button after error", async () => {
+    const onLogin = vi
+      .fn()
+      .mockRejectedValue(
+        new ApiError({ status: 401, message: "Invalid credentials" }),
+      );
+    const user = userEvent.setup();
+    render(<LoginPage {...defaultProps} onLogin={onLogin} />);
+
+    await user.type(screen.getByLabelText("Email"), "test@example.com");
+    await user.type(screen.getByLabelText("Password"), "wrongpass");
+    await user.click(screen.getByRole("button", { name: /sign in/i }));
+
+    await waitFor(() => {
+      // Retry button text (en or de depending on navigator.language)
+      const retryBtn = screen.getByRole("button", {
+        name: /try again|erneut versuchen/i,
+      });
+      expect(retryBtn).toBeInTheDocument();
     });
   });
 

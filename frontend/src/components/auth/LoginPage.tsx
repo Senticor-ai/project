@@ -2,6 +2,8 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
 import { getMessage } from "@/lib/messages";
+import { ApiError } from "@/lib/api-client";
+import { useOnlineStatus } from "@/hooks/use-online-status";
 
 export interface LoginPageProps {
   onLogin: (email: string, password: string) => Promise<void>;
@@ -46,6 +48,7 @@ export function LoginPage({
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(initialError ?? null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isOnline = useOnlineStatus();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,9 +61,19 @@ export function LoginPage({
         await onRegister(email, password);
       }
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Something went wrong.";
-      setError(message);
+      if (err instanceof ApiError) {
+        if (err.status === 401) {
+          setError(getMessage("login.error.invalidCredentials"));
+        } else if (err.status === 429) {
+          setError(getMessage("login.error.rateLimited"));
+        } else {
+          setError(getMessage("login.error.unexpected"));
+        }
+      } else if (err instanceof TypeError) {
+        setError(getMessage("login.error.networkUnreachable"));
+      } else {
+        setError(getMessage("login.error.unexpected"));
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -134,20 +147,39 @@ export function LoginPage({
             </span>
           </div>
 
+          {/* Offline banner */}
+          {!isOnline && (
+            <div
+              role="status"
+              className="flex items-center gap-2 rounded-sm bg-status-error/10 px-4 py-2 text-sm text-status-error"
+            >
+              <Icon name="cloud_off" size={16} className="shrink-0" />
+              <span>{getMessage("login.status.offline")}</span>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4" key={mode}>
             <h2 className="text-sm font-medium text-text">
               {mode === "login" ? "Sign in to continue" : "Create account"}
             </h2>
 
             {error && (
-              <p className="text-xs text-status-error">
-                <Icon
-                  name="error"
-                  size={12}
-                  className="relative -top-px mr-1 inline-block"
-                />
-                {error}
-              </p>
+              <div className="space-y-1">
+                <p role="alert" className="text-xs text-status-error">
+                  <Icon
+                    name="error"
+                    size={12}
+                    className="relative -top-px mr-1 inline-block"
+                  />
+                  {error}
+                </p>
+                <button
+                  type="submit"
+                  className="text-xs text-blueprint-600 hover:text-blueprint-700"
+                >
+                  {getMessage("login.retry")}
+                </button>
+              </div>
             )}
 
             <div className="space-y-3">
@@ -207,7 +239,7 @@ export function LoginPage({
 
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || !isOnline}
               className={cn(
                 "flex w-full items-center justify-between rounded-sm",
                 "bg-blueprint-600 px-3 py-1.5 text-sm text-white",
@@ -223,12 +255,20 @@ export function LoginPage({
                     className="animate-spin"
                   />
                 )}
+                {!isSubmitting && (
+                  <span
+                    className={cn(
+                      "inline-block h-2 w-2 rounded-full",
+                      isOnline ? "bg-status-success" : "bg-status-error",
+                    )}
+                  />
+                )}
                 {mode === "login" ? "Sign in" : "Create account"}
               </span>
               {!isSubmitting && (
                 <kbd
                   aria-hidden="true"
-                  className="rounded-sm bg-black/10 px-1.5 py-0.5 font-mono text-[10px] leading-none"
+                  className="hidden rounded-sm bg-black/10 px-1.5 py-0.5 font-mono text-[10px] leading-none pointer-fine:inline"
                 >
                   Enter
                 </kbd>

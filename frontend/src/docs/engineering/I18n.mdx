@@ -36,6 +36,7 @@ const messages: Record<string, { en: string; de: string }> = {
 ```
 
 **Rules:**
+
 - Always add **both** `en` and `de` translations
 - Use dot-separated keys grouped by feature: `"feature.section.label"`
 - Locale detection is automatic via `navigator.language`
@@ -72,15 +73,15 @@ The frontend maps error codes to localized messages where needed.
 
 ## Language Policy
 
-| Context | Language |
-|---------|----------|
-| Code (variables, functions, classes, comments) | English |
-| Documentation (README, docs, CLAUDE.md) | English |
-| Git commits and PR descriptions | English |
-| UI strings | German (de) and English (en) via i18n |
-| LLM prompt templates | German (primary) |
-| Case examples, test fixtures, domain terms | German |
-| User persona | German federal clerks (Bundesbeamte) |
+| Context                                        | Language                              |
+| ---------------------------------------------- | ------------------------------------- |
+| Code (variables, functions, classes, comments) | English                               |
+| Documentation (README, docs, CLAUDE.md)        | English                               |
+| Git commits and PR descriptions                | English                               |
+| UI strings                                     | German (de) and English (en) via i18n |
+| LLM prompt templates                           | German (primary)                      |
+| Case examples, test fixtures, domain terms     | German                                |
+| User persona                                   | German federal clerks (Bundesbeamte)  |
 
 ---
 

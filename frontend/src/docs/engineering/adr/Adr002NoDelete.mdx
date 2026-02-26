@@ -27,12 +27,14 @@ CRUD with hard deletes would make it impossible to reconstruct prior states.
 ## Consequences
 
 **Positive:**
+
 - Complete audit trail for legal and regulatory compliance
 - Data can always be restored from archive
 - Provenance history enables "time travel" — reconstructing item state at any point
 - Simplifies conflict resolution (append-only means no destructive merges)
 
 **Negative:**
+
 - Storage grows monotonically (no cleanup possible)
 - UI must clearly distinguish "archived" from "active" items
 - Developers must remember to use archive patterns, never hard deletes

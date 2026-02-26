@@ -1,22 +1,9 @@
-import { useSyncExternalStore } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon } from "./Icon";
-
-function subscribe(callback: () => void) {
-  window.addEventListener("online", callback);
-  window.addEventListener("offline", callback);
-  return () => {
-    window.removeEventListener("online", callback);
-    window.removeEventListener("offline", callback);
-  };
-}
-
-function getSnapshot() {
-  return navigator.onLine;
-}
+import { useOnlineStatus } from "@/hooks/use-online-status";
 
 export function OfflineBanner() {
-  const isOnline = useSyncExternalStore(subscribe, getSnapshot);
+  const isOnline = useOnlineStatus();
 
   return (
     <AnimatePresence>

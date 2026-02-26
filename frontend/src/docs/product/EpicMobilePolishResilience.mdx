@@ -79,7 +79,10 @@ they are polish and resilience gaps in the existing desktop-first codebase.
 
 - `frontend/index.html` — add `viewport-fit=cover` to viewport meta tag:
   ```html
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+  />
   ```
 - `frontend/src/App.tsx` — FAB: add safe-area bottom/right offset using `env(safe-area-inset-*, 0px)`
 - `frontend/src/App.tsx` — main content wrapper: add safe-area padding on all sides
@@ -94,6 +97,7 @@ share consistent offsets. `env()` with fallback `0px` ensures non-notched device
 **Changes:**
 
 - `frontend/src/model/types.ts` — add `isUrl()` and `formatUrlForDisplay()` utilities:
+
   ```typescript
   const URL_PATTERN = /^https?:\/\/\S+$/i;
 
@@ -105,15 +109,18 @@ share consistent offsets. `env()` with fallback `0px` ensures non-notched device
     try {
       const parsed = new URL(url.trim());
       const host = parsed.hostname.replace(/^www\./, "");
-      const path = parsed.pathname.length > 1
-        ? parsed.pathname.slice(0, 30) + (parsed.pathname.length > 30 ? "…" : "")
-        : "";
+      const path =
+        parsed.pathname.length > 1
+          ? parsed.pathname.slice(0, 30) +
+            (parsed.pathname.length > 30 ? "…" : "")
+          : "";
       return `${host}${path}`;
     } catch {
       return url;
     }
   }
   ```
+
 - Update `getDisplayName()` to detect URL-shaped names and return formatted version
 - `EditableTitle.tsx` — render link icon prefix for URL titles, apply `break-all` on mobile
 - Raw URL stays in `item.name` / `item.rawCapture` — this is display-only formatting
@@ -127,12 +134,12 @@ share consistent offsets. `env()` with fallback `0px` ensures non-notched device
 - Add connection status indicator (green/red dot) near the submit button
 - Classify errors in `catch` block:
 
-| HTTP status | German message |
-|-------------|----------------|
+| HTTP status   | German message                                                                           |
+| ------------- | ---------------------------------------------------------------------------------------- |
 | Network error | "Server nicht erreichbar. Bitte prüfen Sie Ihre Verbindung und versuchen Sie es erneut." |
-| 401 | "E-Mail oder Passwort ist falsch." |
-| 429 | "Zu viele Anmeldeversuche. Bitte warten Sie einen Moment." |
-| Other | "Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es erneut." |
+| 401           | "E-Mail oder Passwort ist falsch."                                                       |
+| 429           | "Zu viele Anmeldeversuche. Bitte warten Sie einen Moment."                               |
+| Other         | "Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es erneut."                |
 
 - Add "Erneut versuchen" retry button after any error
 - Disable submit when offline
@@ -142,12 +149,14 @@ share consistent offsets. `env()` with fallback `0px` ensures non-notched device
 **Changes in `ItemEditor.tsx`:**
 
 **Contexts section:**
+
 - Section header with `location_on` icon and label "Kontexte"
 - Helper text: "Wo oder womit? z.B. @Computer, @Büro, @Telefon"
 - Chips: `bg-blueprint-50 text-blueprint-700`
 - Placeholder: `@Büro, @Telefon...`
 
 **Tags section:**
+
 - Section header with `sell` icon and label "Schlagwörter"
 - Helper text: "Themen und Kategorien, z.B. Steuerrecht, Eilig"
 - Chips: `bg-amber-50 text-amber-700`
@@ -161,12 +170,12 @@ share consistent offsets. `env()` with fallback `0px` ensures non-notched device
 
 Use `@media (pointer: coarse)` or `useIsMobile()` to show short text labels on touch devices:
 
-| Button | Mobile label |
-|--------|-------------|
-| Complete checkbox | "Erledigt" |
-| Focus star | "Fokus" |
-| Edit/collapse | "Bearbeiten" / "Zuklappen" |
-| More menu | "Mehr" |
+| Button            | Mobile label               |
+| ----------------- | -------------------------- |
+| Complete checkbox | "Erledigt"                 |
+| Focus star        | "Fokus"                    |
+| Edit/collapse     | "Bearbeiten" / "Zuklappen" |
+| More menu         | "Mehr"                     |
 
 Desktop keeps icon-only with tooltips. Labels are concise (one word) to minimize layout impact.
 
@@ -174,24 +183,24 @@ Desktop keeps icon-only with tooltips. Labels are concise (one word) to minimize
 
 ## i18n Keys
 
-| Key | en | de |
-|-----|----|----|
+| Key                              | en                                                       | de                                                                                     |
+| -------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------- |
 | `login.error.networkUnreachable` | Server unreachable. Check your connection and try again. | Server nicht erreichbar. Bitte prüfen Sie Ihre Verbindung und versuchen Sie es erneut. |
-| `login.error.invalidCredentials` | Invalid email or password. | E-Mail oder Passwort ist falsch. |
-| `login.error.rateLimited` | Too many login attempts. Please wait a moment. | Zu viele Anmeldeversuche. Bitte warten Sie einen Moment. |
-| `login.error.unexpected` | An unexpected error occurred. Please try again. | Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es erneut. |
-| `login.retry` | Try again | Erneut versuchen |
-| `login.status.offline` | No internet connection | Keine Internetverbindung |
-| `login.status.online` | Connected | Verbunden |
-| `editor.section.contexts` | Contexts | Kontexte |
-| `editor.section.contexts.hint` | Where or with what? e.g. @Computer, @Office, @Phone | Wo oder womit? z.B. @Computer, @Büro, @Telefon |
-| `editor.section.tags` | Tags | Schlagwörter |
-| `editor.section.tags.hint` | Topics and categories, e.g. tax-law, urgent | Themen und Kategorien, z.B. Steuerrecht, Eilig |
-| `action.label.complete` | Done | Erledigt |
-| `action.label.focus` | Focus | Fokus |
-| `action.label.edit` | Edit | Bearbeiten |
-| `action.label.collapse` | Collapse | Zuklappen |
-| `action.label.more` | More | Mehr |
+| `login.error.invalidCredentials` | Invalid email or password.                               | E-Mail oder Passwort ist falsch.                                                       |
+| `login.error.rateLimited`        | Too many login attempts. Please wait a moment.           | Zu viele Anmeldeversuche. Bitte warten Sie einen Moment.                               |
+| `login.error.unexpected`         | An unexpected error occurred. Please try again.          | Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es erneut.                |
+| `login.retry`                    | Try again                                                | Erneut versuchen                                                                       |
+| `login.status.offline`           | No internet connection                                   | Keine Internetverbindung                                                               |
+| `login.status.online`            | Connected                                                | Verbunden                                                                              |
+| `editor.section.contexts`        | Contexts                                                 | Kontexte                                                                               |
+| `editor.section.contexts.hint`   | Where or with what? e.g. @Computer, @Office, @Phone      | Wo oder womit? z.B. @Computer, @Büro, @Telefon                                         |
+| `editor.section.tags`            | Tags                                                     | Schlagwörter                                                                           |
+| `editor.section.tags.hint`       | Topics and categories, e.g. tax-law, urgent              | Themen und Kategorien, z.B. Steuerrecht, Eilig                                         |
+| `action.label.complete`          | Done                                                     | Erledigt                                                                               |
+| `action.label.focus`             | Focus                                                    | Fokus                                                                                  |
+| `action.label.edit`              | Edit                                                     | Bearbeiten                                                                             |
+| `action.label.collapse`          | Collapse                                                 | Zuklappen                                                                              |
+| `action.label.more`              | More                                                     | Mehr                                                                                   |
 
 ---
 
@@ -270,20 +279,20 @@ Desktop keeps icon-only with tooltips. Labels are concise (one word) to minimize
 
 ## Key Files
 
-| File | Change |
-|------|--------|
-| `frontend/index.html` | `viewport-fit=cover` |
-| `frontend/src/App.tsx` | Safe-area padding on FAB and main content |
-| `frontend/src/components/chat/CopilotChatPanel.tsx` | Safe-area insets on fixed panel |
-| `frontend/src/components/ui/ToastContainer.tsx` | Safe-area insets on toast |
-| `frontend/src/model/types.ts` | `isUrl()`, `formatUrlForDisplay()`, update `getDisplayName()` |
-| `frontend/src/components/work/EditableTitle.tsx` | Link icon for URL titles, `break-all` |
-| `frontend/src/components/auth/LoginPage.tsx` | Offline banner, error classification, retry |
-| `frontend/src/components/ui/OfflineBanner.tsx` | Extract `useOnlineStatus()` hook |
-| `frontend/src/components/work/ItemEditor.tsx` | Section headers, icons, helper text, divider |
-| `frontend/src/components/work/ActionRow.tsx` | Text labels on touch devices |
-| `frontend/src/i18n/messages.en.ts` | Add 15 i18n keys |
-| `frontend/src/i18n/messages.de.ts` | Add 15 i18n keys |
+| File                                                | Change                                                        |
+| --------------------------------------------------- | ------------------------------------------------------------- |
+| `frontend/index.html`                               | `viewport-fit=cover`                                          |
+| `frontend/src/App.tsx`                              | Safe-area padding on FAB and main content                     |
+| `frontend/src/components/chat/CopilotChatPanel.tsx` | Safe-area insets on fixed panel                               |
+| `frontend/src/components/ui/ToastContainer.tsx`     | Safe-area insets on toast                                     |
+| `frontend/src/model/types.ts`                       | `isUrl()`, `formatUrlForDisplay()`, update `getDisplayName()` |
+| `frontend/src/components/work/EditableTitle.tsx`    | Link icon for URL titles, `break-all`                         |
+| `frontend/src/components/auth/LoginPage.tsx`        | Offline banner, error classification, retry                   |
+| `frontend/src/components/ui/OfflineBanner.tsx`      | Extract `useOnlineStatus()` hook                              |
+| `frontend/src/components/work/ItemEditor.tsx`       | Section headers, icons, helper text, divider                  |
+| `frontend/src/components/work/ActionRow.tsx`        | Text labels on touch devices                                  |
+| `frontend/src/i18n/messages.en.ts`                  | Add 15 i18n keys                                              |
+| `frontend/src/i18n/messages.de.ts`                  | Add 15 i18n keys                                              |
 
 ---
 

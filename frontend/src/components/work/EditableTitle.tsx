@@ -13,6 +13,8 @@ interface InlineEditableTitleProps {
   completed?: boolean;
   /** When provided, sets aria-expanded on the title button (for disclosure pattern). */
   ariaExpanded?: boolean;
+  /** Whether the raw title is a URL (shows link icon). */
+  titleIsUrl?: boolean;
   className?: string;
 }
 
@@ -66,6 +68,7 @@ function InlineEditableTitle({
   onDoubleClick,
   completed = false,
   ariaExpanded,
+  titleIsUrl = false,
   className,
 }: InlineEditableTitleProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -160,13 +163,20 @@ function InlineEditableTitle({
         onDoubleClick={onDoubleClick}
         aria-expanded={ariaExpanded}
         className={cn(
-          "flex-1 whitespace-pre-wrap text-left text-sm text-text",
+          "flex-1 whitespace-pre-wrap break-all text-left text-sm text-text",
           completed
             ? "font-normal text-text-muted line-through"
             : "font-medium",
           className,
         )}
       >
+        {titleIsUrl && (
+          <Icon
+            name="link"
+            size={14}
+            className="mr-1 inline-block shrink-0 align-text-bottom text-text-subtle"
+          />
+        )}
         {displayTitle}
       </button>
       <button

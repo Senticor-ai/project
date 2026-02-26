@@ -48,9 +48,9 @@ and key metadata is invisible in the collapsed row.
 
 **Design principle alignment:**
 
-- *Speed over ceremony* — reducing taps from 3+ to 1 for energy/time editing
-- *Everything is an object* — metadata chips are visible, tappable objects on the item row
-- *Relationships over navigation* — metadata is edited in-place, not behind a separate form
+- _Speed over ceremony_ — reducing taps from 3+ to 1 for energy/time editing
+- _Everything is an object_ — metadata chips are visible, tappable objects on the item row
+- _Relationships over navigation_ — metadata is edited in-place, not behind a separate form
 
 ---
 
@@ -122,21 +122,21 @@ and key metadata is invisible in the collapsed row.
 
 **Energy chip (toggle-cycle):**
 
-| State | Chip appearance | Tap action |
-|-------|----------------|------------|
-| Unset | Ghost chip: "Aufwand" in muted text with `speed` icon | Set to `low` |
-| `low` | Filled chip: green background, "Niedrig" | Cycle to `medium` |
-| `medium` | Filled chip: amber background, "Mittel" | Cycle to `high` |
-| `high` | Filled chip: red background, "Hoch" | Clear (unset) |
+| State    | Chip appearance                                       | Tap action        |
+| -------- | ----------------------------------------------------- | ----------------- |
+| Unset    | Ghost chip: "Aufwand" in muted text with `speed` icon | Set to `low`      |
+| `low`    | Filled chip: green background, "Niedrig"              | Cycle to `medium` |
+| `medium` | Filled chip: amber background, "Mittel"               | Cycle to `high`   |
+| `high`   | Filled chip: red background, "Hoch"                   | Clear (unset)     |
 
 Long-press or right-click opens a 3-option popover to jump directly to any level.
 
 **Time chip (popover):**
 
-| State | Chip appearance | Tap action |
-|-------|----------------|------------|
+| State | Chip appearance                                       | Tap action   |
+| ----- | ----------------------------------------------------- | ------------ |
 | Unset | Ghost chip: "Zeit" in muted text with `schedule` icon | Open popover |
-| Set | Filled chip: blue background, e.g. "15 Min" | Open popover |
+| Set   | Filled chip: blue background, e.g. "15 Min"           | Open popover |
 
 Popover shows: `5 Min`, `15 Min`, `30 Min`, `1 Std`, `2 Std`, `Keine` (clear).
 
@@ -260,16 +260,16 @@ and serialize the merged result. The optimistic update in `useUpdateItem` merges
 
 ## Key Files
 
-| File | Change |
-|------|--------|
-| `frontend/src/model/types.ts` | Add `timeEstimate` to `ItemEditableFields` |
-| `frontend/src/lib/item-serializer.ts` | Serialize `timeEstimate` in `buildItemEditPatch()` |
-| `frontend/src/components/work/ActionRow.tsx` | Chips in collapsed/expanded, remove gate, menu restructure |
-| `frontend/src/components/work/ItemEditor.tsx` | Time editing row, rename "Complexity" to "Aufwand" |
-| `frontend/src/components/work/EnergyFilterBar.tsx` | Update aria-label |
-| `frontend/src/components/work/MetadataChip.tsx` | New — generic chip component |
-| `frontend/src/components/work/EnergyChip.tsx` | New — energy-specific wrapper |
-| `frontend/src/components/work/TimeChip.tsx` | New — time-specific wrapper |
+| File                                               | Change                                                     |
+| -------------------------------------------------- | ---------------------------------------------------------- |
+| `frontend/src/model/types.ts`                      | Add `timeEstimate` to `ItemEditableFields`                 |
+| `frontend/src/lib/item-serializer.ts`              | Serialize `timeEstimate` in `buildItemEditPatch()`         |
+| `frontend/src/components/work/ActionRow.tsx`       | Chips in collapsed/expanded, remove gate, menu restructure |
+| `frontend/src/components/work/ItemEditor.tsx`      | Time editing row, rename "Complexity" to "Aufwand"         |
+| `frontend/src/components/work/EnergyFilterBar.tsx` | Update aria-label                                          |
+| `frontend/src/components/work/MetadataChip.tsx`    | New — generic chip component                               |
+| `frontend/src/components/work/EnergyChip.tsx`      | New — energy-specific wrapper                              |
+| `frontend/src/components/work/TimeChip.tsx`        | New — time-specific wrapper                                |
 
 ---
 

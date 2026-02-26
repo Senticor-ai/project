@@ -24,6 +24,7 @@
     "test:e2e:llm": "npx playwright test --config e2e/playwright.config.ts --project=llm",
     "test:e2e:journey": "npx playwright test --config e2e/playwright.config.ts --project=journey",
     "test:e2e:remote": "E2E_BASE_URL=https://project.senticor.runs.onstackit.cloud npx playwright test --config e2e/playwright.config.ts --project=smoke",
+    "test:e2e:preflight": "bash ../scripts/e2e-preflight.sh",
     "e2e": "bash ../scripts/e2e-stack.sh",
     "e2e:open": "bash ../scripts/e2e-stack.sh --no-test"
   },

@@ -377,11 +377,36 @@ export function isReferenceMaterial(item: AppItem): item is ReferenceMaterial {
 }
 
 // ---------------------------------------------------------------------------
+// URL Detection & Display
+// ---------------------------------------------------------------------------
+
+const URL_PATTERN = /^https?:\/\/\S+$/i;
+
+export function isUrl(text: string): boolean {
+  return URL_PATTERN.test(text.trim());
+}
+
+export function formatUrlForDisplay(url: string): string {
+  try {
+    const parsed = new URL(url.trim());
+    const host = parsed.hostname.replace(/^www\./, "");
+    const path =
+      parsed.pathname.length > 1
+        ? parsed.pathname.slice(0, 30) +
+          (parsed.pathname.length > 30 ? "…" : "")
+        : "";
+    return `${host}${path}`;
+  } catch {
+    return url;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Display Name Helper
 // ---------------------------------------------------------------------------
 
 export function getDisplayName(item: AppItem): string {
-  if (item.name) return item.name;
-  if ("rawCapture" in item && item.rawCapture) return item.rawCapture;
-  return "Untitled";
+  const raw = item.name ?? ("rawCapture" in item ? item.rawCapture : undefined);
+  if (!raw) return "Untitled";
+  return isUrl(raw) ? formatUrlForDisplay(raw) : raw;
 }

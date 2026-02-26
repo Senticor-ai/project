@@ -91,7 +91,7 @@ describe("ItemEditor", () => {
     const onChange = vi.fn();
     render(<ItemEditor values={defaults} onChange={onChange} />);
 
-    const input = screen.getByPlaceholderText("@phone, @office...");
+    const input = screen.getByPlaceholderText("@Büro, @Telefon...");
     await user.type(input, "@home{Enter}");
     expect(onChange).toHaveBeenCalledWith({ contexts: ["@home"] });
   });
@@ -101,7 +101,7 @@ describe("ItemEditor", () => {
     const onChange = vi.fn();
     render(<ItemEditor values={defaults} onChange={onChange} />);
 
-    const input = screen.getByPlaceholderText("@phone, @office...");
+    const input = screen.getByPlaceholderText("@Büro, @Telefon...");
     await user.type(input, "@home");
     await user.click(screen.getByRole("button", { name: "Add" }));
     expect(onChange).toHaveBeenCalledWith({ contexts: ["@home"] });
@@ -232,7 +232,7 @@ describe("ItemEditor", () => {
       />,
     );
 
-    const input = screen.getByPlaceholderText("@phone, @office...");
+    const input = screen.getByPlaceholderText("@Büro, @Telefon...");
     await user.type(input, "@phone{Enter}");
     expect(onChange).not.toHaveBeenCalled();
   });
@@ -258,7 +258,7 @@ describe("ItemEditor", () => {
     const onChange = vi.fn();
     render(<ItemEditor values={defaults} onChange={onChange} />);
 
-    const input = screen.getByPlaceholderText("1099-int, schedule-b...");
+    const input = screen.getByPlaceholderText("Steuerrecht, Eilig...");
     await user.type(input, "w-2{Enter}");
     expect(onChange).toHaveBeenCalledWith({ tags: ["w-2"] });
   });
@@ -268,7 +268,7 @@ describe("ItemEditor", () => {
     const onChange = vi.fn();
     render(<ItemEditor values={defaults} onChange={onChange} />);
 
-    const input = screen.getByPlaceholderText("1099-int, schedule-b...");
+    const input = screen.getByPlaceholderText("Steuerrecht, Eilig...");
     await user.type(input, "w-2");
     await user.click(screen.getByRole("button", { name: "Add tag" }));
     expect(onChange).toHaveBeenCalledWith({ tags: ["w-2"] });
@@ -298,7 +298,7 @@ describe("ItemEditor", () => {
       />,
     );
 
-    const input = screen.getByPlaceholderText("1099-int, schedule-b...");
+    const input = screen.getByPlaceholderText("Steuerrecht, Eilig...");
     await user.type(input, "w-2{Enter}");
     expect(onChange).not.toHaveBeenCalled();
   });

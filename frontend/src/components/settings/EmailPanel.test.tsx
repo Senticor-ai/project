@@ -219,5 +219,4 @@ describe("EmailPanel", () => {
       screen.getByText(/Kalender konnten nicht geladen werden/),
     ).toBeInTheDocument();
   });
-
 });

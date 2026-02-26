@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
 import { AutoGrowTextarea } from "@/components/ui/AutoGrowTextarea";
+import { getMessage } from "@/lib/messages";
 import type {
   ItemEditableFields,
   Project,
@@ -200,9 +201,15 @@ export function ItemEditor({
 
       {/* Context labels */}
       <div>
-        <label className="mb-1 block text-xs text-text-muted">
-          Labels / contexts
-        </label>
+        <div className="mb-1">
+          <label className="flex items-center gap-1 text-xs font-medium text-text-muted">
+            <Icon name="location_on" size={12} />
+            {getMessage("editor.section.contexts")}
+          </label>
+          <p className="text-[10px] text-text-subtle">
+            {getMessage("editor.section.contexts.hint")}
+          </p>
+        </div>
         <div className="flex gap-1">
           <input
             type="text"
@@ -214,7 +221,7 @@ export function ItemEditor({
                 addContext();
               }
             }}
-            placeholder="@phone, @office..."
+            placeholder="@Büro, @Telefon..."
             aria-label="Add label or context"
             className="flex-1 rounded-[var(--radius-sm)] border border-border bg-surface px-2 py-1 text-xs"
           />
@@ -247,12 +254,19 @@ export function ItemEditor({
         )}
       </div>
 
+      <div className="h-px bg-border" />
+
       {/* Tags / keywords */}
       <div>
-        <label className="mb-1 flex items-center gap-1 text-xs text-text-muted">
-          <Icon name="sell" size={10} />
-          Tags
-        </label>
+        <div className="mb-1">
+          <label className="flex items-center gap-1 text-xs font-medium text-text-muted">
+            <Icon name="sell" size={12} />
+            {getMessage("editor.section.tags")}
+          </label>
+          <p className="text-[10px] text-text-subtle">
+            {getMessage("editor.section.tags.hint")}
+          </p>
+        </div>
         <div className="flex gap-1">
           <input
             type="text"
@@ -264,7 +278,7 @@ export function ItemEditor({
                 addTag();
               }
             }}
-            placeholder="1099-int, schedule-b..."
+            placeholder="Steuerrecht, Eilig..."
             aria-label="Add tag"
             className="flex-1 rounded-[var(--radius-sm)] border border-border bg-surface px-2 py-1 text-xs"
           />

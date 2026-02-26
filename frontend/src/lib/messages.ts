@@ -85,6 +85,48 @@ const messages: Record<string, { en: string; de: string }> = {
     en: "New log entry…",
     de: "Neuer Protokolleintrag…",
   },
+
+  // Login page resilience
+  "login.error.networkUnreachable": {
+    en: "Server unreachable. Check your connection and try again.",
+    de: "Server nicht erreichbar. Bitte prüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
+  },
+  "login.error.invalidCredentials": {
+    en: "Invalid email or password.",
+    de: "E-Mail oder Passwort ist falsch.",
+  },
+  "login.error.rateLimited": {
+    en: "Too many login attempts. Please wait a moment.",
+    de: "Zu viele Anmeldeversuche. Bitte warten Sie einen Moment.",
+  },
+  "login.error.unexpected": {
+    en: "An unexpected error occurred. Please try again.",
+    de: "Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
+  },
+  "login.retry": { en: "Try again", de: "Erneut versuchen" },
+  "login.status.offline": {
+    en: "No internet connection",
+    de: "Keine Internetverbindung",
+  },
+
+  // Editor sections
+  "editor.section.contexts": { en: "Contexts", de: "Kontexte" },
+  "editor.section.contexts.hint": {
+    en: "Where or with what? e.g. @Computer, @Office, @Phone",
+    de: "Wo oder womit? z.B. @Computer, @Büro, @Telefon",
+  },
+  "editor.section.tags": { en: "Tags", de: "Schlagwörter" },
+  "editor.section.tags.hint": {
+    en: "Topics and categories, e.g. tax-law, urgent",
+    de: "Themen und Kategorien, z.B. Steuerrecht, Eilig",
+  },
+
+  // Action button labels (mobile)
+  "action.label.complete": { en: "Done", de: "Erledigt" },
+  "action.label.focus": { en: "Focus", de: "Fokus" },
+  "action.label.edit": { en: "Edit", de: "Bearbeiten" },
+  "action.label.collapse": { en: "Collapse", de: "Zuklappen" },
+  "action.label.more": { en: "More", de: "Mehr" },
 };
 
 export function getMessage(key: string, locale?: string): string {

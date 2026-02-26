@@ -11,6 +11,7 @@ import { Meta } from "@storybook/addon-docs/blocks";
 ## Context
 
 The frontend needs to manage:
+
 - Server state (items, projects, references fetched from the API)
 - Cache invalidation and optimistic updates
 - Derived views (inbox items, actions, projects — all filters over the same data)
@@ -31,6 +32,7 @@ or other global state library.
 ## Consequences
 
 **Positive:**
+
 - Single source of truth for server state with built-in caching, refetching, and
   stale-while-revalidate
 - No action/reducer/selector boilerplate
@@ -38,6 +40,7 @@ or other global state library.
 - DevTools (TanStack Query DevTools) provide cache inspection out of the box
 
 **Negative:**
+
 - Complex cross-cutting client-only state (if ever needed) would require adding a
   lightweight store — not needed so far
 - Team members familiar with Redux need to adapt to the query/mutation mental model

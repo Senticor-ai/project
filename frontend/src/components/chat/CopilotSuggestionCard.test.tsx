@@ -244,7 +244,9 @@ describe("CopilotSuggestionCard", () => {
         />,
       );
 
-      expect(screen.getByText("Projektaktion aktualisieren")).toBeInTheDocument();
+      expect(
+        screen.getByText("Projektaktion aktualisieren"),
+      ).toBeInTheDocument();
       expect(
         screen.getByText("Neuer Titel: Steuerberater kontaktieren"),
       ).toBeInTheDocument();
@@ -273,7 +275,9 @@ describe("CopilotSuggestionCard", () => {
       );
 
       expect(screen.getByText("Copilot-Intent ausführen")).toBeInTheDocument();
-      expect(screen.getByText("Intent: weekly review plan")).toBeInTheDocument();
+      expect(
+        screen.getByText("Intent: weekly review plan"),
+      ).toBeInTheDocument();
       expect(screen.getByText("Technische Details")).toBeInTheDocument();
     });
   });

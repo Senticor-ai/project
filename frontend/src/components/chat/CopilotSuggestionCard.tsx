@@ -159,7 +159,8 @@ function summarizeCopilotCli(
     const name = optionValue(argv, "--name");
     const due = optionValue(argv, "--due");
     const assignee =
-      optionValue(argv, "--assignee-text") ?? optionValue(argv, "--assignee-user");
+      optionValue(argv, "--assignee-text") ??
+      optionValue(argv, "--assignee-user");
     const details: string[] = [];
     if (name) {
       details.push(`Neuer Titel: ${name}`);
@@ -193,7 +194,10 @@ function summarizeCopilotCli(
     third === "comments" &&
     fourth === "add"
   ) {
-    return { title: "Kommentar zu einer Projektaktion hinzufügen", details: [] };
+    return {
+      title: "Kommentar zu einer Projektaktion hinzufügen",
+      details: [],
+    };
   }
 
   if (

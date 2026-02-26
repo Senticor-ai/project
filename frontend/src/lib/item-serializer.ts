@@ -464,8 +464,7 @@ export function fromJsonLd(record: ItemRecord): AppItem {
       // Keep event rows compatible with ActionList until dedicated grid/list
       // calendar surfaces are implemented.
       rawCapture:
-        (getAdditionalProperty(props, "app:rawCapture") as string) ||
-        base.name,
+        (getAdditionalProperty(props, "app:rawCapture") as string) || base.name,
       startDate,
       scheduledDate: thingFields.scheduledDate || startDate,
       date: startDate ?? "",

@@ -78,10 +78,10 @@ The Paperclip Principle **"Speed Over Ceremony"** demands the same.
 
 Each `ActionRow` in the inbox gains a horizontal swipe gesture when `useIsMobile()` returns `true`.
 
-| Direction | Default target | Color | Icon |
-|-----------|---------------|-------|------|
-| Swipe right (→) | `next` | `--color-app-next` (green) | `bolt` |
-| Swipe left (←) | `waiting` | `--color-app-waiting` (purple) | `schedule` |
+| Direction       | Default target | Color                          | Icon       |
+| --------------- | -------------- | ------------------------------ | ---------- |
+| Swipe right (→) | `next`         | `--color-app-next` (green)     | `bolt`     |
+| Swipe left (←)  | `waiting`      | `--color-app-waiting` (purple) | `schedule` |
 
 **Gesture thresholds:**
 
@@ -99,64 +99,76 @@ Implementation: `framer-motion`'s `motion.div` with `drag="x"`, `dragDirectionLo
 As the user drags an inbox row, the background reveals a color-coded indicator:
 
 **Right swipe (→ Next):**
+
 - Background: `bg-app-next/15` (green tint, 15% opacity)
 - Icon: `bolt` in `text-app-next`, scales from 0.8 → 1.0 as threshold approaches
 - Label: "Nächste Schritte" fades in at 20% threshold
 
 **Left swipe (← Waiting):**
+
 - Background: `bg-app-waiting/15` (purple tint)
 - Icon: `schedule` in `text-app-waiting`
 - Label: "Warten auf" fades in at 20% threshold
 
 **Commit indicator (at 40% threshold):**
+
 - Background opacity jumps from 15% to 30%
 - Icon scales to 1.2 with snap transition
 - Subtle border: `border-app-next/30` or `border-app-waiting/30`
 
 **Cancel / snap-back:**
+
 - Released before threshold → spring back to x=0 (`stiffness: 500, damping: 30`)
 - Background indicator fades out over 150ms
 
 ### 3) Long-press → multi-select mode
 
 **Activation:**
+
 - Long-press (500ms) on any inbox item enters multi-select mode
 - Item is immediately selected (existing `isSelected` styling: `bg-blueprint-50 ring-1 ring-blueprint-200`)
 - Subsequent taps toggle selection (no long-press required once in mode)
 
 **Batch action bar:**
+
 - Reuse existing batch toolbar from `ActionList.tsx` (lines 547–668)
 - On mobile: slides up from bottom (fixed position) instead of inline
 - Same bucket buttons: Next, Waiting, Calendar, Later, Reference, Archive
 - "Alle auswählen" / "Auswahl aufheben" controls
 
 **Exit multi-select:**
+
 - Tap "Auswahl aufheben" or tap outside any item
 - Swipe gestures disabled while multi-select is active
 
 ### 4) Quick Triage Mode (card deck)
 
 **Entry point:**
+
 - Button in inbox header: "Schnell-Triage" with icon `style`
 - Only visible on mobile when inbox has ≥ 2 items
 
 **Card deck UI:**
+
 - Full-width card showing one inbox item at a time
 - Card displays: title, source indicator, description preview (3 lines max), tags, project badge
 - Stack preview: 2 cards behind active card (offset 4px/8px down, reduced opacity 0.7/0.4)
 - Card is a `motion.div` with same swipe thresholds as list mode
 
 **Triage actions:**
+
 1. **Swipe right →** Move to Next
 2. **Swipe left ←** Move to Waiting
 3. **Tap card →** Expand to show full triage bottom sheet with all bucket buttons
 
 **Card transition animation:**
+
 - On commit: card flies out in swipe direction (`x: ±100vw`, `opacity: 0`, `rotate: ±8deg`)
 - Duration: 250ms, easing: `--ease-snap`
 - Next card slides up from stack position
 
 **Completion:**
+
 - All cards triaged → "Posteingang leer — gut gemacht!" with checkmark animation
 - Auto-return to inbox list view after 1.5s
 
@@ -172,9 +184,11 @@ Every swipe-triggered move fires a toast with undo action.
 ### 6) Gesture configuration (stored, not UI-exposed)
 
 Store swipe mappings in localStorage:
+
 ```json
 { "swipeRight": "next", "swipeLeft": "waiting" }
 ```
+
 MVP reads this config but does not expose a settings UI. Future epic adds custom mapping.
 
 ---
@@ -222,14 +236,14 @@ browser back gesture.
 When user taps a card in Quick Triage Mode, full options appear as a bottom sheet
 (shadcn `Sheet` with `side="bottom"`):
 
-| Button | Label | Bucket | Icon |
-|--------|-------|--------|------|
-| 1 | Nächste Schritte | `next` | `bolt` |
-| 2 | Warten auf | `waiting` | `schedule` |
-| 3 | Kalender | `calendar` | `calendar_month` |
-| 4 | Irgendwann | `someday` | `cloud` |
-| 5 | Referenz | `reference` | `description` |
-| 6 | Archivieren | (archive) | `archive` |
+| Button | Label            | Bucket      | Icon             |
+| ------ | ---------------- | ----------- | ---------------- |
+| 1      | Nächste Schritte | `next`      | `bolt`           |
+| 2      | Warten auf       | `waiting`   | `schedule`       |
+| 3      | Kalender         | `calendar`  | `calendar_month` |
+| 4      | Irgendwann       | `someday`   | `cloud`          |
+| 5      | Referenz         | `reference` | `description`    |
+| 6      | Archivieren      | (archive)   | `archive`        |
 
 "Weitere Optionen" expander below for project/date/context (reuses `ItemEditor`).
 
@@ -308,42 +322,42 @@ When user taps a card in Quick Triage Mode, full options appear as a bottom shee
 
 ## Animation Specifications
 
-| Animation | Property | Duration | Easing |
-|-----------|----------|----------|--------|
-| Indicator fade-in | opacity: 0 → 0.15 → 0.30 | Continuous (from drag x) | Linear |
-| Indicator icon scale | scale: 0.8 → 1.0 → 1.2 | Continuous | Linear |
-| Swipe commit fly-out | x: ±100vw, opacity: 0, rotate: ±8deg | 250ms | `--ease-snap` |
-| Cancel snap-back | x: current → 0 | Spring (500/30) | Spring |
-| Card deck next-up | y: 4px → 0, opacity: 0.7 → 1.0 | 200ms | `--ease-snap` |
-| Completion checkmark | scale: 0 → 1, opacity: 0 → 1 | 300ms | `--ease-unfold` |
-| Multi-select toolbar | y: 100% → 0 | 200ms | `--ease-unfold` |
-| Long-press feedback | scale: 1.0 → 0.97 → 1.0 | 150ms | `--ease-snap` |
+| Animation            | Property                             | Duration                 | Easing          |
+| -------------------- | ------------------------------------ | ------------------------ | --------------- |
+| Indicator fade-in    | opacity: 0 → 0.15 → 0.30             | Continuous (from drag x) | Linear          |
+| Indicator icon scale | scale: 0.8 → 1.0 → 1.2               | Continuous               | Linear          |
+| Swipe commit fly-out | x: ±100vw, opacity: 0, rotate: ±8deg | 250ms                    | `--ease-snap`   |
+| Cancel snap-back     | x: current → 0                       | Spring (500/30)          | Spring          |
+| Card deck next-up    | y: 4px → 0, opacity: 0.7 → 1.0       | 200ms                    | `--ease-snap`   |
+| Completion checkmark | scale: 0 → 1, opacity: 0 → 1         | 300ms                    | `--ease-unfold` |
+| Multi-select toolbar | y: 100% → 0                          | 200ms                    | `--ease-unfold` |
+| Long-press feedback  | scale: 1.0 → 0.97 → 1.0              | 150ms                    | `--ease-snap`   |
 
 ---
 
 ## Risks and Mitigations
 
-| Risk | Mitigation |
-|------|------------|
-| Swipe conflicts with iOS Safari back gesture | Exclude leftmost 20px from activation zone |
-| `framer-motion` drag perf on low-end Android | Use `useMotionValue` + `useTransform` (no re-renders); test on Moto G Power |
-| Accidental swipes during scroll | Direction lock with 12px dead zone |
-| Undo toast dismissed before noticed | 5s auto-dismiss with prominent "Rückgängig" button; manual move-back always available |
-| Two triage interfaces confuse users | Quick Triage is opt-in via explicit button; list mode remains default |
+| Risk                                         | Mitigation                                                                            |
+| -------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Swipe conflicts with iOS Safari back gesture | Exclude leftmost 20px from activation zone                                            |
+| `framer-motion` drag perf on low-end Android | Use `useMotionValue` + `useTransform` (no re-renders); test on Moto G Power           |
+| Accidental swipes during scroll              | Direction lock with 12px dead zone                                                    |
+| Undo toast dismissed before noticed          | 5s auto-dismiss with prominent "Rückgängig" button; manual move-back always available |
+| Two triage interfaces confuse users          | Quick Triage is opt-in via explicit button; list mode remains default                 |
 
 ---
 
 ## Key Files
 
-| File | Change |
-|------|--------|
-| `frontend/src/components/work/SwipeableRow.tsx` | New — gesture wrapper with indicators |
-| `frontend/src/components/work/QuickTriageView.tsx` | New — card deck triage mode |
-| `frontend/src/components/work/TriageCard.tsx` | New — single card for deck mode |
-| `frontend/src/hooks/use-swipe-triage-config.ts` | New — localStorage config |
-| `frontend/src/hooks/use-long-press.ts` | New — reusable long-press hook |
-| `frontend/src/components/work/ActionList.tsx` | Wrap inbox rows with `SwipeableRow`, add Quick Triage toggle, long-press |
-| `frontend/src/docs/flows/CollectToEngage.mdx` | Add swipe triage to Phase 2 flow |
+| File                                               | Change                                                                   |
+| -------------------------------------------------- | ------------------------------------------------------------------------ |
+| `frontend/src/components/work/SwipeableRow.tsx`    | New — gesture wrapper with indicators                                    |
+| `frontend/src/components/work/QuickTriageView.tsx` | New — card deck triage mode                                              |
+| `frontend/src/components/work/TriageCard.tsx`      | New — single card for deck mode                                          |
+| `frontend/src/hooks/use-swipe-triage-config.ts`    | New — localStorage config                                                |
+| `frontend/src/hooks/use-long-press.ts`             | New — reusable long-press hook                                           |
+| `frontend/src/components/work/ActionList.tsx`      | Wrap inbox rows with `SwipeableRow`, add Quick Triage toggle, long-press |
+| `frontend/src/docs/flows/CollectToEngage.mdx`      | Add swipe triage to Phase 2 flow                                         |
 
 ---
 

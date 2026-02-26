@@ -35,7 +35,7 @@ Instead of deletion, items are **archived**:
 export interface Provenance {
   createdAt: string;
   updatedAt: string;
-  archivedAt?: string;       // ← soft delete timestamp
+  archivedAt?: string; // ← soft delete timestamp
   history: ProvenanceEntry[];
 }
 ```
@@ -52,18 +52,18 @@ export interface Provenance {
 
 Every change to an item produces an **assertion** — an append-only log entry:
 
-| ProvenanceAction | Meaning |
-|-----------------|---------|
-| `created` | Item was created |
-| `clarified` | AI or user refined the name/description |
-| `triaged` | Item was moved to a different bucket |
-| `completed` | Item was marked done |
-| `reopened` | Completed item was reopened |
-| `archived` | Item was soft-deleted |
-| `restored` | Archived item was brought back |
-| `enriched` | Metadata was added (references, tags) |
-| `commented` | A comment was added |
-| `renamed` | Item name was changed |
+| ProvenanceAction | Meaning                                 |
+| ---------------- | --------------------------------------- |
+| `created`        | Item was created                        |
+| `clarified`      | AI or user refined the name/description |
+| `triaged`        | Item was moved to a different bucket    |
+| `completed`      | Item was marked done                    |
+| `reopened`       | Completed item was reopened             |
+| `archived`       | Item was soft-deleted                   |
+| `restored`       | Archived item was brought back          |
+| `enriched`       | Metadata was added (references, tags)   |
+| `commented`      | A comment was added                     |
+| `renamed`        | Item name was changed                   |
 
 Assertions are **never modified or deleted**. They form the complete audit trail.
 

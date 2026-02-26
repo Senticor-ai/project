@@ -34,12 +34,14 @@ export function getMessage(key: string, locale?: string): string {
 ## Consequences
 
 **Positive:**
+
 - Zero dependencies — no bundle size impact
 - Trivially simple — any developer can understand and extend it in minutes
 - Both languages in one file — easy to see if a translation is missing
 - Key fallback (returns the key if not found) makes missing translations visible
 
 **Negative:**
+
 - No ICU MessageFormat (pluralization, gender, interpolation) out of the box
 - No extraction tooling or translation management platform integration
 - Scaling to 500+ keys in a single file may become unwieldy

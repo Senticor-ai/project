@@ -452,7 +452,7 @@ function AuthenticatedApp({
   return (
     <div className="min-h-screen bg-surface">
       <OfflineBanner />
-      <div className="px-3 pb-3 pt-2 md:px-6 md:pb-6 md:pt-3">
+      <div className="px-3 pb-3 pt-2 pl-safe pr-safe pb-safe md:px-6 md:pb-6 md:pt-3">
         <AppHeader
           username={user.username ?? user.email}
           currentView={location.view}
@@ -603,7 +603,11 @@ function AuthenticatedApp({
           onClick={() => setIsChatOpen(true)}
           aria-label="Chat öffnen"
           title="Chat öffnen"
-          className="fixed bottom-4 right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full border border-blueprint-200 bg-blueprint-600 text-white shadow-[var(--shadow-sheet)] transition-colors hover:bg-blueprint-700"
+          style={{
+            bottom: "calc(1rem + env(safe-area-inset-bottom, 0px))",
+            right: "calc(1rem + env(safe-area-inset-right, 0px))",
+          }}
+          className="fixed z-50 flex h-12 w-12 items-center justify-center rounded-full border border-blueprint-200 bg-blueprint-600 text-white shadow-[var(--shadow-sheet)] transition-colors hover:bg-blueprint-700"
         >
           <Icon name="chat_bubble" size={22} />
         </button>

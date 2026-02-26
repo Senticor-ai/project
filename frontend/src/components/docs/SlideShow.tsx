@@ -86,7 +86,8 @@ type PresentationSlideTarget = "first" | "last";
 
 function isPresentationMode(): boolean {
   if (typeof window === "undefined") return false;
-  const inWindow = new URLSearchParams(window.location.search).get("full") === "1";
+  const inWindow =
+    new URLSearchParams(window.location.search).get("full") === "1";
   if (inWindow) return true;
 
   try {
@@ -219,30 +220,35 @@ export function SlideShow({ children }: SlideShowProps) {
 
       const targetSlide: PresentationSlideTarget =
         direction < 0 ? "last" : "first";
-      window.location.assign(buildPresentationIframeUrl(adjacentId, targetSlide));
+      window.location.assign(
+        buildPresentationIframeUrl(adjacentId, targetSlide),
+      );
       return true;
     },
     [isPresentation],
   );
 
-  const goTo = useCallback((index: number) => {
-    const slides = getSlidesIn(containerNode.current);
-    if (!slides.length) return;
+  const goTo = useCallback(
+    (index: number) => {
+      const slides = getSlidesIn(containerNode.current);
+      if (!slides.length) return;
 
-    if (index < 0 && navigateToAdjacentDeck(-1)) {
-      return;
-    }
-    if (index > slides.length - 1 && navigateToAdjacentDeck(1)) {
-      return;
-    }
+      if (index < 0 && navigateToAdjacentDeck(-1)) {
+        return;
+      }
+      if (index > slides.length - 1 && navigateToAdjacentDeck(1)) {
+        return;
+      }
 
-    const target = Math.max(0, Math.min(index, slides.length - 1));
-    currentRef.current = target;
-    setCurrent(target);
-    if (!isPresentation) {
-      slides[target]?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, [isPresentation, navigateToAdjacentDeck]);
+      const target = Math.max(0, Math.min(index, slides.length - 1));
+      currentRef.current = target;
+      setCurrent(target);
+      if (!isPresentation) {
+        slides[target]?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    },
+    [isPresentation, navigateToAdjacentDeck],
+  );
 
   useEffect(() => {
     const slides = getSlidesIn(containerNode.current);
@@ -383,11 +389,7 @@ export function SlideShow({ children }: SlideShowProps) {
           <span style={sep}>|</span>
 
           {isPresentation ? (
-            <button
-              style={btn}
-              onClick={openDocs}
-              title="Return to docs view"
-            >
+            <button style={btn} onClick={openDocs} title="Return to docs view">
               ↩ docs
             </button>
           ) : (

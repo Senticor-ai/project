@@ -41,9 +41,13 @@ export function useGenerateEmailProposals() {
 }
 
 export function useConfirmEmailProposal() {
-  return useProposalMutation((proposalId) => EmailApi.confirmProposal(proposalId));
+  return useProposalMutation((proposalId) =>
+    EmailApi.confirmProposal(proposalId),
+  );
 }
 
 export function useDismissEmailProposal() {
-  return useProposalMutation((proposalId) => EmailApi.dismissProposal(proposalId));
+  return useProposalMutation((proposalId) =>
+    EmailApi.dismissProposal(proposalId),
+  );
 }

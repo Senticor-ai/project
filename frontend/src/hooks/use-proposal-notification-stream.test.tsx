@@ -88,7 +88,7 @@ type StorageMock = {
 function createStorageMock(): StorageMock {
   const store = new Map<string, string>();
   return {
-    getItem: (key) => (store.has(key) ? store.get(key) ?? null : null),
+    getItem: (key) => (store.has(key) ? (store.get(key) ?? null) : null),
     setItem: (key, value) => {
       store.set(key, value);
     },

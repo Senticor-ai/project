@@ -314,6 +314,8 @@ if [ "$RUN_TESTS" = true ]; then
   echo "[e2e] Running Playwright tests..."
   echo "[e2e] Service logs: $E2E_LOG_DIR/"
   cd "$ROOT_DIR/frontend"
+  # Skip Playwright's globalSetup preflight — we already verified health above.
+  E2E_SKIP_PREFLIGHT=1 \
   E2E_BASE_URL="http://localhost:$FRONTEND_PORT" \
     npx playwright test --config e2e/playwright.config.ts "${PW_ARGS[@]+"${PW_ARGS[@]}"}"
 else

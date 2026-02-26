@@ -31,6 +31,7 @@ Use **MSW v2** for all API mocking in Storybook stories and Vitest browser-mode 
 ## Consequences
 
 **Positive:**
+
 - Network-level interception tests the full request/response cycle including
   serialization, headers, and error handling
 - Same handlers work in both Storybook dev server and Vitest browser tests
@@ -38,6 +39,7 @@ Use **MSW v2** for all API mocking in Storybook stories and Vitest browser-mode 
 - Handler URL wildcards (`*/items/sync`) work across different `VITE_API_BASE_URL` values
 
 **Negative:**
+
 - Service Worker registration requires HTTPS with a trusted certificate in some
   environments (gracefully degraded — stories show loading/empty state)
 - Canonical IDs with colons break MSW's path-to-regexp — must escape or use wildcards

@@ -17,27 +17,27 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 The app has significant i18n infrastructure that is **built but disconnected**:
 
-| What exists | Where | Problem |
-|-------------|-------|---------|
-| `UserPreferences` type with `language`, `dateFormat`, `timeFormat`, `weekStart` | `model/settings-types.ts` | Preferences are never read by any component |
-| `PreferencesPanel` UI with dropdowns for all settings | `components/settings/PreferencesPanel.tsx` | Settings panel uses a local `useState` in `SettingsScreen.tsx:155` — changes are lost on navigation |
-| `useUserPreferences` hook with localStorage persistence | `hooks/use-user-preferences.ts` | Never used by `SettingsScreen` — the hook exists but the screen ignores it |
-| `getMessage(key, locale?)` with 28 message keys | `lib/messages.ts` | Reads `navigator.language` instead of user preference; only 28 of ~100+ needed keys exist |
-| Copilot API locale context | `hooks/use-copilot-api.ts:133` | Sends `navigator.language`, ignoring user preference |
+| What exists                                                                     | Where                                      | Problem                                                                                             |
+| ------------------------------------------------------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| `UserPreferences` type with `language`, `dateFormat`, `timeFormat`, `weekStart` | `model/settings-types.ts`                  | Preferences are never read by any component                                                         |
+| `PreferencesPanel` UI with dropdowns for all settings                           | `components/settings/PreferencesPanel.tsx` | Settings panel uses a local `useState` in `SettingsScreen.tsx:155` — changes are lost on navigation |
+| `useUserPreferences` hook with localStorage persistence                         | `hooks/use-user-preferences.ts`            | Never used by `SettingsScreen` — the hook exists but the screen ignores it                          |
+| `getMessage(key, locale?)` with 28 message keys                                 | `lib/messages.ts`                          | Reads `navigator.language` instead of user preference; only 28 of ~100+ needed keys exist           |
+| Copilot API locale context                                                      | `hooks/use-copilot-api.ts:133`             | Sends `navigator.language`, ignoring user preference                                                |
 
 Additionally, **9+ scattered date/time formatters** exist across components, each hardcoded to different locales:
 
-| Component | Hardcoded locale | Function |
-|-----------|-----------------|----------|
-| `chat/ConversationList.tsx` | German strings (`"Gerade eben"`, `"Vor N Min."`) | `formatRelativeDate` |
-| `work/EditableTitle.tsx` | English strings (`"just now"`, `"5m ago"`) | `formatRelativeTime` |
-| `work/ActionRow.tsx` | English strings (`"today"`, `"tomorrow"`, `"(overdue)"`) | `formatDueDate` |
-| `settings/ImportJobRow.tsx` | `"de-DE"` | `formatTime` |
-| `settings/DuplicateImportWarning.tsx` | `"de-DE"` | `formatDate` |
-| `settings/AgentSetupPanel.tsx` | `"en-US"` / browser default | `formatUsd`, `formatCheckedAt` |
-| `settings/OrganizationsPanel.tsx` | browser default | inline `.toLocaleDateString()` |
-| `settings/EmailConnectionCard.tsx` | German strings | `formatRelativeTime` |
-| `imports/shared/ImportSummaryBreakdown.tsx` | browser default | inline `.toLocaleString()` |
+| Component                                   | Hardcoded locale                                         | Function                       |
+| ------------------------------------------- | -------------------------------------------------------- | ------------------------------ |
+| `chat/ConversationList.tsx`                 | German strings (`"Gerade eben"`, `"Vor N Min."`)         | `formatRelativeDate`           |
+| `work/EditableTitle.tsx`                    | English strings (`"just now"`, `"5m ago"`)               | `formatRelativeTime`           |
+| `work/ActionRow.tsx`                        | English strings (`"today"`, `"tomorrow"`, `"(overdue)"`) | `formatDueDate`                |
+| `settings/ImportJobRow.tsx`                 | `"de-DE"`                                                | `formatTime`                   |
+| `settings/DuplicateImportWarning.tsx`       | `"de-DE"`                                                | `formatDate`                   |
+| `settings/AgentSetupPanel.tsx`              | `"en-US"` / browser default                              | `formatUsd`, `formatCheckedAt` |
+| `settings/OrganizationsPanel.tsx`           | browser default                                          | inline `.toLocaleDateString()` |
+| `settings/EmailConnectionCard.tsx`          | German strings                                           | `formatRelativeTime`           |
+| `imports/shared/ImportSummaryBreakdown.tsx` | browser default                                          | inline `.toLocaleString()`     |
 
 **Problem:** The user works in both German and English contexts. Switching between date formats is confusing. UI text mixes languages inconsistently.
 
@@ -59,12 +59,12 @@ Additionally, **9+ scattered date/time formatters** exist across components, eac
 
 All dates and times use **one universal format** everywhere:
 
-| What | Format | Example |
-|------|--------|---------|
-| Date | `YYYY-MM-DD` (ISO 8601) | `2026-02-26` |
-| Time | `HH:mm` (24h) | `14:30` |
-| Date + time | `YYYY-MM-DD HH:mm` | `2026-02-26 14:30` |
-| Relative time | Language-dependent | `"5 Min. ago"` / `"vor 5 Min."` |
+| What          | Format                  | Example                         |
+| ------------- | ----------------------- | ------------------------------- |
+| Date          | `YYYY-MM-DD` (ISO 8601) | `2026-02-26`                    |
+| Time          | `HH:mm` (24h)           | `14:30`                         |
+| Date + time   | `YYYY-MM-DD HH:mm`      | `2026-02-26 14:30`              |
+| Relative time | Language-dependent      | `"5 Min. ago"` / `"vor 5 Min."` |
 
 **Rationale:** ISO 8601 is unambiguous, sorts correctly, and works for any user in any language.
 This eliminates `DateFormat` and `TimeFormat` as user preferences — one less thing to configure.
@@ -77,6 +77,7 @@ locale-specific formatting. Language choice only affects UI text and relative ti
 ### 3. Simplified preferences
 
 Remove `dateFormat`, `timeFormat` from `UserPreferences`. Keep:
+
 - `language: "de" | "en"` — UI text language
 - `weekStart: "monday" | "sunday"` — for future calendar views
 - `defaultBucket`, `theme`, `weeklyReviewEnabled`, `weeklyReviewDay` — unchanged
@@ -107,6 +108,7 @@ Preference is persisted to `localStorage` and shared via React context.
 - Wire `LocaleProvider` into the app provider tree
 
 **Acceptance criteria:**
+
 - [ ] `LocaleProvider` shares language preference across the app
 - [ ] Browser language auto-detection on first visit
 - [ ] All formatting functions pass tests for both `de` and `en`
@@ -119,6 +121,7 @@ Preference is persisted to `localStorage` and shared via React context.
 - Update `use-copilot-api.ts` to send user's language preference instead of `navigator.language`
 
 **Acceptance criteria:**
+
 - [ ] Zero hardcoded locale strings (`"de-DE"`, `"en-US"`) in component files
 - [ ] Zero local format functions in components
 - [ ] Switching language changes all relative time strings and due date labels
@@ -127,19 +130,20 @@ Preference is persisted to `localStorage` and shared via React context.
 
 Expand `messages.ts` with ~80-100 new message keys covering all hardcoded UI text:
 
-| Domain | Examples | ~Keys |
-|--------|---------|-------|
-| Buckets | "Inbox"/"Eingang", "Focus"/"Fokus" | 8 |
-| Work/actions | "Archive"/"Archivieren", action subtype labels | 20 |
-| Due dates | "today"/"heute", "(overdue)"/"(überfällig)" | 5 |
-| Relative time | "just now"/"gerade eben", "{n}m ago"/"vor {n} Min." | 6 |
-| Settings | "Preferences"/"Einstellungen", all tab and field labels | 20 |
-| Agent setup | "Active"/"Aktiv", "Save"/"Speichern" | 10 |
-| Chat | "Send"/"Senden", "New conversation"/"Neue Unterhaltung" | 5 |
-| Provenance | "AI suggested"/"KI-Vorschlag" | 5 |
-| Common | "Cancel"/"Abbrechen", "Loading..."/"Laden..." | 10 |
+| Domain        | Examples                                                | ~Keys |
+| ------------- | ------------------------------------------------------- | ----- |
+| Buckets       | "Inbox"/"Eingang", "Focus"/"Fokus"                      | 8     |
+| Work/actions  | "Archive"/"Archivieren", action subtype labels          | 20    |
+| Due dates     | "today"/"heute", "(overdue)"/"(überfällig)"             | 5     |
+| Relative time | "just now"/"gerade eben", `"{n}m ago"`/`"vor {n} Min."` | 6     |
+| Settings      | "Preferences"/"Einstellungen", all tab and field labels | 20    |
+| Agent setup   | "Active"/"Aktiv", "Save"/"Speichern"                    | 10    |
+| Chat          | "Send"/"Senden", "New conversation"/"Neue Unterhaltung" | 5     |
+| Provenance    | "AI suggested"/"KI-Vorschlag"                           | 5     |
+| Common        | "Cancel"/"Abbrechen", "Loading..."/"Laden..."           | 10    |
 
 **Acceptance criteria:**
+
 - [ ] No hardcoded German or English user-facing strings in component files
 - [ ] Both `de` and `en` translations exist for every key
 - [ ] Switching language in Settings changes all UI text
@@ -152,6 +156,7 @@ Expand `messages.ts` with ~80-100 new message keys covering all hardcoded UI tex
 - Ensure preferences persist to localStorage and are respected everywhere
 
 **Acceptance criteria:**
+
 - [ ] Preferences are persisted (survive navigation and page reload)
 - [ ] Language dropdown shows "Deutsch" / "English"
 - [ ] All Settings labels are in the selected language
@@ -193,40 +198,42 @@ Expand `messages.ts` with ~80-100 new message keys covering all hardcoded UI tex
 
 The custom `getMessage()` pattern stays — no migration to react-intl or i18next.
 ADR-005 will be updated to reflect:
+
 - Interpolation support added (`{param}` syntax)
 - Scaled to ~100+ keys (organized by domain)
 - Still zero external dependencies
 
 ### Files to create
 
-| File | Purpose |
-|------|---------|
-| `lib/locale-context.tsx` | React context + `LocaleProvider` + `useLocale()` |
-| `lib/format-locale.ts` | Centralized formatting functions |
-| `hooks/use-format.ts` | Convenience hook binding formatters to current language |
-| `lib/format-locale.test.ts` | Formatting tests |
-| `lib/locale-context.test.tsx` | Context/provider tests |
-| `hooks/use-format.test.tsx` | Hook tests |
+| File                          | Purpose                                                 |
+| ----------------------------- | ------------------------------------------------------- |
+| `lib/locale-context.tsx`      | React context + `LocaleProvider` + `useLocale()`        |
+| `lib/format-locale.ts`        | Centralized formatting functions                        |
+| `hooks/use-format.ts`         | Convenience hook binding formatters to current language |
+| `lib/format-locale.test.ts`   | Formatting tests                                        |
+| `lib/locale-context.test.tsx` | Context/provider tests                                  |
+| `hooks/use-format.test.tsx`   | Hook tests                                              |
 
 ### Files to modify
 
-| File | Change |
-|------|--------|
-| `model/settings-types.ts` | Remove `DateFormat`, `TimeFormat`; keep `Language`, `WeekStart` |
-| `lib/messages.ts` | Add interpolation + ~80-100 new keys |
-| `components/shell/AppBootstrap.tsx` | Wire `LocaleProvider` |
-| `components/settings/SettingsScreen.tsx` | Fix line 155: use context instead of local useState |
-| `components/settings/PreferencesPanel.tsx` | Remove date/time dropdowns, localize labels |
-| 9 component files | Replace local formatters with `useFormat()` |
-| `hooks/use-copilot-api.ts` | Use language from context |
-| `docs/engineering/adr/Adr005CustomI18n.mdx` | Update ADR status and consequences |
-| `docs/engineering/I18n.mdx` | Update documentation |
+| File                                        | Change                                                          |
+| ------------------------------------------- | --------------------------------------------------------------- |
+| `model/settings-types.ts`                   | Remove `DateFormat`, `TimeFormat`; keep `Language`, `WeekStart` |
+| `lib/messages.ts`                           | Add interpolation + ~80-100 new keys                            |
+| `components/shell/AppBootstrap.tsx`         | Wire `LocaleProvider`                                           |
+| `components/settings/SettingsScreen.tsx`    | Fix line 155: use context instead of local useState             |
+| `components/settings/PreferencesPanel.tsx`  | Remove date/time dropdowns, localize labels                     |
+| 9 component files                           | Replace local formatters with `useFormat()`                     |
+| `hooks/use-copilot-api.ts`                  | Use language from context                                       |
+| `docs/engineering/adr/Adr005CustomI18n.mdx` | Update ADR status and consequences                              |
+| `docs/engineering/I18n.mdx`                 | Update documentation                                            |
 
 ---
 
 ## Delivery Plan
 
 ### Phase 1: Locale foundation
+
 - [ ] Create `format-locale.test.ts` (TDD — tests first)
 - [ ] Create `format-locale.ts` (make tests green)
 - [ ] Create `locale-context.test.tsx`
@@ -238,6 +245,7 @@ ADR-005 will be updated to reflect:
 - [ ] Simplify `settings-types.ts` (remove DateFormat, TimeFormat)
 
 ### Phase 2: Wire components
+
 - [ ] Replace formatters in `ConversationList.tsx`
 - [ ] Replace formatters in `EditableTitle.tsx`
 - [ ] Replace formatters in `ActionRow.tsx`
@@ -250,6 +258,7 @@ ADR-005 will be updated to reflect:
 - [ ] Update `use-copilot-api.ts` locale
 
 ### Phase 3: Localize UI strings
+
 - [ ] Add bucket label message keys
 - [ ] Add work/action message keys
 - [ ] Add settings message keys
@@ -259,6 +268,7 @@ ADR-005 will be updated to reflect:
 - [ ] Add completeness test (all keys have both de and en)
 
 ### Phase 4: Fix Settings UX
+
 - [ ] Fix `SettingsScreen.tsx:155` — shared context
 - [ ] Remove date/time format dropdowns
 - [ ] Localize PreferencesPanel labels

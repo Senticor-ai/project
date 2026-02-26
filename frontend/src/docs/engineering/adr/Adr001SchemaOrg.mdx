@@ -28,12 +28,14 @@ Schema.org properties.
 ## Consequences
 
 **Positive:**
+
 - No custom type system to design and maintain
 - Items are immediately understandable by any system that speaks Schema.org/JSON-LD
 - New types can be added without database migrations (just new `@type` values)
 - The LLM copilot can reason about items using Schema.org's well-documented vocabulary
 
 **Negative:**
+
 - Schema.org types don't always map 1:1 to our domain concepts — we use
   `additionalProperty` for app-specific fields like `bucket`
 - JSON-LD serialization/deserialization adds complexity vs. flat relational rows

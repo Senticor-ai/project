@@ -115,7 +115,10 @@ export function CopilotChatPanel({
       )}
     >
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-paper-200 px-4 py-3">
+      <div
+        style={{ paddingTop: "calc(0.75rem + env(safe-area-inset-top, 0px))" }}
+        className="flex items-center justify-between border-b border-paper-200 px-4 pb-3"
+      >
         <div className="flex items-center gap-2">
           <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blueprint-100">
             <Icon name="chat_bubble" size={16} className="text-blueprint-600" />
@@ -167,7 +170,12 @@ export function CopilotChatPanel({
           />
 
           {/* Input */}
-          <div className="border-t border-paper-200 p-4">
+          <div
+            style={{
+              paddingBottom: "calc(1rem + env(safe-area-inset-bottom, 0px))",
+            }}
+            className="border-t border-paper-200 px-4 pt-4"
+          >
             <ChatInput
               onSend={onSend}
               disabled={isLoading}

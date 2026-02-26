@@ -7,7 +7,8 @@ import { BucketBadge } from "@/components/paperclip/BucketBadge";
 import { EditableTitle } from "./EditableTitle";
 import { ItemEditor } from "./ItemEditor";
 import { EmailBodyViewer } from "./EmailBodyViewer";
-import { getDisplayName } from "@/model/types";
+import { getDisplayName, isUrl } from "@/model/types";
+import { getMessage } from "@/lib/messages";
 import type { ActionItem, Project, ItemEditableFields } from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
 
@@ -174,6 +175,8 @@ export function ActionRow({
   }
 
   const displayName = getDisplayName(thing);
+  const rawTitle = thing.name ?? thing.rawCapture ?? "";
+  const titleIsUrl = isUrl(rawTitle);
   const isCompleted = !!thing.completedAt;
   const dueDateInfo = thing.dueDate ? formatDueDate(thing.dueDate) : null;
   const isInbox = thing.bucket === "inbox";
@@ -319,6 +322,7 @@ export function ActionRow({
             onDoubleClick={handleTitleDoubleClick}
             completed={isCompleted}
             ariaExpanded={onToggleExpand ? isExpanded : undefined}
+            titleIsUrl={titleIsUrl}
           />
           {!isExpanded && thing.description && (
             <button
@@ -418,9 +422,14 @@ export function ActionRow({
               aria-label={
                 isExpanded ? `Collapse ${displayName}` : `Edit ${displayName}`
               }
-              className="shrink-0 text-text-subtle opacity-100 hover:text-text md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100"
+              className="flex shrink-0 items-center gap-1 text-text-subtle opacity-100 hover:text-text md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100"
             >
               <Icon name={isExpanded ? "expand_less" : "edit"} size={16} />
+              <span className="hidden text-xs pointer-coarse:inline">
+                {getMessage(
+                  isExpanded ? "action.label.collapse" : "action.label.edit",
+                )}
+              </span>
             </button>
           </Tooltip>
         )}
@@ -432,9 +441,12 @@ export function ActionRow({
               onClick={() => setMenuOpen(!menuOpen)}
               aria-label={`Move ${displayName}`}
               aria-expanded={menuOpen}
-              className="shrink-0 text-text-subtle opacity-100 hover:text-text md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100"
+              className="flex shrink-0 items-center gap-1 text-text-subtle opacity-100 hover:text-text md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100"
             >
               <Icon name="more_vert" size={16} />
+              <span className="hidden text-xs pointer-coarse:inline">
+                {getMessage("action.label.more")}
+              </span>
             </button>
           </Tooltip>
 
