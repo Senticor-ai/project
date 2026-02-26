@@ -6,23 +6,8 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
-import pytest
-
 from app.db import db_conn, jsonb
 from app.email.sync import enqueue_due_syncs, sync_email_archive
-
-
-@pytest.fixture(autouse=True)
-def _cleanup_test_connections():
-    """Deactivate test email connections after each test to prevent worker pickup."""
-    yield
-    with db_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "UPDATE email_connections SET is_active = false "
-                "WHERE email_address LIKE 'test%@gmail.com'"
-            )
-        conn.commit()
 
 
 def _create_email_connection(
@@ -133,10 +118,16 @@ def _create_gmail_item(
 
 
 def _deactivate_all_connections():
-    """Deactivate all email connections to isolate enqueue tests."""
+    """Deactivate only test-labeled Gmail connections across all test orgs."""
     with db_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute("UPDATE email_connections SET is_active = false")
+            cur.execute(
+                """
+                UPDATE email_connections
+                SET is_active = false
+                WHERE email_address LIKE 'test%@gmail.com'
+                """,
+            )
         conn.commit()
 
 
@@ -157,8 +148,8 @@ def _drain_outbox():
 class TestEnqueueDueSyncs:
     def test_enqueues_due_connections(self, auth_client):
         """Connections past their sync interval get enqueued."""
-        _deactivate_all_connections()
         org_id = auth_client.headers["X-Org-Id"]
+        _deactivate_all_connections()
         me = auth_client.get("/auth/me")
         user_id = me.json()["id"]
 
@@ -192,9 +183,9 @@ class TestEnqueueDueSyncs:
 
     def test_enqueues_multiple_due_connections(self, auth_client):
         """All due active connections are enqueued, each with its own connection_id."""
+        org_id = auth_client.headers["X-Org-Id"]
         _deactivate_all_connections()
         _drain_outbox()
-        org_id = auth_client.headers["X-Org-Id"]
         me = auth_client.get("/auth/me")
         user_id = me.json()["id"]
 
@@ -243,8 +234,8 @@ class TestEnqueueDueSyncs:
 
     def test_skips_not_due_connections(self, auth_client):
         """Connections synced recently are not enqueued."""
-        _deactivate_all_connections()
         org_id = auth_client.headers["X-Org-Id"]
+        _deactivate_all_connections()
         me = auth_client.get("/auth/me")
         user_id = me.json()["id"]
 
@@ -261,8 +252,8 @@ class TestEnqueueDueSyncs:
 
     def test_skips_manual_only_connections(self, auth_client):
         """Connections with sync_interval_minutes=0 are never enqueued."""
-        _deactivate_all_connections()
         org_id = auth_client.headers["X-Org-Id"]
+        _deactivate_all_connections()
         me = auth_client.get("/auth/me")
         user_id = me.json()["id"]
 
@@ -278,8 +269,8 @@ class TestEnqueueDueSyncs:
 
     def test_skips_inactive_connections(self, auth_client):
         """Inactive connections are never enqueued."""
-        _deactivate_all_connections()
         org_id = auth_client.headers["X-Org-Id"]
+        _deactivate_all_connections()
         me = auth_client.get("/auth/me")
         user_id = me.json()["id"]
 
@@ -296,8 +287,8 @@ class TestEnqueueDueSyncs:
 
     def test_enqueues_never_synced_connection(self, auth_client):
         """Connections with null last_sync_at are always due."""
-        _deactivate_all_connections()
         org_id = auth_client.headers["X-Org-Id"]
+        _deactivate_all_connections()
         me = auth_client.get("/auth/me")
         user_id = me.json()["id"]
 
@@ -313,9 +304,9 @@ class TestEnqueueDueSyncs:
 
     def test_disables_non_fernet_token_connections_before_enqueue(self, auth_client):
         """Invalid token-format fixtures are deactivated and not enqueued."""
+        org_id = auth_client.headers["X-Org-Id"]
         _deactivate_all_connections()
         _drain_outbox()
-        org_id = auth_client.headers["X-Org-Id"]
         me = auth_client.get("/auth/me")
         user_id = me.json()["id"]
 

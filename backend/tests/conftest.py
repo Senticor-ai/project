@@ -19,6 +19,8 @@ ROOT_DIR = Path(__file__).resolve().parents[2]
 # Set test CORS origins before load_dotenv so the port-shifted .env values
 # don't win — load_dotenv skips keys that are already in the environment.
 os.environ["CORS_ORIGINS"] = "http://localhost:5173,http://localhost:6006"
+# Prefer dedicated testing env when present; .env remains the fallback.
+load_dotenv(ROOT_DIR / ".env.testing")
 load_dotenv(ROOT_DIR / ".env")
 sys.path.insert(0, str(ROOT_DIR / "backend"))
 
@@ -52,23 +54,52 @@ def _with_search_path(database_url: str, schema: str) -> str:
     return urlunparse(parsed._replace(query=urlencode(query, doseq=True, quote_via=quote)))
 
 
-@pytest.fixture(scope="session")
-def test_database_url(tmp_path_factory):
-    base_url = _build_base_db_url()
-    if not base_url:
-        pytest.skip("DATABASE_URL or POSTGRES_PASSWORD not configured")
+_BASE_DB_URL = _build_base_db_url()
+_TEST_SCHEMA: str | None = None
+_TEST_DATABASE_URL: str | None = None
+_TEST_DB_SKIP_REASON: str | None = None
+
+
+def _initialize_test_database_environment() -> None:
+    """Provision an isolated schema before tests import app modules.
+
+    Tests import `app.*` modules at collection time, which freezes settings
+    from environment variables. We therefore create and export DATABASE_URL
+    at conftest import time to prevent leaks into the developer schema.
+    """
+
+    global _TEST_SCHEMA, _TEST_DATABASE_URL, _TEST_DB_SKIP_REASON
+
+    if not _BASE_DB_URL:
+        _TEST_DB_SKIP_REASON = "DATABASE_URL or POSTGRES_PASSWORD not configured"
+        return
 
     schema = f"test_{uuid.uuid4().hex}"
     try:
-        with psycopg.connect(base_url) as conn:
+        with psycopg.connect(_BASE_DB_URL) as conn:
             with conn.cursor() as cur:
                 cur.execute(sql.SQL("CREATE SCHEMA {}").format(sql.Identifier(schema)))
             conn.commit()
     except psycopg.OperationalError:
-        pytest.skip("Postgres not reachable on DATABASE_URL")
+        _TEST_DB_SKIP_REASON = "Postgres not reachable on DATABASE_URL"
+        return
 
-    test_url = _with_search_path(base_url, schema)
-    os.environ["DATABASE_URL"] = test_url
+    _TEST_SCHEMA = schema
+    _TEST_DATABASE_URL = _with_search_path(_BASE_DB_URL, schema)
+    os.environ["DATABASE_URL"] = _TEST_DATABASE_URL
+
+
+_initialize_test_database_environment()
+
+
+@pytest.fixture(scope="session")
+def test_database_url(tmp_path_factory):
+    if _TEST_DB_SKIP_REASON:
+        pytest.skip(_TEST_DB_SKIP_REASON)
+    if not _BASE_DB_URL or not _TEST_SCHEMA or not _TEST_DATABASE_URL:
+        pytest.skip("Test database schema was not initialized")
+
+    os.environ["DATABASE_URL"] = _TEST_DATABASE_URL
     os.environ["FILE_STORAGE_PATH"] = str(tmp_path_factory.mktemp("storage"))
     os.environ.setdefault("VAPID_PUBLIC_KEY", "test-public")
     os.environ.setdefault("VAPID_PRIVATE_KEY", "test-private")
@@ -82,13 +113,15 @@ def test_database_url(tmp_path_factory):
     os.environ.setdefault("TRUST_PROXY_HEADERS", "true")
 
     try:
-        yield test_url
+        yield _TEST_DATABASE_URL
     finally:
         try:
-            with psycopg.connect(base_url) as conn:
+            with psycopg.connect(_BASE_DB_URL) as conn:
                 with conn.cursor() as cur:
                     cur.execute(
-                        sql.SQL("DROP SCHEMA IF EXISTS {} CASCADE").format(sql.Identifier(schema))
+                        sql.SQL("DROP SCHEMA IF EXISTS {} CASCADE").format(
+                            sql.Identifier(_TEST_SCHEMA)
+                        )
                     )
                 conn.commit()
         except psycopg.OperationalError:
