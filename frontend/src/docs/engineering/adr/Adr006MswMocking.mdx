@@ -1,0 +1,52 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Engineering/ADR/006 MSW for API Mocking" />
+
+# ADR-006: MSW for API Mocking
+
+**Status:** Accepted
+
+---
+
+## Context
+
+Storybook stories and Vitest browser-mode tests need to exercise real React hooks
+and components that make API calls. The options for mocking these calls include:
+
+- **MSW (Mock Service Worker)** — intercepts at the network level via Service Worker
+- **nock** — intercepts at the Node.js HTTP level (does not work in browsers)
+- **axios-mock-adapter** — tightly coupled to axios (we use `fetch`)
+- **Manual fetch mocks** — brittle, doesn't test actual network serialization
+
+## Decision
+
+Use **MSW v2** for all API mocking in Storybook stories and Vitest browser-mode tests.
+
+- Handlers live in `frontend/src/test/msw/handlers.ts` with an in-memory store
+- Fixtures in `frontend/src/test/msw/fixtures.ts` provide `seedMixedBuckets()`,
+  `createItemRecord()`, `buildSyncResponse()`
+- Worker setup in `frontend/.storybook/msw-setup.ts`
+- Per-story overrides via `parameters.msw.handlers`
+
+## Consequences
+
+**Positive:**
+- Network-level interception tests the full request/response cycle including
+  serialization, headers, and error handling
+- Same handlers work in both Storybook dev server and Vitest browser tests
+- In-memory store enables "connected" stories that show realistic data flows
+- Handler URL wildcards (`*/items/sync`) work across different `VITE_API_BASE_URL` values
+
+**Negative:**
+- Service Worker registration requires HTTPS with a trusted certificate in some
+  environments (gracefully degraded — stories show loading/empty state)
+- Canonical IDs with colons break MSW's path-to-regexp — must escape or use wildcards
+- Handler state is global — tests must call `worker.resetHandlers()` in `afterEach`
+- NDJSON streaming endpoints require custom response construction
+
+---
+
+## Related
+
+- [Testing](?path=/docs/engineering-testing--docs) — Full testing strategy including MSW patterns
+- [Story-Driven Development](?path=/docs/engineering-story-driven-development--docs)

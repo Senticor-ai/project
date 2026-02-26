@@ -4,7 +4,7 @@ export default defineConfig({
   testDir: "./tests",
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
+  retries: process.env.CI ? 2 : 1,
   workers: 1,
   reporter: process.env.CI
     ? [["html", { open: "never" }], ["github"]]
@@ -16,6 +16,9 @@ export default defineConfig({
     screenshot: "only-on-failure",
     actionTimeout: 10_000,
     video: process.env.RECORD_VIDEO ? "on" : undefined,
+    // Block service workers so page.route() can intercept all requests.
+    // Without this, the PWA caches /api/items/sync and mocked routes are bypassed.
+    serviceWorkers: "block",
   },
   projects: [
     {

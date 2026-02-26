@@ -1,0 +1,48 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Engineering/ADR/001 Schema.org as Primary Ontology" />
+
+# ADR-001: Schema.org as Primary Ontology
+
+**Status:** Accepted
+
+---
+
+## Context
+
+The application manages tasks, documents, people, events, and projects for diverse
+use cases (tax preparation, job search, administrative proceedings). We needed a
+data model that is:
+
+- Extensible without schema migrations
+- Interoperable with external systems
+- Self-describing (types carry semantics, not just structure)
+
+## Decision
+
+Use [Schema.org](https://schema.org/) JSON-LD as the canonical data representation.
+Every item is a Schema.org type (`Action`, `Project`, `CreativeWork`, `DigitalDocument`,
+`Person`, `Event`) stored as a JSON-LD document with `@type`, `@id`, and standard
+Schema.org properties.
+
+## Consequences
+
+**Positive:**
+- No custom type system to design and maintain
+- Items are immediately understandable by any system that speaks Schema.org/JSON-LD
+- New types can be added without database migrations (just new `@type` values)
+- The LLM copilot can reason about items using Schema.org's well-documented vocabulary
+
+**Negative:**
+- Schema.org types don't always map 1:1 to our domain concepts — we use
+  `additionalProperty` for app-specific fields like `bucket`
+- JSON-LD serialization/deserialization adds complexity vs. flat relational rows
+- Some Schema.org properties have ambiguous semantics requiring team conventions
+
+---
+
+## Related
+
+- [Data Model / Ontology](?path=/docs/engineering-ontology--docs)
+- [Schema Reference](?path=/docs/engineering-schema-reference--docs)
+- [FRBR Architecture](?path=/docs/engineering-ontology-frbr-architecture--docs)

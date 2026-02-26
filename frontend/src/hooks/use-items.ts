@@ -152,7 +152,8 @@ export function useReferences() {
         ?.filter(
           (r) =>
             (r.item["@type"] === "CreativeWork" ||
-              r.item["@type"] === "DigitalDocument") &&
+              r.item["@type"] === "DigitalDocument" ||
+              r.item["@type"] === "Person") &&
             getBucketFromRecord(r) === "reference",
         )
         .map((r) => fromJsonLd(r) as ReferenceMaterial) ?? [],

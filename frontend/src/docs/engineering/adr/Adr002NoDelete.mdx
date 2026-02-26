@@ -1,0 +1,46 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Engineering/ADR/002 No-Delete Append-Only" />
+
+# ADR-002: No-Delete, Append-Only Data Model
+
+**Status:** Accepted
+
+---
+
+## Context
+
+The application serves German federal clerks and professionals managing legally
+sensitive workflows. Data created during administrative proceedings, tax preparation,
+and case management may be required as evidence in court or audits. Traditional
+CRUD with hard deletes would make it impossible to reconstruct prior states.
+
+## Decision
+
+- **No DELETE endpoints.** Users cannot delete any data.
+- All "removal" operations are **archives** (soft delete via `archived_at` timestamp).
+- Every change produces an **append-only assertion** (provenance entry) that is
+  never modified or deleted.
+- The `Provenance` model tracks `createdAt`, `updatedAt`, `archivedAt`, and a
+  full `history` array of `ProvenanceEntry` records.
+
+## Consequences
+
+**Positive:**
+- Complete audit trail for legal and regulatory compliance
+- Data can always be restored from archive
+- Provenance history enables "time travel" — reconstructing item state at any point
+- Simplifies conflict resolution (append-only means no destructive merges)
+
+**Negative:**
+- Storage grows monotonically (no cleanup possible)
+- UI must clearly distinguish "archived" from "active" items
+- Developers must remember to use archive patterns, never hard deletes
+- Test cleanup requires special handling (test fixtures use isolated data)
+
+---
+
+## Related
+
+- [Data Retention](?path=/docs/engineering-data-retention--docs) — Implementation details
+- [Data Model / Ontology](?path=/docs/engineering-ontology--docs) — Provenance types

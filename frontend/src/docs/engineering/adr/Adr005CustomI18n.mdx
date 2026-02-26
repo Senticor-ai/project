@@ -1,0 +1,55 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Engineering/ADR/005 Custom i18n over Framework" />
+
+# ADR-005: Custom `getMessage()` over react-intl / i18next
+
+**Status:** Accepted
+
+---
+
+## Context
+
+The application needs bilingual UI strings (German and English). The i18n landscape
+offers mature frameworks like `react-intl`, `i18next`, and `lingui`. These provide
+ICU MessageFormat support, pluralization, number/date formatting, and extraction
+tooling.
+
+## Decision
+
+Use a **minimal custom `getMessage(key, locale?)` function** in a single file
+(`frontend/src/lib/messages.ts`) instead of a full i18n framework.
+
+```typescript
+const messages: Record<string, { en: string; de: string }> = {
+  "feature.key": { en: "English", de: "Deutsch" },
+};
+
+export function getMessage(key: string, locale?: string): string {
+  const lang = (locale ?? navigator.language).startsWith("de") ? "de" : "en";
+  return messages[key]?.[lang] ?? key;
+}
+```
+
+## Consequences
+
+**Positive:**
+- Zero dependencies — no bundle size impact
+- Trivially simple — any developer can understand and extend it in minutes
+- Both languages in one file — easy to see if a translation is missing
+- Key fallback (returns the key if not found) makes missing translations visible
+
+**Negative:**
+- No ICU MessageFormat (pluralization, gender, interpolation) out of the box
+- No extraction tooling or translation management platform integration
+- Scaling to 500+ keys in a single file may become unwieldy
+- If pluralization or complex formatting is ever needed, migration will be required
+
+**Migration path:** The comment in `messages.ts` notes this is "trivially replaceable
+with ICU MessageFormat when a full i18n system is needed."
+
+---
+
+## Related
+
+- [i18n](?path=/docs/engineering-i18n--docs) — Implementation details and language policy

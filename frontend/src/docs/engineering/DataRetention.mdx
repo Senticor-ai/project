@@ -1,0 +1,75 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Engineering/Data Retention" />
+
+# Data Retention (No-Delete Policy)
+
+**Users cannot delete anything.** This is a core design principle for legal and audit compliance.
+
+---
+
+## Rationale
+
+The application serves German federal clerks (Bundesbeamte) and professionals managing
+legally sensitive workflows (tax preparation, administrative proceedings). Full data
+provenance must be maintained because:
+
+- Court proceedings may require evidence of prior states
+- Audit trails must be complete and tamper-resistant
+- Regulatory compliance demands traceability of all changes
+
+---
+
+## Soft Delete via Archiving
+
+Instead of deletion, items are **archived**:
+
+- Archive sets an `archived_at` timestamp on the item
+- Archived items are hidden from all list views and search results
+- All associated data (attachments, assertions, references) is preserved
+- Archived items can be restored by clearing the `archived_at` field
+
+### Frontend model (`model/types.ts`)
+
+```typescript
+export interface Provenance {
+  createdAt: string;
+  updatedAt: string;
+  archivedAt?: string;       // ← soft delete timestamp
+  history: ProvenanceEntry[];
+}
+```
+
+### Backend API rules
+
+- **No DELETE endpoints.** Any route that removes data must be an archive operation.
+- Use `PATCH /items/{id}` with `{ "archivedAt": "<timestamp>" }` to archive
+- The `archived_at` column is indexed for efficient filtering
+
+---
+
+## Append-Only Assertions
+
+Every change to an item produces an **assertion** — an append-only log entry:
+
+| ProvenanceAction | Meaning |
+|-----------------|---------|
+| `created` | Item was created |
+| `clarified` | AI or user refined the name/description |
+| `triaged` | Item was moved to a different bucket |
+| `completed` | Item was marked done |
+| `reopened` | Completed item was reopened |
+| `archived` | Item was soft-deleted |
+| `restored` | Archived item was brought back |
+| `enriched` | Metadata was added (references, tags) |
+| `commented` | A comment was added |
+| `renamed` | Item name was changed |
+
+Assertions are **never modified or deleted**. They form the complete audit trail.
+
+---
+
+## Related Documentation
+
+- [Data Model / Ontology](?path=/docs/engineering-ontology--docs) — Schema.org types and their fields
+- [Schema Reference](?path=/docs/engineering-schema-reference--docs) — JSON-LD structure

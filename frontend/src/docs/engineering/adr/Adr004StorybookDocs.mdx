@@ -1,0 +1,51 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Engineering/ADR/004 Storybook as Documentation Hub" />
+
+# ADR-004: Storybook as Single Source of Truth for Documentation
+
+**Status:** Accepted
+
+---
+
+## Context
+
+The project needs documentation for multiple audiences: engineers (architecture,
+API contracts, testing), designers (design tokens, component catalog), product
+managers (vision, epics, feature specs), and AI assistants (CLAUDE.md, copilot
+prompts). Documentation spread across wikis, READMEs, and Notion tends to go stale.
+
+## Decision
+
+Use **Storybook** as the single documentation hub. All documentation lives as
+**MDX pages** alongside component stories in the codebase:
+
+- `frontend/src/docs/product/` — vision, methodology, epics, feature specs
+- `frontend/src/docs/design/` — design philosophy, tokens, component catalog
+- `frontend/src/docs/engineering/` — architecture, data model, testing, deployment
+- `frontend/src/docs/flows/` — end-to-end user journeys
+
+Documentation is version-controlled, reviewed in PRs, and deployed alongside
+the component library.
+
+## Consequences
+
+**Positive:**
+- Docs live next to code — they get updated in the same PR as the code change
+- Interactive component demos and documentation share the same platform
+- Accessible to all stakeholders via a URL (no wiki login needed)
+- AI assistants can reference Storybook pages via `web_fetch`
+- PR review enforces documentation quality
+
+**Negative:**
+- MDX has a learning curve for non-developers (PMs, designers)
+- Storybook build time increases with more MDX pages
+- Cross-referencing between docs requires Storybook's `?path=/docs/...` syntax
+- Documentation is only visible when Storybook is running or deployed
+
+---
+
+## Related
+
+- [Story-Driven Development](?path=/docs/engineering-story-driven-development--docs)
+- [Testing](?path=/docs/engineering-testing--docs) — Storybook tests via Vitest

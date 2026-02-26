@@ -5,8 +5,9 @@ import { Meta } from "@storybook/addon-docs/blocks";
 # Epic: Collaboration Workspace (Shared Projects + Kanban)
 
 **Status:** In progress (backend APIs + CLI/SDK collaboration contract complete; board UI slices pending)
-**Last updated:** 2026-02-24
+**Last updated:** 2026-02-26
 **Checklist audit:** February 24, 2026 — checked items reflect implemented backend/API/CLI slices; remaining work stays unchecked.
+**Technical spec:** February 26, 2026 — Appendix B added with frontend kanban architecture informed by senticor-flow reference analysis.
 **Priority:** Current
 **Design direction:** Board-first team workflow
 
@@ -378,6 +379,8 @@ Concurrency:
 - Advanced panel: full description markdown editing, references, threaded comments, revision timeline.
 - Project header holds inline settings and deep-linkable list/board routes.
 
+See **Appendix B** for the full frontend technical spec (component architecture, DnD, state management, routing).
+
 ### A6) CLI/SDK + Copilot Enablement
 
 Collaboration flows must be first-class in both:
@@ -475,6 +478,338 @@ Extend with product namespace only for workflow internals not covered by schema.
 - [x] Wire list/board APIs to projection reads.
 - [ ] Wire UI quick edit + advanced edit panel to command/query APIs.
 - [ ] Add preflight checks for docs + Storybook indexing and collaboration flow tests.
+
+---
+
+## Appendix B: Frontend Technical Spec — Kanban View per Project
+
+This appendix specifies the frontend architecture for the kanban board, focused on enabling a per-project
+kanban view. Patterns were evaluated against a reference kanban implementation
+([senticor-flow](https://github.com/Senticor-ai/senticor-flow)) and adapted to fit our schema.org-aligned
+architecture and existing codebase conventions.
+
+### B1) Reference Analysis (senticor-flow)
+
+`senticor-flow` is a React 18 kanban board app using `@dnd-kit`, Zustand, Framer Motion, and shadcn/ui
+on Supabase. We evaluated its patterns for adoption, deferral, or rejection.
+
+#### Adopt for MVP
+
+| Pattern                                          | Reference source               | Rationale                                                                                                                                  |
+| ------------------------------------------------ | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `SortableContext` per column                     | `BoardPage.tsx`                | Our `BucketView` uses basic `useDraggable`/`useDroppable` (no within-column sorting). `@dnd-kit/sortable` is already installed but unused. |
+| Portal-based `DragOverlay` with spring animation | `BoardDragLayer.tsx`           | Our current overlay is a plain div. Adopt spring scale + subtle rotate for polish.                                                         |
+| Multi-sensor DnD (pointer + keyboard + touch)    | `BoardPage.tsx` sensors        | Our `BucketView` disables DnD entirely on mobile. Adopt `PointerSensor` + `KeyboardSensor` + `TouchSensor`.                                |
+| Per-column quick-add                             | `QuickAddBar.tsx` (simplified) | Title-only rapid entry per column. Skip AI natural-language parsing.                                                                       |
+| Card context menu                                | `CardContextMenu.tsx`          | Right-click for status/assignee/tag changes — good UX density. Use existing shadcn `ContextMenu`.                                          |
+| Inline title editing                             | `InlineEditTitle.tsx`          | We already have `EditableTitle` — reuse on board cards.                                                                                    |
+| Board view settings                              | `BoardViewSettings.tsx`        | Card density (compact/default) and field visibility toggles. Persist to localStorage.                                                      |
+
+#### Skip for post-MVP
+
+| Pattern                                           | Reason                                                               |
+| ------------------------------------------------- | -------------------------------------------------------------------- |
+| Dependency overlay (A\* SVG edge routing)         | Not in epic scope — complex, post-MVP                                |
+| Collaborative presence (live cursors, focus area) | Epic specifies "visible on refresh" — real-time cursors are post-MVP |
+| Offline sync with operation queue                 | App requires connectivity for MVP                                    |
+| AI-powered QuickAdd parsing                       | Simple title entry suffices for MVP                                  |
+| Card color modes (by priority/stage/type)         | Start with stage-colored column headers only                         |
+| HoverCard with rich preview                       | Nice-to-have, not in acceptance criteria                             |
+| Bulk operations floating bar                      | Defer until multi-select UX is validated on the board                |
+
+#### Skip permanently (architectural mismatch)
+
+| Pattern                                             | Reason                                                                         |
+| --------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Zustand for board state                             | We use React Query for server state — no separate store needed                 |
+| Supabase real-time subscriptions                    | We use REST API + React Query invalidation                                     |
+| 6-column model (READY, REVIEW, SEALED)              | Epic specifies 4 columns mapped to schema.org `actionStatus`                   |
+| Stage as string enum (`"BACKLOG"`, `"IN_PROGRESS"`) | We use schema.org values (`PotentialActionStatus`, `ActiveActionStatus`, etc.) |
+| `BLOCKED` mapped to `IN_PROGRESS`                   | Epic gives Blocked its own column (`FailedActionStatus`)                       |
+
+### B2) Component Architecture
+
+#### File tree
+
+```
+frontend/src/
+  model/
+    board-types.ts                    # ActionStatusType, BoardColumn, ProjectAction types
+  lib/
+    collaboration-api.ts              # API client for /projects/* endpoints
+  hooks/
+    use-project-actions.ts            # useProjectActions(), useWorkflowDefinition()
+    use-board-mutations.ts            # useTransitionAction(), useCreateProjectAction(), useUpdateProjectAction()
+  components/
+    board/
+      BoardView.tsx                   # DndContext + 4-column layout (mirrors BucketView pattern)
+      BoardColumn.tsx                 # Droppable column with SortableContext
+      BoardCard.tsx                   # Sortable card with inline fields
+      BoardDragOverlay.tsx            # Portal overlay with Framer Motion spring
+      ProjectViewToggle.tsx           # List/Kanban toggle in project header
+      BoardCardContextMenu.tsx        # Right-click menu (status, assignee, tags)
+      ActionDetailPanel.tsx           # Sheet sidebar for full editing (double-click)
+```
+
+#### Component hierarchy
+
+```
+ProjectWorkspace
+  ├── ProjectHeader
+  │     ├── ProjectViewToggle (list | kanban)
+  │     └── SharedProjectBadge
+  ├── [view === "list"]  → ActionList (existing)
+  └── [view === "kanban"] → BoardView
+        ├── DndContext (sensors: Pointer + Keyboard + Touch)
+        │     ├── BoardColumn × 4 (from workflow definition)
+        │     │     ├── column header (label + count + quick-add button)
+        │     │     ├── SortableContext
+        │     │     │     └── BoardCard × N
+        │     │     │           ├── title (EditableTitle — reuse existing)
+        │     │     │           ├── assignee badge
+        │     │     │           ├── due date chip (urgency colors)
+        │     │     │           ├── tag chips
+        │     │     │           └── comment count indicator
+        │     │     └── quick-add input (collapsed by default)
+        │     └── DragOverlay (BoardDragOverlay — portal)
+        └── ActionDetailPanel (Sheet — opens on double-click)
+```
+
+#### Reuse from existing codebase
+
+| Existing code                                   | Source file                      | Reused in                  |
+| ----------------------------------------------- | -------------------------------- | -------------------------- |
+| `DndContext` + `DragOverlay` pattern            | `components/work/BucketView.tsx` | `BoardView.tsx`            |
+| `EditableTitle`                                 | `components/work/ActionRow.tsx`  | `BoardCard.tsx`            |
+| Due date formatting + urgency colors            | `ActionRow.tsx`                  | `BoardCard.tsx`            |
+| `snapshotActive` / `upsertIntoCache` / rollback | `hooks/use-mutations.ts`         | `use-board-mutations.ts`   |
+| Tag chip rendering                              | `ActionRow.tsx`                  | `BoardCard.tsx`            |
+| `Sheet` (sidebar panel)                         | shadcn/ui                        | `ActionDetailPanel.tsx`    |
+| `ContextMenu`                                   | shadcn/ui                        | `BoardCardContextMenu.tsx` |
+
+### B3) State Management
+
+#### Server state (React Query)
+
+No Zustand — all board data flows through React Query, consistent with the rest of the app.
+
+```
+Query keys:
+  ["project-actions", projectId]           → ProjectAction[]
+  ["workflow-definition", projectId]       → WorkflowDefinition
+  ["action-detail", projectId, actionId]   → ProjectActionDetail (comments, revisions)
+  ["action-history", projectId, actionId]  → transitions + revisions timeline
+  ["project-members", projectId]           → ProjectMember[]
+```
+
+Hooks:
+
+- `useProjectActions(projectId)` — list actions for the board, grouped by `actionStatus` on the client
+- `useWorkflowDefinition(projectId)` — column definitions, transition rules, policy mode
+- `useProjectMembers(projectId)` — for assignee picker
+
+#### Mutation hooks
+
+Follow the `use-mutations.ts` pattern: `onMutate` snapshots cache, applies optimistic update, `onError`
+rolls back, `onSettled` invalidates.
+
+- `useTransitionAction()` — cross-column drag. Sends `{ to_status, expected_last_event_id, correlation_id }`.
+  On optimistic update: move card between column groups in cache. On conflict (409): roll back + show toast.
+- `useCreateProjectAction()` — quick-add from column. Optimistically inserts into target column.
+- `useUpdateProjectAction()` — inline field edits (title, assignee, due date, tags).
+
+#### Board UI state (localStorage)
+
+Persisted per `projectId` under `board-settings:{projectId}`:
+
+- `viewMode: "list" | "kanban"` — which view is active
+- `cardDensity: "compact" | "default"` — card height
+- `visibleFields: { assignee: boolean, dueDate: boolean, tags: boolean, commentCount: boolean }`
+
+### B4) Drag-and-Drop Architecture
+
+Libraries: `@dnd-kit/core` (6.3.1) + `@dnd-kit/sortable` (10.0.0) — both already installed.
+
+#### Sensors
+
+```typescript
+const sensors = useSensors(
+  useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+  useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  useSensor(TouchSensor, {
+    activationConstraint: { delay: 200, tolerance: 5 },
+  }),
+);
+```
+
+- `PointerSensor` with 5px distance threshold to distinguish click from drag.
+- `KeyboardSensor` with `sortableKeyboardCoordinates` for accessible card movement.
+- `TouchSensor` with 200ms delay to distinguish scroll from drag on mobile.
+
+#### Column structure
+
+Each `BoardColumn` wraps its cards in a `SortableContext` with `verticalListSortingStrategy`.
+The column itself is a `useDroppable` target so empty columns accept drops.
+
+#### Drag flow
+
+1. **`onDragStart`** — set `activeCardId` state, render `BoardDragOverlay`.
+2. **`onDragOver`** — (optional) show insertion indicator in target column.
+3. **`onDragEnd`** — determine if cross-column or within-column:
+   - **Cross-column:** call `useTransitionAction().mutate({ actionId, to_status, expected_last_event_id })`.
+   - **Within-column:** call `useUpdateProjectAction().mutate({ actionId, attributes: { rank } })`.
+   - **Cancelled:** clear overlay, no API call.
+
+#### DragOverlay
+
+```typescript
+<DragOverlay dropAnimation={{ duration: 200, easing: "ease" }}>
+  {activeCard && <BoardDragOverlay card={activeCard} />}
+</DragOverlay>
+```
+
+`BoardDragOverlay` uses Framer Motion:
+
+- `scale: 1.03` — slight lift
+- `rotate: 1.5deg` — tilt indicating movement
+- `boxShadow` upgrade — elevated card feel
+- Renders as a portal to avoid column overflow clipping
+
+### B5) Routing and Deep Links
+
+Extend `route-utils.ts` to support project view paths:
+
+```
+/project/{projectId}                    → default view (persisted preference)
+/project/{projectId}?view=kanban        → board view
+/project/{projectId}?view=list          → list view
+/project/{projectId}?view=kanban&tag=X  → board view filtered by tag
+```
+
+Changes to `route-utils.ts`:
+
+- Add `"project"` to `AppView` union type
+- `parsePathname` handles `/project/{id}` as a 2-segment path with `projectId` extraction
+- Query params: `view`, `tag`, `assignee`, `status` — parsed into filter state
+- `buildProjectPath(projectId, view?, filters?)` helper
+- View preference falls back to localStorage when `?view=` is absent
+
+### B6) API Client Layer
+
+New `collaboration-api.ts` mirroring backend routes from `collaboration.py`:
+
+```typescript
+class CollaborationApi {
+  // Workflow
+  static getWorkflowDefinition(projectId: string): Promise<WorkflowDefinition>;
+
+  // Actions (board cards)
+  static listActions(
+    projectId: string,
+    filters?: ActionFilters,
+  ): Promise<ProjectAction[]>;
+  static createAction(
+    projectId: string,
+    body: CreateActionRequest,
+  ): Promise<ProjectAction>;
+  static getActionDetail(
+    projectId: string,
+    actionId: string,
+  ): Promise<ProjectActionDetail>;
+  static updateAction(
+    projectId: string,
+    actionId: string,
+    body: UpdateActionRequest,
+  ): Promise<ProjectAction>;
+  static transitionAction(
+    projectId: string,
+    actionId: string,
+    body: TransitionRequest,
+  ): Promise<ProjectAction>;
+  static getActionHistory(
+    projectId: string,
+    actionId: string,
+  ): Promise<ActionHistory>;
+
+  // Comments
+  static addComment(
+    projectId: string,
+    actionId: string,
+    body: string,
+    parentId?: string,
+  ): Promise<ActionComment>;
+
+  // Members
+  static listMembers(projectId: string): Promise<ProjectMember[]>;
+  static addMember(
+    projectId: string,
+    email: string,
+    role?: string,
+  ): Promise<ProjectMember>;
+  static removeMember(projectId: string, userId: string): Promise<void>;
+}
+```
+
+Follows existing `ItemsApi` patterns:
+
+- Base URL from `VITE_API_BASE_URL`
+- JSON request/response with `credentials: "include"` (HTTP-only cookie auth)
+- `ApiError` class for structured error handling
+- ETag support for concurrency where applicable
+
+### B7) Accessibility
+
+- **Keyboard DnD:** `KeyboardSensor` with `sortableKeyboardCoordinates` — Space to pick up, arrow keys
+  to move, Space to drop, Escape to cancel.
+- **ARIA attributes:** columns have `role="region"` with `aria-label` (e.g. "Backlog — 3 cards").
+  Cards have `role="article"` with `aria-roledescription="kanban card"`.
+- **Focus management:** after creating a card, focus moves to the new card title. After drag-drop,
+  focus returns to the moved card in its new column.
+- **Screen reader announcements:** `DndContext` `announcements` prop provides status updates
+  ("Picked up card X", "Moved to In Progress column", "Dropped in position 2").
+
+### B8) Testing Strategy
+
+#### Unit tests (vitest)
+
+- `board-types.test.ts` — column grouping logic, action filtering, sort order
+- `collaboration-api.test.ts` — API client request/response shapes
+- `use-board-mutations.test.ts` — optimistic update, rollback on error, concurrency conflict handling
+
+#### Storybook stories
+
+- `BoardView.stories.tsx` — full board with MSW handlers for collaboration API
+- `BoardColumn.stories.tsx` — column variants (empty, few cards, many cards)
+- `BoardCard.stories.tsx` — card states (default, dragging, overdue, with comments, compact density)
+- `ActionDetailPanel.stories.tsx` — detail sidebar with comments and history
+
+MSW handlers for collaboration API follow existing `handlers.ts` pattern with in-memory store.
+
+#### E2E tests (Playwright, mocked layer)
+
+- `kanban-board-mocked.spec.ts`:
+  - Board loads with 4 columns
+  - Drag card between columns → status persists on reload
+  - Quick-add creates card in target column
+  - View toggle switches between list and kanban
+  - Inline edit on card (title, due date)
+  - Context menu actions (move, assign)
+  - Deep link restores board view with filters
+
+### B9) Implementation Sequence
+
+Phased delivery for kanban-per-project, aligned with Delivery Plan Phase 2:
+
+- [ ] **Step 1 — Data layer:** `board-types.ts` + `collaboration-api.ts` + `use-project-actions.ts` + `use-board-mutations.ts`
+- [ ] **Step 2 — Read-only board:** `BoardView` + `BoardColumn` + `BoardCard` (render actions grouped by `actionStatus`)
+- [ ] **Step 3 — View toggle + routing:** `ProjectViewToggle` + `route-utils.ts` extension + deep links
+- [ ] **Step 4 — Drag-and-drop:** cross-column transitions + within-column reorder + `BoardDragOverlay`
+- [ ] **Step 5 — Inline editing:** title, assignee picker, due date picker, tag input on cards
+- [ ] **Step 6 — Quick-add:** per-column card creation with title input
+- [ ] **Step 7 — Context menu + keyboard:** `BoardCardContextMenu` + keyboard sensor + a11y announcements
+- [ ] **Step 8 — Detail panel:** `ActionDetailPanel` (double-click) with markdown editor, comments, history
+
+Each step is independently deployable and testable.
 
 ---
 

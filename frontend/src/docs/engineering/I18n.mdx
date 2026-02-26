@@ -1,0 +1,90 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Engineering/i18n" />
+
+# Internationalization (i18n)
+
+The application supports **German (de)** and **English (en)**. German is the primary
+language for the user persona (German federal clerks). English is used for code and
+documentation.
+
+---
+
+## Frontend: `getMessage()`
+
+All UI strings go through a single function in `frontend/src/lib/messages.ts`:
+
+```typescript
+export function getMessage(key: string, locale?: string): string {
+  const lang = (locale ?? navigator.language).startsWith("de") ? "de" : "en";
+  return messages[key]?.[lang] ?? key;
+}
+```
+
+### Adding a new message
+
+Add a new entry to the `messages` record in the same file:
+
+```typescript
+const messages: Record<string, { en: string; de: string }> = {
+  // ... existing messages
+  "feature.newKey": {
+    en: "English text",
+    de: "Deutscher Text",
+  },
+};
+```
+
+**Rules:**
+- Always add **both** `en` and `de` translations
+- Use dot-separated keys grouped by feature: `"feature.section.label"`
+- Locale detection is automatic via `navigator.language`
+
+---
+
+## Backend Prompts: Jinja2 Templates
+
+LLM system prompts live in `agents/prompts/de/` as Jinja2 templates (`.j2` files).
+The primary language for prompts is **German** because the copilot converses with
+German-speaking users.
+
+```python
+# Usage in agents service
+prompt = load_prompt("copilot_system.j2", system_time=now, user_context=ctx)
+```
+
+Template variables are injected at render time. See `agents/prompts/de/copilot_system.j2`
+for the main copilot system prompt.
+
+---
+
+## Backend Errors
+
+Backend errors use structured JSON, not i18n:
+
+```json
+{ "code": "ITEM_NOT_FOUND", "message": "Item with id {id} not found" }
+```
+
+The frontend maps error codes to localized messages where needed.
+
+---
+
+## Language Policy
+
+| Context | Language |
+|---------|----------|
+| Code (variables, functions, classes, comments) | English |
+| Documentation (README, docs, CLAUDE.md) | English |
+| Git commits and PR descriptions | English |
+| UI strings | German (de) and English (en) via i18n |
+| LLM prompt templates | German (primary) |
+| Case examples, test fixtures, domain terms | German |
+| User persona | German federal clerks (Bundesbeamte) |
+
+---
+
+## Related Documentation
+
+- [Architecture](?path=/docs/engineering-architecture--docs) — System overview
+- [Agents Service](?path=/docs/engineering-agents-service--docs) — Copilot prompt architecture

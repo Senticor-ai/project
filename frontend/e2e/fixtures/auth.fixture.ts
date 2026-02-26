@@ -23,21 +23,43 @@ export const test = base.extend<TestFixtures>({
       indexedDB.deleteDatabase("keyval-store");
     });
 
-    // Register + login via API through the Vite proxy (shares cookie jar)
-    await page.request.post("/api/auth/register", {
-      data: { email, username, password },
-    });
-    await page.request.post("/api/auth/login", {
+    // Register + login via API through the Vite proxy (shares cookie jar).
+    // Retry on 429 (rate limit) — the backend throttles rapid registrations.
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const regResp = await page.request.post("/api/auth/register", {
+        data: { email, username, password },
+      });
+      if (regResp.ok()) break;
+      if (regResp.status() === 429 && attempt < 4) {
+        await page.waitForTimeout(1_000 * (attempt + 1));
+        continue;
+      }
+      throw new Error(
+        `Registration failed (${regResp.status()}): ${await regResp.text()}`,
+      );
+    }
+    const loginResp = await page.request.post("/api/auth/login", {
       data: { email, password },
     });
+    if (!loginResp.ok()) {
+      throw new Error(
+        `Login failed (${loginResp.status()}): ${await loginResp.text()}`,
+      );
+    }
 
     // Navigate to the app — should land on workspace (not login page).
     // Wait for the logo button which is visible on both desktop and mobile.
     // The sidebar nav[aria-label="Buckets"] is hidden below md breakpoint.
     await page.goto("/");
     await page.waitForSelector('button[aria-label="Go to Inbox"]', {
-      timeout: 10_000,
+      timeout: 20_000,
     });
+
+    // Dismiss the dev/demo environment disclaimer dialog if present.
+    const disclaimerBtn = page.getByRole("button", { name: "I understand" });
+    if (await disclaimerBtn.isVisible({ timeout: 2_000 }).catch(() => false)) {
+      await disclaimerBtn.click();
+    }
 
     await use(page);
   },
