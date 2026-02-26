@@ -8,6 +8,8 @@ import {
   createOrgResponse,
 } from "./fixtures";
 import type {
+  CalendarEventDeleteResponse,
+  CalendarEventResponse,
   ItemRecord,
   ImportSummary,
   ImportJobResponse,
@@ -55,6 +57,61 @@ function deepMerge(
     }
   }
   return result;
+}
+
+function getBucket(item: Record<string, unknown>): string | null {
+  const props = item.additionalProperty as
+    | Array<{ propertyID?: string; value?: unknown }>
+    | undefined;
+  if (!Array.isArray(props)) return null;
+  const bucket = props.find((entry) => entry.propertyID === "app:bucket");
+  return typeof bucket?.value === "string" ? bucket.value : null;
+}
+
+function getAdditionalValue(
+  item: Record<string, unknown>,
+  propertyID: string,
+): unknown {
+  const props = item.additionalProperty as
+    | Array<{ propertyID?: string; value?: unknown }>
+    | undefined;
+  if (!Array.isArray(props)) return null;
+  return props.find((entry) => entry.propertyID === propertyID)?.value;
+}
+
+function itemToCalendarEvent(record: ItemRecord): CalendarEventResponse {
+  const item = record.item as Record<string, unknown>;
+  const sourceMetadata =
+    (item.sourceMetadata as
+      | { provider?: string; raw?: { calendarId?: string; eventId?: string } }
+      | undefined) ?? undefined;
+  const provider =
+    typeof sourceMetadata?.provider === "string"
+      ? sourceMetadata.provider
+      : null;
+  return {
+    item_id: record.item_id,
+    canonical_id: record.canonical_id,
+    name: (item.name as string) ?? "(Untitled)",
+    description: (item.description as string) ?? null,
+    start_date:
+      (item.startDate as string) ?? (item.startTime as string) ?? null,
+    end_date: (item.endDate as string) ?? null,
+    source: record.source,
+    provider,
+    calendar_id: sourceMetadata?.raw?.calendarId ?? null,
+    event_id: sourceMetadata?.raw?.eventId ?? null,
+    access_role: provider === "google_calendar" ? "owner" : null,
+    writable: true,
+    rsvp_status:
+      (getAdditionalValue(item, "app:rsvpStatus") as
+        | "accepted"
+        | "tentative"
+        | "declined"
+        | null) ?? null,
+    sync_state: provider === "google_calendar" ? "Synced" : "Local only",
+    updated_at: record.updated_at,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -549,6 +606,120 @@ export function seedEmailConnection(
 }
 
 // ---------------------------------------------------------------------------
+// Calendar handlers
+// ---------------------------------------------------------------------------
+
+const calendarHandlers = [
+  http.get(`${API}/calendar/events`, ({ request }) => {
+    const url = new URL(request.url);
+    const dateFrom = url.searchParams.get("date_from");
+    const dateTo = url.searchParams.get("date_to");
+
+    const events = Array.from(store.items.values())
+      .filter((record) => getBucket(record.item) === "calendar")
+      .map((record) => itemToCalendarEvent(record))
+      .filter((event) => {
+        if (dateFrom && event.start_date && event.start_date < dateFrom) {
+          return false;
+        }
+        if (dateTo && event.start_date && event.start_date > dateTo) {
+          return false;
+        }
+        return true;
+      })
+      .sort((a, b) => (a.start_date || "").localeCompare(b.start_date || ""));
+
+    return HttpResponse.json(events);
+  }),
+
+  http.patch(`${API}/calendar/events/:canonicalId`, async ({ params, request }) => {
+    const canonicalId = decodeURIComponent(params.canonicalId as string);
+    const body = (await request.json()) as {
+      name?: string;
+      description?: string;
+      start_date?: string;
+      end_date?: string;
+    };
+    const record = Array.from(store.items.values()).find(
+      (candidate) => candidate.canonical_id === canonicalId,
+    );
+    if (!record) {
+      return HttpResponse.json({ detail: "Not found" }, { status: 404 });
+    }
+    const item = { ...record.item } as Record<string, unknown>;
+    if (body.name !== undefined) item.name = body.name;
+    if (body.description !== undefined) item.description = body.description;
+    if (body.start_date !== undefined) {
+      item.startDate = body.start_date;
+      item.startTime = body.start_date;
+    }
+    if (body.end_date !== undefined) item.endDate = body.end_date;
+
+    const updated: ItemRecord = {
+      ...record,
+      item,
+      updated_at: new Date().toISOString(),
+    };
+    store.items.set(updated.item_id, updated);
+    return HttpResponse.json(itemToCalendarEvent(updated));
+  }),
+
+  http.post(
+    `${API}/calendar/events/:canonicalId/rsvp`,
+    async ({ params, request }) => {
+      const canonicalId = decodeURIComponent(params.canonicalId as string);
+      const body = (await request.json()) as { status?: string };
+      const record = Array.from(store.items.values()).find(
+        (candidate) => candidate.canonical_id === canonicalId,
+      );
+      if (!record) {
+        return HttpResponse.json({ detail: "Not found" }, { status: 404 });
+      }
+      const item = { ...record.item } as Record<string, unknown>;
+      const props = Array.isArray(item.additionalProperty)
+        ? ([...item.additionalProperty] as Array<Record<string, unknown>>)
+        : [];
+      const idx = props.findIndex((entry) => entry.propertyID === "app:rsvpStatus");
+      if (idx >= 0) {
+        props[idx] = { ...props[idx], value: body.status };
+      } else {
+        props.push({
+          "@type": "PropertyValue",
+          propertyID: "app:rsvpStatus",
+          value: body.status ?? null,
+        });
+      }
+      item.additionalProperty = props;
+
+      const updated: ItemRecord = {
+        ...record,
+        item,
+        updated_at: new Date().toISOString(),
+      };
+      store.items.set(updated.item_id, updated);
+      return HttpResponse.json(itemToCalendarEvent(updated));
+    },
+  ),
+
+  http.delete(`${API}/calendar/events/:canonicalId`, ({ params }) => {
+    const canonicalId = decodeURIComponent(params.canonicalId as string);
+    const record = Array.from(store.items.values()).find(
+      (candidate) => candidate.canonical_id === canonicalId,
+    );
+    if (!record) {
+      return HttpResponse.json({ detail: "Not found" }, { status: 404 });
+    }
+    store.items.delete(record.item_id);
+    const payload: CalendarEventDeleteResponse = {
+      canonical_id: canonicalId,
+      status: "deleted",
+      provider_action: "deleted",
+    };
+    return HttpResponse.json(payload);
+  }),
+];
+
+// ---------------------------------------------------------------------------
 // Chat handlers (Copilot V1)
 // ---------------------------------------------------------------------------
 
@@ -802,6 +973,7 @@ export const handlers = [
   ...importsHandlers,
   ...authHandlers,
   ...emailHandlers,
+  ...calendarHandlers,
   ...chatHandlers,
   ...conversationHandlers,
   ...orgsHandlers,

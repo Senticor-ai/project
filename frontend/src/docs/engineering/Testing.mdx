@@ -117,6 +117,27 @@ cookies, file storage path).
 A custom Playwright fixture provides `authenticatedPage` (auto-registers a unique user via
 local JWT auth) and `apiSeed` (programmatic data setup via API).
 
+### Deterministic Google Workspace Harness
+
+For inbox/calendar/copilot black-box flows, run the local mock harness and point backend API clients to it:
+
+```bash
+uv run --project backend python -m app.devtools.mock_google_workspace_harness --port 8891
+export GMAIL_API_BASE="http://127.0.0.1:8891/gmail/v1/users/me"
+export GCAL_API_BASE="http://127.0.0.1:8891/calendar/v3"
+export DEV_TOOLS_ENABLED="true"
+```
+
+Seed the urgent schedule scenario with one command:
+
+```bash
+uv run --project backend python backend/scripts/seed_mock_workspace_urgent_schedule.py \
+  --harness-base http://127.0.0.1:8891
+```
+
+Canonical black-box regression test:
+`backend/tests/test_google_workspace_mock_harness_e2e.py`.
+
 ---
 
 ## Backend Testing

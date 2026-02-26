@@ -140,9 +140,6 @@ function AuthenticatedApp({
     archiveJob,
   } = useImportJobs();
   useImportJobToasts(importJobs);
-  useProposalNotificationStream({
-    onUrgentProposal: () => setIsChatOpen(true),
-  });
   const isMobile = useIsMobile();
   const { canInstall, promptInstall } = usePwaInstall();
   const { data: allItems = [] } = useAllItems();
@@ -311,6 +308,24 @@ function AuthenticatedApp({
   ]);
   const getChatClientContext = useCallback(() => chatContext, [chatContext]);
   const chat = useChatState({ getClientContext: getChatClientContext });
+  useProposalNotificationStream({
+    onUrgentProposal: (event) => {
+      setIsChatOpen(true);
+      const payload = event.payload;
+      const proposalId =
+        payload &&
+        typeof payload === "object" &&
+        "proposal_id" in payload &&
+        typeof payload.proposal_id === "string"
+          ? payload.proposal_id
+          : null;
+      if (proposalId) {
+        void chat.sendMessage(
+          `Please review urgent proposal ${proposalId} from Google email/calendar context and present confirmation actions.`,
+        );
+      }
+    },
+  });
 
   const mobileBucketNav = useMemo<MobileBucketNav | undefined>(() => {
     if (!isMobile || location.view !== "workspace") return undefined;

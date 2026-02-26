@@ -1,9 +1,28 @@
 import { Command } from "commander";
 
+import type { NotificationEventRecord } from "../client/api.js";
 import { createApi, printHuman } from "./context.js";
-import { printSuccessJson } from "./output.js";
+import { printJson, printSuccessJson } from "./output.js";
 import { executeProposal } from "./proposals-lib.js";
 import { getProposal, loadProposals, updateProposal } from "./state.js";
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function isProposalEvent(event: NotificationEventRecord): boolean {
+  return event.kind.startsWith("proposal_");
+}
+
+function sortByCreatedAt(
+  events: NotificationEventRecord[],
+): NotificationEventRecord[] {
+  return [...events].sort((left, right) =>
+    left.created_at.localeCompare(right.created_at),
+  );
+}
 
 export function registerProposalsCommands(program: Command): void {
   const proposals = program.command("proposals").description("Proposal lifecycle commands");
@@ -76,5 +95,77 @@ export function registerProposalsCommands(program: Command): void {
       }
 
       printHuman(`Applied proposal ${proposal.id}`);
+    });
+
+  proposals
+    .command("watch")
+    .description("Watch proposal notifications")
+    .option(
+      "--cursor <iso>",
+      "Start cursor for notification polling (ISO timestamp)",
+    )
+    .option(
+      "--interval-seconds <seconds>",
+      "Poll interval in seconds",
+      "1",
+    )
+    .option("--urgent-only", "Only emit urgent proposal notifications")
+    .option("--max-events <count>", "Stop after N emitted events")
+    .action(async function watchAction(this: Command) {
+      const { api, options } = await createApi(this);
+      const cmdOpts = this.opts<{
+        cursor?: string;
+        intervalSeconds?: string;
+        urgentOnly?: boolean;
+        maxEvents?: string;
+      }>();
+
+      const intervalSeconds = Number.parseFloat(cmdOpts.intervalSeconds ?? "1");
+      if (!Number.isFinite(intervalSeconds) || intervalSeconds <= 0) {
+        throw new Error("proposals watch requires a positive --interval-seconds");
+      }
+
+      const maxEvents = cmdOpts.maxEvents
+        ? Number.parseInt(cmdOpts.maxEvents, 10)
+        : undefined;
+      if (maxEvents !== undefined && (!Number.isFinite(maxEvents) || maxEvents <= 0)) {
+        throw new Error("proposals watch requires --max-events to be a positive integer");
+      }
+
+      let cursor = cmdOpts.cursor;
+      let emitted = 0;
+      while (true) {
+        const events = sortByCreatedAt(
+          await api.listNotifications({
+            cursor,
+            limit: 200,
+          }),
+        );
+
+        for (const event of events) {
+          cursor = event.created_at;
+          if (!isProposalEvent(event)) {
+            continue;
+          }
+          if (cmdOpts.urgentOnly && event.kind !== "proposal_urgent_created") {
+            continue;
+          }
+
+          emitted += 1;
+          if (options.json) {
+            printJson(event);
+          } else {
+            printHuman(
+              `[${event.created_at}] ${event.kind}\t${event.title}${event.url ? `\t${event.url}` : ""}`,
+            );
+          }
+
+          if (maxEvents !== undefined && emitted >= maxEvents) {
+            return;
+          }
+        }
+
+        await sleep(Math.round(intervalSeconds * 1000));
+      }
     });
 }

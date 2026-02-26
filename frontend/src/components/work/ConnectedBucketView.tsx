@@ -9,6 +9,12 @@ import { BucketView } from "./BucketView";
 import { useAllItems, useProjects, useReferences } from "@/hooks/use-items";
 import { useOrganizations } from "@/hooks/use-organizations";
 import {
+  useCalendarEvents,
+  useDeleteCalendarEvent,
+  usePatchCalendarEvent,
+  useSetCalendarEventRsvp,
+} from "@/hooks/use-calendar-events";
+import {
   useCaptureInbox,
   useCaptureFile,
   useAddAction,
@@ -64,6 +70,10 @@ export function ConnectedBucketView({
   const updateItemMutation = useUpdateItem();
   const addProjectActionMutation = useAddProjectAction();
   const createProjectMutation = useCreateProject();
+  const calendarEventsQuery = useCalendarEvents(activeBucket === "calendar");
+  const patchCalendarEvent = usePatchCalendarEvent();
+  const rsvpCalendarEvent = useSetCalendarEventRsvp();
+  const deleteCalendarEvent = useDeleteCalendarEvent();
 
   const isLoading =
     actionItemsQuery.isLoading ||
@@ -392,6 +402,11 @@ export function ConnectedBucketView({
         actionItems={actionItemsQuery.data ?? []}
         referenceItems={referencesQuery.data ?? []}
         projects={projectsQuery.data ?? []}
+        calendarEvents={calendarEventsQuery.data ?? []}
+        calendarLoading={
+          activeBucket === "calendar" &&
+          (calendarEventsQuery.isLoading || calendarEventsQuery.isFetching)
+        }
         activeBucket={activeBucket}
         onBucketChange={onBucketChange}
         onAddActionItem={handleAddActionItem}
@@ -411,6 +426,19 @@ export function ConnectedBucketView({
         onSetType={handleSetType}
         onFileDrop={handleFileDrop}
         onNavigateToReference={handleNavigateToReference}
+        onPatchCalendarEvent={(canonicalId, payload) =>
+          patchCalendarEvent
+            .mutateAsync({ canonicalId, payload })
+            .then(() => undefined)
+        }
+        onRsvpCalendarEvent={(canonicalId, payload) =>
+          rsvpCalendarEvent
+            .mutateAsync({ canonicalId, payload })
+            .then(() => undefined)
+        }
+        onDeleteCalendarEvent={(canonicalId) =>
+          deleteCalendarEvent.mutateAsync(canonicalId).then(() => undefined)
+        }
         linkedActionBuckets={linkedActionBuckets}
         organizations={orgsQuery.data}
         sidebarControls={sidebarControls}

@@ -17,6 +17,24 @@ corresponding item in COPILOT.
 > OAuth flow, incremental sync, push notifications, bidirectional archive,
 > and reconnection after disconnect have all been validated in production.
 
+## Local Mock Harness Mode (Human Testing)
+
+For deterministic UX testing without real Google credentials, run the local harness:
+
+```bash
+uv run --project backend python -m app.devtools.mock_google_workspace_harness --port 8891
+export GMAIL_API_BASE="http://127.0.0.1:8891/gmail/v1/users/me"
+export GCAL_API_BASE="http://127.0.0.1:8891/calendar/v3"
+```
+
+Then use the dev endpoint `POST /dev/mock-workspace/connection` (with `DEV_TOOLS_ENABLED=true`)
+to provision a mock connection for the current user and trigger normal `/email/.../sync` flows.
+Seed urgent scenario data via:
+
+```bash
+uv run --project backend python backend/scripts/seed_mock_workspace_urgent_schedule.py
+```
+
 ---
 
 ## OAuth Flow
@@ -121,6 +139,12 @@ or the watch worker was temporarily down.
 ### Sync Process
 
 Each `email_sync_job` triggers `run_email_sync()`:
+
+Decision gates in this flow are CEL-backed and centralized in:
+
+- `backend/app/email/rules/sync_behavior_rules.json`
+
+Those rules are evaluated by `backend/app/email/cel_rules.py` and applied in sync/proposal runtime code.
 
 1. Load connection + refresh OAuth token if expired
 2. Incremental sync via `gmail_api.history_list(start_history_id)` — fetches

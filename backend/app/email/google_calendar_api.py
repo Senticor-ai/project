@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any
 from urllib.parse import quote
 
 import httpx
 
-GCAL_API_BASE = "https://www.googleapis.com/calendar/v3"
+GCAL_API_BASE = os.getenv(
+    "GCAL_API_BASE",
+    "https://www.googleapis.com/calendar/v3",
+)
 _TIMEOUT = 30
 
 
@@ -118,6 +122,24 @@ def update_event(
     return result
 
 
+def get_event(
+    access_token: str,
+    event_id: str,
+    *,
+    calendar_id: str = "primary",
+) -> dict[str, Any]:
+    encoded_calendar_id = quote(calendar_id, safe="")
+    encoded_event_id = quote(event_id, safe="")
+    response = httpx.get(
+        f"{GCAL_API_BASE}/calendars/{encoded_calendar_id}/events/{encoded_event_id}",
+        headers=_headers(access_token),
+        timeout=_TIMEOUT,
+    )
+    response.raise_for_status()
+    result: dict[str, Any] = response.json()
+    return result
+
+
 def create_event(
     access_token: str,
     *,
@@ -134,3 +156,19 @@ def create_event(
     response.raise_for_status()
     result: dict[str, Any] = response.json()
     return result
+
+
+def delete_event(
+    access_token: str,
+    event_id: str,
+    *,
+    calendar_id: str = "primary",
+) -> None:
+    encoded_calendar_id = quote(calendar_id, safe="")
+    encoded_event_id = quote(event_id, safe="")
+    response = httpx.delete(
+        f"{GCAL_API_BASE}/calendars/{encoded_calendar_id}/events/{encoded_event_id}",
+        headers=_headers(access_token),
+        timeout=_TIMEOUT,
+    )
+    response.raise_for_status()

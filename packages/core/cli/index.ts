@@ -10,6 +10,7 @@ import {
   mapHttpStatusToExitCode,
   printErrorJson,
 } from "./output.js";
+import { registerNotificationsCommands } from "./notifications.js";
 import { registerOrgsCommands } from "./orgs.js";
 import { registerProjectsCommands } from "./projects.js";
 import { registerProposalsCommands } from "./proposals.js";
@@ -45,6 +46,7 @@ async function main(argv: string[]): Promise<void> {
   registerItemsCommands(program);
   registerProjectsCommands(program);
   registerOrgsCommands(program);
+  registerNotificationsCommands(program);
   registerProposalsCommands(program);
 
   await program.parseAsync(argv);

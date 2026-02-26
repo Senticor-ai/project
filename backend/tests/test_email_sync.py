@@ -275,6 +275,59 @@ class TestRunEmailSync:
 
     @patch("app.email.sync.gmail_api")
     @patch("app.email.sync.get_valid_gmail_token")
+    def test_sync_keeps_one_item_per_gmail_message_even_with_same_rfc_message_id(
+        self,
+        mock_get_token,
+        mock_gmail_api,
+        email_connection,
+    ):
+        conn_id, org_id, user_id = email_connection
+        mock_get_token.return_value = "fake-access-token"
+
+        mock_gmail_api.history_list.return_value = _make_history_response(
+            ["msg_same_mid_1", "msg_same_mid_2"], history_id="10002"
+        )
+        mock_gmail_api.message_get.side_effect = [
+            _make_gmail_message(
+                msg_id="msg_same_mid_1",
+                message_id_header="<same-rfc-mid@example.com>",
+            ),
+            _make_gmail_message(
+                msg_id="msg_same_mid_2",
+                message_id_header="<same-rfc-mid@example.com>",
+            ),
+        ]
+
+        result = run_email_sync(connection_id=conn_id, org_id=org_id, user_id=user_id)
+        assert result.created == 2
+        assert result.skipped == 0
+
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT count(*) AS total,
+                           count(
+                               DISTINCT (
+                                   schema_jsonld -> 'sourceMetadata'
+                                       -> 'raw' ->> 'gmailMessageId'
+                               )
+                           ) AS gmail_distinct
+                    FROM items
+                    WHERE org_id = %s
+                      AND created_by_user_id = %s
+                      AND source = 'gmail'
+                      AND archived_at IS NULL
+                    """,
+                    (org_id, user_id),
+                )
+                row = cur.fetchone()
+                assert row is not None
+                assert row["total"] == 2
+                assert row["gmail_distinct"] == 2
+
+    @patch("app.email.sync.gmail_api")
+    @patch("app.email.sync.get_valid_gmail_token")
     def test_sync_skips_messages_that_are_not_currently_in_inbox(
         self,
         mock_get_token,
@@ -571,8 +624,49 @@ class TestRunEmailSync:
         assert result.created == 1
         mock_gmail_api.messages_list.assert_called_once_with(
             "fake-access-token",
-            query="in:inbox newer_than:7d",
-            max_results=100,
+            query="in:inbox",
+            max_results=5000,
+        )
+
+    @patch("app.email.sync.gmail_api")
+    @patch("app.email.sync.get_valid_gmail_token")
+    def test_sync_bootstraps_full_inbox_when_history_exists_but_local_is_empty(
+        self,
+        mock_get_token,
+        mock_gmail_api,
+        email_connection,
+    ):
+        conn_id, org_id, user_id = email_connection
+        mock_get_token.return_value = "fake-access-token"
+
+        # History exists but contains no new events.
+        mock_gmail_api.history_list.return_value = {"history": [], "historyId": "10000"}
+        # Full inbox still has messages and must be imported on bootstrap.
+        mock_gmail_api.messages_list.return_value = [
+            {"id": "msg_bootstrap_1", "threadId": "thread_1"},
+            {"id": "msg_bootstrap_2", "threadId": "thread_2"},
+        ]
+        mock_gmail_api.message_get.side_effect = [
+            _make_gmail_message(
+                msg_id="msg_bootstrap_1",
+                message_id_header="<bootstrap-1@example.com>",
+                history_id="20001",
+            ),
+            _make_gmail_message(
+                msg_id="msg_bootstrap_2",
+                message_id_header="<bootstrap-2@example.com>",
+                history_id="20002",
+            ),
+        ]
+
+        result = run_email_sync(connection_id=conn_id, org_id=org_id, user_id=user_id)
+
+        assert result.synced == 2
+        assert result.created == 2
+        mock_gmail_api.messages_list.assert_called_once_with(
+            "fake-access-token",
+            query="in:inbox",
+            max_results=5000,
         )
 
     @patch("app.email.sync.gmail_api")
@@ -770,6 +864,9 @@ class TestSyncArchivesFromGmail:
         mock_gmail_api.history_list.return_value = _make_history_with_label_removed(
             ["msg_just_read"], ["UNREAD"], history_id="10001"
         )
+        mock_gmail_api.messages_list.return_value = [
+            {"id": "msg_just_read", "threadId": "thread_1"},
+        ]
 
         result = run_email_sync(connection_id=conn_id, org_id=org_id, user_id=user_id)
 
@@ -801,6 +898,78 @@ class TestSyncArchivesFromGmail:
         assert len(archived_calls) == 1
         assert archived_calls[0][0][1]["item_id"] == item_id
         assert archived_calls[0][0][1]["org_id"] == org_id
+
+    @patch("app.email.sync.gmail_api")
+    @patch("app.email.sync.get_valid_gmail_token")
+    def test_sync_keeps_local_archive_and_archives_message_in_gmail(
+        self,
+        mock_get_token,
+        mock_gmail_api,
+        email_connection,
+    ):
+        conn_id, org_id, user_id = email_connection
+        mock_get_token.return_value = "fake-access-token"
+
+        mock_gmail_api.history_list.return_value = _make_history_response(
+            ["msg_local_archived"], history_id="10001"
+        )
+        mock_gmail_api.messages_list.return_value = [
+            {"id": "msg_local_archived", "threadId": "thread_local_archived"},
+        ]
+        mock_gmail_api.message_get.return_value = _make_gmail_message(
+            msg_id="msg_local_archived",
+            message_id_header="<msg-local-archived@example.com>",
+            history_id="10001",
+        )
+
+        first = run_email_sync(connection_id=conn_id, org_id=org_id, user_id=user_id)
+        assert first.created == 1
+
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT item_id
+                    FROM items
+                    WHERE org_id = %s
+                      AND source = 'gmail'
+                      AND archived_at IS NULL
+                      AND schema_jsonld -> 'sourceMetadata'
+                          -> 'raw' ->> 'gmailMessageId' = %s
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                    """,
+                    (org_id, "msg_local_archived"),
+                )
+                seeded = cur.fetchone()
+                assert seeded is not None
+                item_id = seeded["item_id"]
+                cur.execute(
+                    "UPDATE items SET archived_at = now(), updated_at = now() WHERE item_id = %s",
+                    (item_id,),
+                )
+            conn.commit()
+
+        mock_gmail_api.history_list.return_value = {"history": [], "historyId": "10002"}
+        result = run_email_sync(connection_id=conn_id, org_id=org_id, user_id=user_id)
+
+        assert result.created == 0
+        assert result.skipped == 1
+        mock_gmail_api.message_modify.assert_any_call(
+            "fake-access-token",
+            "msg_local_archived",
+            remove_label_ids=["INBOX"],
+        )
+
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT archived_at FROM items WHERE item_id = %s",
+                    (item_id,),
+                )
+                row = cur.fetchone()
+                assert row is not None
+                assert row["archived_at"] is not None
 
 
 # ---------------------------------------------------------------------------

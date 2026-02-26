@@ -28,6 +28,10 @@ const config: StorybookConfig = {
   managerHead: (head) =>
     `${head}<link rel="icon" type="image/svg+xml" href="./storybook-favicon.svg" />`,
   viteFinal: (config) => {
+    // Storybook runs alongside the app Vite server in dev-stack.
+    // Use a separate cache dir to prevent optimize-deps cache collisions.
+    config.cacheDir = "node_modules/.vite/storybook";
+
     const server = config.server ?? {};
     const allowedHosts = Array.isArray(server.allowedHosts)
       ? [...server.allowedHosts]

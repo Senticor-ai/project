@@ -46,6 +46,7 @@ from .routes import (
     agent_settings,
     assertions,
     auth,
+    calendar,
     collaboration,
     dev,
     files,
@@ -342,6 +343,7 @@ async def unhandled_exception_with_request_id(request: Request, exc: Exception):
 
 app.include_router(auth.router)
 app.include_router(items.router)
+app.include_router(calendar.router)
 app.include_router(collaboration.router)
 app.include_router(imports.router)
 app.include_router(assertions.router)

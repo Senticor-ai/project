@@ -1,0 +1,92 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+import { Mermaid } from "../../components/docs/Mermaid";
+
+<Meta title="Flows/Inbox to Calendar + Copilot Alerts" />
+
+# Flow: Inbox to Calendar + Copilot Alerts
+
+This flow describes the production path for urgent email/calendar suggestions and the deterministic mock harness path for human testers.
+
+## Runtime Flow
+
+<Mermaid chart={`
+graph TD
+  E["New Gmail message / calendar change"] --> S["Email + Calendar sync"]
+  S --> Q["proposal_candidates queue (durable)"]
+  Q --> P["Proposal evaluation<br/>(Reschedule / PersonalRequest)"]
+  P --> N["notification_events + SSE /notifications/stream"]
+  N --> U["Browser alert + in-window notification"]
+  U --> C["User confirms in Copilot"]
+  C --> W["Writeback: Google Calendar + Gmail reply"]
+  W --> V["CalendarView reflects synced state"]
+`} />
+
+## Human Tester Playbook (Deterministic)
+
+1. Start the mock Google Workspace server.
+
+```bash
+uv run --project backend python -m app.devtools.mock_google_workspace_harness --port 8891
+```
+
+2. Point backend Gmail/Calendar clients to the harness and restart backend.
+
+```bash
+export GMAIL_API_BASE="http://127.0.0.1:8891/gmail/v1/users/me"
+export GCAL_API_BASE="http://127.0.0.1:8891/calendar/v3"
+export DEV_TOOLS_ENABLED="true"
+```
+
+3. Create a mock connection for the currently logged-in user.
+
+```js
+// Run in browser devtools on the app origin while logged in
+const orgs = await fetch("/api/orgs", { credentials: "include" }).then((r) => r.json());
+const csrf = await fetch("/api/auth/csrf", { credentials: "include" }).then((r) => r.json());
+await fetch("/api/dev/mock-workspace/connection", {
+  method: "POST",
+  credentials: "include",
+  headers: {
+    "Content-Type": "application/json",
+    "X-CSRF-Token": csrf.csrf_token,
+    "X-Org-Id": orgs[0].id,
+  },
+  body: JSON.stringify({
+    email_address: "mock-user@example.com",
+    last_history_id: 10000,
+    calendar_selected_ids: ["primary"],
+  }),
+}).then((r) => r.json());
+```
+
+4. Seed the urgent schedule scenario in the mock server.
+
+```bash
+uv run --project backend python backend/scripts/seed_mock_workspace_urgent_schedule.py \
+  --harness-base http://127.0.0.1:8891
+```
+
+5. Trigger sync in Settings -> Email (or call `POST /email/connections/{id}/sync`), then validate:
+- urgent proposal notification appears
+- Copilot opens with confirmation-required proposal
+- confirm updates Google Calendar event + sends Gmail reply
+- Calendar bucket (`List/Week/Month`) shows updated event
+
+### Timezone Validation (Human Testers)
+
+- Keep the same seeded event data and switch the browser/device timezone (for example `Europe/Berlin` vs `America/Los_Angeles`).
+- Validate that event day placement updates with viewer timezone while absolute event instant stays identical.
+- Confirm time labels always render as 24-hour `HH:MM` (no AM/PM).
+- For timed provider events, inspect backend item payload and confirm `startDate/endDate` are stored as UTC `...Z`.
+
+6. Inspect mock side effects when needed:
+
+```bash
+curl -s http://127.0.0.1:8891/__state | jq '.calendar_created_events, .gmail_sent_messages'
+```
+
+## Storybook Validation (UI-only)
+
+- `Work/CalendarView` docs/stories validate event controls and mode parity.
+- `Product/Epics/Inbox to Calendar Event Workflow` documents backend + proposal contracts.
+- `Settings/EmailPanel` test ensures proposal controls are not rendered in sync settings.

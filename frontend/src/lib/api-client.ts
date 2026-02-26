@@ -773,6 +773,110 @@ export const NotificationsApi = {
 };
 
 // ---------------------------------------------------------------------------
+// Calendar API
+// ---------------------------------------------------------------------------
+
+export type CalendarSyncState =
+  | "Synced"
+  | "Saving"
+  | "Sync failed"
+  | "Local only";
+
+export type CalendarEventResponse = {
+  item_id: string;
+  canonical_id: string;
+  name: string;
+  description: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  source: string;
+  provider: string | null;
+  calendar_id: string | null;
+  event_id: string | null;
+  access_role: string | null;
+  writable: boolean;
+  rsvp_status: "accepted" | "tentative" | "declined" | null;
+  sync_state: CalendarSyncState;
+  updated_at: string;
+};
+
+export type CalendarEventPatchRequest = {
+  name?: string;
+  description?: string;
+  start_date?: string;
+  end_date?: string;
+};
+
+export type CalendarEventRsvpRequest = {
+  status: "accepted" | "tentative" | "declined";
+};
+
+export type CalendarEventDeleteResponse = {
+  canonical_id: string;
+  status: "deleted";
+  provider_action: "deleted" | "declined_fallback" | "local_only";
+};
+
+export const CalendarApi = {
+  listEvents: (params?: { dateFrom?: string; dateTo?: string; limit?: number }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.dateFrom) searchParams.set("date_from", params.dateFrom);
+    if (params?.dateTo) searchParams.set("date_to", params.dateTo);
+    if (params?.limit) searchParams.set("limit", String(params.limit));
+    const qs = searchParams.toString();
+    return request<CalendarEventResponse[]>(
+      `/calendar/events${qs ? `?${qs}` : ""}`,
+    );
+  },
+
+  patchEvent: (
+    canonicalId: string,
+    payload: CalendarEventPatchRequest,
+    idempotencyKey?: string,
+  ) => {
+    const headers: Record<string, string> = {};
+    if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
+    return request<CalendarEventResponse>(
+      `/calendar/events/${encodeURIComponent(canonicalId)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+        headers,
+      },
+    );
+  },
+
+  setRsvp: (
+    canonicalId: string,
+    payload: CalendarEventRsvpRequest,
+    idempotencyKey?: string,
+  ) => {
+    const headers: Record<string, string> = {};
+    if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
+    return request<CalendarEventResponse>(
+      `/calendar/events/${encodeURIComponent(canonicalId)}/rsvp`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+        headers,
+      },
+    );
+  },
+
+  deleteEvent: (canonicalId: string, idempotencyKey?: string) => {
+    const headers: Record<string, string> = {};
+    if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
+    return request<CalendarEventDeleteResponse>(
+      `/calendar/events/${encodeURIComponent(canonicalId)}`,
+      {
+        method: "DELETE",
+        headers,
+      },
+    );
+  },
+};
+
+// ---------------------------------------------------------------------------
 // Dev API
 // ---------------------------------------------------------------------------
 

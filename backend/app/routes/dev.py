@@ -1,8 +1,13 @@
+from datetime import UTC, datetime, timedelta
+from uuid import uuid4
+
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
 
 from ..config import settings
-from ..db import db_conn
+from ..db import db_conn, jsonb
 from ..deps import get_current_org, get_current_user
+from ..email.crypto import CryptoService
 from ..observability import get_logger
 
 logger = get_logger("routes.dev")
@@ -99,3 +104,138 @@ def flush_org_data(
 
     logger.info("dev.flush.completed", org_id=org_id, deleted=deleted)
     return {"ok": True, "deleted": deleted}
+
+
+class MockWorkspaceConnectionRequest(BaseModel):
+    email_address: str = "mock-user@example.com"
+    display_name: str = "Mock User"
+    last_history_id: int = 10_000
+    calendar_selected_ids: list[str] = Field(default_factory=lambda: ["primary"])
+
+
+@router.post(
+    "/mock-workspace/connection",
+    summary="Create or refresh a mock Gmail connection for local harness testing",
+)
+def seed_mock_workspace_connection(
+    payload: MockWorkspaceConnectionRequest,
+    current_user=Depends(get_current_user),
+    current_org=Depends(get_current_org),
+):
+    _require_dev_tools()
+
+    org_id = current_org["org_id"]
+    user_id = str(current_user["id"])
+    email_address = payload.email_address.strip().lower()
+    if not email_address:
+        raise HTTPException(status_code=400, detail="email_address is required")
+
+    selected_calendar_ids = [
+        calendar_id.strip()
+        for calendar_id in payload.calendar_selected_ids
+        if isinstance(calendar_id, str) and calendar_id.strip()
+    ]
+    if not selected_calendar_ids:
+        selected_calendar_ids = ["primary"]
+
+    crypto = CryptoService()
+    expires_at = datetime.now(UTC) + timedelta(days=365)
+    encrypted_access = crypto.encrypt("mock-access-token")
+    encrypted_refresh = crypto.encrypt("mock-refresh-token")
+
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT connection_id
+                FROM email_connections
+                WHERE org_id = %s
+                  AND user_id = %s
+                  AND email_address = %s
+                  AND archived_at IS NULL
+                LIMIT 1
+                """,
+                (org_id, user_id, email_address),
+            )
+            existing = cur.fetchone()
+
+            if existing is not None:
+                connection_id = str(existing["connection_id"])
+                cur.execute(
+                    """
+                    UPDATE email_connections
+                    SET display_name = %s,
+                        encrypted_access_token = %s,
+                        encrypted_refresh_token = %s,
+                        token_expires_at = %s,
+                        is_active = true,
+                        archived_at = NULL,
+                        sync_interval_minutes = 0,
+                        sync_mark_read = false,
+                        calendar_sync_enabled = true,
+                        calendar_selected_ids = %s,
+                        calendar_sync_tokens = '{}'::jsonb,
+                        last_sync_error = NULL,
+                        last_calendar_sync_error = NULL,
+                        updated_at = now()
+                    WHERE connection_id = %s
+                    """,
+                    (
+                        payload.display_name,
+                        encrypted_access,
+                        encrypted_refresh,
+                        expires_at,
+                        jsonb(selected_calendar_ids),
+                        connection_id,
+                    ),
+                )
+            else:
+                connection_id = str(uuid4())
+                cur.execute(
+                    """
+                    INSERT INTO email_connections
+                        (connection_id, org_id, user_id, email_address, display_name,
+                         encrypted_access_token, encrypted_refresh_token, token_expires_at,
+                         is_active, sync_interval_minutes, sync_mark_read, calendar_sync_enabled,
+                         calendar_selected_ids, calendar_sync_tokens)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, true, 0, false, true, %s, %s)
+                    """,
+                    (
+                        connection_id,
+                        org_id,
+                        user_id,
+                        email_address,
+                        payload.display_name,
+                        encrypted_access,
+                        encrypted_refresh,
+                        expires_at,
+                        jsonb(selected_calendar_ids),
+                        jsonb({}),
+                    ),
+                )
+
+            cur.execute(
+                """
+                INSERT INTO email_sync_state (connection_id, folder_name, last_history_id)
+                VALUES (%s, 'INBOX', %s)
+                ON CONFLICT (connection_id, folder_name)
+                DO UPDATE SET last_history_id = EXCLUDED.last_history_id
+                """,
+                (connection_id, payload.last_history_id),
+            )
+        conn.commit()
+
+    logger.info(
+        "dev.mock_workspace.connection_ready",
+        org_id=org_id,
+        user_id=user_id,
+        connection_id=connection_id,
+        email_address=email_address,
+    )
+    return {
+        "ok": True,
+        "connection_id": connection_id,
+        "email_address": email_address,
+        "calendar_selected_ids": selected_calendar_ids,
+        "last_history_id": payload.last_history_id,
+    }

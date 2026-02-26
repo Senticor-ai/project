@@ -8,13 +8,17 @@ from __future__ import annotations
 
 import base64
 import logging
+import os
 from typing import Any
 
 import httpx
 
 logger = logging.getLogger(__name__)
 
-GMAIL_API_BASE = "https://gmail.googleapis.com/gmail/v1/users/me"
+GMAIL_API_BASE = os.getenv(
+    "GMAIL_API_BASE",
+    "https://gmail.googleapis.com/gmail/v1/users/me",
+)
 _TIMEOUT = 30
 
 

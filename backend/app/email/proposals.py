@@ -10,6 +10,7 @@ from uuid import UUID
 
 from ..db import db_conn, jsonb
 from ..notifications import create_notification_event
+from .cel_rules import evaluate_rule
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,14 @@ def _iso_z(value: datetime) -> str:
 def _email_text(email_item: dict[str, Any]) -> str:
     schema = email_item.get("schema_jsonld") or {}
     return f"{schema.get('name') or ''} {schema.get('description') or ''}".lower()
+
+
+def _has_any_keyword(text: str, keywords: tuple[str, ...]) -> bool:
+    return any(keyword in text for keyword in keywords)
+
+
+def _rule(rule_id: str, context: dict[str, Any], *, default: bool) -> bool:
+    return evaluate_rule(rule_id, context, default=default)
 
 
 def _email_sender(email_item: dict[str, Any]) -> str:
@@ -238,12 +247,28 @@ def _build_reschedule_payload(
     end_dt = _calendar_end(calendar_item) or (start_dt + timedelta(minutes=30))
     new_start = start_dt + timedelta(minutes=30)
     new_end = end_dt + timedelta(minutes=30)
-    urgency = "urgent" if start_dt - datetime.now(UTC) <= _URGENT_WINDOW else "normal"
+    starts_within_urgent_window = start_dt - datetime.now(UTC) <= _URGENT_WINDOW
+    is_urgent = _rule(
+        "proposal.urgency.reschedule",
+        {
+            "operation": "proposal.urgency.reschedule",
+            "calendar": {"starts_within_urgent_window": starts_within_urgent_window},
+        },
+        default=starts_within_urgent_window,
+    )
+    requires_confirmation = _rule(
+        "proposal.confirmation.required",
+        {
+            "operation": "proposal.confirmation.required",
+            "proposal": {"has_google_write_action": True},
+        },
+        default=True,
+    )
 
     return {
         "why": "Inbound email suggests a scheduling change close to an upcoming event.",
         "confidence": "medium",
-        "requires_confirmation": True,
+        "requires_confirmation": requires_confirmation,
         "suggested_actions": ["gcal_update_event", "gmail_send_reply"],
         "gmail_message_id": email_raw.get("gmailMessageId"),
         "thread_id": email_raw.get("threadId"),
@@ -253,7 +278,7 @@ def _build_reschedule_payload(
         "event_id": cal_raw.get("eventId"),
         "new_start": _iso_z(new_start),
         "new_end": _iso_z(new_end),
-        "urgency": urgency,
+        "urgency": "urgent" if is_urgent else "normal",
     }
 
 
@@ -261,13 +286,29 @@ def _build_personal_payload(email_item: dict[str, Any]) -> dict[str, Any]:
     email_schema = email_item.get("schema_jsonld") or {}
     email_raw = (email_schema.get("sourceMetadata") or {}).get("raw") or {}
     text = _email_text(email_item)
-    urgent = any(keyword in text for keyword in _URGENT_KEYWORDS)
+    has_urgent_keyword = _has_any_keyword(text, _URGENT_KEYWORDS)
+    is_urgent = _rule(
+        "proposal.urgency.keyword",
+        {
+            "operation": "proposal.urgency.keyword",
+            "email": {"has_urgent_keyword": has_urgent_keyword},
+        },
+        default=has_urgent_keyword,
+    )
+    requires_confirmation = _rule(
+        "proposal.confirmation.required",
+        {
+            "operation": "proposal.confirmation.required",
+            "proposal": {"has_google_write_action": True},
+        },
+        default=True,
+    )
     start_dt = datetime.now(UTC) + timedelta(hours=2)
     end_dt = start_dt + timedelta(hours=1)
     return {
         "why": "Inbound email looks like a personal pickup request.",
         "confidence": "medium",
-        "requires_confirmation": True,
+        "requires_confirmation": requires_confirmation,
         "suggested_actions": ["gcal_create_event", "gmail_send_reply"],
         "gmail_message_id": email_raw.get("gmailMessageId"),
         "thread_id": email_raw.get("threadId"),
@@ -277,7 +318,7 @@ def _build_personal_payload(email_item: dict[str, Any]) -> dict[str, Any]:
         "event_summary": "Personal request",
         "event_start": _iso_z(start_dt),
         "event_end": _iso_z(end_dt),
-        "urgency": "urgent" if urgent else "normal",
+        "urgency": "urgent" if is_urgent else "normal",
     }
 
 
@@ -292,12 +333,28 @@ def _build_schedule_payload(
         calendar_items=calendar_items,
         duration_minutes=15,
     )
-    urgent = any(keyword in text for keyword in _URGENT_KEYWORDS)
+    has_urgent_keyword = _has_any_keyword(text, _URGENT_KEYWORDS)
+    is_urgent = _rule(
+        "proposal.urgency.keyword",
+        {
+            "operation": "proposal.urgency.keyword",
+            "email": {"has_urgent_keyword": has_urgent_keyword},
+        },
+        default=has_urgent_keyword,
+    )
+    requires_confirmation = _rule(
+        "proposal.confirmation.required",
+        {
+            "operation": "proposal.confirmation.required",
+            "proposal": {"has_google_write_action": True},
+        },
+        default=True,
+    )
     summary = str(email_schema.get("name") or "").strip() or "Quick meeting"
     return {
         "why": "Inbound email asks for a near-term meeting; suggest next available 15-minute slot.",
         "confidence": "medium",
-        "requires_confirmation": True,
+        "requires_confirmation": requires_confirmation,
         "suggested_actions": ["gcal_create_event", "gmail_send_reply"],
         "gmail_message_id": email_raw.get("gmailMessageId"),
         "thread_id": email_raw.get("threadId"),
@@ -311,7 +368,7 @@ def _build_schedule_payload(
         "event_start": _iso_z(start_dt),
         "event_end": _iso_z(end_dt),
         "event_duration_minutes": 15,
-        "urgency": "urgent" if urgent else "normal",
+        "urgency": "urgent" if is_urgent else "normal",
     }
 
 
@@ -321,22 +378,49 @@ def _evaluate_email_candidate(
     calendar_items: list[dict[str, Any]],
 ) -> tuple[str, dict[str, Any]] | None:
     text = _email_text(email_item)
-    if any(keyword in text for keyword in _RESCHEDULE_KEYWORDS):
-        calendar_item = _choose_calendar_item_for_email(
-            email_item=email_item,
-            calendar_items=calendar_items,
+    calendar_item = _choose_calendar_item_for_email(
+        email_item=email_item,
+        calendar_items=calendar_items,
+    )
+    has_reschedule_keyword = _has_any_keyword(text, _RESCHEDULE_KEYWORDS)
+    reschedule_detected = _rule(
+        "proposal.detect.reschedule",
+        {
+            "operation": "proposal.detect",
+            "email": {"has_reschedule_keyword": has_reschedule_keyword},
+            "calendar": {"has_candidate_event": calendar_item is not None},
+        },
+        default=has_reschedule_keyword and calendar_item is not None,
+    )
+    if reschedule_detected and calendar_item is not None:
+        return "Proposal.RescheduleMeeting", _build_reschedule_payload(
+            email_item,
+            calendar_item,
         )
-        if calendar_item:
-            return "Proposal.RescheduleMeeting", _build_reschedule_payload(
-                email_item,
-                calendar_item,
-            )
-    if any(keyword in text for keyword in _SCHEDULE_KEYWORDS):
+
+    has_schedule_keyword = _has_any_keyword(text, _SCHEDULE_KEYWORDS)
+    if _rule(
+        "proposal.detect.schedule",
+        {
+            "operation": "proposal.detect",
+            "email": {"has_schedule_keyword": has_schedule_keyword},
+        },
+        default=has_schedule_keyword,
+    ):
         return "Proposal.PersonalRequest", _build_schedule_payload(
             email_item,
             calendar_items,
         )
-    if any(keyword in text for keyword in _PICKUP_KEYWORDS):
+
+    has_pickup_keyword = _has_any_keyword(text, _PICKUP_KEYWORDS)
+    if _rule(
+        "proposal.detect.pickup",
+        {
+            "operation": "proposal.detect",
+            "email": {"has_pickup_keyword": has_pickup_keyword},
+        },
+        default=has_pickup_keyword,
+    ):
         return "Proposal.PersonalRequest", _build_personal_payload(email_item)
     return None
 
@@ -401,16 +485,24 @@ def _emit_proposal_notification(
     proposal_id = str(proposal_row["proposal_id"])
     proposal_type = str(proposal_row["proposal_type"])
     urgency = str(payload.get("urgency") or "normal")
-    kind = "proposal_urgent_created" if urgency == "urgent" else "proposal_created"
+    is_urgent = _rule(
+        "proposal.notification.urgent_kind",
+        {
+            "operation": "proposal.notification.kind",
+            "proposal": {"urgency": urgency},
+        },
+        default=urgency == "urgent",
+    )
+    kind = "proposal_urgent_created" if is_urgent else "proposal_created"
 
     if proposal_type == "Proposal.RescheduleMeeting":
         title = (
             "Urgent meeting reschedule request"
-            if urgency == "urgent"
+            if is_urgent
             else "Meeting reschedule request"
         )
     elif proposal_type == "Proposal.PersonalRequest":
-        title = "Urgent personal request" if urgency == "urgent" else "Personal request"
+        title = "Urgent personal request" if is_urgent else "Personal request"
     else:
         title = "New proposal"
 
@@ -421,7 +513,7 @@ def _emit_proposal_notification(
         kind=kind,
         title=title,
         body=body,
-        url=f"/settings/email?proposal={proposal_id}",
+        url=f"/workspace/calendar?proposal={proposal_id}",
         payload={
             "proposal_id": proposal_id,
             "proposal_type": proposal_type,

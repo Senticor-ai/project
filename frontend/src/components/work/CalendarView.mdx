@@ -4,43 +4,30 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 # CalendarView
 
-> **Status**: Spec — not yet implemented
+> **Status**: Implemented (List + Week + Month)
 
-Week/month/day calendar view for scheduled items with drag-to-reschedule.
+Calendar surface for `app:bucket = "calendar"` events with:
 
-Embodies **Principle 7: Interface-Level Responsiveness** — drag interactions give
-immediate visual feedback, and **Principle 1: Everything Is an Object** — each event
-is a compact ObjectCard fitting the time slot.
+- List, Week, and Month modes
+- Shared event detail/editor
+- RSVP (`accept`, `tentative`, `decline`)
+- Reschedule (`+30 min` and direct date-time edits)
+- Delete with provider fallback behavior
+- Sync-state badges (`Synced`, `Saving`, `Sync failed`, `Local only`)
 
-## Visual Structure (Week View)
+The component consumes `/calendar/events` records and routes writes through:
 
-```
-┌──────────────────────────────────────────────┐
-│  ◀  February 2026  ▶    [Month][Week][Day]  │
-├──────┬──────┬──────┬──────┬──────┬──────┬───┤
-│ Mon  │ Tue  │ Wed  │ Thu  │ Fri  │ Sat  │Sun│
-│      │      │      │      │      │      │   │
-│┌────┐│      │┌────┐│      │      │      │   │
-││9:00││      ││9:30││      │      │      │   │
-││Team ││      ││1:1  ││      │      │      │   │
-││mtg  ││      ││w/PM ││      │      │      │   │
-│└────┘│      │└────┘│      │      │      │   │
-│      │┌────┐│      │      │┌────┐│      │   │
-│      ││2pm ││      │      ││all ││      │   │
-│      ││Demo││      │      ││day ││      │   │
-│      │└────┘│      │      ││off ││      │   │
-│      │      │      │      │└────┘│      │   │
-│      │      │      │      │  🔄  │      │   │  ← recurring badge
-└──────┴──────┴──────┴──────┴──────┴──────┴───┘
-```
+- `PATCH /calendar/events/{canonical_id}`
+- `POST /calendar/events/{canonical_id}/rsvp`
+- `DELETE /calendar/events/{canonical_id}`
 
-## Design Notes
+## UX Notes
 
-- Each event is a compact ObjectCard (padding 4px 8px, no subtitle, no shadow)
-- Drag to reschedule (snap to 15-min grid)
-- All-day events as colored banners at top of day column
-- Recurring events show a subtle cycle icon
-- Today column highlighted with blueprint background tint
+- List and grid modes open the same detail panel for parity.
+- Non-writable provider events show disabled edit/delete controls with explanation.
+- Notification-driven urgent proposals open Copilot; calendar actions remain directly available from this view.
+- Timed events render with 24-hour `HH:MM` labels (no AM/PM).
+- End-to-end flow reference: [Flows/Inbox to Calendar + Copilot Alerts](?path=/docs/flows-inbox-to-calendar-copilot-alerts--docs).
 
 ## Empty State
 

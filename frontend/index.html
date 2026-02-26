@@ -70,6 +70,62 @@
       <div id="startup-splash-spinner" aria-hidden="true"></div>
     </div>
     <div id="root"></div>
+    <script>
+      (() => {
+        const host = window.location.hostname;
+        const isLocalhost =
+          host === "localhost" ||
+          host === "127.0.0.1" ||
+          host.endsWith(".localhost");
+        if (!isLocalhost) {
+          return;
+        }
+
+        const reloadKey = "__project_dev_sw_reset_v1__";
+
+        const unregisterServiceWorkers = () => {
+          if (!("serviceWorker" in navigator)) {
+            return Promise.resolve(false);
+          }
+          return navigator.serviceWorker
+            .getRegistrations()
+            .then((registrations) =>
+              Promise.all(
+                registrations.map((registration) => registration.unregister()),
+              ).then((results) => results.some(Boolean)),
+            )
+            .catch(() => false);
+        };
+
+        const clearCaches = () => {
+          if (!("caches" in window)) {
+            return Promise.resolve(false);
+          }
+          return caches
+            .keys()
+            .then((keys) =>
+              Promise.all(keys.map((key) => caches.delete(key))).then((results) =>
+                results.some(Boolean),
+              ),
+            )
+            .catch(() => false);
+        };
+
+        Promise.all([unregisterServiceWorkers(), clearCaches()]).then(
+          ([didUnregister, didClearCaches]) => {
+            if (
+              (didUnregister || didClearCaches) &&
+              !sessionStorage.getItem(reloadKey)
+            ) {
+              sessionStorage.setItem(reloadKey, "1");
+              window.location.reload();
+              return;
+            }
+            sessionStorage.removeItem(reloadKey);
+          },
+        );
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -131,15 +131,6 @@ def _existing_sync_tokens(connection: dict) -> dict[str, str]:
     return tokens
 
 
-def _coerce_event_time(raw: dict[str, Any]) -> str | None:
-    if not raw:
-        return None
-    value = raw.get("dateTime") or raw.get("date")
-    if not value:
-        return None
-    return str(value)
-
-
 def _parse_iso(value: str | None) -> datetime | None:
     if not value:
         return None
@@ -151,6 +142,22 @@ def _parse_iso(value: str | None) -> datetime | None:
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=UTC)
     return parsed.astimezone(UTC)
+
+
+def _coerce_event_time(raw: dict[str, Any]) -> str | None:
+    if not raw:
+        return None
+    raw_date = raw.get("date")
+    if isinstance(raw_date, str) and raw_date.strip():
+        # Keep all-day events as plain dates.
+        return raw_date.strip()
+    raw_datetime = raw.get("dateTime")
+    if not isinstance(raw_datetime, str) or not raw_datetime.strip():
+        return None
+    normalized = _parse_iso(raw_datetime.strip())
+    if normalized is None:
+        return raw_datetime.strip()
+    return normalized.isoformat().replace("+00:00", "Z")
 
 
 def _build_calendar_item(event: dict[str, Any], *, calendar_id: str) -> tuple[str, dict[str, Any]]:
@@ -183,6 +190,8 @@ def _build_calendar_item(event: dict[str, Any], *, calendar_id: str) -> tuple[st
             "calendarId": calendar_id,
             "organizer": event.get("organizer"),
             "attendees": event.get("attendees", []),
+            "start": start_raw,
+            "end": end_raw,
         },
     }
 
@@ -391,8 +400,9 @@ def run_calendar_sync(
         if calendar_id in existing_sync_tokens
     }
     now = datetime.now(UTC)
-    time_min = (now - timedelta(days=7)).isoformat().replace("+00:00", "Z")
-    time_max = (now + timedelta(days=30)).isoformat().replace("+00:00", "Z")
+    start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    time_min = start_of_day.isoformat().replace("+00:00", "Z")
+    time_max = (start_of_day + timedelta(days=365)).isoformat().replace("+00:00", "Z")
 
     try:
         for calendar_id in selected_calendar_ids:

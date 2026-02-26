@@ -71,7 +71,9 @@ def build_email_item(
 
     Returns (canonical_id, json_ld_entity).
     """
-    raw_message_id = msg.message_id or msg.uid
+    # For Gmail we want a strict 1:1 mapping between Gmail message and item.
+    # RFC Message-ID can collide across different Gmail messages.
+    raw_message_id = msg.uid if source == "gmail" else (msg.message_id or msg.uid)
     canonical_id = _email_canonical_id(raw_message_id)
 
     subject = msg.subject or "(kein Betreff)"

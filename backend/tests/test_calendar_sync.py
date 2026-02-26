@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 import httpx
@@ -98,6 +98,18 @@ def test_backfill_creates_calendar_items_and_persists_sync_token(
     assert result.errors == 0
     assert result.next_sync_token == "sync-token-1"
 
+    assert mock_events_list.call_count == 1
+    call_kwargs = mock_events_list.call_args.kwargs
+    assert call_kwargs.get("calendar_id") == "primary"
+    time_min = call_kwargs.get("time_min")
+    time_max = call_kwargs.get("time_max")
+    assert isinstance(time_min, str)
+    assert isinstance(time_max, str)
+    min_dt = datetime.fromisoformat(time_min.replace("Z", "+00:00")).astimezone(UTC)
+    max_dt = datetime.fromisoformat(time_max.replace("Z", "+00:00")).astimezone(UTC)
+    assert min_dt.hour == 0 and min_dt.minute == 0 and min_dt.second == 0
+    assert max_dt - min_dt == timedelta(days=365)
+
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -123,6 +135,77 @@ def test_backfill_creates_calendar_items_and_persists_sync_token(
             assert state_row["calendar_sync_token"] == "sync-token-1"
             assert state_row["last_calendar_sync_event_count"] == 2
             assert state_row["last_calendar_sync_error"] is None
+
+
+@patch("app.email.calendar_sync.google_calendar_api.events_list")
+def test_backfill_normalizes_datetime_to_utc_and_preserves_all_day_dates(
+    mock_events_list,
+    calendar_connection,
+):
+    conn_id, org_id, user_id = calendar_connection
+    mock_events_list.return_value = {
+        "items": [
+            _make_event(
+                "evt_tz",
+                summary="Offset Event",
+                start="2026-03-01T10:00:00+01:00",
+                end="2026-03-01T11:30:00+01:00",
+            ),
+            {
+                "id": "evt_all_day",
+                "summary": "All-day Event",
+                "status": "confirmed",
+                "start": {"date": "2026-03-02"},
+                "end": {"date": "2026-03-03"},
+            },
+        ],
+        "nextSyncToken": "sync-token-tz",
+    }
+
+    result = run_calendar_sync(
+        connection_id=conn_id,
+        org_id=org_id,
+        user_id=user_id,
+        access_token="test-access-token",
+    )
+    assert result.created == 2
+    assert result.errors == 0
+
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT schema_jsonld
+                FROM items
+                WHERE org_id = %s
+                  AND source = 'google_calendar'
+                  AND schema_jsonld -> 'sourceMetadata' -> 'raw' ->> 'eventId' = 'evt_tz'
+                """,
+                (org_id,),
+            )
+            tz_row = cur.fetchone()
+            assert tz_row is not None
+            tz_item = tz_row["schema_jsonld"]
+            assert tz_item["startDate"] == "2026-03-01T09:00:00Z"
+            assert tz_item["endDate"] == "2026-03-01T10:30:00Z"
+            assert tz_item["sourceMetadata"]["raw"]["start"]["dateTime"] == "2026-03-01T10:00:00+01:00"
+            assert tz_item["sourceMetadata"]["raw"]["end"]["dateTime"] == "2026-03-01T11:30:00+01:00"
+
+            cur.execute(
+                """
+                SELECT schema_jsonld
+                FROM items
+                WHERE org_id = %s
+                  AND source = 'google_calendar'
+                  AND schema_jsonld -> 'sourceMetadata' -> 'raw' ->> 'eventId' = 'evt_all_day'
+                """,
+                (org_id,),
+            )
+            all_day_row = cur.fetchone()
+            assert all_day_row is not None
+            all_day_item = all_day_row["schema_jsonld"]
+            assert all_day_item["startDate"] == "2026-03-02"
+            assert all_day_item["endDate"] == "2026-03-03"
 
 
 @patch("app.email.calendar_sync.google_calendar_api.events_list")

@@ -13,6 +13,7 @@ import { computeBucketCounts } from "@/lib/bucket-counts";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { BucketNav } from "./BucketNav";
 import { ActionList } from "./ActionList";
+import { CalendarView } from "./CalendarView";
 import { ReferenceList } from "./ReferenceList";
 import { ProjectTree } from "./ProjectTree";
 import type {
@@ -25,6 +26,11 @@ import type {
   ItemEditableFields,
 } from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
+import type {
+  CalendarEventPatchRequest,
+  CalendarEventResponse,
+  CalendarEventRsvpRequest,
+} from "@/lib/api-client";
 
 const thingBuckets = new Set<string>([
   "inbox",
@@ -84,6 +90,17 @@ export interface BucketViewProps {
   organizations?: { id: string; name: string }[];
   /** Optional controls rendered above the left bucket menu. */
   sidebarControls?: ReactNode;
+  calendarEvents?: CalendarEventResponse[];
+  calendarLoading?: boolean;
+  onPatchCalendarEvent?: (
+    canonicalId: string,
+    payload: CalendarEventPatchRequest,
+  ) => Promise<void> | void;
+  onRsvpCalendarEvent?: (
+    canonicalId: string,
+    payload: CalendarEventRsvpRequest,
+  ) => Promise<void> | void;
+  onDeleteCalendarEvent?: (canonicalId: string) => Promise<void> | void;
   className?: string;
 }
 
@@ -114,6 +131,11 @@ export function BucketView({
   linkedActionBuckets,
   organizations,
   sidebarControls,
+  calendarEvents = [],
+  calendarLoading,
+  onPatchCalendarEvent,
+  onRsvpCalendarEvent,
+  onDeleteCalendarEvent,
   className,
 }: BucketViewProps) {
   const isMobile = useIsMobile();
@@ -183,27 +205,65 @@ export function BucketView({
 
         <main className="min-w-0 flex-1" aria-label="Bucket content">
           {thingBuckets.has(activeBucket) ? (
-            <ActionList
-              bucket={activeBucket as ActionItemBucket | "focus"}
-              items={actionItems}
-              onAdd={(title) => {
-                const bucket =
-                  activeBucket === "focus"
-                    ? "next"
-                    : (activeBucket as ActionItemBucket);
-                return onAddActionItem(title, bucket);
-              }}
-              onComplete={onCompleteActionItem}
-              onToggleFocus={onToggleFocus}
-              onMove={onMoveActionItem}
-              onArchive={onArchiveActionItem}
-              onEdit={onEditActionItem}
-              onUpdateTitle={onUpdateTitle}
-              onSetType={onSetType}
-              onFileDrop={onFileDrop}
-              onNavigateToReference={onNavigateToReference}
-              projects={projects}
-            />
+            activeBucket === "calendar" ? (
+              <CalendarView
+                events={
+                  calendarEvents.length > 0
+                    ? calendarEvents
+                    : actionItems
+                        .filter((item) => item.bucket === "calendar")
+                        .map((item) => ({
+                          item_id: item.id,
+                          canonical_id: item.id,
+                          name: item.name || item.rawCapture || "(Untitled)",
+                          description: item.description || null,
+                          start_date: item.startDate || item.scheduledDate || null,
+                          end_date: null,
+                          source: (item.captureSource as { kind?: string })?.kind || "manual",
+                          provider:
+                            (item.captureSource as { kind?: string })?.kind === "google_calendar"
+                              ? "google_calendar"
+                              : null,
+                          calendar_id: null,
+                          event_id: null,
+                          access_role: null,
+                          writable: true,
+                          rsvp_status: null,
+                          sync_state:
+                            (item.captureSource as { kind?: string })?.kind === "google_calendar"
+                              ? "Synced"
+                              : "Local only",
+                          updated_at: item.provenance.updatedAt,
+                        }))
+                }
+                isLoading={calendarLoading}
+                onPatchEvent={onPatchCalendarEvent}
+                onRsvpEvent={onRsvpCalendarEvent}
+                onDeleteEvent={onDeleteCalendarEvent}
+              />
+            ) : (
+              <ActionList
+                bucket={activeBucket as ActionItemBucket | "focus"}
+                items={actionItems}
+                onAdd={(title) => {
+                  const bucket =
+                    activeBucket === "focus"
+                      ? "next"
+                      : (activeBucket as ActionItemBucket);
+                  return onAddActionItem(title, bucket);
+                }}
+                onComplete={onCompleteActionItem}
+                onToggleFocus={onToggleFocus}
+                onMove={onMoveActionItem}
+                onArchive={onArchiveActionItem}
+                onEdit={onEditActionItem}
+                onUpdateTitle={onUpdateTitle}
+                onSetType={onSetType}
+                onFileDrop={onFileDrop}
+                onNavigateToReference={onNavigateToReference}
+                projects={projects}
+              />
+            )
           ) : activeBucket === "reference" ? (
             <ReferenceList
               references={referenceItems}

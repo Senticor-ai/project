@@ -141,7 +141,7 @@ class TestBuildEmailItem:
         sm = entity["sourceMetadata"]
         assert sm["schemaVersion"] == 1
         assert sm["provider"] == "gmail"
-        assert sm["rawId"] == "<test-abc-123@example.com>"
+        assert sm["rawId"] == "12345"
         assert sm["raw"]["messageId"] == "<test-abc-123@example.com>"
         assert sm["raw"]["uid"] == "12345"
 
@@ -188,13 +188,23 @@ class TestBuildEmailItem:
         assert "Prüfung" in entity["name"]
         assert "Müller" in (entity["description"] or "")
 
-    def test_deduplication_across_syncs(self):
-        """Same message_id should always produce the same canonical_id."""
+    def test_gmail_uses_uid_for_canonical_id(self):
+        """Different Gmail message IDs must produce different canonical IDs."""
         msg1 = _make_msg(uid="100", message_id="<same@example.com>")
         msg2 = _make_msg(uid="200", message_id="<same@example.com>")
 
-        id1, _ = build_email_item(msg1)
-        id2, _ = build_email_item(msg2)
+        id1, _ = build_email_item(msg1, source="gmail")
+        id2, _ = build_email_item(msg2, source="gmail")
+
+        assert id1 != id2
+
+    def test_non_gmail_deduplicates_by_message_id(self):
+        """Non-Gmail sources can still dedupe by RFC Message-ID."""
+        msg1 = _make_msg(uid="100", message_id="<same@example.com>")
+        msg2 = _make_msg(uid="200", message_id="<same@example.com>")
+
+        id1, _ = build_email_item(msg1, source="imap")
+        id2, _ = build_email_item(msg2, source="imap")
 
         assert id1 == id2
 

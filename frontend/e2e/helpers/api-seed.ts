@@ -105,6 +105,61 @@ export class ApiSeed {
     return json.item_id;
   }
 
+  /** Create a calendar event (Event type, calendar bucket). Returns canonical_id. */
+  async createCalendarEvent(
+    title: string,
+    options?: {
+      startDate?: string;
+      endDate?: string;
+      description?: string;
+      source?: string;
+    },
+  ): Promise<string> {
+    const id = `urn:app:event:local:${crypto.randomUUID()}`;
+    const now = new Date().toISOString();
+    const startDate =
+      options?.startDate ??
+      new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    const endDate =
+      options?.endDate ??
+      new Date(Date.now() + 90 * 60 * 1000).toISOString();
+
+    const response = await this.request.post("/api/items", {
+      headers: this.headers(),
+      data: {
+        source: options?.source ?? "manual",
+        item: {
+          "@id": id,
+          "@type": "Event",
+          _schemaVersion: 2,
+          name: title,
+          description: options?.description ?? null,
+          keywords: ["calendar"],
+          dateCreated: now,
+          dateModified: now,
+          startDate,
+          endDate,
+          startTime: startDate,
+          additionalProperty: [
+            pv("app:bucket", "calendar"),
+            pv("app:rawCapture", title),
+            pv("app:needsEnrichment", false),
+            pv("app:confidence", "high"),
+            pv("app:captureSource", { kind: "thought" }),
+            pv("app:contexts", []),
+            pv("app:isFocused", false),
+            pv("app:ports", []),
+            pv("app:typedReferences", []),
+            pv("app:provenanceHistory", [{ timestamp: now, action: "created" }]),
+            pv("app:projectRefs", []),
+          ],
+        },
+      },
+    });
+    const json = await response.json();
+    return json.canonical_id;
+  }
+
   /** Create a project via API (v2 schema). Returns the canonical ID (urn:app:project:...). */
   async createProject(
     title: string,
@@ -323,5 +378,19 @@ export class ApiSeed {
       await new Promise((r) => setTimeout(r, 50));
     }
     return ids;
+  }
+
+  async sendNotification(payload: {
+    kind?: string;
+    title: string;
+    body: string;
+    url?: string | null;
+    payload?: Record<string, unknown>;
+  }): Promise<{ event_id: string }> {
+    const response = await this.request.post("/api/notifications/send", {
+      headers: this.headers(),
+      data: payload,
+    });
+    return response.json();
   }
 }

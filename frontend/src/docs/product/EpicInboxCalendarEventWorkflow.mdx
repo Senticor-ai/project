@@ -4,7 +4,7 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 # Epic: Inbox to Calendar Event Workflow
 
-**Status:** Draft
+**Status:** Delivery in progress (spec + implementation slices active)
 **Priority:** Current
 **Checklist audit:** February 25, 2026 -- rewritten to development-ready contract; all acceptance criteria remain unchecked until implementation lands.
 **Last updated:** 2026-02-25
@@ -48,6 +48,30 @@ Users expect calendar sync to behave as a single, reliable system:
 6. Support in-product event actions that propagate to Google when applicable.
 7. Define robust error/retry/permission behavior so users can trust sync.
 8. Ensure urgent Copilot proposal flows are visible and executable end-to-end from browser alert to Google+email writeback.
+
+## Delivery Plan (6 Items)
+
+1. **Calendar visibility + write APIs**
+   - `GET/PATCH/POST RSVP/DELETE /calendar/events`
+   - start-of-today to +365 day initial sync horizon
+   - Status: Implemented
+2. **Calendar bucket UX parity**
+   - List/Week/Month, shared details panel, RSVP/reschedule/delete actions
+   - Status: Implemented (`Work/CalendarView`)
+3. **Urgent proposal trigger + notification orchestration**
+   - proposals auto-generated from email/calendar context
+   - urgent proposals emit browser/in-app notifications and deep-link to Copilot
+   - Status: Implemented
+4. **Busy-agent durability guarantees**
+   - `proposal_candidates` queue with lease/retry/dead-letter semantics
+   - Status: Implemented
+5. **CLI operator/runtime support**
+   - `notifications send`, `notifications watch --sse`, `proposals watch`
+   - Status: Implemented
+6. **Deterministic mock harness + Storybook flow docs**
+   - mock Gmail/Calendar harness + urgent scenario seed script
+   - human tester playbook documented in Storybook flow docs
+   - Status: Implemented ([Flow: Inbox to Calendar + Copilot Alerts](?path=/docs/flows-inbox-to-calendar-copilot-alerts--docs))
 
 ## Scope
 
@@ -323,6 +347,19 @@ Implementation note:
 
 ## Technical specification
 
+### TS-0: Central CEL rule catalog (enforced)
+
+Google Workspace sync/proposal decision rules are centralized in:
+
+- `backend/app/email/rules/sync_behavior_rules.json`
+
+Runtime enforcement uses `backend/app/email/cel_rules.py` and is applied in:
+
+- `backend/app/email/sync.py`
+- `backend/app/email/proposals.py`
+
+This keeps decision logic reviewable and change-controlled in one place while still executing in production code paths.
+
 ### TS-1: Wake-up and event propagation model
 
 Use existing outbox/event infrastructure as the canonical wake-up path:
@@ -462,6 +499,14 @@ Operational controls:
 
 - Queue depth metric, lease-timeout metric, retry-count metric, dead-letter metric.
 - Alert on sustained queue age and dead-letter growth.
+
+### TS-9: Timezone storage and rendering contract
+
+- Persist timed event timestamps in backend as UTC (`YYYY-MM-DDTHH:MM:SSZ`) for deterministic cross-device behavior.
+- Preserve provider-native temporal payload in `sourceMetadata.raw.start/end` for traceability.
+- Keep all-day events as date-only strings (`YYYY-MM-DD`) without timezone conversion.
+- Render and group events in frontend using the viewer timezone from browser/OS settings.
+- Device timezone changes must only affect presentation (day bucket + wall-clock label), never stored absolute time.
 
 ### Writeback execution model
 
@@ -606,6 +651,8 @@ Alert thresholds:
 - rsvp/reschedule/delete provider call mapping + error handling
 - permission matrix (owner/writer/reader/freeBusyReader)
 - idempotency and conflict behavior
+- timezone normalization: provider offsets -> UTC persistence for timed events; date-only events unchanged
+- calendar patch normalization: offset datetime input -> UTC writeback payload + UTC item storage
 
 ### Frontend integration tests
 
@@ -615,6 +662,8 @@ Alert thresholds:
 - dedupe behavior across SSE + browser notification + toast (single user-visible alert per `event_id`)
 - project filter behavior with multi-project events
 - write failure and retry UX
+- day grouping uses viewer timezone (not UTC slicing) for list/week/month parity
+- event time labels always render in 24-hour `HH:MM` format (no AM/PM)
 
 ### End-to-end tests
 

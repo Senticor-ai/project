@@ -170,6 +170,26 @@ export type SyncResponse = {
   server_time: string;
 };
 
+export type NotificationEventRecord = {
+  event_id: string;
+  kind: string;
+  title: string;
+  body: string;
+  url: string | null;
+  payload: Record<string, unknown>;
+  created_at: string;
+  read_at?: string | null;
+};
+
+export type NotificationSendPayload = {
+  kind?: string;
+  title: string;
+  body: string;
+  url?: string | null;
+  payload?: Record<string, unknown>;
+  target_user_id?: string;
+};
+
 export type StoredUser = {
   id: string;
   email: string;
@@ -214,6 +234,32 @@ export class CopilotApi {
   // Orgs
   listOrgs() {
     return this.client.requestJson<OrgResponse[]>("/orgs", { method: "GET" });
+  }
+
+  // Notifications
+  listNotifications(params?: { cursor?: string; limit?: number }) {
+    const searchParams = new URLSearchParams();
+    if (params?.cursor) searchParams.set("cursor", params.cursor);
+    if (params?.limit) searchParams.set("limit", String(params.limit));
+    const query = searchParams.toString();
+    return this.client.requestJson<NotificationEventRecord[]>(
+      `/notifications${query ? `?${query}` : ""}`,
+      { method: "GET" },
+    );
+  }
+
+  sendNotification(payload: NotificationSendPayload) {
+    return this.client.requestJson<NotificationEventRecord>(
+      "/notifications/send",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      },
+      { retryOnAuth: true },
+    );
   }
 
   // Items

@@ -68,6 +68,15 @@ const mockArchiveRef = { mutate: vi.fn() };
 const mockUpdate = { mutate: vi.fn() };
 const mockAddProjectAction = { mutate: vi.fn() };
 const mockCreateProject = { mutate: vi.fn() };
+const mockCalendarEvents = vi.fn(() => ({
+  data: [],
+  isLoading: false,
+  isFetching: false,
+  error: null,
+}));
+const mockPatchCalendarEvent = { mutateAsync: vi.fn() };
+const mockRsvpCalendarEvent = { mutateAsync: vi.fn() };
+const mockDeleteCalendarEvent = { mutateAsync: vi.fn() };
 
 vi.mock("@/hooks/use-mutations", () => ({
   useCaptureInbox: () => mockCapture,
@@ -81,6 +90,13 @@ vi.mock("@/hooks/use-mutations", () => ({
   useUpdateItem: () => mockUpdate,
   useAddProjectAction: () => mockAddProjectAction,
   useCreateProject: () => mockCreateProject,
+}));
+
+vi.mock("@/hooks/use-calendar-events", () => ({
+  useCalendarEvents: () => mockCalendarEvents(),
+  usePatchCalendarEvent: () => mockPatchCalendarEvent,
+  useSetCalendarEventRsvp: () => mockRsvpCalendarEvent,
+  useDeleteCalendarEvent: () => mockDeleteCalendarEvent,
 }));
 
 // Capture BucketView props so we can invoke callbacks in tests

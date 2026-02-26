@@ -1,0 +1,65 @@
+[
+  {
+    "id": "sync.gmail.backfill.query.inbox_only",
+    "description": "Full inbox backfill must use the INBOX query for parity checks.",
+    "when": "operation == 'sync.gmail.backfill.query'",
+    "expression": "gmail.query == 'in:inbox'",
+    "source_refs": ["app/email/sync.py:324"]
+  },
+  {
+    "id": "sync.gmail.message.importable",
+    "description": "Only messages that currently have the INBOX label are importable to the app inbox.",
+    "when": "operation == 'sync.gmail.message.importable'",
+    "expression": "message.has_inbox_label == true",
+    "source_refs": ["app/email/sync.py:394"]
+  },
+  {
+    "id": "proposal.detect.reschedule",
+    "description": "Reschedule proposals require a reschedule signal and a matching upcoming calendar event.",
+    "when": "operation == 'proposal.detect'",
+    "expression": "email.has_reschedule_keyword && calendar.has_candidate_event",
+    "source_refs": ["app/email/proposals.py:318"]
+  },
+  {
+    "id": "proposal.detect.schedule",
+    "description": "Schedule proposals are generated when the email asks for scheduling.",
+    "when": "operation == 'proposal.detect'",
+    "expression": "email.has_schedule_keyword",
+    "source_refs": ["app/email/proposals.py:334"]
+  },
+  {
+    "id": "proposal.detect.pickup",
+    "description": "Personal request proposals are generated when pickup/errand intent is detected.",
+    "when": "operation == 'proposal.detect'",
+    "expression": "email.has_pickup_keyword",
+    "source_refs": ["app/email/proposals.py:339"]
+  },
+  {
+    "id": "proposal.urgency.reschedule",
+    "description": "Reschedule proposals are urgent if the event starts within the urgent window.",
+    "when": "operation == 'proposal.urgency.reschedule'",
+    "expression": "calendar.starts_within_urgent_window",
+    "source_refs": ["app/email/proposals.py:241"]
+  },
+  {
+    "id": "proposal.urgency.keyword",
+    "description": "Keyword-based proposals are urgent when urgent language is present.",
+    "when": "operation == 'proposal.urgency.keyword'",
+    "expression": "email.has_urgent_keyword",
+    "source_refs": ["app/email/proposals.py:264", "app/email/proposals.py:295"]
+  },
+  {
+    "id": "proposal.confirmation.required",
+    "description": "Google write actions always require user confirmation.",
+    "when": "operation == 'proposal.confirmation.required'",
+    "expression": "proposal.has_google_write_action == true",
+    "source_refs": ["app/email/proposals.py:246", "app/email/proposals.py:270", "app/email/proposals.py:300"]
+  },
+  {
+    "id": "proposal.notification.urgent_kind",
+    "description": "Urgent proposals use urgent notification kind.",
+    "when": "operation == 'proposal.notification.kind'",
+    "expression": "proposal.urgency == 'urgent'",
+    "source_refs": ["app/email/proposals.py:404"]
+  }
+]
