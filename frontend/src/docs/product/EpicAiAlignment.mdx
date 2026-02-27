@@ -1,0 +1,313 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Product/Epics/AI Alignment and Guardrails" />
+
+# Epic: AI Alignment & Guardrails
+
+**Status:** Draft
+**Priority:** Sprint 2-3 (guardrail gate + confirmation flow) + Sprint 4+ (feedback, admin dashboards)
+**Last updated:** 2026-02-27
+**Depends on:** [Enterprise Middleware Spine](?path=/docs/product-epics-enterprise-middleware-spine--docs) (middleware pipeline + pre-tool-exec hook), [Admin Panel Foundation](?path=/docs/product-epics-admin-panel-foundation--docs) (for admin UI)
+**Related:** [Engineering: Agents Service](?path=/docs/engineering-agents-service--docs), [Engineering: LLM Evaluation](?path=/docs/engineering-llm-evaluation--docs), [Self-Aware Copilot](?path=/docs/product-epics-self-aware-copilot--docs)
+
+> **Sequencing note:** The middleware pipeline is built by the
+> [Enterprise Middleware Spine](?path=/docs/product-epics-enterprise-middleware-spine--docs) (OpenClaw-first).
+> For OpenClaw, tool execution tracking happens at the `/items` API level (via `X-Agent` header audit),
+> not at `/chat/execute-tool`. This epic wires guardrail validation into the item creation path and
+> the SSE stream. Phase 1 (output validation) and Phase 2 (confirmation gate) are Sprint 2-3 priorities.
+> Phases 3-5 (feedback, admin policy, transparency UI) are Sprint 4+ feature layer.
+> Haystack-specific guardrails are deferred (Haystack is marked experimental).
+
+---
+
+## Context
+
+The copilot sends user work items to LLMs and **executes tool calls** (creating, modifying, and
+triaging items) based on LLM responses — with no safety net between the model's output and the
+action taken on user data.
+
+### Current risk surface
+
+| Risk | Current mitigation | Gap |
+|------|--------------------|-----|
+| **Hallucinated tool calls** | None. Tool args from LLM are passed directly to `POST /chat/execute-tool`. | Schema validation of tool call arguments before execution. |
+| **PII in LLM output** | None. Model responses are streamed directly to the user. | PII detection in outbound responses. |
+| **Silent data corruption** | `assertions` table logs provenance, but only after the fact. | Pre-execution validation and human-in-the-loop gate for destructive actions. |
+| **No feedback loop** | No mechanism for users to flag bad responses. | Thumbs up/down + comment → feeds quality metrics. |
+| **No guardrail policy** | Behavior is hardcoded in prompt templates (`AGENTS.md`, `copilot_system.j2`). | Configurable guardrail policies per org. |
+| **EU AI Act (Art. 14)** | No human oversight mechanism documented or implemented. | Confirmation gates, audit trail, transparency indicators. |
+
+The tool execution pipeline (`/chat/execute-tool`) is the natural interception point: every action
+the LLM proposes passes through this endpoint before affecting user data. The streaming NDJSON
+format (`text_delta`, `tool_calls`, `done`) can be extended with guardrail metadata without breaking
+existing clients.
+
+### What we can build on
+
+- `CachedTracedChatGenerator` — full request/response tracing per LLM call
+- `/chat/execute-tool` endpoint — single gateway for all LLM-initiated actions
+- `assertions` table — extensible audit trail with actor context + OTEL trace IDs
+- `chat_messages` table with `tool_calls` JSONB — AI decision history already persisted
+- Streaming NDJSON format — can inject new event types (`guardrail_result`, `confirmation_required`)
+- `AGENTS.md` guardrails (rules 13-15) — behavioral rules exist but are prompt-only, not enforced
+
+---
+
+## User Story
+
+> "As a federal clerk, I need to trust that the AI copilot won't silently modify my case data
+> incorrectly. I want to see what the AI is about to do before it does it, give feedback when
+> it gets things wrong, and know that my organization has guardrails in place — so that I can
+> confidently use AI assistance without risking data integrity."
+
+---
+
+## Goals
+
+1. Every LLM-proposed tool call is validated against a schema and content policy before execution.
+2. Destructive actions (create, modify, archive items) require explicit user confirmation when configured.
+3. Users can rate AI responses (thumbs up/down) and flag problematic outputs.
+4. Admins can configure guardrail sensitivity and review AI behavior metrics.
+5. Every AI decision is auditable: what was proposed, what the guardrail decided, what was executed.
+6. AI transparency is visible in the chat UI (confidence indicators, guardrail status).
+
+---
+
+## Out of Scope
+
+- Training or fine-tuning models on user feedback (feedback is collected for human review only).
+- Real-time model switching based on guardrail violations (future optimization).
+- Content moderation of user input (this epic covers model output only).
+- Prompt injection defense (separate security concern; partially addressed by tool call validation).
+
+---
+
+## MVP Scope
+
+### 1) Output validation layer
+
+**Backend / Agents:**
+
+- Guardrail middleware in the tool execution pipeline (`backend/app/chat/routes.py`):
+  1. **Schema validation**: validate tool call arguments against the tool's JSON Schema before execution.
+     Reject malformed calls with a structured error streamed back to the user.
+  2. **Content policy check**: scan tool call string arguments for blocklist patterns (configurable per org).
+  3. **PII detection**: lightweight regex-based scan for German PII patterns (Sozialversicherungsnummer,
+     IBAN, Personalausweisnummer) in LLM-generated text that would be written to item fields.
+- Guardrail result is logged before the tool executes:
+  ```sql
+  CREATE TABLE guardrail_events (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_id UUID NOT NULL,
+    user_id UUID NOT NULL,
+    conversation_id UUID,
+    message_id UUID,
+    rule_id TEXT NOT NULL,          -- 'schema_validation', 'content_policy', 'pii_detection'
+    verdict TEXT NOT NULL,          -- 'pass', 'block', 'warn'
+    reason TEXT,                    -- human-readable explanation
+    tool_name TEXT,
+    tool_args JSONB,
+    user_override BOOLEAN DEFAULT false,
+    trace_id TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+  ```
+
+### 2) Human-in-the-loop confirmation gate
+
+**Backend:**
+
+- New stream event type in NDJSON: `confirmation_required`
+  ```json
+  {"type": "confirmation_required", "tool_name": "create_item", "tool_args": {...}, "guardrail_warnings": [...]}
+  ```
+- The backend holds the tool execution until the frontend sends a confirmation:
+  `POST /chat/confirm-tool/{message_id}` with `{ "approved": true/false }`
+- If rejected, the conversation continues with a system message explaining the user declined.
+
+**Frontend — Chat UI:**
+
+- When `confirmation_required` event is received, render an inline confirmation card:
+  - Tool name and human-readable description of what will happen
+  - Any guardrail warnings (e.g. "PII detected in proposed title")
+  - "Approve" and "Reject" buttons
+- After approval/rejection, resume the stream.
+
+**Configuration (Settings — "Agent Setup" tab):**
+
+- Tool execution confirmation mode:
+  - **Auto** — execute all tool calls without confirmation (current behavior)
+  - **Confirm destructive** — require confirmation for create, modify, archive actions
+  - **Confirm all** — require confirmation for every tool call including reads
+
+### 3) User feedback mechanism
+
+**Backend:**
+
+- `user_feedback` table:
+  ```sql
+  CREATE TABLE user_feedback (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_id UUID NOT NULL,
+    user_id UUID NOT NULL,
+    conversation_id UUID NOT NULL,
+    message_id UUID NOT NULL,
+    rating TEXT NOT NULL,              -- 'positive', 'negative'
+    comment TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+  ```
+- `POST /chat/feedback` — submit feedback for a message
+- `GET /admin/feedback` — paginated list of feedback for org (admin only)
+
+**Frontend — Chat UI:**
+
+- Thumbs up / thumbs down buttons on every assistant message (appear on hover / always visible on mobile)
+- Optional comment text field that expands when thumbs down is clicked
+- Visual confirmation after submission ("Feedback recorded")
+
+### 4) Guardrail policy configuration (admin)
+
+**Backend:**
+
+- `guardrail_policies` table:
+  ```sql
+  CREATE TABLE guardrail_policies (
+    org_id UUID PRIMARY KEY REFERENCES organizations(org_id),
+    sensitivity TEXT NOT NULL DEFAULT 'balanced',  -- 'strict', 'balanced', 'permissive'
+    require_confirmation TEXT NOT NULL DEFAULT 'destructive', -- 'all', 'destructive', 'none'
+    pii_detection_enabled BOOLEAN NOT NULL DEFAULT true,
+    custom_blocklist TEXT[] DEFAULT '{}',
+    updated_by UUID REFERENCES users(user_id),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+  ```
+- `GET /admin/guardrail-policy` — read current org policy
+- `PUT /admin/guardrail-policy` — update policy
+- User-level settings in `user_agent_settings` can override confirmation mode **up** (stricter) but
+  not **down** from org policy. E.g., if org requires "confirm destructive", user can choose
+  "confirm all" but not "auto".
+
+**Frontend — Admin panel "AI Safety" tab:**
+
+- Guardrail policy card:
+  - Sensitivity level selector (strict / balanced / permissive) with explanation of each level
+  - Default confirmation mode for the org
+  - PII detection toggle
+  - Custom blocklist editor (add/remove patterns)
+- AI decision audit trail table:
+  - Columns: timestamp, user, tool, verdict, reason, user override
+  - Filterable by verdict (pass/block/warn), date range, user
+- User feedback dashboard:
+  - Positive/negative ratio over time (line chart)
+  - Recent negative feedback with comments (for review)
+  - Flagged responses requiring admin review
+- Model quality metrics:
+  - Tool call acceptance rate (approved vs rejected in confirmation flow)
+  - Guardrail block rate by rule type
+  - Feedback score trend per model
+
+### 5) AI transparency in chat UI
+
+**Frontend — Chat UI:**
+
+- Extend NDJSON `done` event with optional metadata:
+  ```json
+  {"type": "done", "guardrail_passed": true, "tools_executed": 2, "tools_blocked": 0}
+  ```
+- Subtle status line below assistant messages: "2 actions executed" or "1 action blocked by guardrails"
+- Expandable detail view showing which tools were called and their guardrail status
+- When guardrail blocks a tool, show inline explanation: "This action was blocked because: [reason]"
+
+---
+
+## Key Files
+
+| File | Change |
+|------|--------|
+| `backend/app/chat/routes.py` | Guardrail middleware, confirmation gate, feedback endpoints |
+| `backend/app/routes/admin.py` | Guardrail policy, feedback, AI audit endpoints |
+| `backend/db/schema.sql` | New tables (guardrail_events, user_feedback, guardrail_policies) |
+| `frontend/src/components/chat/CopilotChatPanel.tsx` | Confirmation cards, feedback buttons, transparency indicators |
+| `frontend/src/components/chat/ConfirmationCard.tsx` | New: inline tool confirmation UI |
+| `frontend/src/components/chat/MessageFeedback.tsx` | New: thumbs up/down + comment |
+| `frontend/src/components/settings/AgentSetupPanel.tsx` | Confirmation mode selector |
+| `frontend/src/components/admin/AdminAiSafetyPanel.tsx` | Guardrail policy config, audit trail, feedback dashboard |
+| `agents/copilot.py` | PII detection, content policy check integration |
+
+---
+
+## Delivery Plan
+
+### Phase 1: Output validation layer
+
+- [ ] Create `guardrail_events` table + Alembic migration
+- [ ] Implement schema validation for tool call arguments in `chat/routes.py`
+- [ ] Implement content policy check (blocklist matching)
+- [ ] Implement PII detection (German PII patterns)
+- [ ] Log guardrail events to database
+- [ ] Write backend tests (TDD: valid tool call passes, malformed blocked, PII detected)
+
+### Phase 2: Human-in-the-loop confirmation
+
+- [ ] Implement `confirmation_required` NDJSON stream event
+- [ ] Implement `POST /chat/confirm-tool/{message_id}` endpoint
+- [ ] Build `ConfirmationCard.tsx` component
+- [ ] Add confirmation mode selector to `AgentSetupPanel.tsx`
+- [ ] Write frontend tests for confirmation flow
+- [ ] Write integration test: destructive tool call requires confirmation
+
+### Phase 3: User feedback
+
+- [ ] Create `user_feedback` table + migration
+- [ ] Implement `POST /chat/feedback` endpoint
+- [ ] Build `MessageFeedback.tsx` component (thumbs up/down + comment)
+- [ ] Integrate into `CopilotChatPanel.tsx`
+- [ ] Write tests for feedback submission and display
+
+### Phase 4: Admin guardrail policy and dashboards
+
+- [ ] Create `guardrail_policies` table + migration
+- [ ] Implement admin policy CRUD endpoints
+- [ ] Build `AdminAiSafetyPanel.tsx` with policy config, audit trail, feedback dashboard
+- [ ] Implement org-policy-overrides-user logic for confirmation mode
+- [ ] Write admin panel tests
+
+### Phase 5: AI transparency in chat
+
+- [ ] Extend `done` stream event with guardrail metadata
+- [ ] Add status line and expandable detail view to assistant messages
+- [ ] Write Storybook stories for all guardrail states (passed, blocked, confirmation pending)
+
+---
+
+## Acceptance Criteria
+
+- [ ] Malformed tool call arguments are rejected before execution with structured error
+- [ ] PII patterns in LLM-generated item fields are detected and flagged
+- [ ] Content policy blocklist matches trigger a block verdict
+- [ ] All guardrail decisions are logged in `guardrail_events` with trace ID correlation
+- [ ] User sees a confirmation card for destructive tool calls when confirmation mode is enabled
+- [ ] User can approve or reject proposed tool calls
+- [ ] User can submit thumbs up/down feedback on any assistant message
+- [ ] Negative feedback supports an optional comment
+- [ ] Admin can set org-wide guardrail sensitivity level
+- [ ] Admin can set org-wide default confirmation mode
+- [ ] Admin can view AI decision audit trail with filtering
+- [ ] Admin can view aggregated user feedback and flagged responses
+- [ ] Chat UI shows subtle guardrail status on assistant messages
+- [ ] User-level confirmation mode cannot be less strict than org policy
+
+---
+
+## Definition of Done
+
+- [ ] All acceptance criteria implemented and passing
+- [ ] Backend tests pass (`uv run python -m pytest`)
+- [ ] Agents tests pass (`cd agents && uv run python -m pytest tests/`)
+- [ ] Frontend unit tests pass (`CI=1 npx vitest run --project=unit`)
+- [ ] TypeScript clean (`npx tsc -b --noEmit`)
+- [ ] ESLint clean (`npx eslint src/`)
+- [ ] Prettier clean (`npx prettier --check src/`)
+- [ ] `npm run preflight:local` passes
+- [ ] Engineering MDX doc created: `Engineering/AiAlignment.mdx` documenting guardrail architecture

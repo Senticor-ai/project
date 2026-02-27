@@ -1,0 +1,391 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Product/Epics/Enterprise Middleware Spine" />
+
+# Epic: Enterprise Middleware Spine (OpenClaw-first)
+
+**Status:** Draft
+**Priority:** Current — build first
+**Last updated:** 2026-02-27
+**Depends on:** —
+**Related:** [Self-Aware Copilot](?path=/docs/product-epics-self-aware-copilot--docs), [Engineering: Agents Service](?path=/docs/engineering-agents-service--docs), [DSGVO Compliance](?path=/docs/product-epics-dsgvo-compliance--docs), [AI Alignment](?path=/docs/product-epics-ai-alignment-and-guardrails--docs), [LLM Cost Management](?path=/docs/product-epics-llm-cost-management--docs)
+
+---
+
+## Context
+
+Three enterprise epics (DSGVO, AI Alignment, LLM Cost Management) need to instrument, trace,
+and gate the LLM and tool-execution paths. This epic builds the shared middleware — **focused
+on the OpenClaw path only**. The native Haystack/copilot backend is marked as experimental in
+the UI; enterprise middleware for it is deferred.
+
+### Why OpenClaw-first matters
+
+OpenClaw is the default agent backend (`default_agent_backend = "openclaw"` in `config.py:319`).
+It has a fundamentally different architecture from Haystack — and the original middleware spine
+was designed entirely around Haystack's interception points, which don't apply:
+
+| Concern | Haystack path | OpenClaw path |
+|---------|--------------|---------------|
+| **LLM calls** | Backend proxies to agents service → we can intercept | **Opaque** — container calls OpenRouter directly via injected API key |
+| **Tool execution** | Frontend calls `/chat/execute-tool` → we can intercept | **Autonomous** — container runs `exec curl` against `/items` API with `X-Agent: openclaw` header |
+| **Token usage** | Accessible in `CachedTracedChatGenerator` traces | **Not accessible** — happens inside container |
+| **Streaming protocol** | NDJSON native | SSE translated to NDJSON by `SseToNdjsonTranslator` |
+| **Multi-turn agent loops** | Single LLM call per request | Multiple LLM calls per request (agent reasons, executes tools, reasons again — all inside container) |
+
+### OpenClaw request flow
+
+```
+POST /chat/completions
+  ↓
+[Backend] agent_backend == "openclaw" (routes.py:299)
+  ↓
+[Backend] ensure_running(user_id) → (container_url, gateway_token)
+  ↓
+[Backend] create_delegated_token() → write_token_file()
+  ↓                                                    ┌─────────────────────────┐
+[Backend] POST {container_url}/v1/chat/completions     │  OpenClaw Container     │
+  ↓                                                    │  ├─ LLM call (direct)   │
+[Backend] _stream_openclaw() receives SSE              │  ├─ Tool exec (curl)    │
+  ↓                                                    │  ├─ LLM call (direct)   │
+[Backend] SseToNdjsonTranslator → NDJSON to frontend   │  └─ Final response      │
+  ↓                                                    └─────────────────────────┘
+[Backend] save_message() + yield {"type": "items_changed"}
+```
+
+### Interception points for OpenClaw
+
+Since LLM calls and tool execution happen **inside the container**, the interception model
+is fundamentally different:
+
+| Interception point | Where | What we can do |
+|---|---|---|
+| **Pre-flight** (`_stream_openclaw`, before HTTP call) | `routes.py:229` | Consent check, budget pre-check — **blocking** |
+| **Post-stream** (`_stream_openclaw`, after stream) | `routes.py:259` | Usage capture (OpenRouter SDK post-hoc), data processing log — **async** |
+| **Item API** (`POST /items`, `PATCH /items/{id}`) | `routes/items.py` | Agent action audit — when `X-Agent: openclaw` header is present, log the mutation as an AI-initiated action |
+| **SSE translation** (`SseToNdjsonTranslator.feed()`) | `sse_translator.py:31` | Extract `usage` from final SSE chunk if OpenRouter returns it |
+
+Key insight: **tool execution tracking moves from `/chat/execute-tool` to the `/items` API**.
+OpenClaw creates items by calling the backend API directly with `X-Agent: openclaw` and a
+delegated JWT. We add audit hooks there — this actually gives us **better coverage** than
+the Haystack path because it catches ALL item mutations from agents, not just function calls.
+
+### Token counting: OpenRouter SDK post-hoc
+
+OpenClaw makes LLM calls **directly** inside the container using the user's injected API key.
+The backend never sees the LLM request/response. However:
+
+- OpenRouter tracks all API usage per key
+- After each OpenClaw stream completes, query OpenRouter's credits/generation API for the
+  delta in usage since the last check
+- This captures ALL LLM calls the container made during the request (including internal
+  agent loop iterations), not just the final stream — giving more accurate cost data than
+  per-call tracking
+
+Reference: https://openrouter.ai/docs/sdks/typescript/api-reference/credits
+
+### What we can build on
+
+- `_stream_openclaw()` in `routes.py:193-263` — OpenClaw streaming with SSE translation
+- `SseToNdjsonTranslator` in `sse_translator.py` — stateful SSE→NDJSON converter
+- `ensure_running()` in `container/manager.py:438-474` — container lifecycle
+- `write_token_file()` — delegated JWT delivery to container
+- `X-Agent: openclaw` header convention — already used in `backend-api/SKILL.md` for all
+  item mutations
+- `org_memberships.role` — role column exists but not enforced
+- `assertions` table — append-only audit trail
+- Prometheus metrics pipeline in `backend/app/metrics.py`
+- `_probe_openrouter()` in `llm_validation.py:61-119` — existing credits check pattern
+
+---
+
+## User Story
+
+> "As the engineering team, we need shared middleware for the OpenClaw chat path so that
+> consent checks, usage tracking, and agent action auditing all plug in cleanly — instead
+> of bolting enterprise concerns onto an architecture designed for a different agent backend."
+
+---
+
+## Goals
+
+1. Pre-flight hooks in `_stream_openclaw()` gate the request (consent, budget) before
+   the container is called.
+2. Post-stream hooks fire async after the OpenClaw stream completes (usage capture, data
+   flow logging).
+3. Agent action audit captures every item mutation made by OpenClaw via the `/items` API.
+4. Usage events are captured for every chat request from day one — token counts and cost
+   via OpenRouter SDK post-hoc.
+5. Consent model is in place with LLM proxy enforcement.
+6. Admin role enforcement is operational on the backend.
+7. Haystack copilot path is marked as experimental in the Agent Setup UI.
+
+---
+
+## Out of Scope
+
+- Admin panel UI (delivered by [Admin Panel Foundation](?path=/docs/product-epics-admin-panel-foundation--docs))
+- Data residency enforcement (delivered by [DSGVO Compliance](?path=/docs/product-epics-dsgvo-compliance--docs))
+- Budget enforcement middleware (delivered by [LLM Cost Management](?path=/docs/product-epics-llm-cost-management--docs))
+- Guardrail validation of LLM output text (delivered by [AI Alignment](?path=/docs/product-epics-ai-alignment-and-guardrails--docs))
+- Enterprise middleware for the Haystack path (deferred — Haystack is experimental)
+- All dashboards and frontend UI beyond the "experimental" label
+
+---
+
+## MVP Scope
+
+### 1) OpenClaw pre-flight and post-stream hook pipeline
+
+**Changes:**
+
+- New `backend/app/chat/middleware.py` — hook interface:
+
+  ```python
+  @dataclass
+  class ChatRequestContext:
+      user_id: str
+      org_id: str
+      conversation_id: str
+      agent_backend: str          # "openclaw" | "haystack"
+      model: str | None = None    # resolved from user_agent_settings
+      provider: str | None = None
+      api_key_ref: str | None = None  # reference for OpenRouter SDK lookup (NOT the key itself)
+      trace_id: str | None = None
+
+  class PreFlightHook(Protocol):
+      """Runs before container/agent call. Can raise to block."""
+      async def __call__(self, ctx: ChatRequestContext) -> None: ...
+
+  class PostStreamHook(Protocol):
+      """Runs after stream completes. Async, non-blocking."""
+      async def __call__(
+          self, ctx: ChatRequestContext,
+          full_text: str,
+          duration_ms: float,
+      ) -> None: ...
+  ```
+
+- Refactor `_stream_openclaw()` in `routes.py`:
+  - Build `ChatRequestContext` from user/org/conversation/settings
+  - Run pre-flight hooks sequentially before `async with client.stream(...)` — any can raise
+  - Time the stream duration
+  - After `save_message()`, fire post-stream hooks as background tasks (non-blocking)
+- Hook registration via simple list — enterprise modules append their hooks at startup
+
+### 2) Agent action audit via `/items` API
+
+**Changes:**
+
+- New `backend/app/chat/hooks/agent_audit.py`:
+  - Middleware/dependency for `POST /items` and `PATCH /items/{id}` routes
+  - When `X-Agent` header is present (value: `"openclaw"` or `"copilot"`):
+    - Log to `agent_action_events` table:
+      ```sql
+      CREATE TABLE agent_action_events (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        org_id UUID NOT NULL,
+        user_id UUID NOT NULL,
+        agent TEXT NOT NULL,           -- 'openclaw', 'copilot'
+        action TEXT NOT NULL,          -- 'create_item', 'update_item'
+        item_id UUID,
+        item_type TEXT,                -- 'Action', 'CreativeWork', 'Project'
+        payload_summary JSONB,         -- item name, bucket, key fields (no full payload)
+        trace_id TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      ```
+    - This replaces the Haystack-specific `execute_tool_endpoint` interception and gives
+      **better coverage** — catches ALL agent-initiated mutations regardless of path.
+
+- `backend/app/routes/items.py` — add agent audit middleware to `POST` and `PATCH` endpoints.
+  Check `request.headers.get("X-Agent")` — if present, fire audit log after successful mutation.
+
+### 3) Usage event capture (Cost epic foundation)
+
+**Changes:**
+
+- `llm_usage_events` table (Alembic migration):
+  ```sql
+  CREATE TABLE llm_usage_events (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_id UUID NOT NULL,
+    user_id UUID NOT NULL,
+    conversation_id UUID,
+    agent_backend TEXT NOT NULL,      -- 'openclaw', 'haystack'
+    provider TEXT,
+    model TEXT,
+    prompt_tokens INTEGER,
+    completion_tokens INTEGER,
+    total_tokens INTEGER GENERATED ALWAYS AS
+      (COALESCE(prompt_tokens, 0) + COALESCE(completion_tokens, 0)) STORED,
+    cost_usd NUMERIC(12, 8),
+    duration_ms INTEGER,
+    trace_id TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+  CREATE INDEX idx_usage_org_created ON llm_usage_events (org_id, created_at);
+  CREATE INDEX idx_usage_user_created ON llm_usage_events (user_id, created_at);
+  ```
+
+- Post-stream hook implementation:
+  1. Record stream `duration_ms`
+  2. Fire async background task: query OpenRouter SDK credits/generation API using the
+     user's API key reference
+  3. Calculate delta from last known cumulative usage (cached per user)
+  4. Insert `llm_usage_events` row with actual `prompt_tokens`, `completion_tokens`, `cost_usd`
+  5. If OpenRouter API call fails: insert row with `cost_usd = NULL`, schedule background retry
+
+- `model_pricing` table (daily cache of OpenRouter `/api/v1/models`) — fallback for cost
+  estimation when generation-level lookup fails
+
+- Prometheus counters: `llm_requests_total`, `llm_cost_usd_total` (labels: agent_backend, org_anon)
+
+- Extend existing `_probe_openrouter()` pattern in `llm_validation.py` for the credits query
+
+### 4) Consent model + data processing log (DSGVO epic foundation)
+
+**Changes:**
+
+- `consent_records` table (Alembic migration):
+  ```sql
+  CREATE TABLE consent_records (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(user_id),
+    org_id UUID NOT NULL REFERENCES organizations(org_id),
+    purpose TEXT NOT NULL,
+    granted_at TIMESTAMPTZ,
+    revoked_at TIMESTAMPTZ,
+    consent_version TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+  ```
+- `data_processing_log` table (Alembic migration):
+  ```sql
+  CREATE TABLE data_processing_log (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_id UUID NOT NULL,
+    user_id UUID NOT NULL,
+    agent_backend TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    model TEXT NOT NULL,
+    hosting_region TEXT,
+    data_categories TEXT[] NOT NULL,
+    trace_id TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+  ```
+- Consent endpoints: `POST /auth/consent`, `DELETE /auth/consent/{purpose}`, `GET /auth/consent`
+- Pre-flight hook: check `llm_processing` consent for the user. If revoked, raise 403.
+- Post-stream hook: log to `data_processing_log` with provider/model from user settings,
+  region from model metadata cache.
+
+### 5) Admin role enforcement
+
+**Changes:**
+
+- `backend/app/deps.py` — `get_current_admin_user()` dependency (checks `org_memberships.role`)
+- `backend/app/routes/admin.py` — route group with `APIRouter(prefix="/admin")`
+- Initial endpoint: `GET /admin/audit-log` — paginated query over `assertions` table
+
+### 6) Mark Haystack as experimental
+
+**Changes:**
+
+- `frontend/src/components/settings/AgentSetupPanel.tsx` — add "(Experimental)" label next to
+  the Haystack backend option in the backend selection UI
+- `frontend/src/lib/messages.ts` — add i18n key for "Experimental" label (en + de)
+
+---
+
+## Key Files
+
+| File | Change |
+|------|--------|
+| `backend/app/chat/middleware.py` | New: hook interfaces + registry |
+| `backend/app/chat/routes.py` | Refactor `_stream_openclaw()` to use hook pipeline |
+| `backend/app/chat/hooks/usage.py` | New: post-stream usage capture (OpenRouter SDK) |
+| `backend/app/chat/hooks/consent.py` | New: pre-flight consent check |
+| `backend/app/chat/hooks/data_processing.py` | New: post-stream data flow logging |
+| `backend/app/chat/hooks/agent_audit.py` | New: item API agent action auditing |
+| `backend/app/routes/items.py` | Add agent audit middleware on POST/PATCH |
+| `backend/app/deps.py` | `get_current_admin_user()` |
+| `backend/app/routes/admin.py` | Admin route group + audit log |
+| `backend/app/routes/auth.py` | Consent endpoints |
+| `backend/app/llm_validation.py` | Extend with credits delta query |
+| `backend/db/schema.sql` | New tables |
+| `frontend/src/components/settings/AgentSetupPanel.tsx` | Experimental label on Haystack |
+
+---
+
+## Delivery Plan
+
+### Phase 1: Hook pipeline + agent action audit
+
+- [ ] Create `backend/app/chat/middleware.py` with hook protocols and registry
+- [ ] Refactor `_stream_openclaw()` to run pre-flight and post-stream hooks
+- [ ] Create `agent_action_events` table + Alembic migration
+- [ ] Implement agent audit middleware on `/items` POST and PATCH
+- [ ] Write tests: hooks called in order, blocking hook prevents stream, agent audit logs on X-Agent header
+- [ ] Verify existing chat flow unaffected (no hooks = same behavior)
+
+### Phase 2: Usage event capture
+
+- [ ] Create `llm_usage_events` and `model_pricing` tables + Alembic migrations
+- [ ] Implement OpenRouter SDK credits delta query (extend `_probe_openrouter` pattern)
+- [ ] Implement post-stream usage capture hook
+- [ ] Implement daily model pricing fetch (background task)
+- [ ] Add Prometheus counters
+- [ ] Write tests: usage logged after OpenClaw chat, API failure queues retry
+
+### Phase 3: Consent model
+
+- [ ] Create `consent_records` table + Alembic migration
+- [ ] Implement consent endpoints (`POST`, `DELETE`, `GET /auth/consent`)
+- [ ] Implement pre-flight consent check hook
+- [ ] Write tests: consent granted allows chat, consent revoked blocks with 403
+
+### Phase 4: Data processing log
+
+- [ ] Create `data_processing_log` table + Alembic migration
+- [ ] Implement model region metadata cache (OpenRouter API)
+- [ ] Implement post-stream data processing log hook
+- [ ] Write tests: every OpenClaw chat creates a processing log entry
+
+### Phase 5: Admin role enforcement + Haystack experimental label
+
+- [ ] Add `get_current_admin_user()` to `deps.py`
+- [ ] Create `routes/admin.py` with `GET /admin/audit-log`
+- [ ] Add "(Experimental)" label to Haystack option in `AgentSetupPanel.tsx`
+- [ ] Add i18n keys for experimental label
+- [ ] Write tests: admin role enforcement, experimental label renders
+
+---
+
+## Acceptance Criteria
+
+- [ ] `_stream_openclaw()` calls pre-flight hooks before HTTP call to container
+- [ ] Post-stream hooks fire asynchronously after OpenClaw stream completes
+- [ ] Registering no hooks produces identical behavior to current code
+- [ ] Item mutations with `X-Agent: openclaw` header create `agent_action_events` rows
+- [ ] Item mutations without `X-Agent` header do NOT create audit rows (user actions are separate)
+- [ ] Every OpenClaw chat request creates an `llm_usage_events` row
+- [ ] Usage row includes actual tokens/cost from OpenRouter SDK (or NULL + retry on failure)
+- [ ] Model pricing is refreshed daily and used as cost calculation fallback
+- [ ] Prometheus exposes `llm_requests_total` and `llm_cost_usd_total`
+- [ ] User can grant/revoke consent per processing purpose
+- [ ] Revoked `llm_processing` consent blocks chat requests with 403
+- [ ] Every OpenClaw chat creates a `data_processing_log` entry with provider and region
+- [ ] Admin endpoints return 403 for non-admin users
+- [ ] Haystack backend option shows "(Experimental)" label in Agent Setup UI
+
+---
+
+## Definition of Done
+
+- [ ] All acceptance criteria implemented and passing
+- [ ] Backend tests pass (`uv run python -m pytest`)
+- [ ] Existing chat E2E tests still pass (no regression from hook pipeline)
+- [ ] Frontend unit tests pass (`CI=1 npx vitest run --project=unit`)
+- [ ] TypeScript clean (`npx tsc -b --noEmit`)
+- [ ] `npm run preflight:local` passes

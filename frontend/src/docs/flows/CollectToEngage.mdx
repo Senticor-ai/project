@@ -132,6 +132,36 @@ add dates, or apply labels — all inline on the card.
 - On bucket tap: card slides out, item appears in target bucket
 - Bucket buttons use bucket colors for instant visual recognition
 
+### Mobile: Swipe Triage & Quick Triage Mode
+
+On mobile (`useIsMobile()`), two additional triage paths are available as progressive enhancements:
+
+**Swipe gestures** — each inbox row supports horizontal swipe:
+
+- Swipe right → move to Next (default), green indicator with bolt icon
+- Swipe left → move to Waiting (default), purple indicator with schedule icon
+- Commit threshold: 40% of row width OR velocity > 800px/s
+- Every swipe produces an undo toast (5s auto-dismiss)
+- Color-coded background indicators reveal during drag
+
+**Quick Triage Mode** — card-deck rapid processing:
+
+- Entry: "Quick Triage" button in inbox header (visible when ≥ 2 items)
+- Cards stack with depth effect (3 visible, decreasing opacity)
+- Swipe cards left/right (same as list mode) for rapid triage
+- Tap a card → opens bottom sheet with all bucket options
+- Celebration screen when inbox is empty
+- Close button returns to list view
+
+**Long-press multi-select** — touch-native batch operations:
+
+- Long-press (500ms) on any inbox item enters multi-select mode
+- Subsequent taps toggle selection
+- Fixed bottom toolbar slides up with batch triage buttons
+- Swipe gestures disabled during multi-select
+
+Desktop users continue to use Ctrl/Cmd+Click selection and drag-and-drop.
+
 ---
 
 ## Phase 3: Organize

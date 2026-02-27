@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
@@ -125,6 +125,35 @@ export function ReferenceRow({
 }: ReferenceRowProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"view" | "edit">("view");
+  const menuRef = useRef<HTMLDivElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Close menu on click-outside or Escape
+  useEffect(() => {
+    if (!menuOpen) return;
+    function handleMouseDown(e: MouseEvent) {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(e.target as Node) &&
+        menuButtonRef.current &&
+        !menuButtonRef.current.contains(e.target as Node)
+      ) {
+        setMenuOpen(false);
+      }
+    }
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleMouseDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleMouseDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [menuOpen]);
+
   const origin = reference.origin ? originConfig[reference.origin] : null;
   const hasMarkdownContent = Boolean(reference.description);
   const orgDoc = isOrgDocItem(reference) ? (reference as OrgDocItem) : null;
@@ -303,9 +332,10 @@ export function ReferenceRow({
         )}
 
         {/* Actions menu */}
-        <div className="relative">
+        <div className="relative" ref={menuRef}>
           <Tooltip>
             <button
+              ref={menuButtonRef}
               onClick={() => setMenuOpen(!menuOpen)}
               aria-label={`Actions for ${reference.name ?? "Untitled"}`}
               aria-expanded={menuOpen}

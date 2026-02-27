@@ -17,6 +17,27 @@ import {
   createAction,
 } from "@/model/factories";
 import type { Bucket } from "@/model/types";
+import { ToastProvider } from "@/components/ui/ToastProvider";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+function createWrapper() {
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider client={qc}>
+      <ToastProvider>{children}</ToastProvider>
+    </QueryClientProvider>
+  );
+}
+
+/** render with QueryClient + ToastProvider wrapper (ActionList depends on useToast) */
+function renderWithToast(
+  ui: React.ReactElement,
+  options?: Parameters<typeof render>[1],
+) {
+  return render(ui, { wrapper: createWrapper(), ...options });
+}
 
 // Mock completed items hook (used by ActionList)
 vi.mock("@/hooks/use-items", () => ({
@@ -81,7 +102,7 @@ const baseProps = {
 
 describe("BucketView", () => {
   it("renders BucketNav and shows bucket content", () => {
-    render(<BucketView {...baseProps} />);
+    renderWithToast(<BucketView {...baseProps} />);
     // Nav is present
     expect(
       screen.getByRole("navigation", { name: "Buckets" }),
@@ -93,7 +114,7 @@ describe("BucketView", () => {
   });
 
   it("shows inbox count in the nav", () => {
-    render(<BucketView {...baseProps} />);
+    renderWithToast(<BucketView {...baseProps} />);
     // The inbox nav button (inside <nav>) should show the count badge
     const nav = screen.getByRole("navigation", { name: "Buckets" });
     const inboxBtn = within(nav).getByText("Inbox").closest("button")!;
@@ -101,14 +122,14 @@ describe("BucketView", () => {
   });
 
   it("renders ActionList for thing-type buckets", () => {
-    render(<BucketView {...baseProps} activeBucket="next" />);
+    renderWithToast(<BucketView {...baseProps} activeBucket="next" />);
     // The "next" action should appear in the list
     expect(screen.getByText("Call dentist")).toBeInTheDocument();
   });
 
   it("renders ReferenceList when reference bucket is active", () => {
     const refs = [createReferenceMaterial({ name: "Tax guidelines 2024" })];
-    render(
+    renderWithToast(
       <BucketView
         {...baseProps}
         activeBucket="reference"
@@ -125,7 +146,7 @@ describe("BucketView", () => {
         desiredOutcome: "New website launched",
       }),
     ];
-    render(
+    renderWithToast(
       <BucketView {...baseProps} activeBucket="project" projects={projects} />,
     );
     expect(screen.getByText("Website Redesign")).toBeInTheDocument();
@@ -134,7 +155,9 @@ describe("BucketView", () => {
   it("calls onBucketChange when a nav item is clicked", async () => {
     const onBucketChange = vi.fn();
     const user = userEvent.setup();
-    render(<BucketView {...baseProps} onBucketChange={onBucketChange} />);
+    renderWithToast(
+      <BucketView {...baseProps} onBucketChange={onBucketChange} />,
+    );
 
     const nav = screen.getByRole("navigation", { name: "Buckets" });
     await user.click(within(nav).getByText("Calendar"));
@@ -168,7 +191,7 @@ describe("BucketView", () => {
       );
     }
 
-    render(<Harness />);
+    renderWithToast(<Harness />);
 
     await user.click(screen.getByText("Starred Project"));
 
@@ -198,7 +221,7 @@ describe("BucketView counts", () => {
         completedAt: "2026-01-01T00:00:00Z",
       }),
     ];
-    render(<BucketView {...baseProps} actionItems={things} />);
+    renderWithToast(<BucketView {...baseProps} actionItems={things} />);
     const nav = screen.getByRole("navigation", { name: "Buckets" });
     const inboxBtn = within(nav).getByText("Inbox").closest("button")!;
     expect(inboxBtn).toHaveTextContent("1");
@@ -220,7 +243,7 @@ describe("BucketView counts", () => {
       }),
       createAction({ name: "Not focused", bucket: "next" }),
     ];
-    render(<BucketView {...baseProps} actionItems={things} />);
+    renderWithToast(<BucketView {...baseProps} actionItems={things} />);
     const nav = screen.getByRole("navigation", { name: "Buckets" });
     const focusBtn = within(nav).getByText("Focus").closest("button")!;
     expect(focusBtn).toHaveTextContent("2");
@@ -239,7 +262,7 @@ describe("BucketView counts", () => {
         },
       }),
     ];
-    render(
+    renderWithToast(
       <BucketView {...baseProps} actionItems={[]} referenceItems={refs} />,
     );
     const nav = screen.getByRole("navigation", { name: "Buckets" });
@@ -260,7 +283,9 @@ describe("BucketView counts", () => {
         status: "completed",
       }),
     ];
-    render(<BucketView {...baseProps} actionItems={[]} projects={projects} />);
+    renderWithToast(
+      <BucketView {...baseProps} actionItems={[]} projects={projects} />,
+    );
     const nav = screen.getByRole("navigation", { name: "Buckets" });
     const projBtn = within(nav).getByText("Projects").closest("button")!;
     expect(projBtn).toHaveTextContent("1");
@@ -281,7 +306,7 @@ describe("BucketView focus bucket", () => {
       }),
       createAction({ name: "Not focused", bucket: "next" }),
     ];
-    render(
+    renderWithToast(
       <BucketView {...baseProps} activeBucket="focus" actionItems={things} />,
     );
     expect(screen.getByText("Focused action")).toBeInTheDocument();
@@ -296,7 +321,7 @@ describe("BucketView focus bucket", () => {
         isFocused: true,
       }),
     ];
-    render(
+    renderWithToast(
       <BucketView {...baseProps} activeBucket="focus" actionItems={things} />,
     );
     // Focus view shows BucketBadge for each item (showBucket=true in ActionList)
@@ -312,7 +337,7 @@ describe("BucketView focus bucket", () => {
 describe("BucketView optional callbacks", () => {
   it("renders reference view without optional callbacks", () => {
     const refs = [createReferenceMaterial({ name: "Some doc" })];
-    render(
+    renderWithToast(
       <BucketView
         {...baseProps}
         activeBucket="reference"
@@ -329,7 +354,7 @@ describe("BucketView optional callbacks", () => {
         desiredOutcome: "Delivered",
       }),
     ];
-    render(
+    renderWithToast(
       <BucketView {...baseProps} activeBucket="project" projects={projects} />,
     );
     expect(screen.getByText("My Project")).toBeInTheDocument();
@@ -337,7 +362,7 @@ describe("BucketView optional callbacks", () => {
 
   it("shows file drop zone when files are dragged into inbox", () => {
     const onFileDrop = vi.fn();
-    render(
+    renderWithToast(
       <BucketView
         {...baseProps}
         activeBucket="inbox"
@@ -357,7 +382,7 @@ describe("BucketView optional callbacks", () => {
   });
 
   it("does not show file drop zone when onFileDrop is not provided", () => {
-    render(<BucketView {...baseProps} activeBucket="inbox" />);
+    renderWithToast(<BucketView {...baseProps} activeBucket="inbox" />);
     act(() => {
       fireEvent.dragEnter(document, {
         dataTransfer: { types: ["Files"] },
@@ -375,7 +400,7 @@ describe("BucketView drag and drop", () => {
   it("calls onMoveActionItem when item is dropped on a bucket", () => {
     const onMoveActionItem = vi.fn();
     const thing = createAction({ name: "Drag me", bucket: "next" });
-    render(
+    renderWithToast(
       <BucketView
         {...baseProps}
         actionItems={[thing]}
@@ -395,7 +420,9 @@ describe("BucketView drag and drop", () => {
 
   it("does not call onMoveActionItem when drop target is null", () => {
     const onMoveActionItem = vi.fn();
-    render(<BucketView {...baseProps} onMoveActionItem={onMoveActionItem} />);
+    renderWithToast(
+      <BucketView {...baseProps} onMoveActionItem={onMoveActionItem} />,
+    );
     capturedOnDragEnd?.({
       active: { id: "urn:app:action:1" },
       over: null,
@@ -405,7 +432,9 @@ describe("BucketView drag and drop", () => {
 
   it("does not call onMoveActionItem when drop target has no bucket", () => {
     const onMoveActionItem = vi.fn();
-    render(<BucketView {...baseProps} onMoveActionItem={onMoveActionItem} />);
+    renderWithToast(
+      <BucketView {...baseProps} onMoveActionItem={onMoveActionItem} />,
+    );
     capturedOnDragEnd?.({
       active: { id: "urn:app:action:1" },
       over: { data: { current: {} } },
@@ -415,7 +444,7 @@ describe("BucketView drag and drop", () => {
 
   it("shows drag overlay with item name during drag", () => {
     const thing = createAction({ name: "Drag me", bucket: "next" });
-    render(
+    renderWithToast(
       <BucketView {...baseProps} actionItems={[thing]} activeBucket="next" />,
     );
 
@@ -436,7 +465,7 @@ describe("BucketView drag and drop", () => {
 
   it("clears drag overlay when drag ends", () => {
     const thing = createAction({ name: "Drag me", bucket: "next" });
-    render(
+    renderWithToast(
       <BucketView {...baseProps} actionItems={[thing]} activeBucket="next" />,
     );
 
@@ -461,7 +490,7 @@ describe("BucketView drag and drop", () => {
     const onToggleFocus = vi.fn();
     const onMoveActionItem = vi.fn();
     const thing = createAction({ name: "Focus me", bucket: "next" });
-    render(
+    renderWithToast(
       <BucketView
         {...baseProps}
         actionItems={[thing]}
@@ -480,7 +509,7 @@ describe("BucketView drag and drop", () => {
   it("passes projectId from drop target to onMoveActionItem", () => {
     const onMoveActionItem = vi.fn();
     const thing = createAction({ name: "Move to project", bucket: "inbox" });
-    render(
+    renderWithToast(
       <BucketView
         {...baseProps}
         actionItems={[thing]}
@@ -507,7 +536,7 @@ describe("BucketView drag and drop", () => {
 
   it("shows drag overlay for reference items", () => {
     const ref = createReferenceMaterial({ name: "Tax docs" });
-    render(
+    renderWithToast(
       <BucketView
         {...baseProps}
         activeBucket="reference"
@@ -541,7 +570,7 @@ describe("BucketView – type filter chips", () => {
   });
 
   it("shows type chip for BuyAction items present in the bucket", () => {
-    render(
+    renderWithToast(
       <BucketView
         {...baseProps}
         activeBucket="inbox"
@@ -566,7 +595,7 @@ describe("BucketView – type filter chips", () => {
   });
 
   it("does not show type chips when no items have a schemaType", () => {
-    render(
+    renderWithToast(
       <BucketView
         {...baseProps}
         activeBucket="inbox"
@@ -582,7 +611,7 @@ describe("BucketView – type filter chips", () => {
 
   it("clicking type chip filters the list to matching items only", async () => {
     const user = userEvent.setup();
-    render(
+    renderWithToast(
       <BucketView
         {...baseProps}
         activeBucket="inbox"
@@ -609,7 +638,7 @@ describe("BucketView – type filter chips", () => {
 
   it("clicking active type chip again clears the filter", async () => {
     const user = userEvent.setup();
-    render(
+    renderWithToast(
       <BucketView
         {...baseProps}
         activeBucket="inbox"

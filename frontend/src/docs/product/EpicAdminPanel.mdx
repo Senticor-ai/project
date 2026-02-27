@@ -1,0 +1,182 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Product/Epics/Admin Panel Foundation" />
+
+# Epic: Admin Panel Foundation
+
+**Status:** Draft
+**Priority:** Sprint 4+ (feature layer — backend admin role enforcement ships in Sprint 1 via [Middleware Spine](?path=/docs/product-epics-enterprise-middleware-spine--docs))
+**Last updated:** 2026-02-27
+**Depends on:** [Enterprise Middleware Spine](?path=/docs/product-epics-enterprise-middleware-spine--docs) (admin role enforcement)
+**Related:** [Engineering: Architecture](?path=/docs/engineering-architecture--docs), [Engineering: Routing](?path=/docs/engineering-routing--docs)
+
+---
+
+## Context
+
+Every user-facing control in the application today lives inside the Settings screen — scoped to the
+individual user. There is no org-level administrative surface: no role-gated views, no org-wide
+configuration, no shared audit log viewer.
+
+Three upcoming enterprise epics need admin capabilities:
+
+| Epic | Admin needs |
+|------|-------------|
+| DSGVO Compliance | Data residency policy, consent audit, SAR management, DPA tracking |
+| AI Alignment & Guardrails | Guardrail policy config, AI decision audit, feedback dashboard |
+| LLM Cost Management | Org-wide spend dashboard, budget/quota management, chargeback reports |
+
+Without a shared admin shell, each epic would independently solve routing, authorization, and layout —
+producing inconsistent UX and duplicated infrastructure. This epic builds the shell once so the
+enterprise epics plug tabs into it.
+
+### Current state
+
+- `org_memberships` table already has a `role` column — role-based access is modeled but not enforced
+  in the frontend beyond basic membership checks.
+- `SettingsScreen.tsx` implements a proven tab-based layout with sidebar navigation and panel routing.
+- `parsePathname()` in the routing layer validates known routes. Adding `/admin` requires extending
+  this parser.
+- `AppHeader.tsx` renders the top-level navigation (Workspace | Settings). An "Admin" entry needs to
+  be added, visible only to org admins.
+- Backend has no `/admin/*` route group and no admin role middleware in `app/deps.py`.
+
+---
+
+## User Story
+
+> "As an organization administrator, I need a dedicated area where I can manage org-wide policies,
+> monitor system usage, and audit compliance — separate from my personal settings — so that
+> governance controls don't get mixed in with individual preferences."
+
+---
+
+## Goals
+
+1. Org admins have a dedicated `/admin` area with tab-based navigation, visually distinct from personal settings.
+2. Non-admin users cannot access or see the admin panel — role enforcement on both frontend and backend.
+3. The admin shell is extensible: enterprise epics add tabs without modifying the shell itself.
+4. The shared audit log tab provides a foundation all enterprise epics can write events to and query from.
+
+---
+
+## Out of Scope
+
+- Content for the Privacy, AI Safety, and Cost Management tabs (delivered by their respective epics).
+- User management / invitation flows (future epic).
+- Super-admin / cross-org views (single-org admin only for now).
+
+---
+
+## MVP Scope
+
+### 1) Backend admin role middleware
+
+**Changes:**
+
+- `backend/app/deps.py` — add `get_current_admin_user()` dependency that checks `org_memberships.role`
+  for the current user's active org. Returns 403 if role is not `admin`.
+- `backend/app/routes/admin.py` — new route group with `APIRouter(prefix="/admin")`, all endpoints
+  using `get_current_admin_user` dependency.
+- Initial endpoint: `GET /admin/audit-log` — paginated query over `assertions` table filtered by org,
+  with optional `event_type`, `actor_id`, `date_from`, `date_to` query params.
+
+### 2) Frontend admin shell
+
+**Changes:**
+
+- `frontend/src/components/admin/AdminShell.tsx` — tab-based layout mirroring `SettingsScreen.tsx`
+  pattern. Tab registry pattern: each tab is a `{ id, label, icon, component }` entry so enterprise
+  epics register tabs without modifying the shell.
+- `frontend/src/components/admin/AuditLogPanel.tsx` — shared audit log viewer with filterable table
+  (event type, actor, date range). Reads from `GET /admin/audit-log`.
+- `frontend/src/hooks/use-is-org-admin.ts` — hook that reads the current user's membership role and
+  returns `{ isAdmin: boolean, isLoading: boolean }`.
+
+### 3) Routing and navigation
+
+**Changes:**
+
+- Extend `parsePathname()` to recognize `/admin` and `/admin/{tab}` routes.
+- `AppHeader.tsx` — add "Admin" navigation entry, conditionally rendered when `useIsOrgAdmin().isAdmin`
+  is true.
+- Admin tab URL structure: `/admin/audit-log`, `/admin/privacy`, `/admin/ai-safety`, `/admin/costs`
+  (last three render placeholder "Coming soon" panels until their epics ship).
+
+### 4) Placeholder tabs for enterprise epics
+
+**Changes:**
+
+- Register four tabs in the admin shell:
+  1. **Audit Log** — functional from day one (reads `assertions` table)
+  2. **Privacy** — placeholder, enabled by DSGVO epic
+  3. **AI Safety** — placeholder, enabled by AI Alignment epic
+  4. **Cost Management** — placeholder, enabled by LLM Cost Management epic
+- Each placeholder renders a simple card: "This section will be available when [Epic Name] is deployed."
+
+---
+
+## Key Files
+
+| File | Change |
+|------|--------|
+| `backend/app/deps.py` | `get_current_admin_user()` dependency |
+| `backend/app/routes/admin.py` | Admin route group + audit log endpoint |
+| `frontend/src/components/admin/AdminShell.tsx` | Tab-based admin layout |
+| `frontend/src/components/admin/AuditLogPanel.tsx` | Shared audit log viewer |
+| `frontend/src/hooks/use-is-org-admin.ts` | Admin role check hook |
+| `frontend/src/components/shell/AppHeader.tsx` | Admin nav entry (conditional) |
+| `frontend/src/lib/routing.ts` (or equivalent) | `/admin` route recognition |
+| `frontend/e2e/pages/admin.page.ts` | E2E page object |
+
+---
+
+## Delivery Plan
+
+### Phase 1: Backend admin infrastructure
+
+- [ ] Add `get_current_admin_user()` dependency to `app/deps.py`
+- [ ] Create `app/routes/admin.py` with `GET /admin/audit-log` endpoint
+- [ ] Write backend tests for role enforcement (admin allowed, non-admin 403)
+- [ ] Write backend tests for audit log pagination and filtering
+
+### Phase 2: Frontend admin shell
+
+- [ ] Create `use-is-org-admin.ts` hook
+- [ ] Create `AdminShell.tsx` with tab registry pattern
+- [ ] Create `AuditLogPanel.tsx` with filterable table
+- [ ] Create placeholder panels for Privacy, AI Safety, Cost Management
+- [ ] Write unit tests for admin shell and role hook
+- [ ] Write Storybook stories for admin shell (admin view, non-admin redirect)
+
+### Phase 3: Routing and navigation
+
+- [ ] Extend `parsePathname()` for `/admin` routes
+- [ ] Add conditional "Admin" entry to `AppHeader.tsx`
+- [ ] E2E page object for admin panel
+- [ ] Integration test: non-admin cannot navigate to `/admin`
+
+---
+
+## Acceptance Criteria
+
+- [ ] Org admin can navigate to `/admin` and sees the tab-based layout
+- [ ] Non-admin users do not see the "Admin" link in navigation
+- [ ] Non-admin users navigating to `/admin` are redirected to workspace
+- [ ] Backend returns 403 for `/admin/*` endpoints when user is not an org admin
+- [ ] Audit log tab shows paginated events from the `assertions` table
+- [ ] Audit log supports filtering by event type, actor, and date range
+- [ ] Placeholder tabs render "coming soon" message for unshipped enterprise features
+- [ ] Adding a new admin tab requires only registering an entry — no shell modifications
+
+---
+
+## Definition of Done
+
+- [ ] All acceptance criteria implemented and passing
+- [ ] Backend tests pass (`uv run python -m pytest`)
+- [ ] Frontend unit tests pass (`CI=1 npx vitest run --project=unit`)
+- [ ] TypeScript clean (`npx tsc -b --noEmit`)
+- [ ] ESLint clean (`npx eslint src/`)
+- [ ] Prettier clean (`npx prettier --check src/`)
+- [ ] `npm run preflight:local` passes

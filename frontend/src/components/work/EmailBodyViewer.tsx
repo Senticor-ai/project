@@ -100,8 +100,11 @@ export function EmailBodyViewer({
         className,
       )}
     >
-      {/* Header: sender info + copy button + toggle */}
-      <div className="flex flex-col gap-1 px-3 py-2 md:flex-row md:items-center md:justify-between md:gap-0">
+      {/* Header: sender info + copy button + toggle — entire header is clickable */}
+      <div
+        className="flex cursor-pointer flex-col gap-1 px-3 py-2 md:flex-row md:items-center md:justify-between md:gap-0"
+        onClick={() => setIsExpanded((prev) => !prev)}
+      >
         <div className="flex items-center gap-2">
           <Icon name="mail" size={14} className="text-text-muted" />
           {(senderName || senderEmail) && (
@@ -122,7 +125,10 @@ export function EmailBodyViewer({
           {isExpanded && (
             <button
               type="button"
-              onClick={() => void handleCopy()}
+              onClick={(e) => {
+                e.stopPropagation();
+                void handleCopy();
+              }}
               className="flex items-center gap-1 rounded-[var(--radius-sm)] px-2 py-1 text-xs text-text-subtle hover:bg-paper-100 hover:text-text"
             >
               <Icon name={copied ? "check" : "content_copy"} size={14} />
@@ -131,8 +137,12 @@ export function EmailBodyViewer({
           )}
           <button
             type="button"
-            onClick={() => setIsExpanded((prev) => !prev)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsExpanded((prev) => !prev);
+            }}
             aria-label={isExpanded ? "E-Mail ausblenden" : "E-Mail anzeigen"}
+            aria-expanded={isExpanded}
             className="flex items-center gap-1 rounded-[var(--radius-sm)] px-2 py-1 text-xs text-text-subtle hover:bg-paper-100 hover:text-text"
           >
             <Icon name={isExpanded ? "expand_less" : "expand_more"} size={14} />

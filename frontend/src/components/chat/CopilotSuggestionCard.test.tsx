@@ -10,6 +10,7 @@ import type {
   CopilotCliSuggestion,
 } from "@/model/chat-types";
 import type { CanonicalId } from "@/model/canonical-id";
+import type { ActionItemBucket } from "@/model/types";
 
 const projectSuggestion: CreateProjectWithActionsSuggestion = {
   type: "create_project_with_actions",
@@ -648,7 +649,7 @@ describe("CopilotSuggestionCard", () => {
       const action: CreateActionSuggestion = {
         type: "create_action",
         name: "Custom Bucket",
-        bucket: "custom_bucket",
+        bucket: "custom_bucket" as ActionItemBucket,
       };
       render(
         <CopilotSuggestionCard

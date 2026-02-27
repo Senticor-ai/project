@@ -5,6 +5,8 @@ import React, {
   useRef,
   useEffect,
 } from "react";
+import { createPortal } from "react-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
 import { ItemList } from "./ItemList";
@@ -13,8 +15,15 @@ import { ContextFilterBar } from "./ContextFilterBar";
 import { EnergyFilterBar } from "./EnergyFilterBar";
 import { TimeFilterDropdown } from "./TimeFilterDropdown";
 import { FileDropZone } from "./FileDropZone";
+import { SwipeableRow, type SwipeIndicatorConfig } from "./SwipeableRow";
+import { QuickTriageView } from "./QuickTriageView";
 import { useAllCompletedItems } from "@/hooks/use-items";
 import { useActionFilters } from "@/hooks/use-action-filters";
+import { useIsMobile } from "@/hooks/use-is-mobile";
+import { useSwipeTriageConfig } from "@/hooks/use-swipe-triage-config";
+import { useLongPress } from "@/hooks/use-long-press";
+import { useToast } from "@/lib/use-toast";
+import { getDisplayName } from "@/model/types";
 import type {
   ActionItem,
   Project,
@@ -77,6 +86,49 @@ const bucketMeta: Record<
 };
 
 // ---------------------------------------------------------------------------
+// Swipe indicator configs (per bucket)
+// ---------------------------------------------------------------------------
+
+const swipeIndicators: Record<string, SwipeIndicatorConfig> = {
+  next: {
+    bucket: "next",
+    label: "Next Actions",
+    icon: "bolt",
+    colorClass: "text-app-next",
+    bgClass: "bg-app-next/15",
+    bgCommitClass: "bg-app-next/30",
+    borderClass: "border-app-next/30",
+  },
+  waiting: {
+    bucket: "waiting",
+    label: "Waiting For",
+    icon: "schedule",
+    colorClass: "text-app-waiting",
+    bgClass: "bg-app-waiting/15",
+    bgCommitClass: "bg-app-waiting/30",
+    borderClass: "border-app-waiting/30",
+  },
+  calendar: {
+    bucket: "calendar",
+    label: "Calendar",
+    icon: "calendar_month",
+    colorClass: "text-app-calendar",
+    bgClass: "bg-app-calendar/15",
+    bgCommitClass: "bg-app-calendar/30",
+    borderClass: "border-app-calendar/30",
+  },
+  someday: {
+    bucket: "someday",
+    label: "Later",
+    icon: "cloud",
+    colorClass: "text-app-someday",
+    bgClass: "bg-app-someday/15",
+    bgCommitClass: "bg-app-someday/30",
+    borderClass: "border-app-someday/30",
+  },
+};
+
+// ---------------------------------------------------------------------------
 // Time estimate ordering (for <= comparison)
 // ---------------------------------------------------------------------------
 
@@ -121,6 +173,21 @@ export interface ActionListProps {
 }
 
 // ---------------------------------------------------------------------------
+// Long-press wrapper (mobile multi-select entry point)
+// ---------------------------------------------------------------------------
+
+function LongPressableRow({
+  onLongPress,
+  children,
+}: {
+  onLongPress: () => void;
+  children: React.ReactNode;
+}) {
+  const handlers = useLongPress({ onLongPress });
+  return <div {...handlers}>{children}</div>;
+}
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
@@ -160,6 +227,10 @@ export function ActionList({
   const meta = bucketMeta[bucket];
   const isInbox = bucket === "inbox";
   const isFocusView = bucket === "focus";
+  const isMobile = useIsMobile();
+  const swipeConfig = useSwipeTriageConfig();
+  const { toast } = useToast();
+  const [showQuickTriage, setShowQuickTriage] = useState(false);
 
   // Collapse all on bucket change (render-time state adjustment)
   if (prevBucket !== bucket) {
@@ -382,6 +453,20 @@ export function ActionList({
       )
         return;
 
+      // Mobile multi-select: once active, plain taps toggle selection
+      if (isMobile && selectedIds.size > 0) {
+        event.stopPropagation();
+        event.preventDefault();
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          if (next.has(id)) next.delete(id);
+          else next.add(id);
+          return next;
+        });
+        lastSelectedIndexRef.current = index;
+        return;
+      }
+
       // Prevent click from reaching inner buttons (expand/collapse via title)
       event.stopPropagation();
       event.preventDefault();
@@ -407,7 +492,7 @@ export function ActionList({
         lastSelectedIndexRef.current = index;
       }
     },
-    [sorted],
+    [sorted, isMobile, selectedIds.size],
   );
 
   const handleBatchTriage = useCallback(
@@ -446,294 +531,472 @@ export function ActionList({
     );
   }
 
+  // Quick Triage mode — full-screen card deck replaces the list
+  if (showQuickTriage && isMobile && isInbox) {
+    return (
+      <QuickTriageView
+        items={sorted}
+        onMove={onMove}
+        onArchive={onArchive}
+        onClose={() => setShowQuickTriage(false)}
+      />
+    );
+  }
+
   return (
-    <ItemList<ActionItem>
-      items={sorted}
-      header={meta}
-      rapidEntry={
-        !isFocusView
-          ? {
-              placeholder: isInbox
-                ? "Capture a thought..."
-                : "Rapid Entry — type here and hit enter / or esc",
-              ariaLabel: isInbox ? "Capture a thought" : "Rapid entry",
-              onAdd,
-              showCaptureErrors: true,
-            }
-          : undefined
-      }
-      renderItem={(thing, { isExpanded, onToggleExpand }) => (
-        <div
-          onClickCapture={
-            isInbox
-              ? (e) => {
-                  const idx = sorted.indexOf(thing);
-                  handleItemClick(idx, thing.id, e);
-                }
-              : undefined
-          }
-        >
-          <ActionRow
-            thing={thing}
-            onComplete={onComplete}
-            onToggleFocus={handleToggleFocus}
-            onMove={onMove}
-            onArchive={onArchive}
-            isExpanded={isExpanded}
-            onToggleExpand={
-              onEdit || onUpdateTitle ? onToggleExpand : undefined
-            }
-            onEdit={onEdit}
-            onUpdateTitle={onUpdateTitle}
-            onSetType={onSetType}
-            onNavigateToReference={onNavigateToReference}
-            projects={projects}
-            showBucket={isFocusView}
-            isSelected={isInbox ? selectedIds.has(thing.id) : undefined}
-          />
-        </div>
-      )}
-      emptyMessage={
-        hasActiveFilters && filtered.length > 0
-          ? "No actions match your filters"
-          : isInbox
-            ? "Inbox is empty"
-            : isFocusView
-              ? "No focused actions"
-              : "No actions here yet"
-      }
-      emptyHint={
-        hasActiveFilters && filtered.length > 0 ? (
-          <button
-            type="button"
-            onClick={clearAll}
-            className="text-xs text-accent underline underline-offset-2 hover:text-accent-hover"
-          >
-            Clear filters
-          </button>
-        ) : isInbox ? (
-          "Capture a thought to get started"
-        ) : undefined
-      }
-      footer={{
-        formatCount: (count) =>
-          isInbox
-            ? `${count} item${count !== 1 ? "s" : ""} to process`
-            : `${count} action${count !== 1 ? "s" : ""}`,
-      }}
-      secondarySection={
-        completedItems.length > 0
-          ? {
-              label: "Done",
-              items: completedItems,
-              isLoading: completedQuery.isFetching,
-              renderItem: (thing) => (
-                <ActionRow
-                  key={thing.id}
-                  thing={thing}
-                  onComplete={onComplete}
-                  onToggleFocus={handleToggleFocus}
-                  onMove={onMove}
-                  onArchive={onArchive}
-                  showBucket={isFocusView}
-                />
-              ),
-            }
-          : undefined
-      }
-      beforeItems={
-        <>
-          {/* Batch action bar — visible when inbox items are selected */}
-          {isInbox && selectedIds.size > 0 && (
+    <>
+      <ItemList<ActionItem>
+        items={sorted}
+        header={meta}
+        rapidEntry={
+          !isFocusView
+            ? {
+                placeholder: isInbox
+                  ? "Capture a thought..."
+                  : "Rapid Entry — type here and hit enter / or esc",
+                ariaLabel: isInbox ? "Capture a thought" : "Rapid entry",
+                onAdd,
+                showCaptureErrors: true,
+              }
+            : undefined
+        }
+        renderItem={(thing, { isExpanded, onToggleExpand }) => {
+          const row = (
             <div
-              className={cn(
-                "flex flex-wrap items-center gap-2 rounded-[var(--radius-md)]",
-                "border border-blueprint-200 bg-blueprint-50/50 px-3 py-2",
-              )}
-              role="toolbar"
-              aria-label="Batch actions"
+              onClickCapture={
+                isInbox
+                  ? (e) => {
+                      const idx = sorted.indexOf(thing);
+                      handleItemClick(idx, thing.id, e);
+                    }
+                  : undefined
+              }
             >
-              <span className="text-xs font-medium text-blueprint-700">
-                {selectedIds.size} selected
-              </span>
-              <div className="flex flex-wrap gap-1">
-                {(
-                  [
+              <ActionRow
+                thing={thing}
+                onComplete={onComplete}
+                onToggleFocus={handleToggleFocus}
+                onMove={onMove}
+                onArchive={onArchive}
+                isExpanded={isExpanded}
+                onToggleExpand={
+                  onEdit || onUpdateTitle ? onToggleExpand : undefined
+                }
+                onEdit={onEdit}
+                onUpdateTitle={onUpdateTitle}
+                onSetType={onSetType}
+                onNavigateToReference={onNavigateToReference}
+                projects={projects}
+                showBucket={isFocusView}
+                isSelected={isInbox ? selectedIds.has(thing.id) : undefined}
+              />
+            </div>
+          );
+
+          if (isMobile && isInbox) {
+            const name = getDisplayName(thing);
+            const rightTarget = swipeConfig.swipeRight;
+            const leftTarget = swipeConfig.swipeLeft;
+            return (
+              <SwipeableRow
+                onSwipeRight={() => {
+                  onMove(thing.id, rightTarget);
+                  toast(
+                    `"${name}" → ${swipeIndicators[rightTarget]?.label ?? rightTarget}`,
+                    "success",
                     {
-                      bucket: "next",
-                      label: "Next",
-                      icon: "bolt",
-                      colorClass: "text-app-next",
+                      action: {
+                        label: "Undo",
+                        onClick: () => onMove(thing.id, "inbox"),
+                      },
                     },
+                  );
+                }}
+                onSwipeLeft={() => {
+                  onMove(thing.id, leftTarget);
+                  toast(
+                    `"${name}" → ${swipeIndicators[leftTarget]?.label ?? leftTarget}`,
+                    "success",
                     {
-                      bucket: "waiting",
-                      label: "Waiting",
-                      icon: "schedule",
-                      colorClass: "text-app-waiting",
+                      action: {
+                        label: "Undo",
+                        onClick: () => onMove(thing.id, "inbox"),
+                      },
                     },
-                    {
-                      bucket: "calendar",
-                      label: "Calendar",
-                      icon: "calendar_month",
-                      colorClass: "text-app-calendar",
-                    },
-                    {
-                      bucket: "someday",
-                      label: "Later",
-                      icon: "cloud",
-                      colorClass: "text-app-someday",
-                    },
-                    {
-                      bucket: "reference",
-                      label: "Reference",
-                      icon: "description",
-                      colorClass: "text-text-muted",
-                    },
-                  ] as const
-                ).map(({ bucket: b, label, icon, colorClass }) => (
+                  );
+                }}
+                rightIndicator={swipeIndicators[rightTarget]}
+                leftIndicator={swipeIndicators[leftTarget]}
+                disabled={selectedIds.size > 0}
+              >
+                <LongPressableRow
+                  onLongPress={() => {
+                    setSelectedIds((prev) => new Set([...prev, thing.id]));
+                    lastSelectedIndexRef.current = sorted.indexOf(thing);
+                  }}
+                >
+                  {row}
+                </LongPressableRow>
+              </SwipeableRow>
+            );
+          }
+
+          return row;
+        }}
+        emptyMessage={
+          hasActiveFilters && filtered.length > 0
+            ? "No actions match your filters"
+            : isInbox
+              ? "Inbox is empty"
+              : isFocusView
+                ? "No focused actions"
+                : "No actions here yet"
+        }
+        emptyHint={
+          hasActiveFilters && filtered.length > 0 ? (
+            <button
+              type="button"
+              onClick={clearAll}
+              className="text-xs text-accent underline underline-offset-2 hover:text-accent-hover"
+            >
+              Clear filters
+            </button>
+          ) : isInbox ? (
+            "Capture a thought to get started"
+          ) : undefined
+        }
+        footer={{
+          formatCount: (count) =>
+            isInbox
+              ? `${count} item${count !== 1 ? "s" : ""} to process`
+              : `${count} action${count !== 1 ? "s" : ""}`,
+        }}
+        secondarySection={
+          completedItems.length > 0
+            ? {
+                label: "Done",
+                items: completedItems,
+                isLoading: completedQuery.isFetching,
+                renderItem: (thing) => (
+                  <ActionRow
+                    key={thing.id}
+                    thing={thing}
+                    onComplete={onComplete}
+                    onToggleFocus={handleToggleFocus}
+                    onMove={onMove}
+                    onArchive={onArchive}
+                    showBucket={isFocusView}
+                  />
+                ),
+              }
+            : undefined
+        }
+        beforeItems={
+          <>
+            {/* Quick Triage entry point — mobile only, ≥2 items */}
+            {isMobile && isInbox && sorted.length >= 2 && (
+              <button
+                type="button"
+                onClick={() => setShowQuickTriage(true)}
+                className={cn(
+                  "mb-1 inline-flex items-center gap-1.5 rounded-[var(--radius-md)]",
+                  "border border-blueprint-200 bg-blueprint-50/50 px-3 py-1.5",
+                  "text-xs font-medium text-blueprint-700",
+                  "active:scale-95 transition-transform",
+                )}
+                aria-label="Start quick triage"
+              >
+                <Icon name="style" size={14} />
+                Quick Triage
+              </button>
+            )}
+            {/* Batch action bar — visible when inbox items are selected */}
+            {isInbox && selectedIds.size > 0 && !isMobile && (
+              <div
+                className={cn(
+                  "flex flex-wrap items-center gap-2 rounded-[var(--radius-md)]",
+                  "border border-blueprint-200 bg-blueprint-50/50 px-3 py-2",
+                )}
+                role="toolbar"
+                aria-label="Batch actions"
+              >
+                <span className="text-xs font-medium text-blueprint-700">
+                  {selectedIds.size} selected
+                </span>
+                <div className="flex flex-wrap gap-1">
+                  {(
+                    [
+                      {
+                        bucket: "next",
+                        label: "Next",
+                        icon: "bolt",
+                        colorClass: "text-app-next",
+                      },
+                      {
+                        bucket: "waiting",
+                        label: "Waiting",
+                        icon: "schedule",
+                        colorClass: "text-app-waiting",
+                      },
+                      {
+                        bucket: "calendar",
+                        label: "Calendar",
+                        icon: "calendar_month",
+                        colorClass: "text-app-calendar",
+                      },
+                      {
+                        bucket: "someday",
+                        label: "Later",
+                        icon: "cloud",
+                        colorClass: "text-app-someday",
+                      },
+                      {
+                        bucket: "reference",
+                        label: "Reference",
+                        icon: "description",
+                        colorClass: "text-text-muted",
+                      },
+                    ] as const
+                  ).map(({ bucket: b, label, icon, colorClass }) => (
+                    <button
+                      key={b}
+                      onClick={() => handleBatchTriage(b)}
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-[var(--radius-md)]",
+                        "border border-border bg-surface px-2 py-1 text-xs font-medium",
+                        "transition-colors duration-[var(--duration-fast)]",
+                        "hover:bg-paper-100",
+                      )}
+                      aria-label={`Batch move to ${label}`}
+                    >
+                      <Icon name={icon} size={12} className={colorClass} />
+                      {label}
+                    </button>
+                  ))}
                   <button
-                    key={b}
-                    onClick={() => handleBatchTriage(b)}
+                    onClick={() => handleBatchTriage("archive")}
                     className={cn(
                       "inline-flex items-center gap-1 rounded-[var(--radius-md)]",
-                      "border border-border bg-surface px-2 py-1 text-xs font-medium",
+                      "border border-border bg-surface px-2 py-1 text-xs font-medium text-text-muted",
                       "transition-colors duration-[var(--duration-fast)]",
                       "hover:bg-paper-100",
                     )}
-                    aria-label={`Batch move to ${label}`}
+                    aria-label="Batch archive"
                   >
-                    <Icon name={icon} size={12} className={colorClass} />
-                    {label}
+                    <Icon name="archive" size={12} />
+                    Archive
                   </button>
-                ))}
-                <button
-                  onClick={() => handleBatchTriage("archive")}
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded-[var(--radius-md)]",
-                    "border border-border bg-surface px-2 py-1 text-xs font-medium text-text-muted",
-                    "transition-colors duration-[var(--duration-fast)]",
-                    "hover:bg-paper-100",
-                  )}
-                  aria-label="Batch archive"
-                >
-                  <Icon name="archive" size={12} />
-                  Archive
-                </button>
-              </div>
-              {/* Project picker — auto-moves selected items to "next" + project */}
-              {projects && projects.length > 0 && (
-                <select
-                  value=""
-                  onChange={(e) => {
-                    const pid = e.target.value
-                      ? (e.target.value as CanonicalId)
-                      : undefined;
-                    if (pid) {
-                      for (const id of selectedIds) {
-                        onMove(id, "next", pid);
+                </div>
+                {/* Project picker — auto-moves selected items to "next" + project */}
+                {projects && projects.length > 0 && (
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      const pid = e.target.value
+                        ? (e.target.value as CanonicalId)
+                        : undefined;
+                      if (pid) {
+                        for (const id of selectedIds) {
+                          onMove(id, "next", pid);
+                        }
+                        setSelectedIds(new Set());
+                        lastSelectedIndexRef.current = null;
                       }
-                      setSelectedIds(new Set());
-                      lastSelectedIndexRef.current = null;
-                    }
-                  }}
-                  aria-label="Move batch to project"
-                  className="rounded-[var(--radius-sm)] border border-border bg-surface px-2 py-1 text-xs"
-                >
-                  <option value="">Move to project...</option>
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+                    }}
+                    aria-label="Move batch to project"
+                    className="rounded-[var(--radius-sm)] border border-border bg-surface px-2 py-1 text-xs"
+                  >
+                    <option value="">Move to project...</option>
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <div className="ml-auto flex gap-1">
+                  <button
+                    onClick={handleSelectAll}
+                    className="text-xs text-blueprint-600 hover:text-blueprint-800"
+                    aria-label="Select all"
+                  >
+                    Select all
+                  </button>
+                  <span className="text-text-subtle">|</span>
+                  <button
+                    onClick={handleClearSelection}
+                    className="text-xs text-text-muted hover:text-text"
+                    aria-label="Clear selection"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+            )}
+            {isInbox && onFileDrop && isFileDragActive && (
+              <FileDropZone
+                onFilesDropped={(files) => {
+                  onFileDrop(files);
+                  // Reset drag state — the document drop handler won't fire
+                  // because FileDropZone calls stopPropagation().
+                  fileDragCounter.current = 0;
+                  if (hideTimeoutRef.current) {
+                    clearTimeout(hideTimeoutRef.current);
+                    hideTimeoutRef.current = null;
+                  }
+                  setIsFileDragActive(false);
+                }}
+                className="py-1"
+                maxSizeMb={25}
+              />
+            )}
+            <div className="flex flex-col gap-1.5">
+              {Object.keys(typeCounts).length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {Object.entries(typeCounts)
+                    .filter(([type]) => SUBTYPE_LABELS[type])
+                    .map(([type]) => (
+                      <button
+                        key={type}
+                        type="button"
+                        aria-label={`Filter by type: ${SUBTYPE_LABELS[type]}`}
+                        aria-pressed={selectedTypes.includes(type)}
+                        onClick={() => toggleType(type)}
+                        className={cn(
+                          "rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors",
+                          selectedTypes.includes(type)
+                            ? "bg-blueprint-600 text-white"
+                            : "bg-blueprint-50 text-blueprint-700 hover:bg-blueprint-100",
+                        )}
+                      >
+                        {SUBTYPE_LABELS[type]}
+                      </button>
+                    ))}
+                </div>
               )}
-              <div className="ml-auto flex gap-1">
-                <button
-                  onClick={handleSelectAll}
-                  className="text-xs text-blueprint-600 hover:text-blueprint-800"
-                  aria-label="Select all"
-                >
-                  Select all
-                </button>
-                <span className="text-text-subtle">|</span>
-                <button
-                  onClick={handleClearSelection}
-                  className="text-xs text-text-muted hover:text-text"
-                  aria-label="Clear selection"
-                >
-                  Clear
-                </button>
+              {availableContexts.length > 0 && (
+                <ContextFilterBar
+                  contexts={availableContexts}
+                  selectedContexts={selectedContexts}
+                  actionCounts={contextCounts}
+                  onToggleContext={toggleContext}
+                  onClearAll={clearContexts}
+                />
+              )}
+              <div className="flex items-center gap-3">
+                <EnergyFilterBar
+                  selectedEnergy={selectedEnergy}
+                  onToggleEnergy={(level) =>
+                    setEnergy(selectedEnergy === level ? null : level)
+                  }
+                />
+                <TimeFilterDropdown
+                  maxTimeEstimate={maxTimeEstimate}
+                  onChangeMaxTime={setMaxTime}
+                />
               </div>
             </div>
-          )}
-          {isInbox && onFileDrop && isFileDragActive && (
-            <FileDropZone
-              onFilesDropped={(files) => {
-                onFileDrop(files);
-                // Reset drag state — the document drop handler won't fire
-                // because FileDropZone calls stopPropagation().
-                fileDragCounter.current = 0;
-                if (hideTimeoutRef.current) {
-                  clearTimeout(hideTimeoutRef.current);
-                  hideTimeoutRef.current = null;
-                }
-                setIsFileDragActive(false);
-              }}
-              className="py-1"
-              maxSizeMb={25}
-            />
-          )}
-          <div className="flex flex-col gap-1.5">
-            {Object.keys(typeCounts).length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {Object.entries(typeCounts)
-                  .filter(([type]) => SUBTYPE_LABELS[type])
-                  .map(([type]) => (
+          </>
+        }
+        expandedId={effectiveExpandedId}
+        onExpandedIdChange={setExpandedId}
+        className={className}
+      />
+      {/* Mobile batch toolbar — fixed bottom bar via portal */}
+      {typeof document !== "undefined" &&
+        createPortal(
+          <AnimatePresence>
+            {isInbox && isMobile && selectedIds.size > 0 && (
+              <motion.div
+                initial={{ y: "100%" }}
+                animate={{ y: 0 }}
+                exit={{ y: "100%" }}
+                transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+                className={cn(
+                  "fixed inset-x-0 bottom-0 z-50 border-t border-blueprint-200",
+                  "bg-blueprint-50/95 px-3 py-3 backdrop-blur-sm",
+                  "safe-area-pb",
+                )}
+                role="toolbar"
+                aria-label="Batch actions"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-blueprint-700">
+                    {selectedIds.size} selected
+                  </span>
+                  <div className="flex gap-1">
                     <button
-                      key={type}
-                      type="button"
-                      aria-label={`Filter by type: ${SUBTYPE_LABELS[type]}`}
-                      aria-pressed={selectedTypes.includes(type)}
-                      onClick={() => toggleType(type)}
-                      className={cn(
-                        "rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors",
-                        selectedTypes.includes(type)
-                          ? "bg-blueprint-600 text-white"
-                          : "bg-blueprint-50 text-blueprint-700 hover:bg-blueprint-100",
-                      )}
+                      onClick={handleSelectAll}
+                      className="text-xs text-blueprint-600"
+                      aria-label="Select all"
                     >
-                      {SUBTYPE_LABELS[type]}
+                      All
+                    </button>
+                    <span className="text-text-subtle">|</span>
+                    <button
+                      onClick={handleClearSelection}
+                      className="text-xs text-text-muted"
+                      aria-label="Clear selection"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {(
+                    [
+                      {
+                        bucket: "next",
+                        label: "Next",
+                        icon: "bolt",
+                        colorClass: "text-app-next",
+                      },
+                      {
+                        bucket: "waiting",
+                        label: "Waiting",
+                        icon: "schedule",
+                        colorClass: "text-app-waiting",
+                      },
+                      {
+                        bucket: "calendar",
+                        label: "Calendar",
+                        icon: "calendar_month",
+                        colorClass: "text-app-calendar",
+                      },
+                      {
+                        bucket: "someday",
+                        label: "Later",
+                        icon: "cloud",
+                        colorClass: "text-app-someday",
+                      },
+                      {
+                        bucket: "archive",
+                        label: "Archive",
+                        icon: "archive",
+                        colorClass: "text-text-muted",
+                      },
+                    ] as const
+                  ).map(({ bucket: b, label, icon, colorClass }) => (
+                    <button
+                      key={b}
+                      onClick={() => handleBatchTriage(b)}
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-[var(--radius-md)]",
+                        "border border-border bg-surface px-2.5 py-1.5 text-xs font-medium",
+                        "active:scale-95 transition-transform",
+                      )}
+                      aria-label={`Batch move to ${label}`}
+                    >
+                      <Icon name={icon} size={14} className={colorClass} />
+                      {label}
                     </button>
                   ))}
-              </div>
+                </div>
+              </motion.div>
             )}
-            {availableContexts.length > 0 && (
-              <ContextFilterBar
-                contexts={availableContexts}
-                selectedContexts={selectedContexts}
-                actionCounts={contextCounts}
-                onToggleContext={toggleContext}
-                onClearAll={clearContexts}
-              />
-            )}
-            <div className="flex items-center gap-3">
-              <EnergyFilterBar
-                selectedEnergy={selectedEnergy}
-                onToggleEnergy={(level) =>
-                  setEnergy(selectedEnergy === level ? null : level)
-                }
-              />
-              <TimeFilterDropdown
-                maxTimeEstimate={maxTimeEstimate}
-                onChangeMaxTime={setMaxTime}
-              />
-            </div>
-          </div>
-        </>
-      }
-      expandedId={effectiveExpandedId}
-      onExpandedIdChange={setExpandedId}
-      className={className}
-    />
+          </AnimatePresence>,
+          document.body,
+        )}
+    </>
   );
 }

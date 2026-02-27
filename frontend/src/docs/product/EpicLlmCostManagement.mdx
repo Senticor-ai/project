@@ -1,0 +1,333 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Product/Epics/LLM Cost Management" />
+
+# Epic: LLM Inference Cost Management
+
+**Status:** Draft
+**Priority:** Sprint 2-3 (model pricing + budget enforcement) + Sprint 4+ (dashboards, chargeback)
+**Last updated:** 2026-02-27
+**Depends on:** [Enterprise Middleware Spine](?path=/docs/product-epics-enterprise-middleware-spine--docs) (usage event capture + model pricing cache ship in Sprint 1), [Admin Panel Foundation](?path=/docs/product-epics-admin-panel-foundation--docs) (for admin UI)
+**Related:** [Engineering: LLM Evaluation](?path=/docs/engineering-llm-evaluation--docs), [Engineering: Agents Service](?path=/docs/engineering-agents-service--docs)
+
+> **Sequencing note:** Phases 1 (usage event capture) and 2 (model pricing cache) are pulled forward
+> into the [Enterprise Middleware Spine](?path=/docs/product-epics-enterprise-middleware-spine--docs)
+> (OpenClaw-first). Token counting uses the **OpenRouter SDK credits/generation API post-hoc** — this
+> captures ALL LLM calls the OpenClaw container makes per request (including internal agent loop
+> iterations), giving more accurate cost data than per-call tracking.
+> This epic covers Phase 3+ (dashboards, budget enforcement, chargeback).
+> Haystack cost tracking is deferred (Haystack is marked experimental).
+
+---
+
+## Context
+
+The system uses OpenRouter to proxy LLM inference, with per-user model configuration via
+`user_agent_settings`. Token usage is captured in trace files (`storage/traces/`) and the
+`AgentSetupPanel` displays remaining credits for the built-in OpenRouter API key. Beyond that,
+there is **no cost visibility, budgeting, or optimization tooling**.
+
+### Current state
+
+| Capability | Status |
+|-----------|--------|
+| **Token counting** | Captured in trace files (`response.replies[].meta.usage`), not persisted to DB. **Note:** OpenRouter does NOT return usage in streaming mode — post-hoc query via OpenRouter SDK credits/generation API required. |
+| **Cost calculation** | Not implemented. Trace files record token counts but not cost. |
+| **Per-user usage visibility** | `AgentSetupPanel` shows credits for built-in key only. Users with custom API keys see nothing. |
+| **Org-wide visibility** | None. No admin dashboard, no aggregation. |
+| **Budget/quota enforcement** | None. No limits on per-user or per-org spend. |
+| **Cost optimization** | No model cost comparison. No cache hit rate visibility. No recommendations. |
+| **Chargeback** | Not possible. No per-department or per-user cost attribution. |
+
+### Why this matters for enterprise
+
+Enterprise buyers need:
+1. **Predictable TCO** — monthly cost projections based on actual usage patterns.
+2. **Budget guardrails** — prevent runaway spend from heavy users or misconfigured models.
+3. **Chargeback** — attribute costs to departments/users for internal billing.
+4. **Optimization levers** — visibility into which models cost what, cache hit rates, and cheaper alternatives.
+
+### What we can build on
+
+- Trace files in `storage/traces/` — per-call model, duration, cache_hit, `response.usage` (tokens)
+- `user_agent_settings` table — per-user provider + model config
+- Prometheus metrics pipeline (`backend/app/metrics.py`) — counters, histograms, per-user-anon labels
+- `AgentSetupPanel` credits display — UI pattern for usage info
+- OpenRouter API — `/api/v1/models` returns pricing per model, response headers include usage metadata
+- `anonymize_identifier()` — privacy-preserving per-user metrics
+
+---
+
+## User Story
+
+> "As an organization administrator, I need to see how much our LLM usage costs, set budgets
+> per user, and get alerted before we exceed our monthly allocation — so that I can manage
+> AI costs predictably and justify the spend to leadership."
+
+---
+
+## Goals
+
+1. Every LLM inference request is logged with token count and calculated cost in USD.
+2. Users see their own usage (tokens, cost) with daily/weekly/monthly breakdowns.
+3. Admins see org-wide usage dashboards with per-user and per-model drill-down.
+4. Admins can set budget limits (soft alerts and hard caps) per user and per org.
+5. Hard budget caps block further LLM requests with a clear explanation and self-service upgrade path.
+6. Model cost comparison helps users and admins choose cost-effective models.
+
+---
+
+## Out of Scope
+
+- Billing integration with payment providers (costs are tracked, not billed).
+- Multi-org consolidated billing (single-org view only).
+- Real-time cost streaming in the chat UI (batch reporting is sufficient).
+- Automatic model downgrade when budget is low (manual user choice).
+
+---
+
+## MVP Scope
+
+### 1) Usage event capture
+
+**Backend / Agents:**
+
+- `llm_usage_events` table:
+  ```sql
+  CREATE TABLE llm_usage_events (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_id UUID NOT NULL,
+    user_id UUID NOT NULL,
+    conversation_id UUID,
+    provider TEXT NOT NULL,           -- 'openrouter', 'openai', 'anthropic'
+    model TEXT NOT NULL,              -- 'openai/gpt-4o-mini'
+    prompt_tokens INTEGER NOT NULL,
+    completion_tokens INTEGER NOT NULL,
+    total_tokens INTEGER GENERATED ALWAYS AS (prompt_tokens + completion_tokens) STORED,
+    cost_usd NUMERIC(12, 8),         -- calculated from model pricing
+    cached BOOLEAN DEFAULT false,
+    duration_ms INTEGER,
+    trace_id TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+  CREATE INDEX idx_usage_org_created ON llm_usage_events (org_id, created_at);
+  CREATE INDEX idx_usage_user_created ON llm_usage_events (user_id, created_at);
+  ```
+- After every LLM response in the agents proxy, extract `usage.prompt_tokens` and
+  `usage.completion_tokens` from the OpenRouter response, look up model pricing, calculate cost,
+  and insert into `llm_usage_events`.
+- For cached responses (cache_hit from `CachedTracedChatGenerator`), log with `cached = true`
+  and `cost_usd = 0`.
+
+### 2) Model pricing cache
+
+**Backend:**
+
+- `model_pricing` table:
+  ```sql
+  CREATE TABLE model_pricing (
+    model_id TEXT PRIMARY KEY,         -- 'openai/gpt-4o-mini'
+    prompt_cost_per_token NUMERIC(16, 12),
+    completion_cost_per_token NUMERIC(16, 12),
+    context_length INTEGER,
+    provider TEXT,
+    fetched_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+  ```
+- Background task: fetch OpenRouter `/api/v1/models` daily, upsert pricing data.
+- Fallback: if model not in cache, log usage event with `cost_usd = NULL` (unknown cost).
+- `GET /admin/models` — list cached model pricing for admin reference.
+
+### 3) Personal usage dashboard (user settings)
+
+**Backend:**
+
+- `GET /users/me/usage` — aggregated usage for current user:
+  - Query params: `period` (day/week/month), `from`, `to`
+  - Response: `{ total_tokens, total_cost_usd, by_model: [{model, tokens, cost}], by_day: [{date, tokens, cost}] }`
+- `GET /users/me/usage/budget` — current user's budget status:
+  - Response: `{ limit_usd, used_usd, remaining_usd, period, cap_type }`
+
+**Frontend — extend "Agent Setup" tab:**
+
+- Usage summary card:
+  - Current period spend (e.g. "$4.32 of $20.00 this month")
+  - Progress bar with color coding (green < 60%, yellow < 90%, red >= 90%)
+  - Tokens used (formatted: "142k tokens")
+- Usage breakdown:
+  - By model (horizontal bar chart)
+  - By day (sparkline trend)
+- Budget alert configuration:
+  - Personal alert threshold (% of budget or absolute USD)
+  - Notification preference (in-app only for MVP)
+- Model cost advisor:
+  - Table of available models with cost-per-1k-tokens
+  - Current model highlighted
+  - "Switch to cheaper model" suggestion when a lower-cost alternative exists with similar capability
+
+### 4) Org-wide admin dashboard
+
+**Backend:**
+
+- `GET /admin/usage` — org-wide usage aggregation:
+  - Query params: `period`, `from`, `to`, `group_by` (user/model/day)
+  - Response: `{ total_tokens, total_cost_usd, groups: [{key, tokens, cost}] }`
+- `GET /admin/usage/users` — per-user usage ranking:
+  - Response: `[{ user_id, email, tokens, cost_usd, model, last_active }]`
+- `GET /admin/usage/export` — CSV export of usage data for chargeback
+
+**Frontend — Admin panel "Cost Management" tab:**
+
+- Org-wide summary cards:
+  - Total spend this period
+  - Month-over-month trend (% change)
+  - Projected monthly spend (linear extrapolation from current usage)
+  - Active users count
+- Per-user usage table:
+  - Columns: user, tokens, cost, primary model, last active
+  - Sortable, searchable, paginated
+  - Drill-down to user's conversation-level usage
+- Per-model cost breakdown:
+  - Model name, total tokens, total cost, cost-per-1k-tokens, % of total spend
+  - Sorted by cost descending
+- Usage trend chart:
+  - Daily cost over last 30 days (area chart)
+  - Overlay: budget line (if set)
+- CSV export button for chargeback reports
+
+### 5) Budget and quota enforcement
+
+**Backend:**
+
+- `budget_policies` table:
+  ```sql
+  CREATE TABLE budget_policies (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_id UUID NOT NULL,
+    user_id UUID,                      -- NULL = org-wide policy
+    period TEXT NOT NULL DEFAULT 'monthly',  -- 'daily', 'weekly', 'monthly'
+    soft_limit_usd NUMERIC(10, 2),     -- alert threshold
+    hard_limit_usd NUMERIC(10, 2),     -- blocking threshold
+    created_by UUID REFERENCES users(user_id),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (org_id, user_id, period)
+  );
+  ```
+- Budget check middleware: before proxying LLM request, query current period spend for user.
+  - If `>= hard_limit_usd`: return 429 with `{ "code": "budget_exceeded", "message": "...", "limit_usd": ..., "used_usd": ... }`
+  - If `>= soft_limit_usd`: allow request, but include `X-Budget-Warning: approaching_limit` header
+    (frontend shows warning toast)
+- `GET /admin/budgets` — list all budget policies for org
+- `POST /admin/budgets` — create budget policy (per-user or org-wide)
+- `PUT /admin/budgets/{id}` — update budget policy
+- `DELETE /admin/budgets/{id}` — archive budget policy
+
+**Frontend — Admin panel "Cost Management" tab (budget section):**
+
+- Budget policy table:
+  - Scope (org-wide or specific user), period, soft limit, hard limit, current usage
+  - Create / edit / archive actions
+- Budget alert configuration:
+  - Alert recipients (admin notification when any user hits soft limit)
+- Cost anomaly detection:
+  - Highlight users whose daily spend exceeds 3x their 7-day rolling average
+  - Visual indicator (warning badge) in per-user table
+
+**Frontend — Chat UI:**
+
+- When `X-Budget-Warning` header received: show subtle toast "You're approaching your usage limit
+  for this period. Contact your admin to increase your budget."
+- When 429 budget_exceeded: show blocking message in chat with remaining budget info and
+  "Contact admin" link
+
+---
+
+## Key Files
+
+| File | Change |
+|------|--------|
+| `backend/app/chat/routes.py` | Usage event capture after LLM response, budget check middleware |
+| `backend/app/routes/admin.py` | Usage, budget, model pricing admin endpoints |
+| `backend/app/routes/users.py` | `GET /users/me/usage`, `GET /users/me/usage/budget` |
+| `backend/db/schema.sql` | New tables (llm_usage_events, model_pricing, budget_policies) |
+| `backend/app/metrics.py` | Prometheus gauges for LLM tokens and cost |
+| `agents/llm_cache.py` | Extract usage metadata from OpenRouter response |
+| `frontend/src/components/settings/AgentSetupPanel.tsx` | Personal usage dashboard, model advisor |
+| `frontend/src/components/admin/AdminCostPanel.tsx` | Org-wide dashboard, budget management |
+| `frontend/src/components/chat/CopilotChatPanel.tsx` | Budget warning toast, exceeded blocking message |
+| `frontend/src/hooks/use-usage.ts` | Usage data fetching hook |
+
+---
+
+## Delivery Plan
+
+### Phase 1: Usage event capture
+
+- [ ] Create `llm_usage_events` table + Alembic migration
+- [ ] Implement usage extraction from OpenRouter response in agents proxy
+- [ ] Log usage events to database after every LLM call
+- [ ] Add Prometheus counters (`llm_tokens_total`, `llm_cost_usd_total`)
+- [ ] Write backend tests (TDD: usage logged correctly, cached requests logged with zero cost)
+
+### Phase 2: Model pricing cache
+
+- [ ] Create `model_pricing` table + migration
+- [ ] Implement daily fetch from OpenRouter `/api/v1/models`
+- [ ] Implement cost calculation (tokens x price-per-token)
+- [ ] Write tests for pricing lookup and cost calculation
+
+### Phase 3: Personal usage dashboard
+
+- [ ] Implement `GET /users/me/usage` and `GET /users/me/usage/budget` endpoints
+- [ ] Build usage summary card and breakdown in `AgentSetupPanel.tsx`
+- [ ] Build model cost advisor table
+- [ ] Write `use-usage.ts` hook
+- [ ] Write frontend tests and Storybook stories
+
+### Phase 4: Org-wide admin dashboard
+
+- [ ] Implement `GET /admin/usage`, `GET /admin/usage/users`, `GET /admin/usage/export` endpoints
+- [ ] Build `AdminCostPanel.tsx` with summary cards, per-user table, per-model breakdown, trend chart
+- [ ] Implement CSV export for chargeback
+- [ ] Write admin panel tests
+
+### Phase 5: Budget and quota enforcement
+
+- [ ] Create `budget_policies` table + migration
+- [ ] Implement budget check middleware in LLM proxy
+- [ ] Implement admin budget CRUD endpoints
+- [ ] Build budget management UI in admin panel
+- [ ] Build chat UI warnings (approaching limit toast, exceeded blocking message)
+- [ ] Implement cost anomaly detection (3x rolling average)
+- [ ] Write integration tests (under budget passes, over hard cap returns 429, soft cap shows warning)
+
+---
+
+## Acceptance Criteria
+
+- [ ] Every LLM inference request is logged with prompt tokens, completion tokens, and calculated cost
+- [ ] Cached responses are logged with zero cost
+- [ ] Model pricing is refreshed daily from OpenRouter API
+- [ ] User sees personal usage summary (tokens, cost, trend) in Agent Setup settings
+- [ ] User sees model cost comparison table with cost-per-1k-tokens
+- [ ] Admin sees org-wide cost dashboard with total spend, projections, and per-user breakdown
+- [ ] Admin can drill down to per-user, per-model, and per-day usage
+- [ ] Admin can export usage data as CSV for chargeback
+- [ ] Admin can set soft (alert) and hard (blocking) budget limits per user and org-wide
+- [ ] Hard budget cap returns 429 with clear explanation and budget info
+- [ ] Soft budget cap shows warning toast in chat UI
+- [ ] Cost anomaly detection highlights unusual spending patterns in admin table
+- [ ] Prometheus metrics expose `llm_tokens_total` and `llm_cost_usd_total` for Grafana dashboards
+
+---
+
+## Definition of Done
+
+- [ ] All acceptance criteria implemented and passing
+- [ ] Backend tests pass (`uv run python -m pytest`)
+- [ ] Frontend unit tests pass (`CI=1 npx vitest run --project=unit`)
+- [ ] TypeScript clean (`npx tsc -b --noEmit`)
+- [ ] ESLint clean (`npx eslint src/`)
+- [ ] Prettier clean (`npx prettier --check src/`)
+- [ ] `npm run preflight:local` passes
+- [ ] Engineering MDX doc created: `Engineering/LlmCostManagement.mdx` documenting cost architecture

@@ -1,0 +1,307 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Product/Epics/DSGVO Compliance" />
+
+# Epic: DSGVO Compliance (GDPR)
+
+**Status:** Draft
+**Priority:** Sprint 2-3 (data residency enforcement) + Sprint 4+ (UI, DPA/SAR management)
+**Last updated:** 2026-02-27
+**Depends on:** [Enterprise Middleware Spine](?path=/docs/product-epics-enterprise-middleware-spine--docs) (consent model + data processing log ship in Sprint 1), [Admin Panel Foundation](?path=/docs/product-epics-admin-panel-foundation--docs) (for admin UI)
+**Related:** [Engineering: Data Retention](?path=/docs/engineering-data-retention--docs), [Engineering: Agents Service](?path=/docs/engineering-agents-service--docs), [ADR-002: No Delete](?path=/docs/engineering-adrs-adr-002-no-delete--docs)
+
+> **Sequencing note:** Phases 1 (consent infrastructure) and 2 (data flow transparency backend) are
+> pulled forward into the [Enterprise Middleware Spine](?path=/docs/product-epics-enterprise-middleware-spine--docs)
+> (OpenClaw-first). The consent pre-flight hook blocks `_stream_openclaw()` before the container is
+> called. Data processing logging fires as a post-stream hook. This epic covers Phase 3+ (self-service
+> export, data residency enforcement, DPA/SAR management, and all frontend UI).
+> Haystack consent enforcement is deferred (Haystack is marked experimental).
+
+---
+
+## Context
+
+The system processes sensitive data for Bundesbeamte (German federal clerks) and proxies user content
+to US-based LLM providers via OpenRouter. Despite this, there is **no GDPR compliance implementation**:
+
+| GDPR requirement | Current state |
+|------------------|---------------|
+| **Lawful basis & consent (Art. 6, 7)** | Single generic disclaimer at first login (`disclaimer_acknowledged_at`). No granular consent per processing purpose. No consent withdrawal mechanism. |
+| **Transparency (Art. 13, 14)** | No documentation of what data is sent where. Users have no visibility into which LLM provider processes their content or what data categories leave the system boundary. |
+| **Subject rights (Art. 15-20)** | `GET /items/export` exports items only. No export of conversations, audit logs, files, or settings. No SAR workflow. No right-to-restriction mechanism. |
+| **International transfers (Art. 44-49)** | User content is sent to OpenRouter (US) with no Schrems II safeguards. No data residency controls. No DPA tracking with providers. |
+| **Data minimization (Art. 5)** | Full conversation context (including prior messages) sent to LLM on every request. No truncation, summarization, or anonymization before transmission. |
+
+The existing no-delete policy ([ADR-002](?path=/docs/engineering-adrs-adr-002-no-delete--docs)) aligns
+well with GDPR's accountability principle — data is preserved for auditability. But the policy needs
+to be framed within a proper GDPR retention schedule, and users need a right-to-restriction mechanism
+(archive + stop processing) even if full deletion is not supported.
+
+### What we can build on
+
+- `users.disclaimer_acknowledged_at` + `FirstLoginDisclaimerModal` — proven consent UX pattern
+- `anonymize_identifier()` in `backend/app/observability.py` — HMAC-SHA256 pseudonymization
+- `assertions` table — append-only audit trail with OTEL trace IDs
+- `GET /items/export` — streaming JSON export (extend to other data categories)
+- `user_agent_settings.provider` / `model` — per-user LLM config (hook for residency enforcement)
+- Org-scoped multi-tenant isolation (every query is `WHERE org_id = ...`)
+
+---
+
+## User Story
+
+> "As a federal clerk handling case data, I need to know exactly what personal and case data leaves
+> the system, to which provider and country it goes, and I need the ability to export all my data
+> or restrict its processing — so that my organization can demonstrate GDPR compliance to auditors
+> and data protection officers."
+
+---
+
+## Goals
+
+1. Users grant and withdraw granular consent per data processing purpose.
+2. Users see a live transparency view of where their data flows (provider, region, data categories).
+3. Users can self-service export all their personal data (items, conversations, files, settings, audit trail).
+4. Admins can enforce data residency policies org-wide (e.g. EU-only models).
+5. Admins can manage DPA status per LLM provider and track compliance.
+6. Admins can receive, track, and fulfill Subject Access Requests.
+7. Every data transfer to an external LLM is logged with provider, region, and data category metadata.
+
+---
+
+## Out of Scope
+
+- Full right-to-erasure (conflicts with no-delete policy; right-to-restriction via archiving is sufficient
+  under Art. 17(3)(e) for legal obligation retention).
+- Cookie consent banner (no third-party cookies in use; auth uses HTTP-only JWT).
+- DPIA (Data Protection Impact Assessment) automation (manual process, documented externally).
+- End-to-end encryption of stored data (separate security epic).
+
+---
+
+## MVP Scope
+
+### 1) Granular consent management
+
+**Backend:**
+
+- `consent_records` table:
+  ```sql
+  CREATE TABLE consent_records (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(user_id),
+    org_id UUID NOT NULL REFERENCES organizations(org_id),
+    purpose TEXT NOT NULL,          -- 'llm_processing', 'analytics', 'email_sync'
+    granted_at TIMESTAMPTZ,
+    revoked_at TIMESTAMPTZ,
+    consent_version TEXT NOT NULL,  -- tracks policy version user agreed to
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+  ```
+- `POST /auth/consent` — grant consent for a purpose
+- `DELETE /auth/consent/{purpose}` — revoke consent (sets `revoked_at`, does not delete row)
+- `GET /auth/consent` — list current consent state per purpose
+- LLM proxy checks: before forwarding to agents service, verify `llm_processing` consent is active.
+  If revoked, return 403 with explanation.
+
+**Frontend — new "Privacy" tab in Settings:**
+
+- Consent toggle per processing purpose with clear explanation of what each purpose covers:
+  - **LLM Processing**: "Your items and conversations are sent to an AI model for copilot assistance."
+  - **Analytics**: "Anonymized usage data helps us improve the product."
+  - **Email Sync**: "Your email content is accessed to import actionable items."
+- Consent version display and "last updated" timestamp
+- Visual indicator when consent was revoked (greyed-out section with "Processing paused" label)
+
+### 2) Data flow transparency
+
+**Backend:**
+
+- `data_processing_log` table:
+  ```sql
+  CREATE TABLE data_processing_log (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_id UUID NOT NULL,
+    user_id UUID NOT NULL,
+    provider TEXT NOT NULL,           -- 'openrouter', 'openai', 'anthropic'
+    model TEXT NOT NULL,              -- 'openai/gpt-4o-mini'
+    hosting_region TEXT,              -- 'us', 'eu', 'unknown'
+    data_categories TEXT[] NOT NULL,  -- ['conversation', 'item_content', 'file_content']
+    prompt_tokens INTEGER,
+    completion_tokens INTEGER,
+    trace_id TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+  ```
+- LLM proxy interceptor: log every request that leaves the system boundary. Classify data categories
+  by inspecting the message payload (contains item content? file content? conversation history?).
+- Model region metadata: cache OpenRouter `/api/v1/models` response, extract hosting region per model.
+  Store in `model_metadata` table, refresh daily.
+
+**Frontend — Privacy tab in Settings:**
+
+- Data flow transparency card showing:
+  - Current LLM provider and model
+  - Hosting region (with flag icon: EU / US / unknown)
+  - Data categories being sent
+  - "Last 30 days" summary: X requests, Y data transfers to [regions]
+- Link to detailed processing log (if admin, links to admin panel)
+
+### 3) Self-service data export
+
+**Backend:**
+
+- `GET /users/me/export` — comprehensive personal data export:
+  - All items (existing `/items/export` logic)
+  - All conversations and chat messages
+  - All uploaded files (metadata + download links)
+  - User settings and preferences
+  - Consent records
+  - Assertions / audit trail entries where user is the actor
+- Response: streamed ZIP with structured JSON files per category
+- Rate-limited to 1 export per 24h per user
+
+**Frontend — Privacy tab in Settings:**
+
+- "Export my data" button with progress indicator
+- Explanation of what's included in the export
+- Download link (available for 24h after generation)
+
+### 4) Data residency enforcement
+
+**Backend:**
+
+- `org_privacy_policies` table:
+  ```sql
+  CREATE TABLE org_privacy_policies (
+    org_id UUID PRIMARY KEY REFERENCES organizations(org_id),
+    allowed_regions TEXT[] NOT NULL DEFAULT '{}',   -- empty = no restriction
+    blocked_providers TEXT[] NOT NULL DEFAULT '{}',
+    require_dpa BOOLEAN NOT NULL DEFAULT false,
+    updated_by UUID REFERENCES users(user_id),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+  ```
+- Data residency middleware: before proxying to agents service, check if the selected model's hosting
+  region is in `allowed_regions` (if set). Reject with 451 (Unavailable For Legal Reasons) if not
+  compliant, with a message explaining the org policy.
+- Model region resolution: look up model in `model_metadata` table, fall back to `unknown` region.
+  Admin can override region classification manually.
+
+**Frontend — Admin panel "Privacy" tab:**
+
+- Data residency policy card:
+  - Allowed regions multi-select (EU, US, or specific countries)
+  - Blocked providers list
+  - "Require DPA before allowing provider" toggle
+- Compliance dashboard:
+  - % of requests compliant with policy in last 30 days
+  - Non-compliant requests (blocked) count and trend
+  - Model-region mapping table with override capability
+
+### 5) DPA and SAR management (admin)
+
+**Backend:**
+
+- `dpa_records` table (provider, status: pending/active/expired, uploaded_at, expires_at, document_url)
+- `subject_access_requests` table (requester_user_id, status: received/in_progress/fulfilled/rejected,
+  assigned_to, notes, completed_at, export_url)
+- `GET /admin/dpa` — list DPA records for org
+- `POST /admin/dpa` — create/update DPA record
+- `GET /admin/sar` — list SARs for org
+- `POST /admin/sar` — create SAR, `PATCH /admin/sar/{id}` — update status
+
+**Frontend — Admin panel "Privacy" tab:**
+
+- DPA tracker table: provider name, status badge, expiry date, uploaded document link
+- SAR management table: requester, status, assigned admin, created/completed dates
+- SAR workflow: receive -> assign -> fulfill (trigger data export) -> close
+- Consent audit dashboard: per-user consent state, grant/revoke history timeline
+- Data processing log viewer: filterable by user, provider, region, date range
+
+---
+
+## Key Files
+
+| File | Change |
+|------|--------|
+| `backend/app/routes/auth.py` | Consent endpoints |
+| `backend/app/routes/admin.py` | DPA, SAR, privacy dashboard endpoints |
+| `backend/app/routes/users.py` | `GET /users/me/export` |
+| `backend/app/chat/routes.py` | Consent check + data processing logging before LLM proxy |
+| `backend/app/deps.py` | Consent verification dependency |
+| `backend/db/schema.sql` | New tables (consent_records, data_processing_log, org_privacy_policies, dpa_records, subject_access_requests) |
+| `frontend/src/components/settings/PrivacyPanel.tsx` | User-facing privacy settings tab |
+| `frontend/src/components/admin/AdminPrivacyPanel.tsx` | Admin privacy dashboard |
+| `frontend/src/hooks/use-consent.ts` | Consent state hook |
+| `agents/copilot.py` | Data category classification in LLM request logging |
+
+---
+
+## Delivery Plan
+
+### Phase 1: Consent infrastructure
+
+- [ ] Create `consent_records` table + Alembic migration
+- [ ] Implement consent endpoints (`POST`, `DELETE`, `GET /auth/consent`)
+- [ ] Add consent check middleware to LLM proxy in `chat/routes.py`
+- [ ] Build `PrivacyPanel.tsx` with consent toggles
+- [ ] Write backend + frontend tests (TDD)
+
+### Phase 2: Data flow transparency
+
+- [ ] Create `data_processing_log` table + migration
+- [ ] Implement LLM proxy interceptor (log provider, region, data categories)
+- [ ] Build model region metadata cache (OpenRouter API)
+- [ ] Add data flow transparency card to `PrivacyPanel.tsx`
+- [ ] Write tests for logging and region resolution
+
+### Phase 3: Self-service data export
+
+- [ ] Implement `GET /users/me/export` (comprehensive ZIP export)
+- [ ] Add "Export my data" button to `PrivacyPanel.tsx`
+- [ ] Write tests for export completeness (items, conversations, files, settings, consent, assertions)
+
+### Phase 4: Data residency enforcement
+
+- [ ] Create `org_privacy_policies` table + migration
+- [ ] Implement data residency middleware (check model region against org policy)
+- [ ] Build admin privacy policy configuration UI
+- [ ] Build compliance dashboard in admin panel
+- [ ] Write integration tests for residency enforcement (compliant model passes, non-compliant blocked)
+
+### Phase 5: DPA and SAR management
+
+- [ ] Create `dpa_records` and `subject_access_requests` tables + migrations
+- [ ] Implement admin endpoints for DPA and SAR CRUD
+- [ ] Build DPA tracker and SAR management UI in admin panel
+- [ ] Build consent audit dashboard
+- [ ] Write E2E tests for SAR workflow
+
+---
+
+## Acceptance Criteria
+
+- [ ] User can grant and revoke consent per processing purpose (LLM, analytics, email sync)
+- [ ] Revoking LLM consent blocks copilot requests with clear explanation
+- [ ] User sees which provider processes their data, in which region, with which data categories
+- [ ] User can export all personal data as a ZIP (items, conversations, files, settings, audit trail)
+- [ ] Admin can set data residency policy (allowed regions, blocked providers)
+- [ ] Non-compliant model requests are blocked with 451 status and policy explanation
+- [ ] Admin can track DPA status per provider (pending, active, expired)
+- [ ] Admin can manage SARs through a receive-assign-fulfill-close workflow
+- [ ] Every LLM data transfer is logged in `data_processing_log` with provider, region, data categories
+- [ ] All consent changes are recorded with timestamp and version (append-only)
+
+---
+
+## Definition of Done
+
+- [ ] All acceptance criteria implemented and passing
+- [ ] Backend tests pass (`uv run python -m pytest`)
+- [ ] Frontend unit tests pass (`CI=1 npx vitest run --project=unit`)
+- [ ] TypeScript clean (`npx tsc -b --noEmit`)
+- [ ] ESLint clean (`npx eslint src/`)
+- [ ] Prettier clean (`npx prettier --check src/`)
+- [ ] `npm run preflight:local` passes
+- [ ] Engineering MDX doc created: `Engineering/DSGVO.mdx` documenting the compliance architecture

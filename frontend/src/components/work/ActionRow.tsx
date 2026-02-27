@@ -156,6 +156,8 @@ export function ActionRow({
   const [showCalendarPicker, setShowCalendarPicker] = useState(false);
   const [showCancelOptions, setShowCancelOptions] = useState(false);
   const dateInputRef = useRef<HTMLInputElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
   const [prevExpanded, setPrevExpanded] = useState(isExpanded);
   // Track the latest projectId from the ItemEditor so triage buttons can use it
   const editorProjectRef = useRef<CanonicalId | undefined>(thing.projectIds[0]);
@@ -165,6 +167,32 @@ export function ActionRow({
       dateInputRef.current?.focus();
     }
   }, [showCalendarPicker]);
+
+  // Close menu on click-outside or Escape
+  useEffect(() => {
+    if (!menuOpen) return;
+    function handleMouseDown(e: MouseEvent) {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(e.target as Node) &&
+        menuButtonRef.current &&
+        !menuButtonRef.current.contains(e.target as Node)
+      ) {
+        setMenuOpen(false);
+      }
+    }
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleMouseDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleMouseDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [menuOpen]);
 
   // Reset editing / picker state when row collapses (derived state pattern)
   if (prevExpanded !== isExpanded) {
@@ -437,9 +465,10 @@ export function ActionRow({
         )}
 
         {/* Move/more menu */}
-        <div className="relative">
+        <div className="relative" ref={menuRef}>
           <Tooltip>
             <button
+              ref={menuButtonRef}
               onClick={() => setMenuOpen(!menuOpen)}
               aria-label={`Move ${displayName}`}
               aria-expanded={menuOpen}
