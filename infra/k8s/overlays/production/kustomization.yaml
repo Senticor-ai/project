@@ -17,7 +17,10 @@ images:
     newTag: "cb68021f02fcdb8146ad9ce090426bf0e154459d"
   - name: project-agents
     newName: registry.onstackit.cloud/senticor/project/agents
-    newTag: "cb68021f02fcdb8146ad9ce090426bf0e154459d"
+    newTag: "9d8e118346c49d8193cccc6f6955043eedf25fb5"
+  - name: project-openclaw
+    newName: registry.onstackit.cloud/senticor/project/openclaw
+    newTag: "9d8e118346c49d8193cccc6f6955043eedf25fb5"
 
 patches:
   - path: patches/backend.yaml

@@ -28,6 +28,7 @@ spec:
         prometheus.io/path: /metrics
         prometheus.io/port: "8000"
     spec:
+      serviceAccountName: backend-openclaw-runtime
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000

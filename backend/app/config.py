@@ -136,12 +136,28 @@ class Settings:
     openclaw_url: str | None
     openclaw_token: str | None
     # OpenClaw container management (Phase 2 — per-user containers)
+    openclaw_runtime: str
     openclaw_image: str
     openclaw_port_range_start: int
     openclaw_port_range_end: int
+    openclaw_k8s_gateway_port: int
     openclaw_idle_timeout_seconds: int
     openclaw_health_check_timeout: int
     openclaw_project_mount_path: str
+    openclaw_k8s_api_url: str
+    openclaw_k8s_namespace: str
+    openclaw_k8s_namespace_path: str
+    openclaw_k8s_pvc_name: str
+    openclaw_k8s_image_pull_secret: str
+    openclaw_k8s_service_account_token_path: str
+    openclaw_k8s_service_account_ca_path: str
+    openclaw_k8s_http_timeout: float
+    openclaw_k8s_delete_timeout_seconds: int
+    openclaw_k8s_cpu_request: str
+    openclaw_k8s_memory_request: str
+    openclaw_k8s_cpu_limit: str
+    openclaw_k8s_memory_limit: str
+    openclaw_k8s_max_concurrent_pods: int
     # Email integration (Gmail OAuth)
     encryption_key: str | None
     gmail_client_id: str
@@ -319,15 +335,48 @@ def load_settings() -> Settings:
         default_agent_backend=_get_env("DEFAULT_AGENT_BACKEND", "openclaw") or "openclaw",
         openclaw_url=_get_env("OPENCLAW_URL"),
         openclaw_token=_get_secret("OPENCLAW_GATEWAY_TOKEN"),
+        openclaw_runtime=_get_env("OPENCLAW_RUNTIME", "local") or "local",
         openclaw_image=_get_env("OPENCLAW_IMAGE", "ghcr.io/openclaw/openclaw:latest")
         or "ghcr.io/openclaw/openclaw:latest",
         openclaw_port_range_start=int(_get_env("OPENCLAW_PORT_RANGE_START", "18800") or "18800"),
         openclaw_port_range_end=int(_get_env("OPENCLAW_PORT_RANGE_END", "18899") or "18899"),
+        openclaw_k8s_gateway_port=int(_get_env("OPENCLAW_K8S_GATEWAY_PORT", "18789") or "18789"),
         openclaw_idle_timeout_seconds=int(
             _get_env("OPENCLAW_IDLE_TIMEOUT_SECONDS", "1800") or "1800"
         ),
         openclaw_health_check_timeout=int(_get_env("OPENCLAW_HEALTH_CHECK_TIMEOUT", "30") or "30"),
         openclaw_project_mount_path=_get_env("OPENCLAW_PROJECT_MOUNT_PATH", str(ROOT_DIR)) or "",
+        openclaw_k8s_api_url=_get_env("OPENCLAW_K8S_API_URL", "https://kubernetes.default.svc")
+        or "https://kubernetes.default.svc",
+        openclaw_k8s_namespace=_get_env("OPENCLAW_K8S_NAMESPACE", "") or "",
+        openclaw_k8s_namespace_path=_get_env(
+            "OPENCLAW_K8S_NAMESPACE_PATH",
+            "/var/run/secrets/kubernetes.io/serviceaccount/namespace",
+        )
+        or "/var/run/secrets/kubernetes.io/serviceaccount/namespace",
+        openclaw_k8s_pvc_name=_get_env("OPENCLAW_K8S_PVC_NAME", "backend-files") or "backend-files",
+        openclaw_k8s_image_pull_secret=_get_env("OPENCLAW_K8S_IMAGE_PULL_SECRET", "") or "",
+        openclaw_k8s_service_account_token_path=_get_env(
+            "OPENCLAW_K8S_SERVICE_ACCOUNT_TOKEN_PATH",
+            "/var/run/secrets/kubernetes.io/serviceaccount/token",
+        )
+        or "/var/run/secrets/kubernetes.io/serviceaccount/token",
+        openclaw_k8s_service_account_ca_path=_get_env(
+            "OPENCLAW_K8S_SERVICE_ACCOUNT_CA_PATH",
+            "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
+        )
+        or "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
+        openclaw_k8s_http_timeout=float(_get_env("OPENCLAW_K8S_HTTP_TIMEOUT", "10.0") or "10.0"),
+        openclaw_k8s_delete_timeout_seconds=int(
+            _get_env("OPENCLAW_K8S_DELETE_TIMEOUT_SECONDS", "20") or "20"
+        ),
+        openclaw_k8s_cpu_request=_get_env("OPENCLAW_K8S_CPU_REQUEST", "100m") or "100m",
+        openclaw_k8s_memory_request=_get_env("OPENCLAW_K8S_MEMORY_REQUEST", "256Mi") or "256Mi",
+        openclaw_k8s_cpu_limit=_get_env("OPENCLAW_K8S_CPU_LIMIT", "500m") or "500m",
+        openclaw_k8s_memory_limit=_get_env("OPENCLAW_K8S_MEMORY_LIMIT", "1Gi") or "1Gi",
+        openclaw_k8s_max_concurrent_pods=int(
+            _get_env("OPENCLAW_K8S_MAX_CONCURRENT_PODS", "8") or "8"
+        ),
         delegation_jwt_secret=(
             _get_secret("DELEGATION_JWT_SECRET") or _get_secret("JWT_SECRET") or ""
         ),

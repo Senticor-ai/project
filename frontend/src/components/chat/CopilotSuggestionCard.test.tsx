@@ -649,7 +649,7 @@ describe("CopilotSuggestionCard", () => {
       const action: CreateActionSuggestion = {
         type: "create_action",
         name: "Custom Bucket",
-        bucket: "custom_bucket" as ActionItemBucket,
+        bucket: "custom_bucket" as unknown as CreateActionSuggestion["bucket"],
       };
       render(
         <CopilotSuggestionCard

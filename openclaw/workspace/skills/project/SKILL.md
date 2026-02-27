@@ -10,12 +10,12 @@ This skill covers CLI commands for item management and organization knowledge do
 
 ## CLI
 
-The CLI is available at `/project/packages/core/cli/index.ts`.
-Invoke: `npx tsx /project/packages/core/cli/index.ts [command] [options]`
+The CLI binary is available as `project-cli` in the OpenClaw image.
+Invoke: `project-cli [command] [options]`
 
 For current help:
 ```bash
-exec npx tsx /project/packages/core/cli/index.ts --help
+exec project-cli --help
 ```
 
 ### Global Options
@@ -34,10 +34,10 @@ exec npx tsx /project/packages/core/cli/index.ts --help
 **`items create`** — Create an action, reference, or event.
 
 ```bash
-items create --type Action --name "Check taxes" --bucket next --apply
-items create --type CreativeWork --name "Note" --description "..." --bucket reference --apply
-items create --type Event --name "Meeting" --start-date 2026-03-01T10:00Z --end-date 2026-03-01T11:00Z --apply
-items create --type Action --name "Task" --bucket next --project <project-id> --apply
+project-cli items create --type Action --name "Check taxes" --bucket next --apply
+project-cli items create --type CreativeWork --name "Note" --description "..." --bucket reference --apply
+project-cli items create --type Event --name "Meeting" --start-date 2026-03-01T10:00Z --end-date 2026-03-01T11:00Z --apply
+project-cli items create --type Action --name "Task" --bucket next --project <project-id> --apply
 ```
 
 Available `--type` values:
@@ -51,15 +51,15 @@ Available `--type` values:
 **`items triage`** — Move an item to a different bucket.
 
 ```bash
-items triage <item-id> --bucket next --apply
-items triage <item-id> --bucket someday --apply
+project-cli items triage <item-id> --bucket next --apply
+project-cli items triage <item-id> --bucket someday --apply
 ```
 
 **`items focus`** — Set or remove focus on an item.
 
 ```bash
-items focus <item-id> --on --apply
-items focus <item-id> --off --apply
+project-cli items focus <item-id> --on --apply
+project-cli items focus <item-id> --off --apply
 ```
 
 ### Project Commands
@@ -67,37 +67,37 @@ items focus <item-id> --off --apply
 **`projects create`** — Create a new project.
 
 ```bash
-projects create --name "Tax return 2025" --desired-outcome "Submit by 31.07." --apply
+project-cli projects create --name "Tax return 2025" --desired-outcome "Submit by 31.07." --apply
 ```
 
 **`projects actions create`** — Create an action within a project.
 
 ```bash
-projects actions create --project <project-id> --name "Collect receipts" --bucket next --apply
+project-cli projects actions create --project <project-id> --name "Collect receipts" --bucket next --apply
 ```
 
 **`projects actions update`** — Update a project action.
 
 ```bash
-projects actions update --project <project-id> --action <action-id> --name "New name" --apply
+project-cli projects actions update --project <project-id> --action <action-id> --name "New name" --apply
 ```
 
 **`projects actions transition`** — Change action status.
 
 ```bash
-projects actions transition --project <project-id> --action <action-id> --status completed --apply
+project-cli projects actions transition --project <project-id> --action <action-id> --status completed --apply
 ```
 
 **`projects actions comments add`** — Add a comment to a project action.
 
 ```bash
-projects actions comments add --project <project-id> --action <action-id> --text "Comment" --apply
+project-cli projects actions comments add --project <project-id> --action <action-id> --text "Comment" --apply
 ```
 
 **`projects actions comments reply`** — Reply to a comment.
 
 ```bash
-projects actions comments reply --project <project-id> --action <action-id> --comment <comment-id> --text "Reply" --apply
+project-cli projects actions comments reply --project <project-id> --action <action-id> --comment <comment-id> --text "Reply" --apply
 ```
 
 ### Calendar Commands
@@ -105,20 +105,20 @@ projects actions comments reply --project <project-id> --action <action-id> --co
 **`calendar list`** — List calendar events.
 
 ```bash
-calendar list --date-from 2026-03-01 --date-to 2026-03-07 --limit 50
+project-cli calendar list --date-from 2026-03-01 --date-to 2026-03-07 --limit 50
 ```
 
 **`calendar patch`** — Update a calendar event.
 
 ```bash
-calendar patch <canonical-id> --name "New title" --start-date 2026-03-01T10:00Z
+project-cli calendar patch <canonical-id> --name "New title" --start-date 2026-03-01T10:00Z
 ```
 
 **`calendar rsvp`** — Set RSVP status.
 
 ```bash
-calendar rsvp <canonical-id> --status accepted
-calendar rsvp <canonical-id> --status declined
+project-cli calendar rsvp <canonical-id> --status accepted
+project-cli calendar rsvp <canonical-id> --status declined
 ```
 
 ### Org Commands
@@ -126,13 +126,13 @@ calendar rsvp <canonical-id> --status declined
 **`orgs list`** — List organizations the user belongs to.
 
 ```bash
-orgs list
+project-cli orgs list
 ```
 
 **`orgs get`** — Get org details with linked reference documents.
 
 ```bash
-orgs get <idOrName> --docs
+project-cli orgs get <idOrName> --docs
 ```
 
 ### Proposals
@@ -140,7 +140,7 @@ orgs get <idOrName> --docs
 **`proposals apply`** — Apply proposals (e.g. email proposals).
 
 ```bash
-proposals apply --apply
+project-cli proposals apply --apply
 ```
 
 ### CLI Rules

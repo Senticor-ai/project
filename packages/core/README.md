@@ -1,6 +1,9 @@
 # @project/core (CLI slice)
 
-This package contains the first working `senticor-copilot` CLI slice for Senticor Project.
+This package contains the project CLI slice for Senticor Project.
+
+Primary binary: `project-cli`  
+Compatibility aliases: `senticor-copilot`, `copilot`
 
 ## Run locally
 

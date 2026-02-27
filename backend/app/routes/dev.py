@@ -62,6 +62,30 @@ def flush_org_data(
             )
             deleted["idempotency_keys"] = cur.rowcount
 
+            cur.execute(
+                "DELETE FROM connector_action_audit_log WHERE org_id = %s",
+                (org_id,),
+            )
+            deleted["connector_action_audit_log"] = cur.rowcount
+
+            cur.execute(
+                "DELETE FROM connector_action_proposals WHERE org_id = %s",
+                (org_id,),
+            )
+            deleted["connector_action_proposals"] = cur.rowcount
+
+            cur.execute(
+                "DELETE FROM proposal_candidates WHERE org_id = %s",
+                (org_id,),
+            )
+            deleted["proposal_candidates"] = cur.rowcount
+
+            cur.execute(
+                "DELETE FROM notification_events WHERE org_id = %s",
+                (org_id,),
+            )
+            deleted["notification_events"] = cur.rowcount
+
             # Clear doc links first: organizations has FK references to items.
             cur.execute(
                 """

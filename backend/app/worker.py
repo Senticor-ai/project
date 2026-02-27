@@ -751,11 +751,18 @@ def main() -> None:
             # Periodic idle container reaping
             if now - last_container_reap >= container_reap_interval:
                 try:
-                    from .container.manager import reap_idle
+                    from .container.manager import reap_idle, reap_orphaned_k8s_resources
 
                     reaped = reap_idle()
                     if reaped:
                         logger.info("container.idle_reaped_batch", count=reaped)
+                    orphaned = reap_orphaned_k8s_resources()
+                    if orphaned["pods"] or orphaned["services"]:
+                        logger.info(
+                            "container.k8s_orphans_reaped_batch",
+                            pods=orphaned["pods"],
+                            services=orphaned["services"],
+                        )
                 except Exception:
                     logger.warning("container.reap_failed", exc_info=True)
                 last_container_reap = now

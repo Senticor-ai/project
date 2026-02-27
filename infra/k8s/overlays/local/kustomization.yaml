@@ -6,6 +6,7 @@ resources:
   - namespace.yaml
   - configmap.yaml
   - secret.yaml
+  - rbac-openclaw-runtime.yaml
   - ingress.yaml
 
 patches:

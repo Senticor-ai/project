@@ -63,13 +63,13 @@ exec curl -s -X PATCH "$COPILOT_BACKEND_URL/email/connections/{connection_id}" \
 
 ```bash
 # Events auflisten
-calendar list --date-from 2026-03-01 --date-to 2026-03-07
+project-cli calendar list --date-from 2026-03-01 --date-to 2026-03-07
 
 # Event-Details aendern
-calendar patch <canonical-id> --name "Neuer Titel" --start-date 2026-03-01T10:00Z
+project-cli calendar patch <canonical-id> --name "Neuer Titel" --start-date 2026-03-01T10:00Z
 
 # RSVP setzen
-calendar rsvp <canonical-id> --status accepted
+project-cli calendar rsvp <canonical-id> --status accepted
 ```
 
 ### Vorschlaege (Proposals)

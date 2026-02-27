@@ -20,6 +20,9 @@
     "defaults": {
       "model": {
         "primary": "openrouter/google/gemini-2.5-flash"
+      },
+      "imageModel": {
+        "primary": "openrouter/google/gemini-2.5-flash"
       }
     },
     "list": [

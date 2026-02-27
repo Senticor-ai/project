@@ -370,6 +370,20 @@ def _header_present(parameters: list[dict], name: str) -> bool:
     return False
 
 
+def _parameter_ref_id(header_name: str) -> str:
+    token_chars: list[str] = []
+    for char in header_name:
+        if char.isalnum():
+            token_chars.append(char.lower())
+            continue
+        if token_chars and token_chars[-1] != "_":
+            token_chars.append("_")
+    token = "".join(token_chars).strip("_")
+    if not token:
+        token = "header"
+    return f"{token}_header"
+
+
 def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema
@@ -383,7 +397,13 @@ def custom_openapi():
 
     components = schema.setdefault("components", {})
     parameters = components.setdefault("parameters", {})
-    parameters[REQUEST_ID_HEADER] = {
+    request_id_parameter_ref = _parameter_ref_id(REQUEST_ID_HEADER)
+    user_id_parameter_ref = _parameter_ref_id(USER_ID_HEADER)
+    trail_id_parameter_ref = _parameter_ref_id(TRAIL_ID_HEADER)
+    org_id_parameter_ref = _parameter_ref_id(ORG_ID_HEADER)
+    csrf_parameter_ref = _parameter_ref_id(settings.csrf_header_name)
+
+    parameters[request_id_parameter_ref] = {
         "name": REQUEST_ID_HEADER,
         "in": "header",
         "required": False,
@@ -393,7 +413,7 @@ def custom_openapi():
             "If omitted, the server generates one and echoes it back."
         ),
     }
-    parameters[USER_ID_HEADER] = {
+    parameters[user_id_parameter_ref] = {
         "name": USER_ID_HEADER,
         "in": "header",
         "required": False,
@@ -402,7 +422,7 @@ def custom_openapi():
             "Optional user id for log context only. Auth is always derived from the session cookie."
         ),
     }
-    parameters[TRAIL_ID_HEADER] = {
+    parameters[trail_id_parameter_ref] = {
         "name": TRAIL_ID_HEADER,
         "in": "header",
         "required": False,
@@ -412,7 +432,7 @@ def custom_openapi():
             "If omitted, the server generates one and echoes it back."
         ),
     }
-    parameters[settings.csrf_header_name] = {
+    parameters[csrf_parameter_ref] = {
         "name": settings.csrf_header_name,
         "in": "header",
         "required": False,
@@ -422,7 +442,7 @@ def custom_openapi():
             "Must match the CSRF cookie."
         ),
     }
-    parameters[ORG_ID_HEADER] = {
+    parameters[org_id_parameter_ref] = {
         "name": ORG_ID_HEADER,
         "in": "header",
         "required": False,
@@ -466,21 +486,23 @@ def custom_openapi():
                 continue
             parameters_list = operation.setdefault("parameters", [])
             if not _header_present(parameters_list, REQUEST_ID_HEADER):
-                parameters_list.append({"$ref": f"#/components/parameters/{REQUEST_ID_HEADER}"})
+                parameters_list.append(
+                    {"$ref": f"#/components/parameters/{request_id_parameter_ref}"}
+                )
             if not _header_present(parameters_list, USER_ID_HEADER):
-                parameters_list.append({"$ref": f"#/components/parameters/{USER_ID_HEADER}"})
+                parameters_list.append({"$ref": f"#/components/parameters/{user_id_parameter_ref}"})
             if not _header_present(parameters_list, TRAIL_ID_HEADER):
-                parameters_list.append({"$ref": f"#/components/parameters/{TRAIL_ID_HEADER}"})
+                parameters_list.append(
+                    {"$ref": f"#/components/parameters/{trail_id_parameter_ref}"}
+                )
             if not _header_present(parameters_list, ORG_ID_HEADER):
-                parameters_list.append({"$ref": f"#/components/parameters/{ORG_ID_HEADER}"})
+                parameters_list.append({"$ref": f"#/components/parameters/{org_id_parameter_ref}"})
             if (
                 method not in {"get", "head", "options", "trace"}
                 and path not in csrf_exempt_paths
                 and not _header_present(parameters_list, settings.csrf_header_name)
             ):
-                parameters_list.append(
-                    {"$ref": f"#/components/parameters/{settings.csrf_header_name}"}
-                )
+                parameters_list.append({"$ref": f"#/components/parameters/{csrf_parameter_ref}"})
 
     for path, path_item in schema.get("paths", {}).items():
         for method, operation in path_item.items():

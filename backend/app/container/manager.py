@@ -7,8 +7,10 @@ reaped after idle timeout.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
+import os
 import re
 import secrets
 import shutil
@@ -57,6 +59,12 @@ class ContainerInfo:
 
 _LOCALHOST_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0"}  # noqa: S104
 _READY_CHAT_STATUS_CODES = {200, 400, 401, 403, 405}
+_DNS_LABEL_SANITIZE_RE = re.compile(r"[^a-z0-9-]")
+_MAX_DNS_LABEL_LEN = 63
+
+OPENCLAW_RUNTIME_LOCAL = "local"
+OPENCLAW_RUNTIME_K8S = "k8s"
+OPENCLAW_K8S_LABEL_SELECTOR = "app=openclaw,copilot.managed=true"
 
 
 def _to_container_url(url: str) -> str:
@@ -72,6 +80,50 @@ def _to_container_url(url: str) -> str:
         new_netloc = f"{host}:{parsed.port}" if parsed.port else host
         return urlunparse(parsed._replace(netloc=new_netloc))
     return url
+
+
+def _runtime_mode() -> str:
+    mode = (settings.openclaw_runtime or OPENCLAW_RUNTIME_LOCAL).strip().lower()
+    if mode in {OPENCLAW_RUNTIME_LOCAL, OPENCLAW_RUNTIME_K8S}:
+        return mode
+    logger.warning("container.runtime_unknown", extra={"mode": mode})
+    return OPENCLAW_RUNTIME_LOCAL
+
+
+def _use_k8s_runtime() -> bool:
+    return _runtime_mode() == OPENCLAW_RUNTIME_K8S
+
+
+def _resolve_k8s_namespace() -> str:
+    if settings.openclaw_k8s_namespace:
+        return settings.openclaw_k8s_namespace
+
+    env_namespace = (os.getenv("POD_NAMESPACE") or "").strip()
+    if env_namespace:
+        return env_namespace
+
+    try:
+        value = Path(settings.openclaw_k8s_namespace_path).read_text().strip()
+    except OSError:
+        value = ""
+    return value or "default"
+
+
+def _runtime_url(url: str, *, k8s_fallback: str) -> str:
+    if _use_k8s_runtime():
+        parsed = urlparse(url)
+        hostname = parsed.hostname or ""
+        if hostname in _LOCALHOST_HOSTS or hostname.endswith(".localhost"):
+            return k8s_fallback
+        return url
+    return _to_container_url(url)
+
+
+def _build_container_url(container_name: str, port: int) -> str:
+    if _use_k8s_runtime():
+        namespace = _resolve_k8s_namespace()
+        return f"http://{container_name}.{namespace}.svc.cluster.local:{port}"
+    return f"http://localhost:{port}"
 
 
 # ---------------------------------------------------------------------------
@@ -142,8 +194,54 @@ def _build_volume_args(workspace_dir: Path, runtime_dir: Path) -> list[str]:
 
 
 def _build_container_name(user_id: str) -> str:
-    """Build a stable per-user container name using the full user id."""
-    return f"openclaw-{user_id}"
+    """Build a stable per-user container/pod name."""
+    raw = f"openclaw-{user_id}".lower()
+    normalized = _DNS_LABEL_SANITIZE_RE.sub("-", raw).strip("-")
+
+    if not normalized:
+        digest = hashlib.sha1(user_id.encode("utf-8")).hexdigest()[:12]
+        return f"openclaw-{digest}"
+
+    if len(normalized) <= _MAX_DNS_LABEL_LEN:
+        return normalized
+
+    digest = hashlib.sha1(user_id.encode("utf-8")).hexdigest()[:12]
+    keep = _MAX_DNS_LABEL_LEN - len(digest) - 1
+    prefix = normalized[:keep].rstrip("-")
+    if not prefix:
+        prefix = "openclaw"
+    return f"{prefix}-{digest}"
+
+
+def _select_gateway_port(cur) -> int:  # noqa: ANN001
+    if _use_k8s_runtime():
+        return settings.openclaw_k8s_gateway_port
+    return _allocate_port(cur)
+
+
+def _enforce_k8s_tenant_capacity(cur) -> None:  # noqa: ANN001
+    """Fail fast when the tenant-wide OpenClaw pod cap is reached."""
+    if not _use_k8s_runtime():
+        return
+    limit = settings.openclaw_k8s_max_concurrent_pods
+    if limit <= 0:
+        return
+    cur.execute(
+        """
+        SELECT COUNT(*)::int AS active
+        FROM user_agent_settings
+        WHERE agent_backend = 'openclaw'
+          AND container_name IS NOT NULL
+          AND container_status IN ('starting', 'running')
+        """
+    )
+    row = cur.fetchone() or {}
+    active = int(row.get("active", 0) or 0)
+    if active >= limit:
+        raise RuntimeError(
+            f"OpenClaw tenant capacity reached ({active}/{limit} active pods). "
+            "Try again after idle containers are reaped."
+        )
 
 
 def _build_label_args(user_id: str) -> list[str]:
@@ -158,6 +256,229 @@ def _build_label_args(user_id: str) -> list[str]:
     for label in labels:
         args.extend(["--label", label])
     return args
+
+
+# ---------------------------------------------------------------------------
+# Kubernetes runtime helpers
+# ---------------------------------------------------------------------------
+
+
+def _k8s_api_base() -> str:
+    return settings.openclaw_k8s_api_url.rstrip("/")
+
+
+def _k8s_token() -> str:
+    try:
+        token = Path(settings.openclaw_k8s_service_account_token_path).read_text().strip()
+    except OSError as exc:
+        raise RuntimeError("Kubernetes service account token is unavailable") from exc
+    if not token:
+        raise RuntimeError("Kubernetes service account token is empty")
+    return token
+
+
+def _k8s_verify_option() -> str | bool:
+    ca_path = Path(settings.openclaw_k8s_service_account_ca_path)
+    if ca_path.is_file():
+        return str(ca_path)
+    return True
+
+
+def _k8s_request(
+    method: str,
+    path: str,
+    *,
+    json_body: dict | None = None,
+    ok_statuses: set[int] | None = None,
+) -> httpx.Response:
+    if ok_statuses is None:
+        ok_statuses = {200, 201, 202, 204}
+
+    url = f"{_k8s_api_base()}{path}"
+    headers = {
+        "Authorization": f"Bearer {_k8s_token()}",
+        "Accept": "application/json",
+    }
+
+    with httpx.Client(
+        timeout=settings.openclaw_k8s_http_timeout,
+        verify=_k8s_verify_option(),
+    ) as client:
+        resp = client.request(method, url, headers=headers, json=json_body)
+
+    if resp.status_code not in ok_statuses:
+        detail = (resp.text or "").strip().replace("\n", " ")
+        raise RuntimeError(
+            f"Kubernetes API {method} {path} failed with {resp.status_code}: {detail[:240]}"
+        )
+    return resp
+
+
+def _k8s_resource_path(kind: str, name: str | None = None) -> str:
+    namespace = _resolve_k8s_namespace()
+    base = "/pods" if kind == "pod" else "/services"
+    path = f"/api/v1/namespaces/{namespace}{base}"
+    if name:
+        path = f"{path}/{name}"
+    return path
+
+
+def _k8s_delete_if_exists(kind: str, name: str) -> None:
+    _k8s_request(
+        "DELETE",
+        _k8s_resource_path(kind, name),
+        json_body={"gracePeriodSeconds": 0},
+        ok_statuses={200, 202, 404},
+    )
+    deadline = time.monotonic() + settings.openclaw_k8s_delete_timeout_seconds
+    while time.monotonic() < deadline:
+        resp = _k8s_request(
+            "GET",
+            _k8s_resource_path(kind, name),
+            ok_statuses={200, 404},
+        )
+        if resp.status_code == 404:
+            return
+        time.sleep(0.25)
+    raise RuntimeError(f"Timed out deleting Kubernetes {kind}: {name}")
+
+
+def _k8s_labels(user_id: str, container_name: str) -> dict[str, str]:
+    return {
+        "app": "openclaw",
+        "app.kubernetes.io/name": "openclaw",
+        "app.kubernetes.io/component": "runtime",
+        "app.kubernetes.io/managed-by": "project-backend",
+        "openclaw.instance": container_name,
+        "copilot.user_id": user_id,
+        "copilot.managed": "true",
+    }
+
+
+def _k8s_annotations(user_id: str, container_name: str) -> dict[str, str]:
+    return {
+        "project.senticor.ai/runtime": "openclaw-k8s",
+        "project.senticor.ai/owner-user-id": user_id,
+        "project.senticor.ai/instance": container_name,
+    }
+
+
+def _k8s_apply_resources(
+    *,
+    user_id: str,
+    container_name: str,
+    port: int,
+    env_vars: dict[str, str],
+) -> None:
+    labels = _k8s_labels(user_id, container_name)
+    annotations = _k8s_annotations(user_id, container_name)
+
+    _k8s_delete_if_exists("pod", container_name)
+    _k8s_delete_if_exists("service", container_name)
+
+    service_manifest = {
+        "apiVersion": "v1",
+        "kind": "Service",
+        "metadata": {
+            "name": container_name,
+            "labels": labels,
+            "annotations": annotations,
+        },
+        "spec": {
+            "selector": {
+                "app": "openclaw",
+                "openclaw.instance": container_name,
+            },
+            "ports": [
+                {
+                    "name": "http",
+                    "port": port,
+                    "targetPort": port,
+                    "protocol": "TCP",
+                }
+            ],
+        },
+    }
+    _k8s_request(
+        "POST",
+        _k8s_resource_path("service"),
+        json_body=service_manifest,
+    )
+
+    image_pull_secrets: list[dict[str, str]] = []
+    if settings.openclaw_k8s_image_pull_secret:
+        image_pull_secrets.append({"name": settings.openclaw_k8s_image_pull_secret})
+
+    env_list = [{"name": name, "value": value} for name, value in env_vars.items()]
+    user_subpath = user_id.replace("/", "-")
+    pod_spec: dict[str, object] = {
+        "restartPolicy": "Always",
+        "containers": [
+            {
+                "name": "openclaw",
+                "image": settings.openclaw_image,
+                "imagePullPolicy": "Always",
+                "ports": [{"containerPort": port, "name": "http"}],
+                "env": env_list,
+                "volumeMounts": [
+                    {
+                        "name": "backend-files",
+                        "mountPath": "/workspace",
+                        "subPath": f"openclaw/{user_subpath}/workspace",
+                    },
+                    {
+                        "name": "backend-files",
+                        "mountPath": "/openclaw.json",
+                        "subPath": f"openclaw/{user_subpath}/openclaw.json",
+                        "readOnly": True,
+                    },
+                    {
+                        "name": "backend-files",
+                        "mountPath": "/runtime",
+                        "subPath": f"openclaw-runtime/{user_subpath}",
+                    },
+                ],
+                "securityContext": {
+                    "allowPrivilegeEscalation": False,
+                    "capabilities": {"drop": ["ALL"]},
+                },
+                "resources": {
+                    "requests": {
+                        "cpu": settings.openclaw_k8s_cpu_request,
+                        "memory": settings.openclaw_k8s_memory_request,
+                    },
+                    "limits": {
+                        "cpu": settings.openclaw_k8s_cpu_limit,
+                        "memory": settings.openclaw_k8s_memory_limit,
+                    },
+                },
+            }
+        ],
+        "volumes": [
+            {
+                "name": "backend-files",
+                "persistentVolumeClaim": {"claimName": settings.openclaw_k8s_pvc_name},
+            }
+        ],
+    }
+    if image_pull_secrets:
+        pod_spec["imagePullSecrets"] = image_pull_secrets
+
+    pod_manifest = {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {
+            "name": container_name,
+            "labels": labels,
+            "annotations": annotations,
+        },
+        "spec": pod_spec,
+    }
+    _k8s_request(
+        "POST",
+        _k8s_resource_path("pod"),
+        json_body=pod_manifest,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -188,9 +509,11 @@ def start_container(user_id: str) -> ContainerInfo:
             if not row or not row["api_key_encrypted"]:
                 raise ValueError("No API key configured for user")
 
-            port = _allocate_port(cur)
+            _enforce_k8s_tenant_capacity(cur)
+            port = _select_gateway_port(cur)
             gateway_token = secrets.token_urlsafe(32)
             container_name = _build_container_name(user_id)
+            container_url = _build_container_url(container_name, port)
 
             # Mark as starting + reserve port
             cur.execute(
@@ -208,7 +531,7 @@ def start_container(user_id: str) -> ContainerInfo:
                 """,
                 (
                     container_name,
-                    f"http://localhost:{port}",
+                    container_url,
                     port,
                     user_id,
                 ),
@@ -232,52 +555,80 @@ def start_container(user_id: str) -> ContainerInfo:
     api_key = _decrypt_api_key(row["api_key_encrypted"])
     api_key_env = API_KEY_ENV_MAP.get(provider, "OPENROUTER_API_KEY")
 
-    # Ensure we run the configured image tag/digest as provided.
-    pull_result = run_cmd(["pull", settings.openclaw_image], timeout=120)
-    if pull_result.returncode != 0:
-        detail = (pull_result.stderr or pull_result.stdout or "image pull failed").strip()
-        _mark_error(user_id, f"Image pull failed: {detail[:240]}")
-        raise RuntimeError(f"Image pull failed: {detail[:200]}")
+    env_vars = {
+        api_key_env: api_key,
+        "OPENCLAW_GATEWAY_TOKEN": gateway_token,
+        "COPILOT_BACKEND_URL": _runtime_url(
+            settings.backend_base_url,
+            k8s_fallback="http://backend:8000",
+        ),
+        "COPILOT_FRONTEND_URL": _runtime_url(
+            settings.frontend_base_url,
+            k8s_fallback="http://frontend",
+        ),
+        "COPILOT_STORYBOOK_URL": _runtime_url(
+            settings.storybook_url,
+            k8s_fallback="http://storybook",
+        ),
+        "OPENCLAW_CONFIG_PATH": "/openclaw.json",
+    }
 
-    # Remove any old container with the same name
-    run_cmd(["rm", "-f", container_name])
+    if _use_k8s_runtime():
+        try:
+            _k8s_apply_resources(
+                user_id=user_id,
+                container_name=container_name,
+                port=port,
+                env_vars=env_vars,
+            )
+        except Exception as exc:
+            _mark_error(user_id, f"Kubernetes start failed: {str(exc)[:220]}")
+            raise RuntimeError(f"Kubernetes start failed: {exc!s}") from exc
+    else:
+        # Ensure we run the configured image tag/digest as provided.
+        pull_result = run_cmd(["pull", settings.openclaw_image], timeout=120)
+        if pull_result.returncode != 0:
+            detail = (pull_result.stderr or pull_result.stdout or "image pull failed").strip()
+            _mark_error(user_id, f"Image pull failed: {detail[:240]}")
+            raise RuntimeError(f"Image pull failed: {detail[:200]}")
 
-    # Build volume mounts
-    volume_args = _build_volume_args(workspace_dir, runtime_dir)
-    label_args = _build_label_args(user_id)
+        # Remove any old container with the same name
+        run_cmd(["rm", "-f", container_name])
 
-    # Start container
-    result = run_cmd(
-        [
-            "run",
-            "-d",
-            "--name",
-            container_name,
-            "-p",
-            f"{port}:{port}",
-            *volume_args,
-            "-e",
-            f"{api_key_env}={api_key}",
-            "-e",
-            f"OPENCLAW_GATEWAY_TOKEN={gateway_token}",
-            "-e",
-            f"COPILOT_BACKEND_URL={_to_container_url(settings.backend_base_url)}",
-            "-e",
-            f"COPILOT_FRONTEND_URL={_to_container_url(settings.frontend_base_url)}",
-            "-e",
-            f"COPILOT_STORYBOOK_URL={_to_container_url(settings.storybook_url)}",
-            "-e",
-            "OPENCLAW_CONFIG_PATH=/openclaw.json",
-            *label_args,
-            settings.openclaw_image,
-        ]
-    )
+        # Build volume mounts
+        volume_args = _build_volume_args(workspace_dir, runtime_dir)
+        label_args = _build_label_args(user_id)
 
-    if result.returncode != 0:
-        _mark_error(user_id, result.stderr[:300])
-        raise RuntimeError(f"Container start failed: {result.stderr[:200]}")
+        # Start container
+        result = run_cmd(
+            [
+                "run",
+                "-d",
+                "--name",
+                container_name,
+                "-p",
+                f"{port}:{port}",
+                *volume_args,
+                "-e",
+                f"{api_key_env}={api_key}",
+                "-e",
+                f"OPENCLAW_GATEWAY_TOKEN={gateway_token}",
+                "-e",
+                f"COPILOT_BACKEND_URL={env_vars['COPILOT_BACKEND_URL']}",
+                "-e",
+                f"COPILOT_FRONTEND_URL={env_vars['COPILOT_FRONTEND_URL']}",
+                "-e",
+                f"COPILOT_STORYBOOK_URL={env_vars['COPILOT_STORYBOOK_URL']}",
+                "-e",
+                "OPENCLAW_CONFIG_PATH=/openclaw.json",
+                *label_args,
+                settings.openclaw_image,
+            ]
+        )
 
-    container_url = f"http://localhost:{port}"
+        if result.returncode != 0:
+            _mark_error(user_id, result.stderr[:300])
+            raise RuntimeError(f"Container start failed: {result.stderr[:200]}")
 
     # Wait for health check
     _wait_for_healthy(user_id, container_url)
@@ -361,7 +712,19 @@ def stop_container(user_id: str) -> None:
     if not row or not row["container_name"]:
         return
 
-    run_cmd(["rm", "-f", row["container_name"]])
+    container_name = row["container_name"]
+    if _use_k8s_runtime():
+        try:
+            _k8s_delete_if_exists("pod", container_name)
+            _k8s_delete_if_exists("service", container_name)
+        except Exception:
+            logger.warning(
+                "container.k8s_stop_failed",
+                extra={"user_id": user_id, "container_name": container_name},
+                exc_info=True,
+            )
+    else:
+        run_cmd(["rm", "-f", container_name])
 
     with db_conn() as conn:
         with conn.cursor() as cur:
@@ -567,6 +930,71 @@ def reap_idle(timeout_seconds: int | None = None) -> int:
             )
 
     return stopped
+
+
+def _active_openclaw_container_names() -> set[str]:
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT DISTINCT container_name
+                FROM user_agent_settings
+                WHERE agent_backend = 'openclaw'
+                  AND container_name IS NOT NULL
+                  AND container_status IN ('starting', 'running')
+                """
+            )
+            rows = cur.fetchall()
+    return {str(row["container_name"]) for row in rows if row.get("container_name")}
+
+
+def _k8s_list_resource_names(kind: str) -> set[str]:
+    selector = OPENCLAW_K8S_LABEL_SELECTOR.replace("=", "%3D").replace(",", "%2C")
+    resp = _k8s_request(
+        "GET",
+        f"{_k8s_resource_path(kind)}?labelSelector={selector}",
+        ok_statuses={200},
+    )
+    payload = resp.json() if resp.content else {}
+    items = payload.get("items") or []
+    names: set[str] = set()
+    for item in items:
+        metadata = item.get("metadata") or {}
+        name = metadata.get("name")
+        if name:
+            names.add(str(name))
+    return names
+
+
+def reap_orphaned_k8s_resources() -> dict[str, int]:
+    """Delete openclaw-labeled pods/services that are no longer tracked in DB."""
+    if not _use_k8s_runtime():
+        return {"pods": 0, "services": 0}
+
+    active_names = _active_openclaw_container_names()
+    orphan_pods = sorted(_k8s_list_resource_names("pod") - active_names)
+    orphan_services = sorted(_k8s_list_resource_names("service") - active_names)
+
+    deleted_pods = 0
+    for name in orphan_pods:
+        _k8s_delete_if_exists("pod", name)
+        deleted_pods += 1
+
+    deleted_services = 0
+    for name in orphan_services:
+        _k8s_delete_if_exists("service", name)
+        deleted_services += 1
+
+    if deleted_pods or deleted_services:
+        logger.info(
+            "container.k8s_orphans_reaped",
+            extra={
+                "deleted_pods": deleted_pods,
+                "deleted_services": deleted_services,
+            },
+        )
+
+    return {"pods": deleted_pods, "services": deleted_services}
 
 
 # ---------------------------------------------------------------------------

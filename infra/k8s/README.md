@@ -88,7 +88,8 @@ From repo root:
 ```bash
 docker build -f backend/Dockerfile -t project-backend:local .
 docker build -f frontend/Dockerfile -t project-frontend:local .
-k3d image import project-backend:local project-frontend:local -c project
+docker build -f openclaw/Dockerfile.alpha -t project-openclaw-alpha:dev .
+k3d image import project-backend:local project-frontend:local project-openclaw-alpha:dev -c project
 ```
 
 For k3s (containerd):
@@ -96,6 +97,7 @@ For k3s (containerd):
 ```bash
 docker save project-backend:local | sudo k3s ctr images import -
 docker save project-frontend:local | sudo k3s ctr images import -
+docker save project-openclaw-alpha:dev | sudo k3s ctr images import -
 ```
 
 ### Deploy
@@ -149,6 +151,7 @@ The production overlay:
 - Sets `imagePullPolicy: Always` for application images
 - Uses `imagePullSecrets: stackit-registry` for application workloads
 - Provides production ConfigMap (HTTPS CORS, CSRF enabled, JSON logging, OTEL)
+- Configures OpenClaw runtime as `OPENCLAW_RUNTIME=k8s` with `OPENCLAW_IMAGE` pinned to the same commit SHA lineage as other workloads
 - Keeps `DEV_TOOLS_ENABLED: "true"` for this demo tenant so `/settings/developer` actions work
 - Exposes Prometheus metrics: backend API on `:8000/metrics`, worker on `:9090/metrics`, push-worker on `:9091/metrics`, watch-worker on `:9092/metrics`
 
@@ -164,7 +167,68 @@ This overlay intentionally does **not** include:
 - RBAC (`Role`, `RoleBinding`, `ClusterRole`, `ClusterRoleBinding`)
 - `NetworkPolicy`
 
-Ops provides these resources when onboarding the tenant.
+### OpenClaw Runtime Contract (k8s mode)
+
+OpenClaw runs as per-user Pods created by the backend via Kubernetes API calls.
+
+Exact ServiceAccount:
+
+- `backend-openclaw-runtime` (set on backend Deployment `serviceAccountName`)
+
+Namespace-scoped RBAC required:
+
+- `pods`: `get`, `list`, `create`, `delete`
+- `services`: `get`, `list`, `create`, `delete`
+
+Not required by current runtime: `watch`, `patch`, `update`, `pods/status`.
+
+Local overlay includes this Role/RoleBinding; production RBAC is provisioned by ops
+in the infrastructure repo and must target `backend-openclaw-runtime`.
+
+Resource naming and labeling contract for runtime-created Pod/Service:
+
+- Name: `openclaw-<user-id>` (DNS-safe, stable per user)
+- Labels:
+- `app=openclaw`
+- `app.kubernetes.io/name=openclaw`
+- `app.kubernetes.io/component=runtime`
+- `app.kubernetes.io/managed-by=project-backend`
+- `openclaw.instance=<resource-name>`
+- `copilot.user_id=<user-id>`
+- `copilot.managed=true`
+- Annotations:
+- `project.senticor.ai/runtime=openclaw-k8s`
+- `project.senticor.ai/owner-user-id=<user-id>`
+- `project.senticor.ai/instance=<resource-name>`
+
+Lifecycle and cleanup guarantees:
+
+- One runtime Pod/Service per user (derived from `user_agent_settings`).
+- Deleted on explicit stop/restart and whenever agent settings change.
+- Idle containers are reaped every 60s by worker loop using `OPENCLAW_IDLE_TIMEOUT_SECONDS` (default 1800s).
+- Orphan strategy: worker loop also lists `app=openclaw,copilot.managed=true` Pod/Service resources and deletes objects that are no longer tracked as `starting`/`running` in DB.
+
+Runtime resource envelope and scale:
+
+- Per OpenClaw Pod (default, env-tunable):
+- Requests: `cpu=100m`, `memory=256Mi`
+- Limits: `cpu=500m`, `memory=1Gi`
+- Max concurrent runtime Pods per tenant: `OPENCLAW_K8S_MAX_CONCURRENT_PODS` (default `8`).
+- Max concurrent runtime Pods per user: `1` (stable per-user name + DB state machine).
+
+Deterministic production smoke validation:
+
+```bash
+python scripts/smoke-openclaw-prod.py \
+  --base-url https://project.senticor.runs.onstackit.cloud \
+  --api-key "$E2E_OPENROUTER_API_KEY"
+```
+
+Pass criteria:
+
+- `/api/chat/completions` returns `text_delta` and `done` with no stream `error`.
+- `/api/agent/status` reports `running` URL on `.svc.cluster.local:18789`.
+- `/api/agent/container/stop` transitions status to `stopped` and clears runtime URL.
 
 ### Secrets handoff contract (ops)
 

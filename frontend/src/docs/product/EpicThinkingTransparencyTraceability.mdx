@@ -1,0 +1,115 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Product/Epics/Thinking Transparency and Traceability" />
+
+# Epic: Thinking Transparency and Traceability
+
+**Status:** Proposed
+**Priority:** Current
+**Last updated:** 2026-02-27
+**Depends on:** [Epic: Self-Aware Copilot](?path=/docs/product-epics-self-aware-copilot--docs), OpenClaw stream contract stability
+**Related:** [Engineering: Agents Service](?path=/docs/engineering-agents-service--docs), [Engineering: Data Retention](?path=/docs/engineering-data-retention--docs)
+
+---
+
+## Context
+
+Users want visibility into what OpenClaw is doing while a response is in progress. This improves trust and helps with debugging.
+
+At the same time, persisting raw thought text in normal chat history can cause prompt contamination in later turns and can amplify repetition loops when internal meta-instructions are echoed back to the model.
+
+## Product Decision
+
+Provide transparent thinking UX without polluting future prompt context:
+
+1. Show live thinking in chat as a collapsible panel (collapsed by default).
+2. Keep thinking visible for the active session on demand.
+3. Persist user-facing answer in conversation history.
+4. Persist raw thinking in tracing/audit systems with trace references.
+5. For past sessions, show a trace link/reference from chat instead of replaying stored raw thought in-thread.
+
+## User Story
+
+> "I want to see that OpenClaw is actively working, expand details when I need them, and still keep chat history clean and stable."
+
+## Goals
+
+1. Give users clear live progress and optional raw thinking visibility.
+2. Prevent model self-feedback loops caused by thought text re-injection.
+3. Preserve high-fidelity debugging/audit evidence in trace tooling.
+4. Keep historical chat UX useful via trace links.
+5. Maintain low-latency streaming behavior.
+
+## Out of Scope
+
+- Editing model thinking text.
+- Replaying historical raw thought into prompts.
+- Full redesign of the chat UI layout.
+
+## Functional Requirements
+
+### FR-1: Stream separation
+
+Backend stream contract distinguishes:
+
+- `thinking_delta`: model thought text chunks (debug channel)
+- `thinking_done`: end of thought stream for the turn
+- `text_delta`: final assistant answer chunks (user channel)
+- `done`: end of answer stream
+- `trace_ref`: trace identifier for deep-linking historical debug data
+
+### FR-2: UI behavior
+
+1. Chat shows a `Thinking...` indicator while thought stream is active.
+2. Thinking panel is collapsed by default.
+3. User can expand/collapse per turn.
+4. If no thought data arrives, UI behavior remains unchanged.
+
+### FR-3: Persistence rules
+
+1. `chat_messages` stores only user text and final assistant answer text.
+2. Raw thinking is not persisted in conversation message content.
+3. Raw thinking is persisted only in tracing/audit systems with request metadata.
+
+### FR-4: Historical access
+
+1. Historical assistant messages show a `View debug trace` link when trace metadata exists.
+2. Link opens pre-filtered trace view (request ID / trace ID).
+
+### FR-5: Safety guards
+
+1. Thought text is never included in next-turn message history.
+2. Repetition guard detects pathological loops in thought stream and terminates with a safe error state.
+3. Known internal leakage markers are flagged for observability alerts.
+
+## Technical Notes
+
+- OpenClaw stream handling currently forwards and persists full text in the chat route; this epic requires explicit thought/answer split before persistence.
+- Trace metadata should be attached to assistant message records (or equivalent message metadata store) for durable debug links.
+- Debug trace visibility must follow org/user access controls.
+
+## Acceptance Criteria
+
+1. User sees live `Thinking...` feedback for active OpenClaw turns.
+2. Expanding panel reveals raw thinking for the current session.
+3. Final persisted chat message excludes raw thinking text.
+4. Next turn input history excludes raw thinking text.
+5. Raw thinking is available in tracing with matching trace ID.
+6. Historical chat renders working `View debug trace` link when available.
+7. Regression tests pass for stream parsing, persistence split, and UI behavior.
+
+## Delivery Slices
+
+1. Stream protocol extension (`thinking_delta`, `thinking_done`, `trace_ref`).
+2. Backend split of thought vs answer persistence.
+3. Frontend collapsible thinking panel with session-scoped state.
+4. Historical trace link rendering.
+5. Observability and loop/leak safeguards.
+
+## Rollout
+
+1. Ship behind feature flag (`openclaw_thinking_panel`).
+2. Dogfood internally with tracing validation.
+3. Gradually enable per org.
+4. Monitor loop incidence, stream error rates, and chat latency.
+

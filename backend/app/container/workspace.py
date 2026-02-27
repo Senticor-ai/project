@@ -93,6 +93,11 @@ def provision_workspace(
     config["gateway"]["port"] = port
     config["gateway"]["auth"]["token"] = token
     config["agents"]["defaults"]["model"]["primary"] = model
+    image_model = config["agents"]["defaults"].get("imageModel")
+    if isinstance(image_model, dict):
+        image_model["primary"] = model
+    else:
+        config["agents"]["defaults"]["imageModel"] = {"primary": model}
 
     user_config_path = workspace_dir / "openclaw.json"
     user_config_path.write_text(json.dumps(config, indent=2))

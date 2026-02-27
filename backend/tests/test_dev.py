@@ -220,6 +220,173 @@ def test_flush_resets_email_sync_state_for_active_connections(auth_client):
         _disable_dev_tools()
 
 
+def test_flush_deletes_item_linked_proposal_rows(auth_client):
+    _enable_dev_tools()
+    try:
+        me = auth_client.get("/auth/me")
+        assert me.status_code == 200
+        user_id = me.json()["id"]
+        org_id = auth_client.headers["X-Org-Id"]
+        connection_id = str(uuid.uuid4())
+        item_id = str(uuid.uuid4())
+        canonical_id = f"urn:app:email:{item_id}"
+
+        schema = {
+            "@id": canonical_id,
+            "@type": "EmailMessage",
+            "_schemaVersion": 2,
+            "name": "Flush FK regression",
+            "additionalProperty": [
+                {
+                    "@type": "PropertyValue",
+                    "propertyID": "app:bucket",
+                    "value": "inbox",
+                },
+            ],
+        }
+
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO email_connections
+                        (connection_id, org_id, user_id, email_address, display_name,
+                         encrypted_access_token, encrypted_refresh_token, token_expires_at,
+                         is_active, sync_interval_minutes, calendar_sync_enabled)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, true, 0, true)
+                    """,
+                    (
+                        connection_id,
+                        org_id,
+                        user_id,
+                        f"flush-{connection_id}@example.com",
+                        "Flush FK Test",
+                        "enc-access",
+                        "enc-refresh",
+                        datetime(2027, 1, 1, tzinfo=UTC),
+                    ),
+                )
+                cur.execute(
+                    """
+                    INSERT INTO items
+                        (item_id, org_id, created_by_user_id, canonical_id, schema_jsonld,
+                         source, content_hash, created_at, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, now(), now())
+                    """,
+                    (
+                        item_id,
+                        org_id,
+                        user_id,
+                        canonical_id,
+                        jsonb(schema),
+                        "gmail",
+                        f"hash-{item_id}",
+                    ),
+                )
+                cur.execute(
+                    """
+                    INSERT INTO connector_action_proposals
+                        (org_id, user_id, connection_id, proposal_type, status, source_item_id, payload)
+                    VALUES (%s, %s, %s, %s, 'pending', %s, %s)
+                    RETURNING proposal_id
+                    """,
+                    (
+                        org_id,
+                        user_id,
+                        connection_id,
+                        "Proposal.RescheduleMeeting",
+                        item_id,
+                        jsonb({"source": "flush-test"}),
+                    ),
+                )
+                proposal_id = cur.fetchone()["proposal_id"]
+                cur.execute(
+                    """
+                    INSERT INTO connector_action_audit_log
+                        (org_id, user_id, connection_id, proposal_id, event_type, payload)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        org_id,
+                        user_id,
+                        connection_id,
+                        proposal_id,
+                        "proposal_created",
+                        jsonb({"source": "flush-test"}),
+                    ),
+                )
+                cur.execute(
+                    """
+                    INSERT INTO proposal_candidates
+                        (org_id, user_id, connection_id, source_item_id, trigger_kind, payload, status)
+                    VALUES (%s, %s, %s, %s, %s, %s, 'pending')
+                    """,
+                    (
+                        org_id,
+                        user_id,
+                        connection_id,
+                        item_id,
+                        "email_new",
+                        jsonb({"source": "flush-test"}),
+                    ),
+                )
+                cur.execute(
+                    """
+                    INSERT INTO notification_events
+                        (org_id, user_id, kind, title, body, payload)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        org_id,
+                        user_id,
+                        "proposal_urgent_created",
+                        "Flush FK Test",
+                        "Flush should remove notification rows.",
+                        jsonb({"source": "flush-test"}),
+                    ),
+                )
+            conn.commit()
+
+        response = auth_client.post("/dev/flush")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["ok"] is True
+        assert payload["deleted"]["connector_action_audit_log"] >= 1
+        assert payload["deleted"]["connector_action_proposals"] >= 1
+        assert payload["deleted"]["proposal_candidates"] >= 1
+        assert payload["deleted"]["notification_events"] >= 1
+
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT COUNT(*) AS cnt FROM connector_action_audit_log WHERE org_id = %s",
+                    (org_id,),
+                )
+                assert cur.fetchone()["cnt"] == 0
+                cur.execute(
+                    "SELECT COUNT(*) AS cnt FROM connector_action_proposals WHERE org_id = %s",
+                    (org_id,),
+                )
+                assert cur.fetchone()["cnt"] == 0
+                cur.execute(
+                    "SELECT COUNT(*) AS cnt FROM proposal_candidates WHERE org_id = %s",
+                    (org_id,),
+                )
+                assert cur.fetchone()["cnt"] == 0
+                cur.execute(
+                    "SELECT COUNT(*) AS cnt FROM notification_events WHERE org_id = %s",
+                    (org_id,),
+                )
+                assert cur.fetchone()["cnt"] == 0
+                cur.execute(
+                    "SELECT COUNT(*) AS cnt FROM items WHERE org_id = %s",
+                    (org_id,),
+                )
+                assert cur.fetchone()["cnt"] == 0
+    finally:
+        _disable_dev_tools()
+
+
 def test_mock_workspace_connection_seed_creates_connection(auth_client):
     _enable_dev_tools()
     try:

@@ -1,0 +1,216 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Product/Epics/Advanced Knowledge Base" />
+
+# Epic: Advanced Knowledge Base - Hybrid Retrieval and Agent Memory
+
+**Status:** Draft  
+**Priority:** Next  
+**Last updated:** 2026-02-27  
+**Depends on:** [Completed Epic: Org Knowledge](?path=/docs/product-completed-epics-org-knowledge--docs), [Epic: Self-Aware Copilot](?path=/docs/product-epics-self-aware-copilot--docs), [Product / Roadmap Projects](?path=/docs/product-roadmap-projects--docs)
+
+---
+
+## Context
+
+The product already stores high-value knowledge in Postgres:
+
+- Item graph (`Action`, `Project`, `CreativeWork`, `DigitalDocument`, `Person`)
+- Organization knowledge documents (`general`, `user`, `log`, `agent`)
+- File metadata and extracted text for search indexing
+
+Today, retrieval is split and limited:
+
+- Keyword search is handled via Meilisearch
+- Org knowledge docs are usually read by direct item id
+- Agent context scales poorly in larger workspaces because retrieval is mostly lexical or manual
+
+This epic upgrades the platform from "document storage + keyword search" to an advanced knowledge base with semantic retrieval, hybrid ranking, source-grounded answers, and durable agent memory.
+
+## Problem Statement
+
+When workspaces grow, important context is easy to miss:
+
+- Exact keyword matches are not enough for semantic recall
+- Similar concepts with different wording are under-retrieved
+- Knowledge across notes, files, and org docs is not ranked as one corpus
+- Agents can read documents, but retrieval is not optimized for relevance at scale
+
+## Decision
+
+Implement a hybrid knowledge retrieval architecture that combines:
+
+1. **Keyword retrieval** (lexical matching and filters)
+2. **Vector retrieval** (`pgvector` embeddings in Postgres)
+3. **Hybrid fusion** (single ranked result set with citations)
+
+Target local and production parity by using Postgres as the primary retrieval substrate, with `pgvector` enabled where available.
+
+## Goals
+
+1. Improve recall and answer quality for OpenClaw and Haystack paths in large workspaces.
+2. Keep strict organization scoping and access control at query time.
+3. Provide deterministic source citations (item/file/chunk references) with every grounded answer.
+4. Reuse existing outbox/indexing pipeline patterns for reliable updates and reindexing.
+5. Make local development feasible with pgvector-enabled Postgres.
+
+## Non-Goals
+
+- Replacing all existing item CRUD or schema.org data modeling
+- Building a separate external vector database as a hard requirement
+- Fully autonomous write-back to user/org docs without explicit user intent and guardrails
+
+---
+
+## Architecture (Target)
+
+```text
+Postgres items/files/org docs
+        |
+        |  (outbox events: item_upserted, file_uploaded, item_archived)
+        v
+Knowledge indexing worker
+  - text extraction
+  - chunking
+  - embedding generation
+  - keyword projection
+        |
+        +--> lexical index (Postgres FTS/trigram and/or existing Meili projection)
+        +--> vector index (pgvector)
+
+Query service (/knowledge/search)
+  - org scoped filter
+  - lexical candidate set
+  - vector candidate set
+  - hybrid rank fusion
+  - citations + snippets
+        |
+        v
+Agent retrieval tools (OpenClaw + Haystack)
+```
+
+## Data Model (Proposed)
+
+Add a new projection layer (names illustrative):
+
+- `knowledge_chunks`
+  - `chunk_id`, `org_id`, `entity_type`, `entity_id`, `chunk_index`, `content`, `content_tsv`
+- `knowledge_embeddings`
+  - `chunk_id`, `embedding vector(n)`, `embedding_model`, `embedded_at`
+- optional metadata columns
+  - `source`, `bucket`, `types`, `created_at`, `updated_at`
+
+Indexes:
+
+- `GIN` on `content_tsv` (keyword/fts)
+- optional `pg_trgm` for fuzzy name/text fallback
+- `ivfflat` or `hnsw` on vector column (depending on pgvector version/support)
+
+## Retrieval Strategy
+
+Hybrid query flow:
+
+1. Generate query embedding.
+2. Run lexical retrieval (fts + filters) and vector retrieval (cosine/L2 + filters).
+3. Fuse rankings (for example, reciprocal rank fusion).
+4. Return top N chunks with:
+   - score breakdown
+   - snippet
+   - stable source ids (`item_id`, `file_id`, `chunk_id`)
+5. Agent composes answer from retrieved evidence and includes citations.
+
+---
+
+## Implementation Slices
+
+### Slice 1: Platform Readiness
+
+- pgvector-capable Postgres image for local/dev and deployment overlays
+- migration for `CREATE EXTENSION IF NOT EXISTS vector;`
+- feature flags/config for hybrid search mode and embedding model settings
+
+### Slice 2: Chunk + Embedding Projection
+
+- chunking pipeline for:
+  - `DigitalDocument` text
+  - `CreativeWork` and reference content
+  - extracted file text
+- outbox-driven indexing worker integration
+- idempotent upsert and delete paths for reindex safety
+
+### Slice 3: Hybrid Query API
+
+- add `/knowledge/search` endpoint (org scoped, paginated)
+- support filters (`bucket`, `type`, source kind, date range)
+- return citations and traceable retrieval metadata
+
+### Slice 4: Agent Integration
+
+- OpenClaw skill updates to use retrieval endpoint for knowledge-heavy questions
+- Haystack tool integration for equivalent read path
+- prompt/skill guardrails:
+  - prefer retrieved evidence over guesses
+  - include source references in final user answer
+
+### Slice 5: Quality + Observability
+
+- retrieval evaluation set (golden queries, expected evidence)
+- metrics:
+  - retrieval latency p50/p95
+  - hit rate / empty result rate
+  - citation coverage
+- operator tools for full reindex and failed-job diagnostics
+
+---
+
+## Acceptance Criteria
+
+- [ ] Hybrid retrieval works end-to-end in local dev and staging.
+- [ ] Queries over large workspaces show better recall than lexical-only baseline.
+- [ ] Every grounded answer path returns source citations.
+- [ ] Strict org scoping is enforced for all retrieval queries.
+- [ ] Reindex-from-source can fully rebuild knowledge projections from Postgres.
+- [ ] Retrieval latency remains within agreed SLO under representative load.
+
+## Test Plan
+
+- Unit tests:
+  - chunking logic
+  - fusion/ranking behavior
+  - org filter enforcement
+- Integration tests:
+  - outbox event -> projection update -> query visible
+  - archive/delete events remove stale chunks
+  - agent tool calls retrieve expected evidence
+- Regression tests:
+  - existing keyword search endpoints remain functional
+  - org knowledge read/write flows remain intact
+
+## Rollout Plan
+
+1. Enable projection write path behind feature flag.
+2. Backfill chunks/embeddings via one-time reindex job.
+3. Shadow-query mode (compare lexical-only vs hybrid quality/latency).
+4. Gradually switch agent retrieval to hybrid endpoint.
+5. Keep rollback path to lexical-only mode.
+
+## Risks and Mitigations
+
+- **pgvector availability mismatch across environments**  
+  Mitigation: standardize Postgres image and verify extension in startup checks.
+
+- **Embedding cost and reindex time**  
+  Mitigation: batching, caching, incremental indexing, and bounded chunk sizes.
+
+- **Ranking instability or noisy chunks**  
+  Mitigation: evaluation suite, tuned chunking strategy, and deterministic fusion config.
+
+- **Operational complexity**  
+  Mitigation: reuse current outbox/index job model, health checks, and explicit reindex tooling.
+
+## Open Questions
+
+1. Canonical lexical path: keep Meilisearch for lexical ranking or consolidate fully into Postgres FTS.
+2. Embedding model default and dimensionality target.
+3. Citation UX format in chat responses (inline markers vs reference block).
+4. Multi-language retrieval strategy for DE/EN mixed content.

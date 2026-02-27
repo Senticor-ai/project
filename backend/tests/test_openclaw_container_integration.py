@@ -36,6 +36,9 @@ def openclaw_integration_env() -> dict[str, str]:
     if not _is_truthy(os.getenv("OPENCLAW_INTEGRATION_TESTS")):
         pytest.skip("Set OPENCLAW_INTEGRATION_TESTS=1 to run OpenClaw container integration tests")
 
+    if (settings.openclaw_runtime or "local").strip().lower() != "local":
+        pytest.skip("OpenClaw integration tests currently target OPENCLAW_RUNTIME=local")
+
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
         pytest.skip("OPENROUTER_API_KEY is required for OpenClaw integration tests")

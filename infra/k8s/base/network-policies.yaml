@@ -30,6 +30,9 @@ spec:
         - podSelector:
             matchLabels:
               app: agents
+        - podSelector:
+            matchLabels:
+              app: openclaw
       ports:
         - port: 8000
           protocol: TCP
@@ -50,6 +53,14 @@ spec:
       ports:
         - port: 8002
           protocol: TCP
+    # OpenClaw runtime pods
+    - to:
+        - podSelector:
+            matchLabels:
+              app: openclaw
+      ports:
+        - port: 18789
+          protocol: TCP
     # DNS resolution
     - ports:
         - port: 53
@@ -67,6 +78,50 @@ spec:
               kubernetes.io/metadata.name: observability
       ports:
         - port: 4318
+          protocol: TCP
+---
+# OpenClaw runtime pods: ingress from backend only, egress to backend, storybook, DNS, and HTTPS.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: openclaw-netpol
+spec:
+  podSelector:
+    matchLabels:
+      app: openclaw
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: backend
+      ports:
+        - port: 18789
+          protocol: TCP
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: backend
+      ports:
+        - port: 8000
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: storybook
+      ports:
+        - port: 80
+          protocol: TCP
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - ports:
+        - port: 443
           protocol: TCP
 ---
 # Workers (outbox, push, watch): no ingress needed except health probes.

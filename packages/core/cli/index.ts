@@ -25,8 +25,8 @@ async function main(argv: string[]): Promise<void> {
   const program = new Command();
 
   program
-    .name("senticor-copilot")
-    .description("Senticor Copilot CLI")
+    .name("project-cli")
+    .description("Project CLI")
     .showHelpAfterError()
     .option(
       "--host <url>",
