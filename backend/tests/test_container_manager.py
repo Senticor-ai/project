@@ -10,6 +10,7 @@ import pytest
 from app.config import settings
 from app.container.manager import (
     _build_container_name,
+    _is_container_ready,
     get_identity_name,
     hard_refresh_container,
     start_container,
@@ -218,3 +219,35 @@ def test_hard_refresh_container_reports_missing_state(monkeypatch, tmp_path):
     result = hard_refresh_container(user_id)
 
     assert result == {"removedWorkspace": False, "removedRuntime": False}
+
+
+@pytest.mark.unit
+def test_is_container_ready_accepts_health_endpoint(monkeypatch):
+    class _Resp:
+        def __init__(self, status_code: int):
+            self.status_code = status_code
+
+    def _fake_get(url: str, timeout: float = 2.0):  # noqa: ARG001
+        if url.endswith("/health"):
+            return _Resp(200)
+        raise AssertionError("Unexpected URL")
+
+    monkeypatch.setattr("app.container.manager.httpx.get", _fake_get)
+    assert _is_container_ready("http://localhost:18800") is True
+
+
+@pytest.mark.unit
+def test_is_container_ready_accepts_chat_endpoint_when_health_missing(monkeypatch):
+    class _Resp:
+        def __init__(self, status_code: int):
+            self.status_code = status_code
+
+    def _fake_get(url: str, timeout: float = 2.0):  # noqa: ARG001
+        if url.endswith("/health"):
+            return _Resp(404)
+        if url.endswith("/v1/chat/completions"):
+            return _Resp(405)
+        raise AssertionError("Unexpected URL")
+
+    monkeypatch.setattr("app.container.manager.httpx.get", _fake_get)
+    assert _is_container_ready("http://localhost:18800") is True

@@ -34,7 +34,6 @@ jobs:
         run: bash scripts/check-doc-drift.sh
 
   backend-migration-policy:
-    continue-on-error: true
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

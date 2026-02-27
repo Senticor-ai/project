@@ -1,7 +1,7 @@
 import { act, render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createProject } from "@/model/factories";
+import { createAction, createProject } from "@/model/factories";
 import type {
   ProjectActionDetailResponse,
   ProjectActionHistoryResponse,
@@ -9,6 +9,7 @@ import type {
   ProjectMemberResponse,
   WorkflowDefinitionResponse,
 } from "@/lib/api-client";
+import { CollaborationApi } from "@/lib/api-client";
 import { ProjectCollaborationWorkspace } from "./ProjectCollaborationWorkspace";
 
 type QueryResult<T> = {
@@ -411,6 +412,50 @@ describe("ProjectCollaborationWorkspace (kanban integration)", () => {
     await user.click(screen.getByRole("button", { name: "Clear" }));
     expect(screen.getByDisplayValue("Ship release")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Plan docs")).toBeInTheDocument();
+  });
+
+  it("syncs legacy project actions when collaboration actions are empty", async () => {
+    const createSpy = vi
+      .spyOn(CollaborationApi, "createProjectAction")
+      .mockResolvedValue(
+        makeAction({
+          id: "synced-action",
+          canonical_id: "urn:app:action:legacy-1",
+          name: "Legacy task",
+          action_status: "ActiveActionStatus",
+          due_at: "2026-03-01T12:00:00.000Z",
+          tags: ["urgent"],
+        }),
+      );
+    const legacyAction = createAction({
+      id: "urn:app:action:legacy-1",
+      name: "Legacy task",
+      bucket: "next",
+      projectId: project.id,
+      dueDate: "2026-03-01",
+      tags: ["urgent"],
+    });
+
+    render(
+      <ProjectCollaborationWorkspace
+        project={project}
+        currentUserId="user-owner"
+        legacyActions={[legacyAction]}
+      />,
+    );
+
+    await waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1));
+    expect(createSpy).toHaveBeenCalledWith(
+      project.id,
+      expect.objectContaining({
+        canonical_id: "urn:app:action:legacy-1",
+        name: "Legacy task",
+        action_status: "ActiveActionStatus",
+        due_at: "2026-03-01T12:00:00.000Z",
+        tags: ["urgent"],
+      }),
+    );
+    createSpy.mockRestore();
   });
 
   it("opens detail on double click and adds a comment", async () => {

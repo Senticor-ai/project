@@ -318,15 +318,21 @@ export function ConnectedBucketView({
   }, [actionItemsQuery.data]);
 
   const renderProjectWorkspace = useCallback(
-    (project: Project) => (
-      <ProjectCollaborationWorkspace
-        project={project}
-        currentUserId={currentUserId}
-        isSharedProject={sharedProjectIds.includes(project.id)}
-        onEditProject={handleEditItem}
-      />
-    ),
-    [currentUserId, handleEditItem, sharedProjectIds],
+    (project: Project) => {
+      const projectActions = (actionItemsQuery.data ?? []).filter(
+        (item) => item.bucket !== "inbox" && item.projectIds.includes(project.id),
+      );
+      return (
+        <ProjectCollaborationWorkspace
+          project={project}
+          currentUserId={currentUserId}
+          isSharedProject={sharedProjectIds.includes(project.id)}
+          legacyActions={projectActions}
+          onEditProject={handleEditItem}
+        />
+      );
+    },
+    [actionItemsQuery.data, currentUserId, handleEditItem, sharedProjectIds],
   );
 
   if (isLoading) {

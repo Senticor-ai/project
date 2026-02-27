@@ -56,6 +56,7 @@ class ContainerInfo:
 # ---------------------------------------------------------------------------
 
 _LOCALHOST_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0"}  # noqa: S104
+_READY_CHAT_STATUS_CODES = {200, 400, 401, 403, 405}
 
 
 def _to_container_url(url: str) -> str:
@@ -290,30 +291,44 @@ def start_container(user_id: str) -> ContainerInfo:
 
 
 def _wait_for_healthy(user_id: str, url: str) -> None:
-    """Poll the container health endpoint until ready or timeout."""
+    """Poll OpenClaw readiness endpoints until ready or timeout."""
     deadline = time.monotonic() + settings.openclaw_health_check_timeout
     while time.monotonic() < deadline:
-        try:
-            resp = httpx.get(f"{url}/health", timeout=2.0)
-            if resp.status_code == 200:
-                with db_conn() as conn:
-                    with conn.cursor() as cur:
-                        cur.execute(
-                            """
-                            UPDATE user_agent_settings SET
-                                container_status = 'running', updated_at = now()
-                            WHERE user_id = %s
-                            """,
-                            (user_id,),
-                        )
-                    conn.commit()
-                return
-        except (httpx.ConnectError, httpx.TimeoutException, httpx.RemoteProtocolError):
-            pass
+        if _is_container_ready(url):
+            with db_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE user_agent_settings SET
+                            container_status = 'running', updated_at = now()
+                        WHERE user_id = %s
+                        """,
+                        (user_id,),
+                    )
+                conn.commit()
+            return
         time.sleep(1.0)
 
     _mark_error(user_id, f"Health check timeout after {settings.openclaw_health_check_timeout}s")
     raise RuntimeError(f"Container health check timeout for user {user_id}")
+
+
+def _is_container_ready(url: str) -> bool:
+    """Return True when OpenClaw is reachable and ready to accept chat requests."""
+    try:
+        resp = httpx.get(f"{url}/health", timeout=2.0)
+        if resp.status_code == 200:
+            return True
+    except (httpx.ConnectError, httpx.TimeoutException, httpx.RemoteProtocolError):
+        pass
+
+    # OpenClaw images may not expose /health; /v1/chat/completions typically
+    # returns 405 to GET once the gateway is ready.
+    try:
+        resp = httpx.get(f"{url}/v1/chat/completions", timeout=2.0)
+        return resp.status_code in _READY_CHAT_STATUS_CODES
+    except (httpx.ConnectError, httpx.TimeoutException, httpx.RemoteProtocolError):
+        return False
 
 
 def _mark_error(user_id: str, error: str) -> None:
@@ -440,12 +455,11 @@ def ensure_running(user_id: str) -> tuple[str, str]:
     if row and row["container_status"] == "running" and row["container_url"]:
         # Quick health check on existing container
         try:
-            resp = httpx.get(f"{row['container_url']}/health", timeout=2.0)
-            if resp.status_code == 200:
+            if _is_container_ready(row["container_url"]):
                 touch_activity(user_id)
                 token = _read_gateway_token(user_id)
                 return row["container_url"], token
-        except (httpx.ConnectError, httpx.TimeoutException):
+        except (httpx.ConnectError, httpx.TimeoutException, httpx.RemoteProtocolError):
             logger.warning(
                 "container.health_failed",
                 extra={"user_id": user_id},

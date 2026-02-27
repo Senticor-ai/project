@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -13,7 +13,7 @@ import type {
   ProjectActionResponse,
   ProjectActionDetailResponse,
 } from "@/lib/api-client";
-import { ApiError } from "@/lib/api-client";
+import { ApiError, CollaborationApi } from "@/lib/api-client";
 import {
   useAddProjectActionComment,
   useAddProjectMember,
@@ -28,7 +28,7 @@ import {
   useUpdateProjectAction,
 } from "@/hooks/use-collaboration";
 import type { CanonicalId } from "@/model/canonical-id";
-import type { ItemEditableFields, Project } from "@/model/types";
+import type { ActionItem, ItemEditableFields, Project } from "@/model/types";
 
 const DEFAULT_STATUSES = [
   "PotentialActionStatus",
@@ -36,6 +36,9 @@ const DEFAULT_STATUSES = [
   "CompletedActionStatus",
   "FailedActionStatus",
 ] as const;
+const DEFAULT_STATUS = "PotentialActionStatus";
+const DEFAULT_DONE_STATUSES = ["CompletedActionStatus"] as const;
+const DEFAULT_BLOCKED_STATUSES = ["FailedActionStatus"] as const;
 
 const DEFAULT_LABELS: Record<string, string> = {
   PotentialActionStatus: "Backlog",
@@ -50,6 +53,7 @@ type ProjectCollaborationWorkspaceProps = {
   project: Project;
   currentUserId?: string;
   isSharedProject?: boolean;
+  legacyActions?: ActionItem[];
   onEditProject?: (
     id: CanonicalId,
     fields: Partial<ItemEditableFields>,
@@ -114,6 +118,43 @@ function isToday(dueAt: string | null): boolean {
     due.getUTCMonth() === now.getUTCMonth() &&
     due.getUTCDate() === now.getUTCDate()
   );
+}
+
+function toIsoDateFromLegacy(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    const parsed = new Date(`${trimmed}T12:00:00Z`);
+    return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
+  }
+  const parsed = new Date(trimmed);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
+}
+
+function selectLegacyStatus(
+  action: ActionItem,
+  statuses: readonly string[],
+  defaultStatus: string,
+  doneStatuses: readonly string[],
+  blockedStatuses: readonly string[],
+): string {
+  const allowed = new Set(statuses);
+  const firstStatus = statuses[0] ?? DEFAULT_STATUS;
+  const fallback = allowed.has(defaultStatus) ? defaultStatus : firstStatus;
+  const doneStatus =
+    doneStatuses.find((status) => allowed.has(status)) ??
+    (allowed.has("CompletedActionStatus") ? "CompletedActionStatus" : fallback);
+  const blockedStatus =
+    blockedStatuses.find((status) => allowed.has(status)) ??
+    (allowed.has("FailedActionStatus") ? "FailedActionStatus" : fallback);
+  const activeStatus = allowed.has("ActiveActionStatus")
+    ? "ActiveActionStatus"
+    : fallback;
+
+  if (action.completedAt) return doneStatus;
+  if (action.bucket === "someday") return fallback;
+  if (action.bucket === "waiting") return blockedStatus;
+  return activeStatus;
 }
 
 type ActionCardProps = {
@@ -395,6 +436,7 @@ export function ProjectCollaborationWorkspace({
   project,
   currentUserId,
   isSharedProject = false,
+  legacyActions = [],
   onEditProject,
 }: ProjectCollaborationWorkspaceProps) {
   const storageKey = `collaboration-view:${project.id}`;
@@ -437,6 +479,10 @@ export function ProjectCollaborationWorkspace({
   const [projectDueDateDraftByProject, setProjectDueDateDraftByProject] =
     useState<Record<string, string>>({});
   const [dragActionId, setDragActionId] = useState<string | null>(null);
+  const [legacySyncState, setLegacySyncState] = useState<
+    "idle" | "syncing" | "done"
+  >("idle");
+  const [legacySyncError, setLegacySyncError] = useState<string | null>(null);
 
   const workflowQuery = useProjectWorkflow(project.id);
   const actionsQuery = useProjectActions(project.id);
@@ -454,6 +500,10 @@ export function ProjectCollaborationWorkspace({
   const updateActionMutation = useUpdateProjectAction(project.id);
   const transitionActionMutation = useTransitionProjectAction(project.id);
   const addCommentMutation = useAddProjectActionComment(project.id);
+  const normalizedLegacyActions = useMemo(
+    () => legacyActions.filter((action) => action.bucket !== "inbox"),
+    [legacyActions],
+  );
 
   const statuses: string[] = workflowQuery.data?.canonical_statuses
     ? [...workflowQuery.data.canonical_statuses]
@@ -505,6 +555,93 @@ export function ProjectCollaborationWorkspace({
     for (const tag of action.tags) tagSet.add(tag);
   }
   const sortedTags = Array.from(tagSet).sort((a, b) => a.localeCompare(b));
+
+  useEffect(() => {
+    setLegacySyncState("idle");
+    setLegacySyncError(null);
+  }, [project.id]);
+
+  useEffect(() => {
+    if (legacySyncState !== "idle") return;
+    if (workflowQuery.isLoading || actionsQuery.isLoading) return;
+    if (actions.length > 0 || normalizedLegacyActions.length === 0) {
+      setLegacySyncState("done");
+      return;
+    }
+
+    let cancelled = false;
+    setLegacySyncState("syncing");
+    setLegacySyncError(null);
+
+    void (async () => {
+      try {
+        const defaultStatus = workflowQuery.data?.default_status ?? DEFAULT_STATUS;
+        const doneStatuses = workflowQuery.data?.done_statuses ?? DEFAULT_DONE_STATUSES;
+        const blockedStatuses =
+          workflowQuery.data?.blocked_statuses ?? DEFAULT_BLOCKED_STATUSES;
+
+        for (const legacyAction of normalizedLegacyActions) {
+          const title = (legacyAction.name ?? legacyAction.rawCapture ?? "").trim();
+          if (!title) continue;
+
+          const dueAt = toIsoDateFromLegacy(
+            legacyAction.dueDate ??
+              legacyAction.scheduledDate ??
+              legacyAction.startDate,
+          );
+          const actionStatus = selectLegacyStatus(
+            legacyAction,
+            statuses,
+            defaultStatus,
+            doneStatuses,
+            blockedStatuses,
+          );
+
+          try {
+            await CollaborationApi.createProjectAction(project.id, {
+              canonical_id: legacyAction.id,
+              name: title,
+              description: legacyAction.description ?? undefined,
+              action_status: actionStatus,
+              owner_text: legacyAction.delegatedTo,
+              due_at: dueAt,
+              tags: legacyAction.tags,
+            });
+          } catch (error) {
+            if (error instanceof ApiError && error.status === 409) {
+              continue;
+            }
+            throw error;
+          }
+        }
+
+        if (cancelled) return;
+        await actionsQuery.refetch?.();
+        if (!cancelled) setLegacySyncState("done");
+      } catch (error) {
+        if (cancelled) return;
+        setLegacySyncError(
+          parseApiErrorMessage(error) ?? "Failed to sync existing project actions",
+        );
+        setLegacySyncState("done");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    actions.length,
+    actionsQuery.isLoading,
+    legacySyncState,
+    normalizedLegacyActions,
+    project.id,
+    statuses,
+    workflowQuery.data?.blocked_statuses,
+    workflowQuery.data?.default_status,
+    workflowQuery.data?.done_statuses,
+    workflowQuery.isLoading,
+  ]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -614,7 +751,8 @@ export function ProjectCollaborationWorkspace({
     parseApiErrorMessage(createActionMutation.error) ??
     parseApiErrorMessage(updateActionMutation.error) ??
     parseApiErrorMessage(transitionActionMutation.error) ??
-    parseApiErrorMessage(addCommentMutation.error);
+    parseApiErrorMessage(addCommentMutation.error) ??
+    legacySyncError;
 
   const timeline = history ? flattenTimeline(history) : [];
   const commentChildren = activeAction
@@ -837,8 +975,14 @@ export function ProjectCollaborationWorkspace({
         </p>
       )}
 
-      {workflowQuery.isLoading || actionsQuery.isLoading ? (
-        <p className="text-sm text-text-muted">Loading collaboration workspace...</p>
+      {workflowQuery.isLoading ||
+      actionsQuery.isLoading ||
+      legacySyncState === "syncing" ? (
+        <p className="text-sm text-text-muted">
+          {legacySyncState === "syncing"
+            ? "Syncing existing project actions..."
+            : "Loading collaboration workspace..."}
+        </p>
       ) : viewMode === "list" ? (
         filteredActions.length === 0 ? (
           <div className="rounded-[var(--radius-md)] border border-dashed border-border p-6 text-center">

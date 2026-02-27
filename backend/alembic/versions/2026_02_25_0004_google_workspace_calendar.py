@@ -1,7 +1,7 @@
 """Google Workspace calendar sync + proposal audit tables.
 
 Revision ID: 2026_02_25_0004
-Revises: 2026_02_24_0003
+Revises: 2026_02_24_0004
 Create Date: 2026-02-25 00:04:00
 """
 
@@ -11,7 +11,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "2026_02_25_0004"
-down_revision = "2026_02_24_0003"
+down_revision = "2026_02_24_0004"
 branch_labels = None
 depends_on = None
 

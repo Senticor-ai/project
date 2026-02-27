@@ -131,6 +131,8 @@ Migration policy (enforced in CI):
 - All schema changes must ship as Alembic revisions under `backend/alembic/versions/`.
 - Do not change `backend/db/schema.sql` by itself for feature work.
 - If `backend/db/schema.sql` changes, the same change must include a matching Alembic revision.
+- Alembic revisions must use unique `revision` IDs.
+- Alembic graph must have exactly one head unless explicitly allowed.
 
 ## Run API
 
