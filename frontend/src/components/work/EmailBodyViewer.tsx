@@ -11,6 +11,8 @@ export interface EmailBodyViewerProps {
   senderEmail?: string;
   className?: string;
   onArchive?: () => void;
+  /** When true, email body starts expanded on mount. */
+  defaultExpanded?: boolean;
 }
 
 function extractPlaintext(html: string): string {
@@ -27,8 +29,9 @@ export function EmailBodyViewer({
   senderEmail,
   className,
   onArchive,
+  defaultExpanded = false,
 }: EmailBodyViewerProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [copied, setCopied] = useState(false);
 
   const sanitizedHtml = useMemo(() => {

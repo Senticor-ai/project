@@ -104,6 +104,18 @@ describe("EmailBodyViewer", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("starts expanded when defaultExpanded is true", () => {
+    render(
+      <EmailBodyViewer htmlBody="<p>Auto visible body</p>" defaultExpanded />,
+    );
+    // Body should be visible immediately without clicking
+    expect(screen.getByText("Auto visible body")).toBeInTheDocument();
+    // Toggle button should say "Ausblenden" (collapse)
+    expect(
+      screen.getByRole("button", { name: /E-Mail ausblenden/i }),
+    ).toBeInTheDocument();
+  });
+
   it("starts collapsed and can be toggled", async () => {
     const user = userEvent.setup();
     render(<EmailBodyViewer htmlBody="<p>Hidden body content</p>" />);

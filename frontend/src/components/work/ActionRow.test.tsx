@@ -352,6 +352,50 @@ describe("ActionRow interactions", () => {
     await user.click(screen.getByLabelText("Notes for Task"));
     expect(onToggleExpand).toHaveBeenCalled();
   });
+
+  it("calls onToggleExpand when clicking row padding area", async () => {
+    const user = userEvent.setup();
+    const onToggleExpand = vi.fn();
+    renderRow({
+      thing: createActionItem({ name: "Task" }),
+      onToggleExpand,
+    });
+    // Click the row container div directly (the data-copilot-item div)
+    const row = screen.getByText("Task").closest("[data-copilot-item]")!;
+    await user.click(row);
+    expect(onToggleExpand).toHaveBeenCalled();
+  });
+
+  it("does not trigger onToggleExpand when clicking checkbox", async () => {
+    const user = userEvent.setup();
+    const onToggleExpand = vi.fn();
+    renderRow({
+      thing: createActionItem({ name: "Task" }),
+      onToggleExpand,
+    });
+    await user.click(screen.getByLabelText("Complete Task"));
+    expect(onToggleExpand).not.toHaveBeenCalled();
+  });
+
+  it("does not trigger onToggleExpand when clicking star", async () => {
+    const user = userEvent.setup();
+    const onToggleExpand = vi.fn();
+    renderRow({
+      thing: createActionItem({ name: "Task" }),
+      onToggleExpand,
+    });
+    await user.click(screen.getByLabelText("Focus Task"));
+    expect(onToggleExpand).not.toHaveBeenCalled();
+  });
+
+  it("shows cursor-pointer on the row when expandable", () => {
+    renderRow({
+      thing: createActionItem({ name: "Task" }),
+      onToggleExpand: vi.fn(),
+    });
+    const row = screen.getByText("Task").closest("[data-copilot-item]")!;
+    expect(row).toHaveClass("cursor-pointer");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -539,8 +583,9 @@ describe("ActionRow email body viewer", () => {
       onToggleExpand: vi.fn(),
       onEdit: vi.fn(),
     });
+    // EmailBodyViewer auto-expands, so button shows "Ausblenden" (collapse)
     expect(
-      screen.getByRole("button", { name: /E-Mail anzeigen/i }),
+      screen.getByRole("button", { name: /E-Mail ausblenden/i }),
     ).toBeInTheDocument();
   });
 
@@ -582,7 +627,28 @@ describe("ActionRow email body viewer", () => {
       onEdit: vi.fn(),
     });
     expect(
-      screen.getByRole("button", { name: /E-Mail anzeigen/i }),
+      screen.getByRole("button", { name: /E-Mail ausblenden/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("auto-expands email body when row is expanded", () => {
+    const thing = createActionItem({
+      name: "Auto expand email",
+      bucket: "next",
+      captureSource: { kind: "email", from: "test@example.de" },
+      emailBody: "<p>Email body content here</p>",
+    });
+    renderRow({
+      thing,
+      isExpanded: true,
+      onToggleExpand: vi.fn(),
+      onEdit: vi.fn(),
+    });
+    // Email body should be visible without needing a second click
+    expect(screen.getByText("Email body content here")).toBeInTheDocument();
+    // Toggle button should say "Ausblenden" (collapse) not "Anzeigen" (show)
+    expect(
+      screen.getByRole("button", { name: /E-Mail ausblenden/i }),
     ).toBeInTheDocument();
   });
 });

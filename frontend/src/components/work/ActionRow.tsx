@@ -271,10 +271,22 @@ export function ActionRow({
         data-copilot-item-bucket={thing.bucket}
         data-copilot-item-name={displayName}
         data-copilot-item-focused={thing.isFocused ? "true" : "false"}
+        onClick={(e) => {
+          if (!onToggleExpand) return;
+          const target = e.target as HTMLElement;
+          if (
+            target.closest(
+              'button, a, input, textarea, select, [role="menu"], [role="menuitem"]',
+            )
+          )
+            return;
+          onToggleExpand();
+        }}
         className={cn(
           "group flex items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5",
           "transition-colors duration-[var(--duration-fast)]",
           "hover:bg-paper-100",
+          onToggleExpand && "cursor-pointer",
           isExpanded && "bg-paper-50",
           isSelected && "bg-blueprint-50 ring-1 ring-blueprint-200",
           isDragging && "opacity-50",
@@ -607,6 +619,7 @@ export function ActionRow({
               }
               sourceUrl={thing.emailSourceUrl}
               onArchive={() => onArchive(thing.id)}
+              defaultExpanded
               className="mb-3"
             />
           )}
