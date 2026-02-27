@@ -255,7 +255,11 @@ npm run dev   # backend + worker + frontend + storybook
 
 This uses `concurrently` to run all four processes with color-coded output. Ctrl+C stops everything. Individual startup scripts live in `scripts/start_*.sh`.
 
-Infrastructure services (PostgreSQL, Meilisearch) still need to be started separately via `infra/docker-compose.yml`.
+Default local loop: run app services on host (`npm run dev`), with Postgres and
+OpenClaw image bootstrapped by `npm run dev:bootstrap`. `npm run dev`
+auto-starts Postgres port-forward (`svc/postgres -> localhost:5432`) when needed.
+
+Optional: run the full app in k8s via `kubectl apply -k infra/k8s/overlays/local`.
 
 For local **Kubernetes** development, use the local overlay (`infra/k8s/overlays/local/`) with Rancher Desktop. It shares the same base manifests as production but uses local image builds, dev-friendly ConfigMap values, and includes namespace/secret/ingress resources.
 

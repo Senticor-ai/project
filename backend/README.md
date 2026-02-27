@@ -91,11 +91,15 @@ print("VAPID_PUBLIC_KEY=", public_key)
 PY
 ```
 
-Start the local services with Rancher Desktop:
+Start local infrastructure with Rancher Desktop (k3s, Postgres only):
 
 ```
-docker compose -f infra/docker-compose.yml up -d
+npm run dev:bootstrap
+npm run dev
 ```
+
+`npm run dev` keeps Postgres reachable at `localhost:5432` via auto-managed
+`kubectl port-forward` and applies migrations (`app.db_init`) before services start.
 
 ## Install
 

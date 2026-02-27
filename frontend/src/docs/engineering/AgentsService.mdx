@@ -13,7 +13,7 @@ evaluation see [LLM Evaluation](?path=/docs/engineering-llm-evaluation--docs).
 
 | Aspect                     | Copilot (Haystack)                                          | OpenClaw                                   |
 | -------------------------- | ----------------------------------------------------------- | ------------------------------------------ |
-| **Backend**                | `agents/` service (port 8002), Haystack + OpenRouter        | Per-user Docker container                  |
+| **Backend**                | `agents/` service (port 8002), Haystack + OpenRouter        | Per-user runtime instance (k8s Pod by default) |
 | **Execution model**        | Suggest → user approves → backend executes                  | Autonomous (exec + curl via skills)        |
 | **System prompt**          | `agents/prompts/de/copilot_system.j2` (Jinja2, per-request) | `openclaw/workspace/AGENTS.md`             |
 | **Conversation isolation** | `conversations.agent_backend = 'haystack'`                  | `conversations.agent_backend = 'openclaw'` |
@@ -392,9 +392,10 @@ Python requirement: `>=3.12`
 
 ## OpenClaw Agent
 
-OpenClaw is a self-hosted agent running in a per-user Docker container. Unlike Copilot, it acts
-autonomously — executing API calls directly via `exec` + `curl` skills rather than suggesting
-and waiting for approval.
+OpenClaw is a self-hosted agent running per user as a managed runtime instance
+(k8s Pod in deployed/local-k8s mode, local container in host-runtime mode).
+Unlike Copilot, it acts autonomously — executing API calls directly via
+`exec` + `curl` skills rather than suggesting and waiting for approval.
 
 ### Key differences from Copilot
 
@@ -407,15 +408,17 @@ and waiting for approval.
 
 ### Container Environment Variables
 
-The backend injects environment variables into each OpenClaw container so the agent can
-discover its surrounding services. URLs are automatically rewritten from localhost to
-`host.docker.internal` by `_to_container_url()` in `backend/app/container/manager.py`.
+The backend injects environment variables into each OpenClaw runtime instance so
+the agent can discover surrounding services. In k8s runtime these resolve to
+cluster services (for example `http://backend:8000`), while host-runtime mode
+rewrites localhost URLs to `host.docker.internal` via
+`_to_container_url()` in `backend/app/container/manager.py`.
 
-| Variable                 | Example (inside container)         | Description                                                    |
-| ------------------------ | ---------------------------------- | -------------------------------------------------------------- |
-| `COPILOT_BACKEND_URL`    | `http://host.docker.internal:8000` | Backend REST API (for all curl calls)                          |
-| `COPILOT_FRONTEND_URL`   | `http://host.docker.internal:5173` | Frontend URL (context)                                         |
-| `COPILOT_STORYBOOK_URL`  | `http://host.docker.internal:6006` | Storybook with product, design, and engineering docs           |
+| Variable                 | Example (k8s runtime default) | Description                                                    |
+| ------------------------ | ----------------------------- | -------------------------------------------------------------- |
+| `COPILOT_BACKEND_URL`    | `http://backend:8000`         | Backend REST API (for all curl calls)                          |
+| `COPILOT_FRONTEND_URL`   | `http://frontend`             | Frontend URL (context)                                         |
+| `COPILOT_STORYBOOK_URL`  | `http://storybook`            | Storybook with product, design, and engineering docs           |
 | `OPENCLAW_CONFIG_PATH`   | `/openclaw.json`                   | OpenClaw configuration file path                               |
 | `OPENCLAW_GATEWAY_TOKEN` | _(generated)_                      | Gateway auth token for the container API                       |
 | Provider API key         | _(decrypted from DB)_              | `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, or `ANTHROPIC_API_KEY` |

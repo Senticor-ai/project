@@ -15,7 +15,7 @@ k8s/
 │   ├── postgres.yaml       # StatefulSet + Service
 │   └── pvc-backend-files.yaml
 └── overlays/
-    ├── local/              # Local dev (k3s/k3d)
+    ├── local/              # Local dev (Rancher Desktop k3s)
     │   ├── kustomization.yaml
     │   ├── namespace.yaml
     │   ├── configmap.yaml
@@ -71,33 +71,30 @@ environment values differ completely between local and production.
 
 ## Local Overlay
 
-Target: k3s / k3d on Rancher Desktop.
+Target: Rancher Desktop with Kubernetes (k3s) enabled.
+
+If you prefer the faster host-process dev loop (`npm run dev`), use
+`ansible-playbook infra/local-dev-bootstrap.yml` instead of this full overlay.
+That playbook bootstraps Postgres + OpenClaw image only.
 
 ### Prerequisites
 
-Create a k3d cluster (if not already done):
+Ensure Rancher Desktop is running with:
 
 ```bash
-k3d cluster create project -p "8080:80@loadbalancer"
+kubectl config use-context rancher-desktop
+kubectl get nodes
 ```
 
-### Build and load images
+### Build local images (containerd/nerdctl)
 
 From repo root:
 
 ```bash
-docker build -f backend/Dockerfile -t project-backend:local .
-docker build -f frontend/Dockerfile -t project-frontend:local .
-docker build -f openclaw/Dockerfile.alpha -t project-openclaw-alpha:dev .
-k3d image import project-backend:local project-frontend:local project-openclaw-alpha:dev -c project
-```
-
-For k3s (containerd):
-
-```bash
-docker save project-backend:local | sudo k3s ctr images import -
-docker save project-frontend:local | sudo k3s ctr images import -
-docker save project-openclaw-alpha:dev | sudo k3s ctr images import -
+nerdctl build -f backend/Dockerfile -t project-backend:local .
+nerdctl build -f frontend/Dockerfile -t project-frontend:local .
+nerdctl build -f frontend/Dockerfile.storybook -t project-storybook:local .
+nerdctl build -f openclaw/Dockerfile.alpha -t project-openclaw-alpha:dev .
 ```
 
 ### Deploy

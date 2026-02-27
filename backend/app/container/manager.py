@@ -65,6 +65,9 @@ _MAX_DNS_LABEL_LEN = 63
 OPENCLAW_RUNTIME_LOCAL = "local"
 OPENCLAW_RUNTIME_K8S = "k8s"
 OPENCLAW_K8S_LABEL_SELECTOR = "app=openclaw,copilot.managed=true"
+OPENCLAW_PULL_ALWAYS = "always"
+OPENCLAW_PULL_IF_NOT_PRESENT = "if-not-present"
+OPENCLAW_PULL_NEVER = "never"
 
 
 def _to_container_url(url: str) -> str:
@@ -92,6 +95,31 @@ def _runtime_mode() -> str:
 
 def _use_k8s_runtime() -> bool:
     return _runtime_mode() == OPENCLAW_RUNTIME_K8S
+
+
+def _pull_policy() -> str:
+    policy = (settings.openclaw_pull_policy or OPENCLAW_PULL_NEVER).strip().lower()
+    if policy in {OPENCLAW_PULL_ALWAYS, OPENCLAW_PULL_IF_NOT_PRESENT, OPENCLAW_PULL_NEVER}:
+        return policy
+    logger.warning("container.pull_policy_unknown", extra={"policy": policy})
+    return OPENCLAW_PULL_NEVER
+
+
+def _image_present_locally(image: str) -> bool:
+    try:
+        result = run_cmd(["image", "inspect", image], timeout=20)
+    except Exception:  # noqa: BLE001
+        return False
+    return result.returncode == 0
+
+
+def _should_pull_image(image: str) -> bool:
+    policy = _pull_policy()
+    if policy == OPENCLAW_PULL_NEVER:
+        return False
+    if policy == OPENCLAW_PULL_ALWAYS:
+        return True
+    return not _image_present_locally(image)
 
 
 def _resolve_k8s_namespace() -> str:
@@ -585,12 +613,14 @@ def start_container(user_id: str) -> ContainerInfo:
             _mark_error(user_id, f"Kubernetes start failed: {str(exc)[:220]}")
             raise RuntimeError(f"Kubernetes start failed: {exc!s}") from exc
     else:
-        # Ensure we run the configured image tag/digest as provided.
-        pull_result = run_cmd(["pull", settings.openclaw_image], timeout=120)
-        if pull_result.returncode != 0:
-            detail = (pull_result.stderr or pull_result.stdout or "image pull failed").strip()
-            _mark_error(user_id, f"Image pull failed: {detail[:240]}")
-            raise RuntimeError(f"Image pull failed: {detail[:200]}")
+        # Pull policy defaults to "never" so local dev can use a custom image
+        # built from openclaw/Dockerfile.alpha without any upstream registry.
+        if _should_pull_image(settings.openclaw_image):
+            pull_result = run_cmd(["pull", settings.openclaw_image], timeout=120)
+            if pull_result.returncode != 0:
+                detail = (pull_result.stderr or pull_result.stdout or "image pull failed").strip()
+                _mark_error(user_id, f"Image pull failed: {detail[:240]}")
+                raise RuntimeError(f"Image pull failed: {detail[:200]}")
 
         # Remove any old container with the same name
         run_cmd(["rm", "-f", container_name])

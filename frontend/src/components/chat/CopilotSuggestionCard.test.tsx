@@ -10,7 +10,6 @@ import type {
   CopilotCliSuggestion,
 } from "@/model/chat-types";
 import type { CanonicalId } from "@/model/canonical-id";
-import type { ActionItemBucket } from "@/model/types";
 
 const projectSuggestion: CreateProjectWithActionsSuggestion = {
   type: "create_project_with_actions",

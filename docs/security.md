@@ -413,11 +413,11 @@ aws secretsmanager create-secret \
 **Rotation Steps:**
 ```bash
 # Regenerate master key in Meilisearch configuration
-# Update docker-compose.yml or deployment manifest
+# Update deployment/configuration manifest
 MEILI_MASTER_KEY=<new-key>
 
-# Restart Meilisearch
-docker-compose restart meilisearch
+# Restart Meilisearch workload (example: Kubernetes)
+kubectl -n <namespace> rollout restart deployment/meilisearch
 
 # Store in secrets manager
 aws secretsmanager create-secret \

@@ -4,18 +4,26 @@ A **ontology-native task management system** bringing schema.org into a modern, 
 
 ## Quick Start
 
-```bash
-# 1) start local Postgres (required)
-docker compose -f infra/docker-compose.yml up -d postgres
+Prerequisite: `ansible-playbook` available in your shell.
 
-# 2) start backend + workers + agents + frontend + storybook
+```bash
+# 1) ensure Rancher Desktop is running with Kubernetes + containerd
+kubectl config use-context rancher-desktop
+
+# 2) one-shot bootstrap (k8s Postgres + OpenClaw dev image)
+npm run dev:bootstrap
+
+# 3) start backend + workers + agents + frontend + storybook on host
+#    (includes automatic Postgres port-forward + migration bootstrap)
 npm run dev
 ```
 
-One command from the repo root starts all five processes via `concurrently`:
+One command from the repo root starts all app processes via `concurrently`
+and auto-manages the Postgres tunnel:
 
 | Process   | URL                          |
 | --------- | ---------------------------- |
+| Postgres  | localhost:5432 (port-forward) |
 | Backend   | http://localhost:8000/docs   |
 | Worker    | (background, no UI)          |
 | Agents    | http://localhost:8002/health |
@@ -24,11 +32,13 @@ One command from the repo root starts all five processes via `concurrently`:
 
 Ctrl+C stops everything.
 
+For the full in-cluster local stack (`frontend`, `backend`, `worker`, `storybook`, `postgres` all in k8s), see [`infra/k8s/README.md`](infra/k8s/README.md).
+
 <details>
-<summary>Manual startup (individual terminals)</summary>
+<summary>Manual host startup (individual terminals)</summary>
 
 ```bash
-docker compose -f infra/docker-compose.yml up -d postgres
+kubectl -n project port-forward svc/postgres 5432:5432
 cd frontend && npm install && npm run storybook   # Storybook at http://localhost:6006
 cd frontend && npm run dev                         # Vite dev server
 cd backend && uv sync && uv run --python 3.12 python -m uvicorn app.main:app --reload  # API server
@@ -80,7 +90,8 @@ cd frontend && npx tsc -b --noEmit && npx eslint src/ && npx prettier --check sr
 npm run preflight:local
 
 # Strict local gate with backend integration (required for backend behavior/API changes)
-# Requires local Postgres (e.g. `docker compose -f infra/docker-compose.yml up -d postgres`)
+# Requires local Postgres reachable on localhost:5432
+# (e.g. running `npm run dev`, or manual `kubectl -n project port-forward svc/postgres 5432:5432`)
 npm run preflight:local:strict
 
 # CI parity preflight (recommended before push)

@@ -1,6 +1,7 @@
 {
   "private": true,
   "scripts": {
+    "dev:bootstrap": "ansible-playbook infra/local-dev-bootstrap.yml",
     "dev": "npm --prefix frontend run dev:stack",
     "preflight:local": "bash scripts/preflight-local.sh",
     "preflight:local:strict": "bash scripts/preflight-local.sh --with-backend-integration",

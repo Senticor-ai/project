@@ -74,7 +74,7 @@ def test_start_container_injects_user_model_and_compose_labels(monkeypatch, tmp_
         "model": "google/gemini-3.1-pro-preview-customtools",
     }
 
-    _patch_settings(monkeypatch, openclaw_project_mount_path="")
+    _patch_settings(monkeypatch, openclaw_project_mount_path="", openclaw_pull_policy="always")
     monkeypatch.setattr("app.container.manager.db_conn", lambda: _FakeConn(row))
     monkeypatch.setattr("app.container.manager._allocate_port", lambda _cur: 18800)
     monkeypatch.setattr("app.container.manager._decrypt_api_key", lambda _enc: "decrypted-key")
@@ -131,7 +131,7 @@ def test_start_container_fails_when_image_pull_fails(monkeypatch, tmp_path):
         "model": "google/gemini-3-flash-preview",
     }
 
-    _patch_settings(monkeypatch, openclaw_project_mount_path="")
+    _patch_settings(monkeypatch, openclaw_project_mount_path="", openclaw_pull_policy="always")
     monkeypatch.setattr("app.container.manager.db_conn", lambda: _FakeConn(row))
     monkeypatch.setattr("app.container.manager._allocate_port", lambda _cur: 18800)
     monkeypatch.setattr("app.container.manager._decrypt_api_key", lambda _enc: "decrypted-key")
@@ -163,6 +163,48 @@ def test_start_container_fails_when_image_pull_fails(monkeypatch, tmp_path):
 
     assert marked["user_id"] == user_id
     assert "Image pull failed" in marked["message"]
+
+
+@pytest.mark.unit
+def test_start_container_skips_pull_when_image_exists_locally(monkeypatch, tmp_path):
+    user_id = "702a4639-e654-46b8-a4fa-83ecc2bcd06c"
+    row = {
+        "provider": "openrouter",
+        "api_key_encrypted": "encrypted-key",
+        "model": "google/gemini-3-flash-preview",
+    }
+
+    _patch_settings(
+        monkeypatch,
+        openclaw_project_mount_path="",
+        openclaw_pull_policy="if-not-present",
+    )
+    monkeypatch.setattr("app.container.manager.db_conn", lambda: _FakeConn(row))
+    monkeypatch.setattr("app.container.manager._allocate_port", lambda _cur: 18800)
+    monkeypatch.setattr("app.container.manager._decrypt_api_key", lambda _enc: "decrypted-key")
+    monkeypatch.setattr("app.container.manager._wait_for_healthy", lambda _user, _url: None)
+    monkeypatch.setattr(
+        "app.container.manager.provision_workspace",
+        lambda **_kwargs: (
+            (tmp_path / "openclaw" / user_id),
+            (tmp_path / "openclaw-runtime" / user_id),
+        ),
+    )
+
+    run_calls: list[list[str]] = []
+
+    def _fake_run_cmd(args, timeout=30):
+        run_calls.append(args)
+        if args[:2] == ["image", "inspect"]:
+            return SimpleNamespace(returncode=0, stderr="", stdout="exists")
+        return SimpleNamespace(returncode=0, stderr="", stdout="")
+
+    monkeypatch.setattr("app.container.manager.run_cmd", _fake_run_cmd)
+
+    start_container(user_id)
+
+    assert any(call[:2] == ["image", "inspect"] for call in run_calls)
+    assert not any(call and call[0] == "pull" for call in run_calls)
 
 
 @pytest.mark.unit

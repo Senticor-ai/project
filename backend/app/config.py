@@ -138,6 +138,7 @@ class Settings:
     # OpenClaw container management (Phase 2 — per-user containers)
     openclaw_runtime: str
     openclaw_image: str
+    openclaw_pull_policy: str
     openclaw_port_range_start: int
     openclaw_port_range_end: int
     openclaw_k8s_gateway_port: int
@@ -336,8 +337,9 @@ def load_settings() -> Settings:
         openclaw_url=_get_env("OPENCLAW_URL"),
         openclaw_token=_get_secret("OPENCLAW_GATEWAY_TOKEN"),
         openclaw_runtime=_get_env("OPENCLAW_RUNTIME", "local") or "local",
-        openclaw_image=_get_env("OPENCLAW_IMAGE", "ghcr.io/openclaw/openclaw:latest")
-        or "ghcr.io/openclaw/openclaw:latest",
+        openclaw_image=_get_env("OPENCLAW_IMAGE", "project-openclaw-alpha:dev")
+        or "project-openclaw-alpha:dev",
+        openclaw_pull_policy=_get_env("OPENCLAW_PULL_POLICY", "never") or "never",
         openclaw_port_range_start=int(_get_env("OPENCLAW_PORT_RANGE_START", "18800") or "18800"),
         openclaw_port_range_end=int(_get_env("OPENCLAW_PORT_RANGE_END", "18899") or "18899"),
         openclaw_k8s_gateway_port=int(_get_env("OPENCLAW_K8S_GATEWAY_PORT", "18789") or "18789"),

@@ -1,0 +1,75 @@
+---
+# Bootstrap local development infrastructure on Rancher Desktop (k3s + containerd).
+#
+# Usage:
+#   ansible-playbook infra/local-dev-bootstrap.yml
+#   ansible-playbook infra/local-dev-bootstrap.yml -e kube_context=rancher-desktop
+#   ansible-playbook infra/local-dev-bootstrap.yml -e openclaw_image_tag=project-openclaw-alpha:dev
+#
+# What this configures:
+# - Ensures kubectl context (default: rancher-desktop)
+# - Applies namespace/config/secret + Postgres manifests for local dev
+# - Waits until Postgres StatefulSet is ready
+# - Builds the project-owned OpenClaw image locally (nerdctl)
+#
+# What remains manual:
+# - Run `npm run dev`
+
+- name: Bootstrap local dev infra
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    kube_context: rancher-desktop
+    kube_namespace: project
+    openclaw_image_tag: project-openclaw-alpha:dev
+    repo_root: "{{ playbook_dir }}/.."
+
+  tasks:
+    - name: Check required binaries
+      ansible.builtin.shell: "command -v {{ item }}"
+      loop:
+        - kubectl
+        - nerdctl
+      changed_when: false
+
+    - name: Select kube context
+      ansible.builtin.command:
+        cmd: "kubectl config use-context {{ kube_context }}"
+      changed_when: false
+
+    - name: Apply local namespace
+      ansible.builtin.command:
+        cmd: "kubectl apply -f {{ repo_root }}/infra/k8s/overlays/local/namespace.yaml"
+      changed_when: false
+
+    - name: Apply local config, secret, and postgres manifests
+      ansible.builtin.command:
+        cmd: >-
+          kubectl -n {{ kube_namespace }} apply
+          -f {{ repo_root }}/infra/k8s/overlays/local/secret.yaml
+          -f {{ repo_root }}/infra/k8s/overlays/local/configmap.yaml
+          -f {{ repo_root }}/infra/k8s/base/postgres.yaml
+      changed_when: false
+
+    - name: Wait for Postgres readiness
+      ansible.builtin.command:
+        cmd: "kubectl -n {{ kube_namespace }} rollout status statefulset/postgres --timeout=180s"
+      changed_when: false
+
+    - name: Build OpenClaw dev image
+      ansible.builtin.command:
+        cmd: >-
+          nerdctl build
+          --progress plain
+          -f {{ repo_root }}/openclaw/Dockerfile.alpha
+          -t {{ openclaw_image_tag }}
+          {{ repo_root }}
+      changed_when: false
+
+    - name: Print next steps
+      ansible.builtin.debug:
+        msg:
+          - "Bootstrap complete."
+          - "Next terminal (repo root): npm run dev"
+          - "npm run dev auto-manages postgres port-forward to localhost:5432."
