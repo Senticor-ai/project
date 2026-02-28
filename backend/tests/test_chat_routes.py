@@ -403,6 +403,56 @@ class TestChatCompletions:
         assert len(error_events) == 1
         assert "timeout" in error_events[0]["detail"].lower()
 
+    def test_openclaw_streams_starting_detail_when_container_is_booting(
+        self, auth_client, monkeypatch
+    ):
+        _patch_settings(monkeypatch, agents_url="http://localhost:8002")
+        monkeypatch.setattr("app.chat.routes.get_user_agent_backend", lambda _user_id: "openclaw")
+        monkeypatch.setattr(
+            "app.chat.routes.ensure_running",
+            lambda _user_id: (_ for _ in ()).throw(RuntimeError("still starting")),
+        )
+        monkeypatch.setattr(
+            "app.chat.routes.get_container_status",
+            lambda _user_id: {"status": "starting", "error": None},
+        )
+
+        response = auth_client.post(
+            "/chat/completions",
+            json={"message": "Hallo", "conversationId": "conv-openclaw-starting"},
+        )
+        assert response.status_code == 200
+
+        parsed = _parse_ndjson(response)
+        error_events = [e for e in parsed if e["type"] == "error"]
+        assert len(error_events) == 1
+        assert "still starting" in error_events[0]["detail"].lower()
+
+    def test_openclaw_streams_status_error_detail_from_container_state(
+        self, auth_client, monkeypatch
+    ):
+        _patch_settings(monkeypatch, agents_url="http://localhost:8002")
+        monkeypatch.setattr("app.chat.routes.get_user_agent_backend", lambda _user_id: "openclaw")
+        monkeypatch.setattr(
+            "app.chat.routes.ensure_running",
+            lambda _user_id: (_ for _ in ()).throw(RuntimeError("boom")),
+        )
+        monkeypatch.setattr(
+            "app.chat.routes.get_container_status",
+            lambda _user_id: {"status": "error", "error": "Health check timeout after 15s"},
+        )
+
+        response = auth_client.post(
+            "/chat/completions",
+            json={"message": "Hallo", "conversationId": "conv-openclaw-error"},
+        )
+        assert response.status_code == 200
+
+        parsed = _parse_ndjson(response)
+        error_events = [e for e in parsed if e["type"] == "error"]
+        assert len(error_events) == 1
+        assert "health check timeout" in error_events[0]["detail"].lower()
+
 
 # ---------------------------------------------------------------------------
 # Execute tool proxy

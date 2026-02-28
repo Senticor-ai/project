@@ -192,6 +192,80 @@ export async function readNdjsonStream(
   }
 }
 
+type ChatErrorResponse = {
+  status: number;
+  body?: ReadableStream<Uint8Array> | null;
+  text?: () => Promise<string>;
+};
+
+function parseErrorDetailFromObject(value: unknown): string | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const detail = record.detail;
+  if (typeof detail === "string" && detail.trim().length > 0) {
+    return detail.trim();
+  }
+  if (
+    record.type === "error" &&
+    typeof record.detail === "string" &&
+    record.detail.trim().length > 0
+  ) {
+    return record.detail.trim();
+  }
+  return null;
+}
+
+function parseErrorDetailFromText(raw: string): string | null {
+  const text = raw.trim();
+  if (!text) return null;
+
+  try {
+    const parsed = JSON.parse(text);
+    const detail = parseErrorDetailFromObject(parsed);
+    if (detail) return detail;
+  } catch {
+    // Not a single JSON object; continue with NDJSON parsing.
+  }
+
+  for (const line of text.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      const parsed = JSON.parse(trimmed);
+      const detail = parseErrorDetailFromObject(parsed);
+      if (detail) return detail;
+    } catch {
+      // Ignore malformed lines.
+    }
+  }
+
+  return null;
+}
+
+async function extractChatErrorDetail(response: ChatErrorResponse): Promise<string | null> {
+  if (typeof response.text === "function") {
+    try {
+      const detail = parseErrorDetailFromText(await response.text());
+      if (detail) return detail;
+    } catch {
+      // Continue with stream parsing fallback.
+    }
+  }
+
+  if (response.body) {
+    let detail: string | null = null;
+    await readNdjsonStream(response.body, (event) => {
+      if (detail) return;
+      if (event.type === "error" && event.detail.trim().length > 0) {
+        detail = event.detail.trim();
+      }
+    });
+    return detail;
+  }
+
+  return null;
+}
+
 export function useCopilotApi() {
   const sendMessageStreaming = useCallback(
     async (
@@ -212,7 +286,8 @@ export function useCopilotApi() {
       });
 
       if (!res.ok) {
-        throw new Error(`Chat request failed: ${res.status}`);
+        const detail = await extractChatErrorDetail(res as ChatErrorResponse);
+        throw new Error(detail ?? `Chat request failed: ${res.status}`);
       }
 
       if (!res.body) {

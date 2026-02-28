@@ -245,11 +245,7 @@ export const ApiError: Story = {
 
     await step("Verify error message appears", async () => {
       await waitFor(() => {
-        expect(
-          canvas.getByText(
-            "Es ist ein Fehler aufgetreten. Bitte versuche es erneut.",
-          ),
-        ).toBeInTheDocument();
+        expect(canvas.getByText("Internal server error")).toBeInTheDocument();
       }, WAIT);
     });
   },

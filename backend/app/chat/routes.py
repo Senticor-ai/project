@@ -19,6 +19,7 @@ from pydantic import BaseModel
 
 from ..config import settings
 from ..container.manager import ensure_running, write_token_file
+from ..container.manager import get_status as get_container_status
 from ..db import db_conn
 from ..delegation import create_delegated_token
 from ..deps import get_current_org, get_current_user
@@ -190,6 +191,27 @@ def _build_openai_messages(history: list[dict]) -> list[dict]:
     return messages
 
 
+def _build_openclaw_startup_error_detail(user_id: str, exc: Exception) -> str:
+    """Build a user-facing startup detail from live container status + exception."""
+    status = {}
+    try:
+        status = get_container_status(user_id)
+    except Exception:
+        logger.warning("container.status_lookup_failed", extra={"user_id": user_id}, exc_info=True)
+
+    state = status.get("status")
+    state_error = str(status.get("error") or "").strip()
+    if state == "starting":
+        return "OpenClaw container is still starting. Please wait a moment and try again."
+    if state == "error" and state_error:
+        return f"OpenClaw startup failed: {state_error}"
+
+    detail = str(exc).strip()
+    if detail:
+        return f"OpenClaw startup failed: {detail}"
+    return "Failed to start OpenClaw container"
+
+
 async def _stream_openclaw(
     openclaw_url: str,
     openclaw_token: str,
@@ -318,9 +340,10 @@ def chat_completions(
                 _config_error_stream(),
                 media_type="application/x-ndjson",
             )
-        except Exception:
+        except Exception as exc:
             logger.exception("container.ensure_running_failed", extra={"user_id": user_id})
-            err = json.dumps({"type": "error", "detail": "Failed to start OpenClaw container"})
+            detail = _build_openclaw_startup_error_detail(user_id, exc)
+            err = json.dumps({"type": "error", "detail": detail})
 
             async def _error_stream() -> AsyncGenerator[bytes, None]:
                 yield (err + "\n").encode()

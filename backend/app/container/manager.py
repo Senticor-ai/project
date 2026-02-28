@@ -676,17 +676,7 @@ def _wait_for_healthy(user_id: str, url: str) -> None:
     deadline = time.monotonic() + settings.openclaw_health_check_timeout
     while time.monotonic() < deadline:
         if _is_container_ready(url):
-            with db_conn() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        """
-                        UPDATE user_agent_settings SET
-                            container_status = 'running', updated_at = now()
-                        WHERE user_id = %s
-                        """,
-                        (user_id,),
-                    )
-                conn.commit()
+            _mark_running(user_id)
             return
         time.sleep(1.0)
 
@@ -725,6 +715,23 @@ def _mark_error(user_id: str, error: str) -> None:
                 WHERE user_id = %s
                 """,
                 (error, user_id),
+            )
+        conn.commit()
+
+
+def _mark_running(user_id: str) -> None:
+    """Mark a container as running and clear previous error details."""
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE user_agent_settings SET
+                    container_status = 'running',
+                    container_error = NULL,
+                    updated_at = now()
+                WHERE user_id = %s
+                """,
+                (user_id,),
             )
         conn.commit()
 
@@ -837,7 +844,7 @@ def ensure_running(user_id: str) -> tuple[str, str]:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT container_url, container_status, container_name
+                SELECT container_url, container_status, container_name, container_error
                 FROM user_agent_settings
                 WHERE user_id = %s
                 """,
@@ -859,7 +866,28 @@ def ensure_running(user_id: str) -> tuple[str, str]:
             )
             stop_container(user_id)
     elif row and row["container_status"] in ("starting", "error"):
-        # Stale state — clean up before restart
+        current_url = row["container_url"]
+        if current_url:
+            try:
+                if _is_container_ready(current_url):
+                    _mark_running(user_id)
+                    touch_activity(user_id)
+                    token = _read_gateway_token(user_id)
+                    return current_url, token
+            except (httpx.ConnectError, httpx.TimeoutException, httpx.RemoteProtocolError):
+                logger.warning(
+                    "container.health_failed",
+                    extra={"user_id": user_id, "status": row["container_status"]},
+                    exc_info=True,
+                )
+
+        if row["container_status"] == "starting":
+            raise RuntimeError("OpenClaw container is still starting")
+
+        if row["container_error"]:
+            raise RuntimeError(str(row["container_error"]))
+
+        # Fallback for inconsistent state without error details.
         stop_container(user_id)
 
     # Start fresh

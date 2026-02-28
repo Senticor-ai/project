@@ -11,6 +11,7 @@ from app.config import settings
 from app.container.manager import (
     _build_container_name,
     _is_container_ready,
+    ensure_running,
     get_identity_name,
     hard_refresh_container,
     reap_orphaned_k8s_resources,
@@ -317,6 +318,65 @@ def test_start_container_rejects_when_k8s_capacity_is_reached(monkeypatch):
 
     with pytest.raises(RuntimeError, match="tenant capacity reached"):
         start_container(user_id)
+
+
+@pytest.mark.unit
+def test_ensure_running_promotes_starting_container_when_ready(monkeypatch):
+    user_id = "702a4639-e654-46b8-a4fa-83ecc2bcd06c"
+    row = {
+        "container_url": "http://localhost:18800",
+        "container_status": "starting",
+        "container_name": f"openclaw-{user_id}",
+        "container_error": None,
+    }
+
+    monkeypatch.setattr("app.container.manager.db_conn", lambda: _FakeConn(row))
+    monkeypatch.setattr("app.container.manager._is_container_ready", lambda _url: True)
+    monkeypatch.setattr("app.container.manager._read_gateway_token", lambda _uid: "gateway-token")
+    monkeypatch.setattr(
+        "app.container.manager.start_container",
+        lambda _uid: (_ for _ in ()).throw(AssertionError("start_container must not be called")),
+    )
+
+    marked_running: list[str] = []
+    touched: list[str] = []
+    monkeypatch.setattr("app.container.manager._mark_running", lambda uid: marked_running.append(uid))
+    monkeypatch.setattr("app.container.manager.touch_activity", lambda uid: touched.append(uid))
+
+    url, token = ensure_running(user_id)
+
+    assert url == "http://localhost:18800"
+    assert token == "gateway-token"
+    assert marked_running == [user_id]
+    assert touched == [user_id]
+
+
+@pytest.mark.unit
+def test_ensure_running_reports_starting_state_without_forced_restart(monkeypatch):
+    user_id = "702a4639-e654-46b8-a4fa-83ecc2bcd06c"
+    row = {
+        "container_url": "http://localhost:18800",
+        "container_status": "starting",
+        "container_name": f"openclaw-{user_id}",
+        "container_error": None,
+    }
+
+    monkeypatch.setattr("app.container.manager.db_conn", lambda: _FakeConn(row))
+    monkeypatch.setattr("app.container.manager._is_container_ready", lambda _url: False)
+
+    stop_calls: list[str] = []
+    start_calls: list[str] = []
+    monkeypatch.setattr("app.container.manager.stop_container", lambda uid: stop_calls.append(uid))
+    monkeypatch.setattr(
+        "app.container.manager.start_container",
+        lambda uid: start_calls.append(uid),
+    )
+
+    with pytest.raises(RuntimeError, match="still starting"):
+        ensure_running(user_id)
+
+    assert stop_calls == []
+    assert start_calls == []
 
 
 @pytest.mark.unit

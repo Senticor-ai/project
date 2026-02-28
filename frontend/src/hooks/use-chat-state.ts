@@ -196,14 +196,20 @@ export function useChatState(options: ChatStateOptions = {}) {
         if (!streamingMsgId) {
           setMessages((prev) => prev.filter((m) => m.id !== thinkingMsg.id));
         }
-      } catch {
+      } catch (error) {
+        const fallbackError =
+          "Es ist ein Fehler aufgetreten. Bitte versuche es erneut.";
+        const detail =
+          error instanceof Error && error.message.trim().length > 0
+            ? error.message.trim()
+            : fallbackError;
         setMessages((prev) => {
           const withoutThinking = prev.filter((m) => m.id !== thinkingMsg.id);
           const errorMsg: CopilotErrorMessage = {
             id: generateId(),
             role: "copilot",
             kind: "error",
-            content: "Es ist ein Fehler aufgetreten. Bitte versuche es erneut.",
+            content: detail,
             timestamp: new Date().toISOString(),
           };
           return [...withoutThinking, errorMsg];

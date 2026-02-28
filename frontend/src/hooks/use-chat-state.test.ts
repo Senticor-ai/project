@@ -398,7 +398,7 @@ describe("useChatState", () => {
       expect(errors[0]!.content).toBe("Agents service unreachable");
     });
 
-    it("replaces thinking with error message on fetch failure", async () => {
+    it("replaces thinking with thrown error detail on fetch failure", async () => {
       mockSendMessageStreaming.mockRejectedValueOnce(new Error("API down"));
       const hook = renderHook(() => useChatState());
 
@@ -410,9 +410,7 @@ describe("useChatState", () => {
 
       const errors = findByKind(hook.result.current.messages, "error");
       expect(errors).toHaveLength(1);
-      expect(errors[0]!.content).toBe(
-        "Es ist ein Fehler aufgetreten. Bitte versuche es erneut.",
-      );
+      expect(errors[0]!.content).toBe("API down");
       expect(hook.result.current.isLoading).toBe(false);
     });
 

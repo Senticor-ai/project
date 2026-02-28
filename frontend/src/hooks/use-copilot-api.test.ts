@@ -321,6 +321,21 @@ describe("useCopilotApi", () => {
     ).rejects.toThrow("Chat request failed: 500");
   });
 
+  it("surfaces backend error detail from NDJSON body on non-ok response", async () => {
+    mockFetch.mockReturnValue(
+      streamResponse(
+        [{ type: "error", detail: "OpenClaw container is still starting." }],
+        false,
+        503,
+      ),
+    );
+    const { result } = renderHook(() => useCopilotApi());
+
+    await expect(
+      result.current.sendMessageStreaming("Test", "conv-1", () => {}),
+    ).rejects.toThrow("OpenClaw container is still starting.");
+  });
+
   it("throws when response body is missing", async () => {
     mockFetch.mockReturnValue(
       Promise.resolve({ ok: true, status: 200, body: null }),
