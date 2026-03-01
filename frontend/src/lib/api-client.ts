@@ -135,6 +135,13 @@ export async function refreshCsrfToken() {
   return response.csrf_token;
 }
 
+export async function getOrRefreshCsrfToken() {
+  if (csrfToken) {
+    return csrfToken;
+  }
+  return refreshCsrfToken();
+}
+
 function createRequestId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();

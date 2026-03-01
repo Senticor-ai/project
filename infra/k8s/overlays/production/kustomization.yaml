@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
   - ../../base
   - configmap.yaml
+  - rbac-openclaw-runtime.yaml
   - secrets-per-workload.yaml
 
 images:

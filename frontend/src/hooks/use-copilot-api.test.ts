@@ -5,9 +5,17 @@ import type { StreamEvent } from "@/model/chat-types";
 
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
+const { mockGetOrRefreshCsrfToken } = vi.hoisted(() => ({
+  mockGetOrRefreshCsrfToken: vi.fn(),
+}));
+
+vi.mock("@/lib/api-client", () => ({
+  getOrRefreshCsrfToken: mockGetOrRefreshCsrfToken,
+}));
 
 beforeEach(() => {
   vi.resetAllMocks();
+  mockGetOrRefreshCsrfToken.mockResolvedValue("csrf-test-token");
   document.body.innerHTML = "";
   window.history.pushState({}, "", "/");
 });
@@ -157,7 +165,9 @@ describe("useCopilotApi", () => {
     expect(url).toContain("/chat/completions");
     expect(opts.method).toBe("POST");
     expect(opts.headers["Content-Type"]).toBe("application/json");
+    expect(opts.headers["X-CSRF-Token"]).toBe("csrf-test-token");
     expect(opts.credentials).toBe("include");
+    expect(mockGetOrRefreshCsrfToken).toHaveBeenCalledOnce();
     const body = JSON.parse(opts.body as string);
     expect(body.message).toBe("Hallo");
     expect(body.conversationId).toBe("conv-123");
@@ -354,5 +364,21 @@ describe("useCopilotApi", () => {
     await expect(
       result.current.sendMessageStreaming("Test", "conv-1", () => {}),
     ).rejects.toThrow("Network error");
+  });
+});
+
+describe("ChatApi", () => {
+  it("sends CSRF header for archiveConversation patch", async () => {
+    mockFetch.mockResolvedValue({ ok: true, status: 204 });
+    const { ChatApi } = await import("./use-copilot-api");
+
+    await ChatApi.archiveConversation("conv-42");
+
+    expect(mockGetOrRefreshCsrfToken).toHaveBeenCalledOnce();
+    const [url, opts] = mockFetch.mock.calls[0]!;
+    expect(url).toContain("/chat/conversations/conv-42/archive");
+    expect(opts.method).toBe("PATCH");
+    expect(opts.credentials).toBe("include");
+    expect(opts.headers["X-CSRF-Token"]).toBe("csrf-test-token");
   });
 });

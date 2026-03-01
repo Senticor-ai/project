@@ -5,6 +5,8 @@ metadata:
 spec:
   template:
     spec:
+      serviceAccountName: backend-openclaw-runtime
+      automountServiceAccountToken: true
       imagePullSecrets:
         - name: stackit-registry
       initContainers:

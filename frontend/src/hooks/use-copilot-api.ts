@@ -8,6 +8,7 @@ import type {
   VisibleWorkspaceSnapshot,
 } from "@/model/chat-types";
 import { isValidBucket, parsePathname } from "@/lib/route-utils";
+import { getOrRefreshCsrfToken } from "@/lib/api-client";
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "/api").replace(
   /\/+$/,
@@ -274,9 +275,13 @@ export function useCopilotApi() {
       onEvent: (event: StreamEvent) => void,
       extraContext?: Partial<ChatClientContext>,
     ): Promise<void> => {
+      const csrfToken = await getOrRefreshCsrfToken();
       const res = await fetch(`${API_BASE}/chat/completions`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken,
+        },
         credentials: "include",
         body: JSON.stringify({
           message,
@@ -327,9 +332,14 @@ export const ChatApi = {
   },
 
   async archiveConversation(conversationId: string): Promise<void> {
+    const csrfToken = await getOrRefreshCsrfToken();
     const res = await fetch(
       `${API_BASE}/chat/conversations/${conversationId}/archive`,
-      { method: "PATCH", credentials: "include" },
+      {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "X-CSRF-Token": csrfToken },
+      },
     );
     if (!res.ok)
       throw new Error(`Failed to archive conversation: ${res.status}`);

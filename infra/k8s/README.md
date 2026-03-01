@@ -161,7 +161,9 @@ This overlay intentionally does **not** include:
 - `Namespace`
 - `Ingress`
 - `Secret` manifests
-- RBAC (`Role`, `RoleBinding`, `ClusterRole`, `ClusterRoleBinding`)
+- RBAC (`Role`, `RoleBinding`, `ClusterRole`, `ClusterRoleBinding`) except the
+  namespace-scoped OpenClaw runtime Role/RoleBinding for
+  `backend-openclaw-runtime`
 - `NetworkPolicy`
 
 ### OpenClaw Runtime Contract (k8s mode)
@@ -179,8 +181,8 @@ Namespace-scoped RBAC required:
 
 Not required by current runtime: `watch`, `patch`, `update`, `pods/status`.
 
-Local overlay includes this Role/RoleBinding; production RBAC is provisioned by ops
-in the infrastructure repo and must target `backend-openclaw-runtime`.
+Local and production overlays include this Role/RoleBinding and target
+`backend-openclaw-runtime`.
 
 Resource naming and labeling contract for runtime-created Pod/Service:
 
