@@ -8,7 +8,7 @@ import type {
   VisibleWorkspaceSnapshot,
 } from "@/model/chat-types";
 import { isValidBucket, parsePathname } from "@/lib/route-utils";
-import { getOrRefreshCsrfToken } from "@/lib/api-client";
+import { getOrRefreshCsrfToken, refreshCsrfToken } from "@/lib/api-client";
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "/api").replace(
   /\/+$/,
@@ -267,6 +267,52 @@ async function extractChatErrorDetail(response: ChatErrorResponse): Promise<stri
   return null;
 }
 
+function isLikelyInvalidCsrf(status: number, detail: string | null): boolean {
+  if (status !== 403 && status !== 500) return false;
+  if (!detail) return false;
+  return detail.toLowerCase().includes("csrf");
+}
+
+async function postChatCompletions(
+  payload: Record<string, unknown>,
+): Promise<Response> {
+  let csrfToken = await getOrRefreshCsrfToken();
+  let response = await fetch(`${API_BASE}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRF-Token": csrfToken,
+    },
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+
+  if (response.ok) return response;
+
+  const firstDetail = await extractChatErrorDetail(response as ChatErrorResponse);
+  if (!isLikelyInvalidCsrf(response.status, firstDetail)) {
+    throw new Error(firstDetail ?? `Chat request failed: ${response.status}`);
+  }
+
+  csrfToken = await refreshCsrfToken();
+  response = await fetch(`${API_BASE}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRF-Token": csrfToken,
+    },
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const detail = await extractChatErrorDetail(response as ChatErrorResponse);
+    throw new Error(detail ?? `Chat request failed: ${response.status}`);
+  }
+
+  return response;
+}
+
 export function useCopilotApi() {
   const sendMessageStreaming = useCallback(
     async (
@@ -275,25 +321,11 @@ export function useCopilotApi() {
       onEvent: (event: StreamEvent) => void,
       extraContext?: Partial<ChatClientContext>,
     ): Promise<void> => {
-      const csrfToken = await getOrRefreshCsrfToken();
-      const res = await fetch(`${API_BASE}/chat/completions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRF-Token": csrfToken,
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          message,
-          conversationId,
-          context: getClientContext(extraContext),
-        }),
+      const res = await postChatCompletions({
+        message,
+        conversationId,
+        context: getClientContext(extraContext),
       });
-
-      if (!res.ok) {
-        const detail = await extractChatErrorDetail(res as ChatErrorResponse);
-        throw new Error(detail ?? `Chat request failed: ${res.status}`);
-      }
 
       if (!res.body) {
         throw new Error("No response body for streaming");

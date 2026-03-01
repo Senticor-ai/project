@@ -5,17 +5,20 @@ import type { StreamEvent } from "@/model/chat-types";
 
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
-const { mockGetOrRefreshCsrfToken } = vi.hoisted(() => ({
+const { mockGetOrRefreshCsrfToken, mockRefreshCsrfToken } = vi.hoisted(() => ({
   mockGetOrRefreshCsrfToken: vi.fn(),
+  mockRefreshCsrfToken: vi.fn(),
 }));
 
 vi.mock("@/lib/api-client", () => ({
   getOrRefreshCsrfToken: mockGetOrRefreshCsrfToken,
+  refreshCsrfToken: mockRefreshCsrfToken,
 }));
 
 beforeEach(() => {
   vi.resetAllMocks();
   mockGetOrRefreshCsrfToken.mockResolvedValue("csrf-test-token");
+  mockRefreshCsrfToken.mockResolvedValue("csrf-refreshed-token");
   document.body.innerHTML = "";
   window.history.pushState({}, "", "/");
 });
@@ -329,6 +332,36 @@ describe("useCopilotApi", () => {
     await expect(
       result.current.sendMessageStreaming("Test", "conv-1", () => {}),
     ).rejects.toThrow("Chat request failed: 500");
+  });
+
+  it("refreshes CSRF and retries once when backend reports invalid CSRF token", async () => {
+    mockGetOrRefreshCsrfToken.mockResolvedValue("csrf-stale-token");
+    mockRefreshCsrfToken.mockResolvedValue("csrf-fresh-token");
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        body: null,
+        text: async () => JSON.stringify({ detail: "Invalid CSRF token" }),
+      })
+      .mockReturnValueOnce(
+        streamResponse([{ type: "done", text: "OK after retry" }]),
+      );
+
+    const { result } = renderHook(() => useCopilotApi());
+    const events: StreamEvent[] = [];
+    await result.current.sendMessageStreaming("Test", "conv-csrf", (event) =>
+      events.push(event),
+    );
+
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(mockRefreshCsrfToken).toHaveBeenCalledOnce();
+
+    const firstHeaders = mockFetch.mock.calls[0]?.[1]?.headers;
+    const secondHeaders = mockFetch.mock.calls[1]?.[1]?.headers;
+    expect(firstHeaders["X-CSRF-Token"]).toBe("csrf-stale-token");
+    expect(secondHeaders["X-CSRF-Token"]).toBe("csrf-fresh-token");
+    expect(events).toEqual([{ type: "done", text: "OK after retry" }]);
   });
 
   it("surfaces backend error detail from NDJSON body on non-ok response", async () => {

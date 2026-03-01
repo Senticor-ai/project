@@ -112,6 +112,20 @@ def test_csrf_token_mismatch_returns_403(authenticated_client):
     assert "Invalid CSRF token" in response.json()["detail"]
 
 
+def test_chat_completions_with_invalid_csrf_returns_403(authenticated_client):
+    """POST /chat/completions with mismatched CSRF must return 403 (not 500)."""
+    from app.config import settings
+
+    authenticated_client.get("/auth/csrf")
+    response = authenticated_client.post(
+        "/chat/completions",
+        json={},
+        headers={settings.csrf_header_name: "wrong_token_value"},
+    )
+    assert response.status_code == 403
+    assert "Invalid CSRF token" in response.json()["detail"]
+
+
 def test_csrf_exempts_login_endpoint(client, csrf_enabled):
     """POST /auth/login should work without CSRF token (exempt)."""
     response = client.post(

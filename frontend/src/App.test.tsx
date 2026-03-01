@@ -268,6 +268,79 @@ describe("App", () => {
     });
   });
 
+  it("does not fetch calendars outside email settings", async () => {
+    window.history.replaceState({}, "", "/workspace/inbox");
+
+    const listConnectionsSpy = vi
+      .spyOn(EmailApi, "listConnections")
+      .mockResolvedValue([
+        {
+          connection_id: "conn-1",
+          email_address: "sync@example.com",
+          display_name: "Sync",
+          auth_method: "oauth2",
+          oauth_provider: "gmail",
+          sync_interval_minutes: 15,
+          sync_mark_read: false,
+          is_active: true,
+          last_sync_at: null,
+          last_sync_error: null,
+          last_sync_message_count: null,
+          watch_active: false,
+          watch_expires_at: null,
+          created_at: "2026-01-01T00:00:00Z",
+          calendar_sync_enabled: true,
+        },
+      ]);
+    const listCalendarsSpy = vi
+      .spyOn(EmailApi, "listConnectionCalendars")
+      .mockResolvedValue([]);
+
+    renderAuthenticated();
+
+    await waitFor(() => {
+      expect(listConnectionsSpy).toHaveBeenCalled();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(listCalendarsSpy).not.toHaveBeenCalled();
+  });
+
+  it("fetches calendars in email settings", async () => {
+    window.history.replaceState({}, "", "/settings/email");
+
+    vi.spyOn(EmailApi, "listConnections").mockResolvedValue([
+      {
+        connection_id: "conn-1",
+        email_address: "sync@example.com",
+        display_name: "Sync",
+        auth_method: "oauth2",
+        oauth_provider: "gmail",
+        sync_interval_minutes: 15,
+        sync_mark_read: false,
+        is_active: true,
+        last_sync_at: null,
+        last_sync_error: null,
+        last_sync_message_count: null,
+        watch_active: false,
+        watch_expires_at: null,
+        created_at: "2026-01-01T00:00:00Z",
+        calendar_sync_enabled: true,
+      },
+    ]);
+    const listCalendarsSpy = vi
+      .spyOn(EmailApi, "listConnectionCalendars")
+      .mockResolvedValue([]);
+
+    renderAuthenticated();
+
+    await waitFor(() => {
+      expect(listCalendarsSpy).toHaveBeenCalledWith("conn-1");
+    });
+  });
+
   // -------------------------------------------------------------------------
   // Deep linking tests
   // -------------------------------------------------------------------------

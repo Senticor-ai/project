@@ -157,6 +157,8 @@ function AuthenticatedApp({
   const triggerEmailSync = useTriggerEmailSync();
   const disconnectEmail = useDisconnectEmail();
   const updateEmailConnection = useUpdateEmailConnection();
+  const shouldLoadEmailCalendars =
+    location.view === "settings" && location.sub === "email";
   const emailCalendarQueries = useQueries({
     queries: (emailConnections ?? []).map((connection) => ({
       queryKey: [
@@ -166,7 +168,13 @@ function AuthenticatedApp({
       ],
       queryFn: () => EmailApi.listConnectionCalendars(connection.connection_id),
       enabled:
-        connection.is_active && (connection.calendar_sync_enabled ?? true),
+        shouldLoadEmailCalendars &&
+        connection.is_active &&
+        (connection.calendar_sync_enabled ?? true),
+      retry: (failureCount: number, error: unknown) => {
+        if (error instanceof ApiError && error.status === 404) return false;
+        return failureCount < 3;
+      },
       staleTime: 60_000,
     })),
   });
