@@ -86,13 +86,15 @@ def _seed_gmail_item(*, org_id: str, user_id: str, message_id: str = "msg-propos
 
 def _seed_calendar_item(*, org_id: str, user_id: str, event_id: str = "evt-proposal") -> str:
     item_id = str(uuid.uuid4())
+    start_dt = datetime.now(UTC) + timedelta(hours=1)
+    end_dt = start_dt + timedelta(minutes=30)
     schema = {
         "@context": "https://schema.org",
         "@id": f"urn:app:event:gcal:{event_id}",
         "@type": "Event",
         "name": "Team Sync",
-        "startDate": "2026-03-01T10:00:00Z",
-        "endDate": "2026-03-01T10:30:00Z",
+        "startDate": start_dt.isoformat().replace("+00:00", "Z"),
+        "endDate": end_dt.isoformat().replace("+00:00", "Z"),
         "additionalProperty": [
             {"@type": "PropertyValue", "propertyID": "app:bucket", "value": "calendar"},
         ],
