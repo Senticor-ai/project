@@ -268,6 +268,48 @@ def test_start_container_uses_k8s_runtime_when_enabled(monkeypatch, tmp_path):
 
 
 @pytest.mark.unit
+def test_start_container_reconciles_workspace_memory_before_run(monkeypatch, tmp_path):
+    user_id = "702a4639-e654-46b8-a4fa-83ecc2bcd06c"
+    row = {
+        "provider": "openrouter",
+        "api_key_encrypted": "encrypted-key",
+        "model": "google/gemini-3-flash-preview",
+    }
+
+    _patch_settings(monkeypatch, openclaw_project_mount_path="", openclaw_pull_policy="never")
+    monkeypatch.setattr("app.container.manager.db_conn", lambda: _FakeConn(row))
+    monkeypatch.setattr("app.container.manager._allocate_port", lambda _cur: 18800)
+    monkeypatch.setattr("app.container.manager._decrypt_api_key", lambda _enc: "decrypted-key")
+    monkeypatch.setattr("app.container.manager._wait_for_healthy", lambda _user, _url: None)
+    monkeypatch.setattr(
+        "app.container.manager.provision_workspace",
+        lambda **_kwargs: (
+            (tmp_path / "openclaw" / user_id),
+            (tmp_path / "openclaw-runtime" / user_id),
+        ),
+    )
+
+    reconcile_calls: list[str] = []
+
+    def _fake_reconcile(*, user_id: str):
+        reconcile_calls.append(user_id)
+        return {"restored": 1, "seeded": 0}
+
+    monkeypatch.setattr("app.container.manager.reconcile_workspace_memory", _fake_reconcile)
+
+    def _fake_run_cmd(args, timeout=30):  # noqa: ARG001
+        if args and args[0] == "run":
+            assert reconcile_calls == [user_id]
+        return SimpleNamespace(returncode=0, stderr="", stdout="")
+
+    monkeypatch.setattr("app.container.manager.run_cmd", _fake_run_cmd)
+
+    start_container(user_id)
+
+    assert reconcile_calls == [user_id]
+
+
+@pytest.mark.unit
 def test_stop_container_uses_k8s_cleanup_when_runtime_is_k8s(monkeypatch):
     user_id = "702a4639-e654-46b8-a4fa-83ecc2bcd06c"
     row = {

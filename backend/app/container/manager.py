@@ -24,6 +24,11 @@ import httpx
 from ..config import settings
 from ..db import db_conn
 from ..email.crypto import CryptoService
+from .memory_store import (
+    SOURCE_RUNTIME_SYNC,
+    reconcile_workspace_memory,
+    sync_workspace_memory_to_db,
+)
 from .runtime import run_cmd
 from .workspace import provision_workspace
 
@@ -578,6 +583,23 @@ def start_container(user_id: str) -> ContainerInfo:
         model=openclaw_model,
         token=gateway_token,
     )
+    try:
+        memory_sync = reconcile_workspace_memory(user_id=user_id)
+        if memory_sync["restored"] or memory_sync["seeded"]:
+            logger.info(
+                "container.memory_reconciled",
+                extra={
+                    "user_id": user_id,
+                    "restored": memory_sync["restored"],
+                    "seeded": memory_sync["seeded"],
+                },
+            )
+    except Exception:
+        logger.warning(
+            "container.memory_reconcile_failed",
+            extra={"user_id": user_id},
+            exc_info=True,
+        )
 
     # Decrypt API key (for env var injection only — never on disk)
     api_key = _decrypt_api_key(row["api_key_encrypted"])
@@ -745,6 +767,16 @@ def stop_container(user_id: str) -> None:
                 (user_id,),
             )
             row = cur.fetchone()
+
+    try:
+        backup_stats = sync_workspace_memory_to_db(user_id=user_id, source=SOURCE_RUNTIME_SYNC)
+        if backup_stats["backed_up"]:
+            logger.info(
+                "container.memory_backed_up",
+                extra={"user_id": user_id, "backed_up": backup_stats["backed_up"]},
+            )
+    except Exception:
+        logger.warning("container.memory_backup_failed", extra={"user_id": user_id}, exc_info=True)
 
     if not row or not row["container_name"]:
         return

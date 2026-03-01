@@ -1,0 +1,41 @@
+{
+  "gateway": {
+    "port": 18800,
+    "bind": "lan",
+    "auth": {
+      "token": "b1qQVXhlSXuPbeueMUp5gL8rdlw-91jfaRu4QJUxoQY"
+    },
+    "controlUi": {
+      "enabled": false
+    },
+    "http": {
+      "endpoints": {
+        "chatCompletions": {
+          "enabled": true
+        }
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "openrouter/google/gemini-3.1-pro-preview-customtools"
+      },
+      "imageModel": {
+        "primary": "openrouter/google/gemini-3.1-pro-preview-customtools"
+      }
+    },
+    "list": [
+      {
+        "id": "openclaw",
+        "workspace": "/workspace"
+      }
+    ]
+  },
+  "tools": {
+    "profile": "coding",
+    "exec": {
+      "security": "full"
+    }
+  }
+}

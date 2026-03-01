@@ -57,28 +57,43 @@ export function useChatState(options: ChatStateOptions = {}) {
 
       // Track streaming text message ID so we can append to it
       let streamingMsgId: string | null = null;
+      let statusMsgId: string | null = null;
 
       try {
         const onEvent = (event: StreamEvent) => {
           switch (event.type) {
             case "text_delta": {
               if (!streamingMsgId) {
-                // First text chunk — replace thinking indicator with streaming text
-                streamingMsgId = generateId();
-                const initialMsg: CopilotTextMessage = {
-                  id: streamingMsgId,
-                  role: "copilot",
-                  kind: "text",
-                  content: event.content,
-                  isStreaming: true,
-                  timestamp: new Date().toISOString(),
-                };
-                setMessages((prev) => {
-                  const withoutThinking = prev.filter(
-                    (m) => m.id !== thinkingMsg.id,
+                if (statusMsgId) {
+                  // Reuse startup status bubble once real model output begins.
+                  streamingMsgId = statusMsgId;
+                  statusMsgId = null;
+                  const msgId = streamingMsgId;
+                  setMessages((prev) =>
+                    prev.map((m) =>
+                      m.id === msgId && m.kind === "text"
+                        ? { ...m, content: event.content, isStreaming: true }
+                        : m,
+                    ),
                   );
-                  return [...withoutThinking, initialMsg];
-                });
+                } else {
+                  // First text chunk — replace thinking indicator with streaming text
+                  streamingMsgId = generateId();
+                  const initialMsg: CopilotTextMessage = {
+                    id: streamingMsgId,
+                    role: "copilot",
+                    kind: "text",
+                    content: event.content,
+                    isStreaming: true,
+                    timestamp: new Date().toISOString(),
+                  };
+                  setMessages((prev) => {
+                    const withoutThinking = prev.filter(
+                      (m) => m.id !== thinkingMsg.id,
+                    );
+                    return [...withoutThinking, initialMsg];
+                  });
+                }
               } else {
                 // Append to existing streaming message
                 const msgId = streamingMsgId;
@@ -136,6 +151,40 @@ export function useChatState(options: ChatStateOptions = {}) {
               break;
             }
 
+            case "status": {
+              if (streamingMsgId) break;
+              const detail = event.detail.trim();
+              if (detail.length === 0) break;
+
+              if (!statusMsgId) {
+                statusMsgId = generateId();
+                const statusMsg: CopilotTextMessage = {
+                  id: statusMsgId,
+                  role: "copilot",
+                  kind: "text",
+                  content: detail,
+                  isStreaming: true,
+                  timestamp: new Date().toISOString(),
+                };
+                setMessages((prev) => {
+                  const withoutThinking = prev.filter(
+                    (m) => m.id !== thinkingMsg.id,
+                  );
+                  return [...withoutThinking, statusMsg];
+                });
+              } else {
+                const msgId = statusMsgId;
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === msgId && m.kind === "text"
+                      ? { ...m, content: detail, isStreaming: true }
+                      : m,
+                  ),
+                );
+              }
+              break;
+            }
+
             case "done": {
               // Finalize: mark streaming as done, ensure text is complete
               if (streamingMsgId) {
@@ -144,6 +193,17 @@ export function useChatState(options: ChatStateOptions = {}) {
                   prev.map((m) =>
                     m.id === msgId && m.kind === "text"
                       ? { ...m, isStreaming: false }
+                      : m,
+                  ),
+                );
+              } else if (statusMsgId && event.text) {
+                const msgId = statusMsgId;
+                streamingMsgId = msgId;
+                statusMsgId = null;
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === msgId && m.kind === "text"
+                      ? { ...m, content: event.text, isStreaming: false }
                       : m,
                   ),
                 );
@@ -174,9 +234,11 @@ export function useChatState(options: ChatStateOptions = {}) {
                 content: event.detail,
                 timestamp: new Date().toISOString(),
               };
+              const staleStatusMsgId = statusMsgId;
+              statusMsgId = null;
               setMessages((prev) => {
                 const withoutThinking = prev.filter(
-                  (m) => m.id !== thinkingMsg.id,
+                  (m) => m.id !== thinkingMsg.id && m.id !== staleStatusMsgId,
                 );
                 return [...withoutThinking, errorMsg];
               });
@@ -193,8 +255,17 @@ export function useChatState(options: ChatStateOptions = {}) {
         );
 
         // If no events arrived at all, remove thinking indicator
-        if (!streamingMsgId) {
+        if (!streamingMsgId && !statusMsgId) {
           setMessages((prev) => prev.filter((m) => m.id !== thinkingMsg.id));
+        } else if (statusMsgId) {
+          const msgId = statusMsgId;
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === msgId && m.kind === "text"
+                ? { ...m, isStreaming: false }
+                : m,
+            ),
+          );
         }
       } catch (error) {
         const fallbackError =

@@ -1,0 +1,329 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Product/Epics/Project-Oriented Procedural Runtime Schema" />
+
+# Epic: Project-Oriented Procedural Runtime (Schema.org-aligned)
+
+**Status:** Draft  
+**Priority:** Proposed  
+**Last updated:** 2026-02-28  
+**Depends on:** Current schema.org item model, item validation, file ingestion, project workflows  
+**Related:** Data model and schema contract validation docs
+
+---
+
+## Context
+
+The PRD proposes a deterministic, schema-first runtime built around two specialized project
+types:
+
+- `app:ProcedureProject` (reusable template)
+- `app:CaseProject` (runtime execution instance)
+
+Today, the system already uses schema.org JSON-LD items and deterministic item patching, but
+it does not yet model procedure templates, case execution state, rule result snapshots, or
+state-gated case progression as first-class runtime capabilities.
+
+## User Story
+
+> "As a team, we need procedure templates and case instances that can ingest evidence,
+> validate and merge structured data deterministically, evaluate formal rules, and move
+> through gated execution states without relying on agent autonomy."
+
+## Goals
+
+1. Add first-class project subtypes for procedure templates and case instances.
+2. Make evidence ingestion deterministic end-to-end: classify -> extract -> validate -> merge.
+3. Persist canonical case data and rule outputs in explicit runtime fields.
+4. Enforce state-machine gates before case transitions.
+5. Keep Haystack/OpenClaw as processing infrastructure, not the source of orchestration truth.
+
+## Out of Scope
+
+- Full autonomous agent orchestration design.
+- Jurisdiction-specific rule content authoring.
+- Rich visual workflow builder UI in the first slice.
+
+## Current Baseline (Already in System)
+
+- Generic `schema:Project` items exist in frontend/backend contracts.
+- Item create/patch is deterministic with deep-merge and `additionalProperty` by `propertyID`.
+- SHACL + CEL validation exists, but currently focuses on bucket/type and triage constraints.
+- File capture and triage flows already create `DigitalDocument` evidence-like items.
+- Collaboration workflow tables and transition APIs exist for project actions.
+
+## Integration Gaps to Fully Integrate This PRD
+
+| Capability | Current state | Gap to close |
+| --- | --- | --- |
+| Procedure vs Case project typing | Only generic `Project` is modeled | Add explicit subtype contract and validation for `ProcedureProject` and `CaseProject` |
+| Procedure asset registry | No registry for schema/rule/state bundles | Add `schemaBundle`, `rulesetBundle`, `stateMachineRef`, `documentTypeRegistry`, `outputTemplates` |
+| Case canonical data | No canonical `app:caseData` runtime object | Add canonical case JSON storage with schema-version pinning |
+| Deterministic case merge policy | Generic JSON-LD deep merge exists | Add case-data patch strategy and conflict policy (field-level deterministic semantics) |
+| Rule result persistence | CEL returns violations during validation only | Add persisted `app:ruleResults` snapshots per mutation |
+| Case state gates | Project action workflow exists, but not case gates | Add case-level gate evaluator (`required docs`, `violations`, `derived values`) |
+| Ingestion orchestration | Frontend MIME heuristics + item creation exist | Add backend pipeline orchestration: classify -> extractor selection -> schema-validated fragment merge |
+| Evidence graph model | `DigitalDocument` and file metadata exist | Add stable evidence IDs/hashes and references from rules/outputs to evidence anchors |
+| Version governance | No ProcedureProject semantic version governance | Add version bump policy + compatibility checks between procedure and case versions |
+| API/UI surface | No dedicated Procedure/Case endpoints/screens | Add list/detail/edit for procedure assets and case runtime status, rule results, gate diagnostics |
+
+## Architecture Decisions (Locked)
+
+1. **Merge semantics:** canonical mutation transport is RFC6902 JSON Patch; acceptance is controlled by deterministic per-field merge policies.
+   Field policy modes:
+   - `append-only` (evidence lists)
+   - `set-if-empty` (first writer wins)
+   - `overwrite-if-higher-authority` (human > verified document extraction > LLM inference)
+   - `merge-by-key` for keyed arrays
+2. **Proposal model:** extraction produces a proposal payload with `fragment`, `suggested_patch`, `evidence_refs`, and confidence; backend merge policy decides acceptance.
+3. **Per-field provenance:** canonical fields must persist value plus source (`human | document_extraction | llm_inference`), evidence anchors, and optional confidence.
+4. **Procedure pinning:** each case pins to an immutable procedure version (`app:procedureVersionPin`).
+   Upgrade workflow:
+   - create a new procedure binding record
+   - run schema/rule migration plan
+   - generate diff + gate review
+   - only then update pin
+   Upgrade rules:
+   - patch: auto-eligible, still logged
+   - minor: allowed when non-breaking + gate pass
+   - major: explicit approval, may require case-data fork
+5. **Classification authority:** backend is authoritative for document type and pipeline mapping; frontend may provide hints only.
+6. **Gate engine boundary:** keep deterministic case gating as a dedicated engine; reuse collaboration primitives only as output surface (tasks/approvals/issues), not as gate truth.
+7. **Evidence policy:** default WORM evidence blobs with redaction overlay and retention policy. Logical delete revokes access and leaves a tombstone; hard delete is legal-basis-only with cryptographic tombstone metadata.
+8. **Rollout strategy (alpha):** direct rollout only. No migration, dual-write, or backward-compat bridge is required in this phase.
+9. **Subtype encoding:** internal canonical typing uses `@type` with `app:` subtypes, and also writes `schema:additionalType` as an interop hint with the same subtype URI.
+10. **Case data topology:** `app:caseData` stays in the JSON-LD item body. Mutations are patch-based (RFC6902 + provenance + evidence refs), never full-document replace; snapshots may be added for read performance.
+11. **Legal references:** procedure legal/policy references are structured citation objects from day one (not free-text notes only).
+12. **Increment completeness:** each backend increment in this epic must ship matching `project-cli` support, API spec updates, and mock-data integration tests in the same change scope.
+
+## Proposed Delivery Slices
+
+### Slice 1: Type System and Contracts
+
+- Extend item contracts to support explicit ProcedureProject and CaseProject types.
+- Add validation for required runtime fields and allowed transitions between template and case entities.
+- Decide subtype encoding strategy (`@type`, `additionalType`, or both) and lock it.
+
+### Slice 2: Procedure Registry
+
+- Add storage model for procedure assets: schemas, CEL bundles, state machine, doc type registry.
+- Add compatibility checks and required version bump semantics when assets change.
+- Add APIs to read/version procedure definitions.
+
+### Slice 3: Case Runtime Core
+
+- Add case runtime fields: `procedureVersionPin`, `caseData`, `ruleResults`, `executionState`, `gateStatus`.
+- Add deterministic merge pipeline for schema-validated fragment proposals.
+- Persist mutation audit trail for case data updates.
+
+### Slice 4: Ingestion and Extraction Orchestration
+
+- Trigger backend document classification and extractor selection from procedure registry.
+- Run extraction pipelines and generate schema-validated fragment proposals.
+- Merge accepted fragments into canonical case data and re-evaluate rules.
+
+### Slice 5: Gates and State Machine
+
+- Add case-state transition evaluator that blocks invalid transitions.
+- Implement gate reasons and user-visible diagnostics.
+- Ensure transition events are auditable.
+
+### Slice 6: Product Surface and Observability
+
+- Add Procedure/Case management views and rule/gate status panels.
+- Add metrics and audit events for extraction success, rule violations, gate failures, and state transitions.
+- Add integration tests for end-to-end ingestion -> merge -> rules -> gate transition.
+
+## Alignment With `Flows/Tax Prep/Overview`
+
+Reference implementation anchors for this epic:
+
+- **Reference procedure**: `Tax Filing Procedure 2025` (`app:ProcedureProject`)
+- **Reference case**: `Doe Household 2025` (`app:CaseProject`)
+
+Every slice in this epic must be validated through this same procedure/case pair.
+
+### Tax Prep phase -> runtime slice crosswalk
+
+| Tax Prep phase (`Flows/Tax Prep/Overview`) | Runtime slice(s) | Procedure assets exercised | Case runtime proof |
+| --- | --- | --- | --- |
+| 1 Import What You Have | Slice 4, Slice 3 | `documentTypeRegistry`, extractor mapping | Evidence item stored + proposal generated for case |
+| 2 Triage & Label | Slice 2, Slice 3 | procedure doc-class definitions, schema constraints | case classification metadata persisted with provenance |
+| 2b Project-Reference Link | Slice 3, Slice 6 | schema for references + project links | evidence linked to case/project context and visible in case UI |
+| 3 Identify Missing Docs | Slice 5, Slice 6 | gate definitions (`required documents`) | blocked transition with explicit missing-doc reason |
+| 4 Download & Attach | Slice 4, Slice 3 | ingest + mutation policy | attach event produces accepted patch + rule/gate recompute |
+| 5 Extract Key Details | Slice 4, Slice 3, Slice 6 | extraction profiles + case schema | extracted fields committed into `app:caseData` with evidence refs |
+| 6 Tax Organizer | Slice 6, Slice 3 | output/read-model definition | organizer view renders from canonical `app:caseData` and `ruleResults` |
+| 7 Export & Handoff | Slice 6, Slice 5 | output templates + gate completion criteria | final transition allowed and export artifacts generated with traceability |
+
+## Walking Skeleton First: Iteration Plan
+
+Delivery is intentionally vertical: each iteration must produce a runnable, testable
+end-to-end slice on the reference procedure/case before expanding scope.
+
+| Iteration | Thin vertical scope | Validation on reference procedure/case |
+| --- | --- | --- |
+| WS-0 (bootstrap) | `ProcedureProject` + `CaseProject` contracts, procedure pinning, minimal `caseData`, single gate predicate | Create `Tax Filing Procedure 2025@0.1.0`, create `Doe Household 2025`, apply one manual patch, observe gate block then allowed transition |
+| WS-1 (single-doc ingest) | One document class end-to-end (W-2 only): classify -> extract -> proposal -> patch apply | Upload one W-2, accept proposal, verify `app:caseData`, `app:ruleResults`, and gate delta are persisted |
+| WS-2 (missing-doc loop) | Missing-doc gate + attach-to-clear cycle | Case blocked by missing 1099-INT, attach document/evidence, gate clears deterministically |
+| WS-3 (organizer read model) | Structured extracted values shown as organizer rows and totals | Organizer view shows W-2 + 1099 values from canonical case runtime data (no ad-hoc client state) |
+| WS-4 (handoff export) | Finalize transition + export package generation | Case reaches terminal handoff state only when gates pass; CSV/PDF/ZIP artifacts include evidence/rule trace |
+
+Iteration quality bar (mandatory each cycle):
+
+- Reference procedure/case demo path runs manually in Storybook/dev stack.
+- Journey/E2E coverage for the iteration is green (no hidden partial path).
+- API and `project-cli` changes for that slice land in the same increment.
+- Rule/gate decisions remain deterministic and auditable in persisted runtime data.
+
+## Sample Experience A: Procedure Authoring (Taxes)
+
+### User Outcome
+
+Create and maintain a reusable tax procedure that captures:
+
+- tax-relevant document classes
+- applicable laws and references
+- schema/rules/state-machine behavior
+- publishable, versioned execution semantics
+
+### UX Journey
+
+1. **Create Procedure**
+   The user creates `Tax Filing Procedure 2025` as a `ProcedureProject` draft.
+2. **Define Inputs**
+   The user adds document classes (for example W-2, 1099-INT, 1099-DIV, receipts, invoices, payroll summaries) and maps each class to an extraction profile.
+3. **Attach Legal/Policy References**
+   The user links statutory references and org policy constraints as structured citation objects (for example jurisdiction, source URI, section, and effective date) so rules and guidance can cite them reliably.
+4. **Define Runtime Contracts**
+   The user (or an agent assistant) edits the schema bundle, rule bundle, and state/gate definitions in a structured editor.
+5. **Review and Refine (User + Agent)**
+   The system provides:
+   - schema/rule lint errors
+   - compatibility diffs against prior published version
+   - agent suggestions for missing constraints, conflicting rules, and unhandled document classes
+   The user accepts/rejects suggestions and re-runs validation.
+6. **Publish Version**
+   The user publishes immutable `2025.1` and future cases can pin to this version.
+
+### Review/Refine Surfaces Required
+
+- Procedure diff view (draft vs published)
+- Rule impact preview (example inputs -> violations/derived flags)
+- Gate simulation view (which requirements block a transition and why)
+- Agent suggestion inbox with explicit accept/reject/apply actions
+
+## Sample Experience B: Case Execution (Taxes)
+
+### User Outcome
+
+Instantiate a concrete tax case from a pinned procedure, ingest evidence, and complete required steps with deterministic system guidance.
+
+### UX Journey
+
+1. **Create Case from Procedure**
+   User selects `Tax Filing Procedure 2025@2025.1` and creates `CaseProject: Doe Household 2025`.
+2. **Load Documents**
+   User uploads PDFs/images/XML/email attachments. Each artifact is stored as `DigitalDocument` evidence with stable identifiers.
+3. **Automated Proposal Generation**
+   Backend classification + extraction pipelines generate schema-constrained patch proposals with evidence refs.
+4. **User Review of Proposals**
+   The user sees proposed mutations to `app:caseData`, confidence, and evidence anchors, and can either quick accept/reject or inline-edit patches before commit.
+5. **Rule + Gate Recompute**
+   After accepted mutation, rule results and gate status update immediately.
+6. **Guided Step Progression**
+   The case UI shows current step, blocked gates, required missing evidence, and next allowed transitions.
+7. **Finalize / Submit**
+   Once all gates pass, user performs final transition and generates outputs with full traceability to evidence and rule outcomes.
+
+### Guidance Surfaces Required
+
+- Step navigator with explicit gate reasons
+- Missing-doc checklist generated from procedure requirements
+- “Why blocked?” panel linking missing fields/rules/evidence
+- Timeline of accepted patches and transitions
+
+## Technical Spec Addendum (Tax Example)
+
+### Automation vs Manual vs Editable
+
+| Capability | Automated (Haystack/Backend) | Manual (User) | Editable |
+| --- | --- | --- | --- |
+| Document classification | Yes (authoritative) | Optional override/confirm | Procedure registry + per-doc correction |
+| Structured extraction | Yes | Review and approve proposals | Extractor profile bindings |
+| Patch proposal generation (RFC6902) | Yes | Accept/reject/edit proposal before commit | Merge policy and proposal UI |
+| Canonical case mutation | Policy-driven apply | User can trigger/manual patch | Patch-level edits with provenance |
+| Rule evaluation (CEL) | Yes on each accepted mutation | No direct execution step | Rule bundles in procedure |
+| Gate evaluation | Yes | User resolves blockers | Gate definitions in procedure |
+| Step transition | Guarded by engine | User initiates transition | State machine in procedure |
+| Output generation | Assisted/automated draft | User review/finalize | Output templates in procedure |
+
+### Project CLI Access (Required)
+
+Document and support a CLI surface for procedure and case operations:
+
+- `project-cli procedure create`
+- `project-cli procedure add-doc-type`
+- `project-cli procedure add-law-ref --citation-file <path>`
+- `project-cli procedure set-schema`
+- `project-cli procedure set-rules`
+- `project-cli procedure set-state-machine`
+- `project-cli procedure validate`
+- `project-cli procedure publish --version <semver>`
+- `project-cli case create --procedure <id@version>`
+- `project-cli case ingest --file <path>`
+- `project-cli case proposals list`
+- `project-cli case proposals apply <proposal-id>`
+- `project-cli case status`
+- `project-cli case transition <target-state>`
+
+Delivery rule:
+
+- Every backend increment that changes procedure/case runtime behavior must include synchronized CLI command/flag support and integration tests with mock data.
+
+### API Spec Documentation (Required)
+
+Add explicit API contracts for:
+
+- Procedure lifecycle (`create`, `update draft`, `validate`, `publish`, `list versions`)
+- Procedure assets (`document types`, structured `laws/refs` citations, `schemas`, `rules`, `state machine`, `templates`)
+- Case lifecycle (`create from pinned procedure`, `get status`, `transition`)
+- Case evidence ingest (`upload`, `classify`, `extract`, `proposal generation`)
+- Case mutation (`proposal accept/reject`, inline proposal edit, direct RFC6902 patch endpoint with provenance payload)
+- Runtime observability (`rule results`, `gate status`, `timeline/history`, `output artifacts`)
+
+Delivery rule:
+
+- API specs must be updated in the same backend increment that changes behavior.
+
+## Acceptance Criteria
+
+- [ ] ProcedureProject accepts schema/rule/state assets with compatibility checks and versioning.
+- [ ] Adding a document to a CaseProject triggers deterministic extraction and merge flow.
+- [ ] Canonical case data remains schema-valid after every accepted mutation.
+- [ ] Rule results are recomputed and persisted after case data changes.
+- [ ] Case transitions are blocked when gate conditions fail.
+- [ ] Evidence and derived outputs are traceable from case state and rule outcomes.
+- [ ] Tax procedure authoring UX supports setup + review/refine loops for user and agent.
+- [ ] Tax case execution UX supports procedure-based case creation, evidence loading, and guided step progression.
+- [ ] CLI and API specs cover the procedure/case flows defined above.
+- [ ] Procedure legal/policy references use structured citation objects from day one.
+- [ ] Proposal review supports both quick accept/reject and inline patch editing before commit.
+- [ ] Each backend increment includes synchronized CLI support, API spec updates, and integration tests with mock data.
+
+## Remaining Open Decisions
+
+None currently for this epic baseline.
+
+## Risks
+
+- Contract complexity can fragment if subtype encoding is not fixed early.
+- Direct alpha rollout lowers migration overhead now, but increases responsibility to lock stable contracts before first external customers.
+- Extraction variability may undermine deterministic guarantees unless schema validation and merge policy are strict.
+
+## Test Plan
+
+- Unit: schema/rule/state bundle validation, deterministic merge behavior, gate predicates.
+- Integration: evidence upload -> extraction -> fragment validation -> canonical merge -> rule/gate recompute.
+- Regression: existing project and triage workflows continue to function unchanged for non-procedure usage.
+- E2E: complete case progression with gate pass/fail scenarios and evidence traceability checks.

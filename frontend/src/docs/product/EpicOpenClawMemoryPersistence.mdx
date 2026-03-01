@@ -1,0 +1,196 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Product/Epics/OpenClaw Memory Persistence" />
+
+# Epic: OpenClaw Memory Persistence
+
+**Status:** Draft  
+**Priority:** Current  
+**Last updated:** 2026-02-28  
+**Depends on:** [Self-Aware Copilot](?path=/docs/product-epics-self-aware-copilot--docs)  
+**Related:** [Engineering: Agents Service](?path=/docs/engineering-agents-service--docs)
+
+---
+
+## Context
+
+OpenClaw currently stores bootstrap and identity memory in per-user workspace files on disk.
+This is good for normal operation, but users can lose agent memory when a workspace is reinitialized
+(for example after local environment resets, infrastructure updates, or container recreation).
+
+The most sensitive files are created and evolved during bootstrap:
+
+- `IDENTITY.md`
+- `USER.md`
+- `SOUL.md`
+- `MEMORY.md` / `memory.md`
+
+User report: local account occasionally got reinitialized, which was acceptable early on, but now
+memory continuity must be durable.
+
+## User Story
+
+> "As a user, I want my OpenClaw identity and memory files to survive restarts, updates, and environment
+> re-provisioning, so the agent keeps its memory and does not restart from scratch."
+
+## Goals
+
+1. Preserve OpenClaw bootstrap memory files across container restarts, hard re-provisioning, and deployments.
+2. Keep per-user version history of memory/config files with rollback capability.
+3. Automatically restore missing files into workspace when a user environment is recreated.
+4. Make memory persistence consistent across local runtime and Kubernetes runtime.
+5. Provide explicit observability: when last backup/restore happened and what version is active.
+
+## Out of Scope
+
+- Full document collaboration UI for memory files.
+- Cross-user/shared memory between users or orgs.
+- Semantic merge conflict resolution driven by AI (manual rollback is sufficient for MVP).
+
+## Current Gap
+
+- Workspace files are filesystem-first.
+- `provision_workspace()` safely adds template files, but does not maintain durable versioned backup in database.
+- Reinitialized workspaces can lose user-evolved `SOUL.md` and memory profile unless filesystem state survives.
+
+## Decision (MVP)
+
+Adopt a **dual-layer model**:
+
+1. **Runtime working copy** remains in filesystem workspace (`/openclaw/<user>/workspace`).
+2. **Source of durability** is a Postgres-backed, versioned backup per user and file.
+
+On startup and on chat lifecycle hooks, backend syncs filesystem and Postgres with checksums.
+
+## Proposed Data Model
+
+### Table: `openclaw_memory_versions`
+
+- `id` UUID PK
+- `user_id` UUID NOT NULL
+- `org_id` UUID NOT NULL
+- `filename` TEXT NOT NULL
+- `version` INTEGER NOT NULL
+- `content` TEXT NOT NULL
+- `content_sha256` TEXT NOT NULL
+- `source` TEXT NOT NULL (`"bootstrap" | "runtime-sync" | "manual-restore"`)
+- `created_at` TIMESTAMPTZ NOT NULL DEFAULT now()
+- unique constraint: (`user_id`, `filename`, `version`)
+- index: (`user_id`, `filename`, `created_at DESC`)
+
+### Table: `openclaw_memory_heads`
+
+- `user_id` UUID NOT NULL
+- `filename` TEXT NOT NULL
+- `current_version` INTEGER NOT NULL
+- `current_sha256` TEXT NOT NULL
+- `updated_at` TIMESTAMPTZ NOT NULL DEFAULT now()
+- PK: (`user_id`, `filename`)
+
+This gives fast "current head" lookup and immutable history.
+
+## Managed File Set
+
+MVP managed files:
+
+- `IDENTITY.md`
+- `USER.md`
+- `SOUL.md`
+- `MEMORY.md`
+- `memory.md` (legacy/variant compatibility)
+
+`BOOTSTRAP.md` is not persisted as memory state and may be recreated from template.
+
+## Sync Strategy
+
+### Restore Path (DB -> workspace)
+
+Executed during `ensure_running()` before startup completion:
+
+1. For each managed filename, read workspace file if present.
+2. Read DB head version.
+3. If workspace file is missing and DB has head: restore latest content to workspace.
+4. If workspace exists but DB empty (first migration path): seed DB from workspace.
+
+### Backup Path (workspace -> DB)
+
+Executed at reliable points:
+
+- After successful chat stream completion (`_stream_openclaw` end)
+- Before `stop_container()`
+- During periodic idle/reaper maintenance for active users
+
+Algorithm:
+
+1. Hash managed files in workspace.
+2. Compare with DB head hash.
+3. On change, append new immutable version and move head.
+
+## Rollout Slices
+
+### Slice 1: Persistence Schema + Service Layer
+
+- [ ] Add Alembic migration for memory version/head tables.
+- [ ] Add `backend/app/container/memory_store.py` for read/write/version logic.
+- [ ] Add unit tests for versioning and hash dedupe.
+
+### Slice 2: Restore on Startup
+
+- [ ] Integrate restore logic into `ensure_running()` path.
+- [ ] Restore missing managed files from DB head before container use.
+- [ ] Add tests for reinitialized workspace restore behavior.
+
+### Slice 3: Backup Hooks
+
+- [ ] Persist updated files after chat completion and before stop/reap.
+- [ ] Ensure no duplicate versions when content hash unchanged.
+- [ ] Add integration tests with real workspace mutation flow.
+
+### Slice 4: Safety + Observability
+
+- [ ] Add structured logs and metrics:
+  - `memory_backup_success_total`
+  - `memory_restore_success_total`
+  - `memory_restore_missing_head_total`
+- [ ] Add status endpoint fields in Agent Setup payload:
+  - `memoryLastBackedUpAt`
+  - `memoryCurrentVersionByFile`
+  - `memoryRestoreStatus`
+
+### Slice 5: Admin/Developer Recovery Tools
+
+- [ ] Add protected endpoint to list versions per user/file.
+- [ ] Add restore endpoint (`restore filename@version`).
+- [ ] Add dev-only "force restore latest" action for debugging.
+
+## Acceptance Criteria
+
+- [ ] Recreated local workspace restores previous `SOUL.md` and `MEMORY.md` automatically.
+- [ ] Recreated k8s runtime pod restores previous memory files automatically.
+- [ ] Updating `SOUL.md` creates a new DB version; unchanged file does not create duplicate versions.
+- [ ] User can restore a previous version of a managed file.
+- [ ] Bootstrap does not overwrite existing user memory when DB already has a head version.
+- [ ] Devcontainer/image bootstrap steps do not write to `/workspace` managed memory files during CLI installation.
+- [ ] OpenClaw runtime config is snapshotted to Postgres without runtime-only secrets/ports and reapplied after workspace recreation.
+- [ ] OpenClaw runtime assets (`.openclaw/**`, `items.json`, conversation/session files) are backed up and restored after pod/container recreation.
+- [ ] Integration tests cover startup restore + post-chat backup roundtrip.
+
+## Test Plan
+
+- **Unit:** hash dedupe, version incrementing, head updates, rollback retrieval.
+- **Integration:** mutate `SOUL.md` in workspace, run backup hook, destroy workspace, run startup restore, verify content unchanged.
+- **Regression:** existing container bootstrap behavior still works for fresh users.
+- **Runtime parity:** run same scenario in `OPENCLAW_RUNTIME=local` and `OPENCLAW_RUNTIME=k8s`.
+
+## Risks
+
+- Storing rich memory text in DB increases sensitivity of user data.
+  - Mitigation: reuse existing org/user auth boundaries, audit access, and consider encryption-at-rest policy enforcement.
+- File format drift (`MEMORY.md` vs `memory.md`) can create split history.
+  - Mitigation: normalize and alias both names in persistence layer.
+
+## Notes
+
+This epic intentionally treats Postgres backup as the durable memory ledger while keeping filesystem ergonomics
+for OpenClaw runtime editing. It is designed to preserve "agent memory continuity" over delivery cycles,
+environment refreshes, and container updates.

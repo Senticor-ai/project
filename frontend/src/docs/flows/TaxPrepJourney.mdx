@@ -47,6 +47,43 @@ and Copilot AI agent potential.
 
 ---
 
+## Runtime Alignment (Procedure/Case Epic)
+
+This flow is the reference implementation track for
+[Project-Oriented Procedural Runtime Schema](?path=/docs/product-epics-project-oriented-procedural-runtime-schema--docs).
+
+Reference runtime anchors:
+
+- **Procedure**: `Tax Filing Procedure 2025` (`app:ProcedureProject`)
+- **Case**: `Doe Household 2025` (`app:CaseProject`)
+
+### Phase -> runtime slice crosswalk
+
+| Tax Prep phase | Runtime slice(s) | Runtime validation checkpoint |
+| --- | --- | --- |
+| 1 Import | Slice 4 + Slice 3 | upload -> classify -> proposal appears on the reference case |
+| 2 Triage | Slice 2 + Slice 3 | document class and schema constraints resolved from procedure assets |
+| 2b ProjectRefs | Slice 3 + Slice 6 | evidence/reference linked into case/project context and visible in UI |
+| 3 MissingDocs | Slice 5 + Slice 6 | transition blocked with explicit missing-doc gate reason |
+| 4 Attach | Slice 4 + Slice 3 | attach/complete action results in accepted patch + gate/rule recompute |
+| 5 Extract | Slice 4 + Slice 3 + Slice 6 | extracted box values persisted in `app:caseData` with evidence refs |
+| 6 Organizer | Slice 6 + Slice 3 | organizer table/totals rendered from canonical runtime state |
+| 7 Export | Slice 6 + Slice 5 | handoff transition only after gates pass; export artifacts traceable |
+
+### Walking Skeleton checkpoints
+
+Use the same procedure/case pair in every iteration:
+
+| Iteration | Scope | Must validate before expanding |
+| --- | --- | --- |
+| WS-0 | Minimal contracts + one gate + one transition | can create/pin procedure+case and observe deterministic gate block/unblock |
+| WS-1 | Single-doc ingest (W-2) end-to-end | proposal -> patch -> `caseData`/`ruleResults` persisted |
+| WS-2 | Missing-doc loop | blocked state clears after evidence attachment |
+| WS-3 | Organizer read model | structured values and totals visible from canonical data |
+| WS-4 | Handoff export | final transition and artifact export with traceability |
+
+---
+
 ## Phase 4: Download & Attach Missing Docs
 
 **User story**: "I log into Ally Bank, download the 1099-INT PDF, and want
@@ -318,6 +355,10 @@ The journey test suite is the **development guide** for this flow. Each phase
 maps to a `test.describe` block in the E2E spec. Tests marked `test.fixme()`
 represent features that haven't been built yet — they show as "skipped" in CI
 and turn green as epics ship.
+
+For the procedural runtime epic, this table is also the walking-skeleton gate:
+we only advance to the next iteration when the current iteration's mapped phase
+checks are green on the same reference procedure/case.
 
 ```bash
 npm run test:e2e:journey   # Run against full stack (backend + DB)

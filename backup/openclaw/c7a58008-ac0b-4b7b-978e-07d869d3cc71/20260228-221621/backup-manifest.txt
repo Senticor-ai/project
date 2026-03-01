@@ -1,0 +1,5 @@
+created_at=2026-02-28T21:16:21Z
+container_name=openclaw-c7a58008-ac0b-4b7b-978e-07d869d3cc71
+user_id=c7a58008-ac0b-4b7b-978e-07d869d3cc71
+source_workspace=/Users/wolfgang/workspace/project-backend-team/backend/storage/openclaw/c7a58008-ac0b-4b7b-978e-07d869d3cc71/workspace
+source_config=/Users/wolfgang/workspace/project-backend-team/backend/storage/openclaw/c7a58008-ac0b-4b7b-978e-07d869d3cc71/openclaw.json

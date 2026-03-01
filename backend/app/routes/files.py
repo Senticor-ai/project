@@ -33,6 +33,7 @@ from ..storage import get_storage
 from ..text_extractor import extract_file_text
 
 router = APIRouter(prefix="/files", tags=["files"], dependencies=[Depends(get_current_user)])
+FILE_UPLOAD_RATE_LIMIT = "120/minute"
 
 
 @router.post(
@@ -42,7 +43,7 @@ router = APIRouter(prefix="/files", tags=["files"], dependencies=[Depends(get_cu
     description="Returns an upload URL and chunk sizing for resumable uploads.",
     status_code=status.HTTP_201_CREATED,
 )
-@limiter.limit("10/minute")
+@limiter.limit(FILE_UPLOAD_RATE_LIMIT)
 def initiate_upload(
     request: Request,
     payload: FileInitiateRequest,
@@ -135,7 +136,7 @@ def initiate_upload(
     summary="Upload a chunk",
     description="Send raw bytes with `X-Chunk-Index` and `X-Chunk-Total` headers.",
 )
-@limiter.limit("10/minute")
+@limiter.limit(FILE_UPLOAD_RATE_LIMIT)
 async def upload_chunk(
     upload_id: str,
     request: Request,

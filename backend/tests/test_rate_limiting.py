@@ -3,11 +3,12 @@ Tests for rate limiting on auth and file upload endpoints.
 
 This module verifies that:
 1. Auth endpoints (/auth/login, /auth/register) are limited to 5 requests/minute
-2. File upload endpoints are limited to 10 requests/minute
+2. File upload endpoints are limited to 120 requests/minute
 3. Rate limit exceeded returns HTTP 429 with Retry-After header
 """
 
 import time
+import uuid
 
 import pytest
 
@@ -90,22 +91,34 @@ def test_auth_register_rate_limiting(client):
 
 def test_file_upload_rate_limiting(client):
     """
-    Test that file upload endpoints enforce 10 requests/minute rate limit.
+    Test that file upload endpoints enforce 120 requests/minute rate limit.
 
     Note: This test verifies the /files/initiate endpoint which should have
-    a 10 requests/minute limit.
+    a 120 requests/minute limit. The threshold allows large multi-file drops
+    (for example 32 files) without immediately failing.
     """
     endpoint = "/files/initiate"
 
-    # First, login to get a valid session
-    login_response = client.post(
-        "/auth/login",
-        json={"email": "admin@example.com", "password": "admin123"},
-    )
+    # Reset limiter state so this test is independent from auth rate-limit tests
+    # that run earlier in this file.
+    from app.rate_limit import limiter
 
-    # If login fails (user doesn't exist in test DB), skip this test
-    if login_response.status_code != 200:
-        pytest.skip("Test user not available in test database")
+    limiter._storage.reset()  # type: ignore[attr-defined]
+
+    # Create and login a dedicated user for this test.
+    suffix = uuid.uuid4().hex
+    email = f"upload-rate-{suffix}@example.com"
+    password = "Testpass1!"
+    register_response = client.post(
+        "/auth/register",
+        json={"email": email, "password": password, "username": f"upload{suffix[:8]}"},
+    )
+    assert register_response.status_code == 200
+
+    login_response = client.post("/auth/login", json={"email": email, "password": password})
+    assert login_response.status_code == 200
+    org_id = login_response.json()["default_org_id"]
+    client.headers.update({"X-Org-Id": org_id})
 
     payload = {
         "filename": "test.pdf",
@@ -113,24 +126,19 @@ def test_file_upload_rate_limiting(client):
         "total_size": 1024,
     }
 
-    # Send 10 requests - all should succeed or fail for reasons other than rate limiting
-    for i in range(1, 11):
+    # Send 120 requests - none should be rate limited yet.
+    for i in range(1, 121):
         response = client.post(endpoint, json=payload)
-        # Accept 200 (success), 401 (auth required), or other errors
-        # but NOT 429 (rate limited) yet
+        # No request should be rate limited before the configured threshold.
         assert response.status_code != 429, f"Request {i} unexpectedly hit rate limit"
-        time.sleep(0.1)
 
-    # 11th request should hit rate limit
+    # 121st request should hit rate limit
     response = client.post(endpoint, json=payload)
-    # This should be 429, OR it might be 401 if auth is required and session expired
-    # For this test, we mainly verify that rate limiting is configured
-    # The actual enforcement will be verified in integration tests with proper auth
-
-    if response.status_code == 429:
-        # Rate limiting is working
-        retry_after = response.headers.get("retry-after") or response.headers.get("Retry-After")
-        assert retry_after, "Rate limit response missing Retry-After header"
+    assert response.status_code == 429, (
+        f"Expected request 121 to hit rate limit (429), got {response.status_code}"
+    )
+    retry_after = response.headers.get("retry-after") or response.headers.get("Retry-After")
+    assert retry_after, "Rate limit response missing Retry-After header"
 
 
 def test_rate_limit_retry_after_header_format(client):

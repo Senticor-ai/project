@@ -2,8 +2,9 @@
   "name": "OpenClaw",
   "image": "mcr.microsoft.com/devcontainers/typescript-node:22",
   "mounts": [
-    "source=${localWorkspaceFolder},target=/project,type=bind,readonly"
+    "source=${localWorkspaceFolder},target=/project,type=bind,readonly",
+    "source=${localWorkspaceFolder}/..,target=/project-parent,type=bind,readonly"
   ],
-  "postCreateCommand": "npm install -g openclaw",
+  "postCreateCommand": "npm install -g openclaw && bash -lc 'for p in /project/openclaw/scripts/install-project-cli.sh /project/scripts/install-project-cli.sh /project-parent/openclaw/scripts/install-project-cli.sh; do if [ -f \"$p\" ]; then bash \"$p\"; exit $?; fi; done; echo \"project-cli installer script not found\" >&2; exit 1'",
   "remoteUser": "node"
 }

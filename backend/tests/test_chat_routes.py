@@ -403,11 +403,79 @@ class TestChatCompletions:
         assert len(error_events) == 1
         assert "timeout" in error_events[0]["detail"].lower()
 
-    def test_openclaw_streams_starting_detail_when_container_is_booting(
+    def test_openclaw_waits_for_startup_and_auto_forwards_message(
         self, auth_client, monkeypatch
     ):
-        _patch_settings(monkeypatch, agents_url="http://localhost:8002")
+        _patch_settings(
+            monkeypatch,
+            agents_url="http://localhost:8002",
+            openclaw_health_check_timeout=0,
+        )
         monkeypatch.setattr("app.chat.routes.get_user_agent_backend", lambda _user_id: "openclaw")
+        monkeypatch.setattr("app.chat.routes._OPENCLAW_STARTUP_WAIT_SECONDS", 0.2)
+        monkeypatch.setattr("app.chat.routes._OPENCLAW_STARTUP_POLL_SECONDS", 0.0)
+
+        attempts = {"count": 0}
+
+        def _ensure_running_after_boot(_user_id: str):
+            attempts["count"] += 1
+            if attempts["count"] == 1:
+                raise RuntimeError("still starting")
+            return ("http://openclaw.local", "token-abc")
+
+        monkeypatch.setattr("app.chat.routes.ensure_running", _ensure_running_after_boot)
+        monkeypatch.setattr(
+            "app.chat.routes.get_container_status",
+            lambda _user_id: {"status": "starting", "error": None},
+        )
+
+        async def _fake_stream_openclaw(
+            openclaw_url: str,
+            openclaw_token: str,
+            messages: list[dict],
+            conversation_id: str,
+            user_id: str,
+            org_id: str,
+        ):
+            assert openclaw_url == "http://openclaw.local"
+            assert openclaw_token == "token-abc"
+            assert conversation_id
+            assert user_id
+            assert org_id
+            assert messages[-1]["role"] == "user"
+            assert messages[-1]["content"] == "Hallo"
+            yield (json.dumps({"type": "done", "text": "Antwort"}) + "\n").encode()
+
+        monkeypatch.setattr("app.chat.routes._stream_openclaw", _fake_stream_openclaw)
+
+        response = auth_client.post(
+            "/chat/completions",
+            json={"message": "Hallo", "conversationId": "conv-openclaw-starting"},
+        )
+        assert response.status_code == 200
+
+        parsed = _parse_ndjson(response)
+        status_events = [e for e in parsed if e["type"] == "status"]
+        assert len(status_events) >= 2
+        assert "queued" in status_events[0]["detail"].lower()
+        assert status_events[-1]["phase"] == "ready"
+
+        done_events = [e for e in parsed if e["type"] == "done"]
+        assert len(done_events) == 1
+        assert done_events[0]["text"] == "Antwort"
+        assert attempts["count"] >= 2
+
+    def test_openclaw_streams_timeout_when_startup_never_completes(
+        self, auth_client, monkeypatch
+    ):
+        _patch_settings(
+            monkeypatch,
+            agents_url="http://localhost:8002",
+            openclaw_health_check_timeout=0,
+        )
+        monkeypatch.setattr("app.chat.routes.get_user_agent_backend", lambda _user_id: "openclaw")
+        monkeypatch.setattr("app.chat.routes._OPENCLAW_STARTUP_WAIT_SECONDS", 0.05)
+        monkeypatch.setattr("app.chat.routes._OPENCLAW_STARTUP_POLL_SECONDS", 0.0)
         monkeypatch.setattr(
             "app.chat.routes.ensure_running",
             lambda _user_id: (_ for _ in ()).throw(RuntimeError("still starting")),
@@ -417,16 +485,27 @@ class TestChatCompletions:
             lambda _user_id: {"status": "starting", "error": None},
         )
 
+        streamed = {"called": False}
+
+        async def _unexpected_stream(*args, **kwargs):
+            streamed["called"] = True
+            yield b""
+
+        monkeypatch.setattr("app.chat.routes._stream_openclaw", _unexpected_stream)
+
         response = auth_client.post(
             "/chat/completions",
-            json={"message": "Hallo", "conversationId": "conv-openclaw-starting"},
+            json={"message": "Hallo", "conversationId": "conv-openclaw-timeout"},
         )
         assert response.status_code == 200
 
         parsed = _parse_ndjson(response)
+        status_events = [e for e in parsed if e["type"] == "status"]
+        assert len(status_events) >= 1
         error_events = [e for e in parsed if e["type"] == "error"]
         assert len(error_events) == 1
-        assert "still starting" in error_events[0]["detail"].lower()
+        assert "timed out" in error_events[0]["detail"].lower()
+        assert streamed["called"] is False
 
     def test_openclaw_streams_status_error_detail_from_container_state(
         self, auth_client, monkeypatch

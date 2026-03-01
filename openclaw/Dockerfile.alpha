@@ -9,6 +9,9 @@ RUN apt-get update \
 # One-off dev runtime: install OpenClaw CLI on top of a flexible Node 22 base.
 RUN npm install -g openclaw@latest && openclaw --version
 
+COPY openclaw/scripts/install-project-cli.sh /usr/local/bin/install-project-cli
+RUN chmod +x /usr/local/bin/install-project-cli
+
 # Build and install the project CLI globally so OpenClaw can call it directly.
 WORKDIR /tmp/project-core
 COPY packages/core/package.json packages/core/package-lock.json packages/core/tsconfig.json ./
@@ -16,10 +19,7 @@ COPY packages/core/cli ./cli
 COPY packages/core/client ./client
 COPY packages/core/serializers ./serializers
 COPY packages/core/validation ./validation
-RUN npm ci \
-    && npm run build \
-    && npm install -g . \
-    && project-cli --help >/dev/null \
+RUN PROJECT_CORE_DIR=/tmp/project-core /usr/local/bin/install-project-cli \
     && rm -rf /tmp/project-core
 
 ENV OPENCLAW_PREFER_PNPM=1

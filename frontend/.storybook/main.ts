@@ -32,6 +32,23 @@ const config: StorybookConfig = {
     // Use a separate cache dir to prevent optimize-deps cache collisions.
     config.cacheDir = "node_modules/.vite/storybook";
 
+    // Force a fresh prebundle per Storybook start to avoid stale optimized
+    // dependency references ("Outdated Optimize Dep" 504s).
+    const optimizeDeps = config.optimizeDeps ?? {};
+    const include = Array.isArray(optimizeDeps.include)
+      ? [...optimizeDeps.include]
+      : [];
+    for (const dep of ["storybook/internal/components"]) {
+      if (!include.includes(dep)) {
+        include.push(dep);
+      }
+    }
+    config.optimizeDeps = {
+      ...optimizeDeps,
+      include,
+      force: true,
+    };
+
     const server = config.server ?? {};
     const allowedHosts = Array.isArray(server.allowedHosts)
       ? [...server.allowedHosts]

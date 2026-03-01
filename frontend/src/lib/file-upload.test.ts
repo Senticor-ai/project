@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { FilesApi } from "@/lib/api-client";
 import type { FileInitiateResponse, FileRecord } from "@/lib/api-client";
 import { uploadFile } from "./file-upload";
@@ -31,12 +31,30 @@ const FILE_RECORD: FileRecord = {
   download_url: "/files/file-abc",
 };
 
+function apiError(
+  message: string,
+  status: number,
+  details?: unknown,
+): Error & { status: number; details?: unknown } {
+  const error = new Error(message) as Error & {
+    status: number;
+    details?: unknown;
+  };
+  error.status = status;
+  error.details = details;
+  return error;
+}
+
 describe("uploadFile", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     mockedFiles.initiate.mockResolvedValue(INITIATE_RESPONSE);
     mockedFiles.uploadChunk.mockResolvedValue({ received: 1024 });
     mockedFiles.complete.mockResolvedValue(FILE_RECORD);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("initiates, uploads chunks, and completes", async () => {
@@ -106,5 +124,54 @@ describe("uploadFile", () => {
     });
 
     await expect(uploadFile(file)).rejects.toThrow("Chunk failed");
+  });
+
+  it("retries with backoff for retryable upload errors", async () => {
+    vi.useFakeTimers();
+    const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
+
+    mockedFiles.uploadChunk
+      .mockRejectedValueOnce(
+        apiError("Too many requests", 429, { retryAfter: 1 }),
+      )
+      .mockRejectedValueOnce(apiError("Server unavailable", 503))
+      .mockResolvedValue({ received: 1024 });
+
+    const file = new File(["x".repeat(2000)], "report.pdf", {
+      type: "application/pdf",
+    });
+    const uploadPromise = uploadFile(file);
+
+    await vi.runAllTimersAsync();
+    const result = await uploadPromise;
+
+    expect(result).toEqual(FILE_RECORD);
+    expect(mockedFiles.uploadChunk).toHaveBeenCalledTimes(4);
+    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 1000);
+    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 600);
+  });
+
+  it("fails after max retries for retryable errors", async () => {
+    vi.useFakeTimers();
+    const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
+
+    mockedFiles.uploadChunk.mockRejectedValue(
+      apiError("Server unavailable", 503),
+    );
+
+    const file = new File(["x".repeat(2000)], "report.pdf", {
+      type: "application/pdf",
+    });
+    const uploadPromise = uploadFile(file);
+    const rejection = expect(uploadPromise).rejects.toThrow(
+      "Server unavailable",
+    );
+
+    await vi.runAllTimersAsync();
+    await rejection;
+
+    expect(mockedFiles.uploadChunk).toHaveBeenCalledTimes(4);
+    expect(mockedFiles.complete).not.toHaveBeenCalled();
+    expect(setTimeoutSpy).toHaveBeenCalledTimes(3);
   });
 });

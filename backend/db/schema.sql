@@ -692,3 +692,31 @@ CREATE TABLE IF NOT EXISTS action_revision (
 
 CREATE INDEX IF NOT EXISTS idx_action_revision_action_created
   ON action_revision (action_id, created_at);
+
+-- OpenClaw memory persistence
+CREATE TABLE IF NOT EXISTS openclaw_memory_versions (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id        UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  org_id         UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  filename       TEXT NOT NULL,
+  version        INTEGER NOT NULL,
+  content        TEXT NOT NULL,
+  content_sha256 TEXT NOT NULL,
+  source         TEXT NOT NULL,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CHECK (source IN ('bootstrap', 'runtime-sync', 'manual-restore'))
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_openclaw_memory_versions_unique
+  ON openclaw_memory_versions (user_id, filename, version);
+CREATE INDEX IF NOT EXISTS idx_openclaw_memory_versions_user_file_created
+  ON openclaw_memory_versions (user_id, filename, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS openclaw_memory_heads (
+  user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  filename        TEXT NOT NULL,
+  current_version INTEGER NOT NULL,
+  current_sha256  TEXT NOT NULL,
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, filename)
+);

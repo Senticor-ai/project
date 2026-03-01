@@ -8,6 +8,7 @@ Supports two backends:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from collections.abc import AsyncGenerator, Generator
@@ -20,6 +21,7 @@ from pydantic import BaseModel
 from ..config import settings
 from ..container.manager import ensure_running, write_token_file
 from ..container.manager import get_status as get_container_status
+from ..container.memory_store import SOURCE_RUNTIME_SYNC, sync_workspace_memory_to_db
 from ..db import db_conn
 from ..delegation import create_delegated_token
 from ..deps import get_current_org, get_current_user
@@ -38,6 +40,10 @@ from .tool_executor import execute_tool as local_execute_tool
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/chat", tags=["chat"], dependencies=[Depends(get_current_user)])
+
+_OPENCLAW_STARTUP_WAIT_SECONDS = 45.0
+_OPENCLAW_STARTUP_POLL_SECONDS = 1.0
+_OPENCLAW_STARTUP_PROGRESS_STEP_SECONDS = 5.0
 
 
 # ---------------------------------------------------------------------------
@@ -191,16 +197,23 @@ def _build_openai_messages(history: list[dict]) -> list[dict]:
     return messages
 
 
-def _build_openclaw_startup_error_detail(user_id: str, exc: Exception) -> str:
-    """Build a user-facing startup detail from live container status + exception."""
-    status = {}
+def _encode_ndjson_event(event: dict) -> bytes:
+    return (json.dumps(event) + "\n").encode()
+
+
+def _get_openclaw_container_state(user_id: str) -> tuple[str | None, str]:
+    """Return container state + optional state error from live status lookup."""
     try:
         status = get_container_status(user_id)
     except Exception:
         logger.warning("container.status_lookup_failed", extra={"user_id": user_id}, exc_info=True)
+        return None, ""
+    return status.get("status"), str(status.get("error") or "").strip()
 
-    state = status.get("status")
-    state_error = str(status.get("error") or "").strip()
+
+def _build_openclaw_startup_error_detail(user_id: str, exc: Exception) -> str:
+    """Build a user-facing startup detail from live container status + exception."""
+    state, state_error = _get_openclaw_container_state(user_id)
     if state == "starting":
         return "OpenClaw container is still starting. Please wait a moment and try again."
     if state == "error" and state_error:
@@ -210,6 +223,98 @@ def _build_openclaw_startup_error_detail(user_id: str, exc: Exception) -> str:
     if detail:
         return f"OpenClaw startup failed: {detail}"
     return "Failed to start OpenClaw container"
+
+
+async def _stream_openclaw_after_startup(
+    *,
+    user_id: str,
+    org_id: str,
+    conversation_id: str,
+    messages: list[dict],
+    initial_detail: str,
+) -> AsyncGenerator[bytes, None]:
+    """Keep request open during startup, then forward chat to OpenClaw once ready."""
+    timeout_seconds = max(
+        float(settings.openclaw_health_check_timeout),
+        _OPENCLAW_STARTUP_WAIT_SECONDS,
+    )
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout_seconds
+    next_progress_emit = _OPENCLAW_STARTUP_PROGRESS_STEP_SECONDS
+
+    yield _encode_ndjson_event(
+        {
+            "type": "status",
+            "phase": "startup",
+            "detail": initial_detail,
+            "elapsedSeconds": 0,
+        }
+    )
+
+    while True:
+        remaining_seconds = deadline - loop.time()
+        if remaining_seconds <= 0:
+            yield _encode_ndjson_event(
+                {
+                    "type": "error",
+                    "detail": "OpenClaw container startup timed out. Please try again.",
+                }
+            )
+            return
+
+        await asyncio.sleep(min(_OPENCLAW_STARTUP_POLL_SECONDS, remaining_seconds))
+
+        try:
+            container_url, container_token = await asyncio.to_thread(ensure_running, user_id)
+            break
+        except ValueError:
+            detail = (
+                "Copilot ist noch nicht eingerichtet. "
+                "Bitte öffne die Einstellungen → Copilot-Einrichtung "
+                "und hinterlege einen API-Schlüssel."
+            )
+            yield _encode_ndjson_event({"type": "error", "detail": detail})
+            return
+        except Exception as exc:
+            state, _state_error = _get_openclaw_container_state(user_id)
+            if state == "starting":
+                elapsed_seconds = int(timeout_seconds - (deadline - loop.time()))
+                if elapsed_seconds >= next_progress_emit:
+                    yield _encode_ndjson_event(
+                        {
+                            "type": "status",
+                            "phase": "startup",
+                            "detail": (
+                                "OpenClaw container is still starting. "
+                                "Your message will be sent automatically."
+                            ),
+                            "elapsedSeconds": elapsed_seconds,
+                        }
+                    )
+                    next_progress_emit += _OPENCLAW_STARTUP_PROGRESS_STEP_SECONDS
+                continue
+
+            detail = _build_openclaw_startup_error_detail(user_id, exc)
+            yield _encode_ndjson_event({"type": "error", "detail": detail})
+            return
+
+    yield _encode_ndjson_event(
+        {
+            "type": "status",
+            "phase": "ready",
+            "detail": "OpenClaw is ready. Sending your message now.",
+        }
+    )
+
+    async for chunk in _stream_openclaw(
+        container_url,
+        container_token,
+        messages,
+        conversation_id,
+        user_id=user_id,
+        org_id=org_id,
+    ):
+        yield chunk
 
 
 async def _stream_openclaw(
@@ -280,6 +385,14 @@ async def _stream_openclaw(
 
     # Persist assistant response (text only, no tool_calls)
     save_message(conversation_id, "assistant", translator.full_text)
+    try:
+        sync_workspace_memory_to_db(user_id=user_id, org_id=org_id, source=SOURCE_RUNTIME_SYNC)
+    except Exception:
+        logger.warning(
+            "chat.openclaw_memory_sync_failed",
+            extra={"user_id": user_id},
+            exc_info=True,
+        )
 
     # Notify frontend that items may have changed
     yield (json.dumps({"type": "items_changed"}) + "\n").encode()
@@ -319,6 +432,7 @@ def chat_completions(
     # 4. Route to the right backend
 
     if agent_backend == "openclaw":
+        messages = _build_openai_messages(history)
         try:
             container_url, container_token = ensure_running(user_id)
         except ValueError as exc:
@@ -342,6 +456,22 @@ def chat_completions(
             )
         except Exception as exc:
             logger.exception("container.ensure_running_failed", extra={"user_id": user_id})
+            state, _state_error = _get_openclaw_container_state(user_id)
+            if state == "starting":
+                detail = (
+                    "OpenClaw container is starting. "
+                    "Your message is queued and will be sent automatically."
+                )
+                return StreamingResponse(
+                    _stream_openclaw_after_startup(
+                        user_id=user_id,
+                        org_id=org_id,
+                        conversation_id=conversation_id,
+                        messages=messages,
+                        initial_detail=detail,
+                    ),
+                    media_type="application/x-ndjson",
+                )
             detail = _build_openclaw_startup_error_detail(user_id, exc)
             err = json.dumps({"type": "error", "detail": detail})
 
@@ -352,8 +482,6 @@ def chat_completions(
                 _error_stream(),
                 media_type="application/x-ndjson",
             )
-
-        messages = _build_openai_messages(history)
 
         return StreamingResponse(
             _stream_openclaw(

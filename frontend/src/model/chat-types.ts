@@ -197,6 +197,12 @@ export type StreamEvent =
       toolCall: ChatToolCall;
       createdItems: CreatedItemRef[];
     }
+  | {
+      type: "status";
+      detail: string;
+      phase?: "startup" | "ready";
+      elapsedSeconds?: number;
+    }
   | { type: "items_changed" }
   | { type: "done"; text: string }
   | { type: "error"; detail: string };

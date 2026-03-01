@@ -106,6 +106,35 @@ def test_provision_workspace_keeps_custom_identity(monkeypatch, tmp_path):
 
 
 @pytest.mark.unit
+def test_provision_workspace_preserves_initialized_memory_files(monkeypatch, tmp_path):
+    template_dir, workspace_template_dir = _write_template(tmp_path)
+    _patch_template_dirs(monkeypatch, template_dir, workspace_template_dir)
+
+    storage_base = tmp_path / "storage"
+    workspace_dir = storage_base / "openclaw" / "user-memory"
+    user_workspace_dir = workspace_dir / "workspace"
+    user_workspace_dir.mkdir(parents=True)
+    (workspace_dir / "openclaw.json").write_text("{}")
+
+    (user_workspace_dir / "SOUL.md").write_text("Vesper soul stays intact.\n")
+    (user_workspace_dir / "USER.md").write_text("User profile stays intact.\n")
+    (user_workspace_dir / "MEMORY.md").write_text("Long-term memory stays intact.\n")
+
+    workspace_mod.provision_workspace(
+        user_id="user-memory",
+        storage_base=storage_base,
+        port=18804,
+        model="openrouter/google/gemini-3-flash-preview",
+        token="gateway-token",
+    )
+
+    assert (user_workspace_dir / "SOUL.md").read_text() == "Vesper soul stays intact.\n"
+    assert (user_workspace_dir / "USER.md").read_text() == "User profile stays intact.\n"
+    assert (user_workspace_dir / "MEMORY.md").read_text() == "Long-term memory stays intact.\n"
+    assert (user_workspace_dir / "BOOTSTRAP.md").read_text() == "template bootstrap"
+
+
+@pytest.mark.unit
 def test_provision_workspace_disables_control_ui_for_embedded_container(tmp_path):
     storage_base = tmp_path / "storage"
     workspace_dir, _runtime_dir = workspace_mod.provision_workspace(

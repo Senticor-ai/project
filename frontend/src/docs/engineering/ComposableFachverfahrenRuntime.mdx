@@ -1,0 +1,178 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Engineering/Ontology/Composable Fachverfahren Runtime" />
+
+# Composable Fachverfahren Runtime
+
+**Status:** Target architecture and delivery direction  
+**Scope:** Procedure templates, case runtime, contracts, deterministic execution  
+**Source alignment:** `tmp/prd_composable_fachverfahren_engine.md` and
+`Product/Epics/Project-Oriented Procedural Runtime Schema`
+
+---
+
+## Why this approach
+
+We are moving from "workflow in code + prompts" to a **procedure-as-artifact runtime**:
+
+- A *Fachverfahren* is a versioned package with explicit contracts.
+- A *Case* is a concrete execution bound to pinned procedure versions.
+- AI assists extraction and proposal generation, but deterministic rules and gates decide runtime behavior.
+
+This gives us reproducibility, auditability, and controlled evolution under legal/regulatory constraints.
+
+---
+
+## Core separation model
+
+| Layer | Purpose | Mutability |
+| --- | --- | --- |
+| **Procedure** | Reusable definition: schemas, rules, state model, gates, outputs | Versioned, immutable per release |
+| **Organization overlay** | Tenant/authority-specific overlays and governance constraints | Versioned overlays |
+| **Case runtime** | Concrete evidence, case data, rule results, transitions | Mutable via controlled patch flow |
+
+This separation is the key architectural constraint: **procedure logic is not embedded in case-specific state or UI code paths**.
+
+---
+
+## Runtime entities in the ontology
+
+### 1. Procedure template
+
+Modeled as `app:ProcedureProject` (schema.org-aligned item with app subtype semantics).
+
+Contains machine-readable assets:
+
+- schema bundle (`case`/domain schemas)
+- ruleset bundle
+- state-machine reference
+- document-type registry and extraction mapping
+- quality gates and output templates
+
+### 2. Case instance
+
+Modeled as `app:CaseProject` and pinned to a specific procedure version.
+
+Key runtime fields:
+
+- `app:procedureVersionPin` (immutable binding for reproducibility)
+- `app:caseData` (canonical case state)
+- `app:ruleResults` (persisted rule snapshots)
+- `app:executionState` and `app:gateStatus`
+
+### 3. Procedure interface contract
+
+Each procedure publishes an explicit interface:
+
+- required/optional inputs (evidence + schema refs)
+- outputs (decisions/artifacts)
+- exposed states
+- must-pass quality gates
+- optional capabilities (including specialized UI components)
+
+### 4. Execution plan
+
+When a case starts, runtime materializes a versions-stable execution plan:
+
+- resolved procedure versions (including sub-procedures)
+- dependency graph
+- stage gates
+- compatibility constraints
+
+---
+
+## Deterministic mutation model
+
+Canonical case updates are patch-driven and policy-controlled:
+
+- transport: RFC6902 JSON Patch
+- acceptance: deterministic merge policy per field
+- provenance: store source, evidence refs, confidence
+
+Policy modes:
+
+- `append-only` for evidence timelines
+- `set-if-empty` for first-writer-wins fields
+- `overwrite-if-higher-authority` (human > verified extraction > llm inference)
+- `merge-by-key` for keyed collections
+
+This keeps case state deterministic even when multiple extraction paths propose changes.
+
+---
+
+## Gate-driven execution lifecycle
+
+1. Author or update a `ProcedureProject` draft.
+2. Validate schema/rules/gates, then publish immutable version.
+3. Create `CaseProject` pinned to that version.
+4. Ingest evidence: classify -> extract -> validate fragment -> propose patch.
+5. Apply accepted patches to `app:caseData`; recompute `app:ruleResults`.
+6. Evaluate gate predicates for the next transition.
+7. Allow/block transition with explicit diagnostics and full audit trace.
+
+---
+
+## Composition and registry-first model
+
+Procedures are composable packages, not one monolith:
+
+- procedures can depend on sub-procedures
+- dependencies use semantic version constraints
+- version skew is allowed when compatibility contracts hold
+- registry provides discoverability, dependency impact analysis, and quality metadata
+
+This is the same reasoned split we use for software packages, applied to procedural/legal runtime logic.
+
+---
+
+## AI role boundaries
+
+AI is intentionally bounded:
+
+- allowed: extraction, classification support, patch proposal, drafting outputs
+- not allowed: autonomous gate bypass or untraceable decision authority
+
+Runtime truth remains:
+
+- schema/rule/gate evaluation
+- pinned procedure version and execution plan
+- audited human approvals and transitions
+
+---
+
+## Operating modes
+
+The model supports two operational phases:
+
+- **Professional/Setup mode:** deliberate overrides and evaluation loops to mature procedure definitions
+- **Controlled mode:** reduced freedom, stable runtime behavior, formal change governance
+
+Transition between modes is itself versioned and auditable.
+
+---
+
+## What this means for this codebase
+
+Already aligned foundations:
+
+- schema.org-first JSON-LD model
+- deterministic item patching
+- schema validation and contract testing
+- evidence items (`DigitalDocument`) and workflow primitives
+
+Major additions we are implementing via the epic:
+
+- first-class `ProcedureProject` / `CaseProject` contracts
+- procedure asset registry + version governance
+- canonical case runtime fields (`caseData`, `ruleResults`, gate status)
+- backend-owned ingest/orchestration pipeline with deterministic merge
+- explicit case-state gate engine and diagnostics
+
+---
+
+## See also
+
+- [Ontology Overview](?path=/docs/engineering-ontology--docs)
+- [Schema Contract Validation](?path=/docs/engineering-ontology-schema-contract-validation--docs)
+- [FRBR Knowledge Graph](?path=/docs/engineering-ontology-frbr-knowledge-graph--docs)
+- [Epic: Project-Oriented Procedural Runtime Schema](?path=/docs/product-epics-project-oriented-procedural-runtime-schema--docs)

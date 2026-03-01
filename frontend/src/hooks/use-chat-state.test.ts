@@ -374,6 +374,45 @@ describe("useChatState", () => {
       );
     });
 
+    it("renders startup status and reuses bubble for final streamed answer", async () => {
+      mockSendMessageStreaming.mockImplementationOnce(
+        (
+          _message: string,
+          _conversationId: string,
+          onEvent: (event: StreamEvent) => void,
+        ) => {
+          onEvent({
+            type: "status",
+            phase: "startup",
+            detail: "OpenClaw container is starting...",
+          });
+          onEvent({
+            type: "status",
+            phase: "ready",
+            detail: "OpenClaw is ready. Sending your message now.",
+          });
+          onEvent({ type: "text_delta", content: "Antwort" });
+          onEvent({ type: "done", text: "Antwort" });
+          return Promise.resolve();
+        },
+      );
+
+      const hook = renderHook(() => useChatState());
+
+      await sendAndWait(hook, "Test");
+
+      expect(findByKind(hook.result.current.messages, "thinking")).toHaveLength(
+        0,
+      );
+      const copilotTexts = findByKind(
+        hook.result.current.messages,
+        "text",
+      ).filter((m) => m.role === "copilot");
+      expect(copilotTexts).toHaveLength(1);
+      expect(copilotTexts[0]!.content).toBe("Antwort");
+      expect(copilotTexts[0]!.isStreaming).toBeFalsy();
+    });
+
     it("handles error event from stream", async () => {
       mockSendMessageStreaming.mockImplementationOnce(
         (
