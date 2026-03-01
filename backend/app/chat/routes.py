@@ -330,15 +330,28 @@ async def _stream_openclaw(
     Phase 3: OpenClaw uses native skills (exec + curl) to create items
     directly via the backend API. No function-calling tools, no auto-execution.
     """
-    # Write fresh delegated token for the skill to use
-    delegated_token = create_delegated_token(
-        user_id=user_id,
-        org_id=org_id,
-        actor="openclaw",
-        scope="items:read items:write",
-        ttl_seconds=300,
-    )
-    write_token_file(user_id, delegated_token)
+    try:
+        # Write fresh delegated token for the skill to use.
+        delegated_token = create_delegated_token(
+            user_id=user_id,
+            org_id=org_id,
+            actor="openclaw",
+            scope="items:read items:write",
+            ttl_seconds=300,
+        )
+        write_token_file(user_id, delegated_token)
+    except Exception:
+        logger.exception("chat.openclaw_init_failed", extra={"user_id": user_id})
+        yield _encode_ndjson_event(
+            {
+                "type": "error",
+                "detail": (
+                    "OpenClaw session initialization failed. "
+                    "Please try again."
+                ),
+            }
+        )
+        return
 
     translator = SseToNdjsonTranslator()
 
@@ -382,9 +395,25 @@ async def _stream_openclaw(
         detail = f"OpenClaw error: {exc.response.status_code}"
         yield (json.dumps({"type": "error", "detail": detail}) + "\n").encode()
         return
+    except Exception:
+        logger.exception("chat.openclaw_stream_failed", extra={"user_id": user_id})
+        yield _encode_ndjson_event(
+            {
+                "type": "error",
+                "detail": "OpenClaw response stream failed. Please try again.",
+            }
+        )
+        return
 
     # Persist assistant response (text only, no tool_calls)
-    save_message(conversation_id, "assistant", translator.full_text)
+    try:
+        save_message(conversation_id, "assistant", translator.full_text)
+    except Exception:
+        logger.warning(
+            "chat.openclaw_persist_failed",
+            extra={"user_id": user_id, "conversation_id": conversation_id},
+            exc_info=True,
+        )
     try:
         sync_workspace_memory_to_db(user_id=user_id, org_id=org_id, source=SOURCE_RUNTIME_SYNC)
     except Exception:

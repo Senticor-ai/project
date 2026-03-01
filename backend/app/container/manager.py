@@ -858,6 +858,7 @@ def write_token_file(user_id: str, token: str) -> None:
     via ``$(cat /runtime/token)`` in curl commands.
     """
     runtime_dir = settings.file_storage_path.resolve() / "openclaw-runtime" / user_id
+    runtime_dir.mkdir(parents=True, exist_ok=True)
     token_path = runtime_dir / "token"
     token_path.write_text(token)
 

@@ -532,6 +532,31 @@ class TestChatCompletions:
         assert len(error_events) == 1
         assert "health check timeout" in error_events[0]["detail"].lower()
 
+    def test_openclaw_streams_error_when_session_init_fails(self, auth_client, monkeypatch):
+        _patch_settings(monkeypatch, agents_url="http://localhost:8002")
+        monkeypatch.setattr("app.chat.routes.get_user_agent_backend", lambda _user_id: "openclaw")
+        monkeypatch.setattr(
+            "app.chat.routes.ensure_running",
+            lambda _user_id: ("http://openclaw.local", "gateway-token"),
+        )
+        monkeypatch.setattr("app.chat.routes.create_delegated_token", lambda **_kwargs: "delegated")
+
+        def _raise_write_error(_user_id: str, _token: str):
+            raise OSError("runtime path missing")
+
+        monkeypatch.setattr("app.chat.routes.write_token_file", _raise_write_error)
+
+        response = auth_client.post(
+            "/chat/completions",
+            json={"message": "Hallo", "conversationId": "conv-openclaw-init-fail"},
+        )
+        assert response.status_code == 200
+
+        parsed = _parse_ndjson(response)
+        error_events = [e for e in parsed if e["type"] == "error"]
+        assert len(error_events) == 1
+        assert "session initialization failed" in error_events[0]["detail"].lower()
+
 
 # ---------------------------------------------------------------------------
 # Execute tool proxy
