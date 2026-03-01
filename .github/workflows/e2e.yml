@@ -26,6 +26,9 @@ env:
   PLAYWRIGHT_BROWSERS_PATH: ~/.cache/ms-playwright
   UV_CACHE_DIR: ~/.cache/uv
   PIP_CACHE_DIR: ~/.cache/pip
+  # CI does its own health checks — skip Playwright's globalSetup preflight
+  # which requires a .env.e2e file (gitignored, local-only).
+  E2E_SKIP_PREFLIGHT: '1'
 
 concurrency:
   group: e2e-${{ github.workflow }}-${{ github.ref }}-${{ github.event.schedule || github.event.inputs.suite || 'default' }}
@@ -111,6 +114,9 @@ jobs:
       ENCRYPTION_KEY: t9se0op9pzW1QFbY3nnGn-5zzElb4Tjl84fjnCb6zCY=
       OPENROUTER_API_KEY: ci-dummy-openrouter-key
       AGENTS_URL: http://localhost:8002
+      CORS_ORIGINS: http://localhost:5173
+      SESSION_BIND_USER_AGENT: 'false'
+      TESTING: 'true'
     steps:
       - uses: actions/checkout@v4
 
