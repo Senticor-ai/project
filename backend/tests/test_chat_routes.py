@@ -572,9 +572,6 @@ class TestChatCompletions:
         """DB failure in save_message must return NDJSON error, not raw 500."""
         _patch_settings(monkeypatch, agents_url="http://localhost:8002")
 
-        call_count = {"n": 0}
-        original_save = None
-
         def _failing_save(*args, **kwargs):
             raise RuntimeError("disk full")
 

@@ -226,9 +226,9 @@ export const Interactive: Story = {
   render: () => <InteractiveSetup />,
   play: async ({ canvas, userEvent, step }) => {
     await step("Switch to OpenClaw backend", async () => {
-      await userEvent.click(canvas.getByRole("button", { name: /OpenClaw/i }));
+      await userEvent.click(canvas.getByRole("button", { name: /^OpenClaw/ }));
       await expect(
-        canvas.getByRole("button", { name: /OpenClaw/i }),
+        canvas.getByRole("button", { name: /^OpenClaw/ }),
       ).toHaveAttribute("aria-pressed", "true");
     });
 

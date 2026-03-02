@@ -276,7 +276,9 @@ function ActionCard({
             aria-label="Due date"
             type="date"
             defaultValue={toDateInputValue(action.due_at)}
-            onChange={(event) => onUpdateDueDate(action.id, event.currentTarget.value)}
+            onChange={(event) =>
+              onUpdateDueDate(action.id, event.currentTarget.value)
+            }
             className="min-w-0 flex-1 rounded-[var(--radius-sm)] border border-border bg-surface px-2 py-1 text-xs"
           />
         </label>
@@ -302,7 +304,9 @@ function ActionCard({
         <select
           aria-label="Action status"
           value={action.action_status}
-          onChange={(event) => onMoveStatus(action.id, event.currentTarget.value)}
+          onChange={(event) =>
+            onMoveStatus(action.id, event.currentTarget.value)
+          }
           className="min-w-0 rounded-[var(--radius-sm)] border border-border bg-surface px-2 py-1 text-xs"
         >
           {statuses.map((status) => (
@@ -397,8 +401,17 @@ function BoardColumn({
 }
 
 function flattenTimeline(history: {
-  transitions: Array<{ id: number; ts: string; from_status: string | null; to_status: string }>;
-  revisions: Array<{ id: number; created_at: string; diff: Record<string, unknown> }>;
+  transitions: Array<{
+    id: number;
+    ts: string;
+    from_status: string | null;
+    to_status: string;
+  }>;
+  revisions: Array<{
+    id: number;
+    created_at: string;
+    diff: Record<string, unknown>;
+  }>;
 }) {
   const transitions = history.transitions.map((entry) => ({
     key: `transition-${entry.id}`,
@@ -457,11 +470,13 @@ export function ProjectCollaborationWorkspace({
   const [tagFilter, setTagFilter] = useState(() => {
     if (typeof window === "undefined") return "";
     const params = new URLSearchParams(window.location.search);
-    return params.get("project") === project.id ? (params.get("tag") ?? "") : "";
+    return params.get("project") === project.id
+      ? (params.get("tag") ?? "")
+      : "";
   });
-  const [quickAddByStatus, setQuickAddByStatus] = useState<Record<string, string>>(
-    {},
-  );
+  const [quickAddByStatus, setQuickAddByStatus] = useState<
+    Record<string, string>
+  >({});
   const [activeActionId, setActiveActionId] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
     const params = new URLSearchParams(window.location.search);
@@ -487,7 +502,11 @@ export function ProjectCollaborationWorkspace({
   const workflowQuery = useProjectWorkflow(project.id);
   const actionsQuery = useProjectActions(project.id);
   const membersQuery = useProjectMembers(project.id);
-  const detailQuery = useProjectActionDetail(project.id, activeActionId, Boolean(activeActionId));
+  const detailQuery = useProjectActionDetail(
+    project.id,
+    activeActionId,
+    Boolean(activeActionId),
+  );
   const historyQuery = useProjectActionHistory(
     project.id,
     activeActionId,
@@ -505,16 +524,20 @@ export function ProjectCollaborationWorkspace({
     [legacyActions],
   );
 
-  const statuses: string[] = workflowQuery.data?.canonical_statuses
-    ? [...workflowQuery.data.canonical_statuses]
-    : [...DEFAULT_STATUSES];
+  const statuses: string[] = useMemo(
+    () =>
+      workflowQuery.data?.canonical_statuses
+        ? [...workflowQuery.data.canonical_statuses]
+        : [...DEFAULT_STATUSES],
+    [workflowQuery.data?.canonical_statuses],
+  );
   const statusLabels = workflowQuery.data?.column_labels ?? DEFAULT_LABELS;
   const actions = actionsQuery.data ?? [];
   const members = membersQuery.data ?? [];
   const activeAction = detailQuery.data;
   const history = historyQuery.data;
   const activeDragAction = dragActionId
-    ? actions.find((action) => action.id === dragActionId) ?? null
+    ? (actions.find((action) => action.id === dragActionId) ?? null)
     : null;
 
   const currentMember = currentUserId
@@ -523,23 +546,30 @@ export function ProjectCollaborationWorkspace({
   const canManageMembers = Boolean(currentMember?.is_owner);
   const isShared = isSharedProject || members.length > 1;
   const activeObjectRef =
-    activeAction && activeAction.object_ref && typeof activeAction.object_ref["@id"] === "string"
+    activeAction &&
+    activeAction.object_ref &&
+    typeof activeAction.object_ref["@id"] === "string"
       ? (activeAction.object_ref["@id"] as string)
       : "";
   const descriptionDraft = activeAction
-    ? (descriptionDraftByAction[activeAction.id] ?? activeAction.description ?? "")
+    ? (descriptionDraftByAction[activeAction.id] ??
+      activeAction.description ??
+      "")
     : "";
   const objectRefDraft = activeAction
     ? (objectRefDraftByAction[activeAction.id] ?? activeObjectRef)
     : "";
   const projectDueDateDraft =
-    projectDueDateDraftByProject[project.id] ?? toDateInputValue(project.dueDate);
+    projectDueDateDraftByProject[project.id] ??
+    toDateInputValue(project.dueDate);
 
   const normalizedTagFilter = tagFilter.trim().toLowerCase();
   const filteredActions = !normalizedTagFilter
     ? actions
     : actions.filter((action) =>
-        action.tags.some((tag) => tag.toLowerCase().includes(normalizedTagFilter)),
+        action.tags.some((tag) =>
+          tag.toLowerCase().includes(normalizedTagFilter),
+        ),
       );
 
   const actionsByStatus: Record<string, ProjectActionResponse[]> = {};
@@ -561,9 +591,12 @@ export function ProjectCollaborationWorkspace({
     setLegacySyncError(null);
   }, [project.id]);
 
+  const actionsLoading = actionsQuery.isLoading;
+  const refetchActions = actionsQuery.refetch;
+
   useEffect(() => {
     if (legacySyncState !== "idle") return;
-    if (workflowQuery.isLoading || actionsQuery.isLoading) return;
+    if (workflowQuery.isLoading || actionsLoading) return;
     if (actions.length > 0 || normalizedLegacyActions.length === 0) {
       setLegacySyncState("done");
       return;
@@ -575,13 +608,19 @@ export function ProjectCollaborationWorkspace({
 
     void (async () => {
       try {
-        const defaultStatus = workflowQuery.data?.default_status ?? DEFAULT_STATUS;
-        const doneStatuses = workflowQuery.data?.done_statuses ?? DEFAULT_DONE_STATUSES;
+        const defaultStatus =
+          workflowQuery.data?.default_status ?? DEFAULT_STATUS;
+        const doneStatuses =
+          workflowQuery.data?.done_statuses ?? DEFAULT_DONE_STATUSES;
         const blockedStatuses =
           workflowQuery.data?.blocked_statuses ?? DEFAULT_BLOCKED_STATUSES;
 
         for (const legacyAction of normalizedLegacyActions) {
-          const title = (legacyAction.name ?? legacyAction.rawCapture ?? "").trim();
+          const title = (
+            legacyAction.name ??
+            legacyAction.rawCapture ??
+            ""
+          ).trim();
           if (!title) continue;
 
           const dueAt = toIsoDateFromLegacy(
@@ -616,12 +655,13 @@ export function ProjectCollaborationWorkspace({
         }
 
         if (cancelled) return;
-        await actionsQuery.refetch?.();
+        await refetchActions?.();
         if (!cancelled) setLegacySyncState("done");
       } catch (error) {
         if (cancelled) return;
         setLegacySyncError(
-          parseApiErrorMessage(error) ?? "Failed to sync existing project actions",
+          parseApiErrorMessage(error) ??
+            "Failed to sync existing project actions",
         );
         setLegacySyncState("done");
       }
@@ -632,7 +672,8 @@ export function ProjectCollaborationWorkspace({
     };
   }, [
     actions.length,
-    actionsQuery.isLoading,
+    actionsLoading,
+    refetchActions,
     legacySyncState,
     normalizedLegacyActions,
     project.id,
@@ -759,7 +800,10 @@ export function ProjectCollaborationWorkspace({
     ? buildCommentChildren(activeAction.comments)
     : new Map<string, CommentNode[]>();
 
-  const renderCommentBranch = (parentId: string, depth: number): React.ReactNode =>
+  const renderCommentBranch = (
+    parentId: string,
+    depth: number,
+  ): React.ReactNode =>
     (commentChildren.get(parentId) ?? []).map((comment) => (
       <div
         key={comment.id}
@@ -793,7 +837,10 @@ export function ProjectCollaborationWorkspace({
             className="inline-flex items-center gap-2 rounded-[var(--radius-sm)] border border-transparent px-1 py-0.5 text-left text-base font-semibold text-text hover:border-border"
           >
             <span>{project.name ?? "Untitled project"}</span>
-            <Icon name={showSettings ? "expand_less" : "expand_more"} size={16} />
+            <Icon
+              name={showSettings ? "expand_less" : "expand_more"}
+              size={16}
+            />
           </button>
           <div className="flex flex-wrap items-center gap-2">
             {isShared && (
@@ -918,7 +965,9 @@ export function ProjectCollaborationWorkspace({
                   {!member.is_owner && (
                     <button
                       type="button"
-                      onClick={() => removeMemberMutation.mutate(member.user_id)}
+                      onClick={() =>
+                        removeMemberMutation.mutate(member.user_id)
+                      }
                       disabled={!canManageMembers}
                       className="text-status-error disabled:opacity-40"
                     >
@@ -1015,12 +1064,17 @@ export function ProjectCollaborationWorkspace({
                     { name: title, action_status: status },
                     {
                       onSuccess: () =>
-                        setQuickAddByStatus((prev) => ({ ...prev, [status]: "" })),
+                        setQuickAddByStatus((prev) => ({
+                          ...prev,
+                          [status]: "",
+                        })),
                     },
                   );
                 }}
               >
-                {(actionsByStatus[status] ?? []).map((action) => renderCard(action))}
+                {(actionsByStatus[status] ?? []).map((action) =>
+                  renderCard(action),
+                )}
               </BoardColumn>
             ))}
           </div>
@@ -1073,7 +1127,9 @@ export function ProjectCollaborationWorkspace({
               </label>
 
               <div className="rounded-[var(--radius-sm)] border border-border bg-paper-50 p-2">
-                <p className="mb-1 text-xs font-semibold text-text-muted">Preview</p>
+                <p className="mb-1 text-xs font-semibold text-text-muted">
+                  Preview
+                </p>
                 <pre className="whitespace-pre-wrap text-sm text-text">
                   {descriptionDraft || "No description"}
                 </pre>
@@ -1119,11 +1175,15 @@ export function ProjectCollaborationWorkspace({
                     No comments yet. Add context for collaborators.
                   </p>
                 ) : (
-                  <div className="space-y-2">{renderCommentBranch("root", 0)}</div>
+                  <div className="space-y-2">
+                    {renderCommentBranch("root", 0)}
+                  </div>
                 )}
                 <textarea
                   value={commentDraft}
-                  onChange={(event) => setCommentDraft(event.currentTarget.value)}
+                  onChange={(event) =>
+                    setCommentDraft(event.currentTarget.value)
+                  }
                   rows={2}
                   placeholder={
                     replyParentId
