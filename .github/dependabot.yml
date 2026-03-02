@@ -28,30 +28,19 @@ updates:
           - "minor"
           - "patch"
 
-  # Agents Python dependencies (Haystack, OpenRouter client, etc.)
-  - package-ecosystem: "pip"
-    directory: "/agents"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "03:00"
-      timezone: "Europe/Berlin"
-    open-pull-requests-limit: 5
-    reviewers:
-      - "project-frontend-team"
-    labels:
-      - "dependencies"
-      - "agents"
-      - "python"
-    commit-message:
-      prefix: "deps(agents)"
-      include: "scope"
-    # Group minor and patch updates to reduce PR noise
-    groups:
-      agents-minor-patch:
-        update-types:
-          - "minor"
-          - "patch"
+  # Agents Python dependencies — disabled while Copilot/Haystack is inactive
+  # - package-ecosystem: "pip"
+  #   directory: "/agents"
+  #   schedule:
+  #     interval: "weekly"
+  #     day: "monday"
+  #     time: "03:00"
+  #     timezone: "Europe/Berlin"
+  #   open-pull-requests-limit: 5
+  #   labels:
+  #     - "dependencies"
+  #     - "agents"
+  #     - "python"
 
   # Frontend npm dependencies (React, Vite, Tailwind, etc.)
   - package-ecosystem: "npm"
