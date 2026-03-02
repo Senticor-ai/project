@@ -10,7 +10,9 @@ import pytest
 from app.config import settings
 from app.container.manager import (
     _build_container_name,
+    _build_volume_args,
     _is_container_ready,
+    _k8s_apply_resources,
     _k8s_labels,
     ensure_running,
     get_identity_name,
@@ -723,3 +725,178 @@ def test_k8s_labels_include_part_of_project():
     """OpenClaw pods must carry app.kubernetes.io/part-of=project so Alloy discovers them."""
     labels = _k8s_labels("user-123", "openclaw-user-123")
     assert labels.get("app.kubernetes.io/part-of") == "project"
+
+
+# ---------------------------------------------------------------------------
+# OpenClaw K8s stability fixes (OOM, timeout, config EACCES)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_start_container_injects_node_options_in_docker_env(monkeypatch, tmp_path):
+    """Docker run command must pass NODE_OPTIONS to cap V8 heap."""
+    user_id = "702a4639-e654-46b8-a4fa-83ecc2bcd06c"
+    row = {
+        "provider": "openrouter",
+        "api_key_encrypted": "encrypted-key",
+        "model": "google/gemini-3-flash-preview",
+    }
+
+    _patch_settings(monkeypatch, openclaw_project_mount_path="", openclaw_pull_policy="never")
+    monkeypatch.setattr("app.container.manager.db_conn", lambda: _FakeConn(row))
+    monkeypatch.setattr("app.container.manager._allocate_port", lambda _cur: 18800)
+    monkeypatch.setattr("app.container.manager._decrypt_api_key", lambda _enc: "decrypted-key")
+    monkeypatch.setattr("app.container.manager._wait_for_healthy", lambda _user, _url: None)
+    monkeypatch.setattr(
+        "app.container.manager.provision_workspace",
+        lambda **_kwargs: (
+            (tmp_path / "openclaw" / user_id),
+            (tmp_path / "openclaw-runtime" / user_id),
+        ),
+    )
+
+    run_calls: list[list[str]] = []
+
+    def _fake_run_cmd(args, timeout=30):
+        run_calls.append(args)
+        return SimpleNamespace(returncode=0, stderr="", stdout="")
+
+    monkeypatch.setattr("app.container.manager.run_cmd", _fake_run_cmd)
+
+    start_container(user_id)
+
+    run_args = run_calls[-1]  # last call is the `run` command
+    assert "NODE_OPTIONS=--max-old-space-size=1536" in run_args
+
+
+@pytest.mark.unit
+def test_start_container_passes_node_options_to_k8s(monkeypatch, tmp_path):
+    """K8s env_vars must include NODE_OPTIONS to cap V8 heap."""
+    user_id = "702a4639-e654-46b8-a4fa-83ecc2bcd06c"
+    row = {
+        "provider": "openrouter",
+        "api_key_encrypted": "encrypted-key",
+        "model": "google/gemini-3-flash-preview",
+    }
+
+    _patch_settings(
+        monkeypatch,
+        openclaw_runtime="k8s",
+        openclaw_k8s_namespace="project",
+        openclaw_k8s_gateway_port=18789,
+    )
+    monkeypatch.setattr("app.container.manager.db_conn", lambda: _FakeConn(row))
+    monkeypatch.setattr("app.container.manager._decrypt_api_key", lambda _enc: "decrypted-key")
+    monkeypatch.setattr("app.container.manager._wait_for_healthy", lambda _user, _url: None)
+    monkeypatch.setattr(
+        "app.container.manager.provision_workspace",
+        lambda **_kwargs: (
+            (tmp_path / "openclaw" / user_id),
+            (tmp_path / "openclaw-runtime" / user_id),
+        ),
+    )
+
+    k8s_calls: list[dict[str, object]] = []
+
+    def _fake_k8s_apply_resources(**kwargs):
+        k8s_calls.append(kwargs)
+
+    monkeypatch.setattr("app.container.manager._k8s_apply_resources", _fake_k8s_apply_resources)
+    monkeypatch.setattr(
+        "app.container.manager.run_cmd",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("run_cmd must not be called in k8s runtime mode")
+        ),
+    )
+
+    start_container(user_id)
+
+    assert len(k8s_calls) == 1
+    env_vars = k8s_calls[0]["env_vars"]
+    assert env_vars["NODE_OPTIONS"] == "--max-old-space-size=1536"
+
+
+@pytest.mark.unit
+def test_k8s_pod_spec_includes_startup_probe(monkeypatch):
+    """K8s pod spec must include a startupProbe for slow cold starts."""
+    _patch_settings(
+        monkeypatch,
+        openclaw_runtime="k8s",
+        openclaw_k8s_namespace="project",
+        openclaw_image="test-image:latest",
+        openclaw_k8s_image_pull_secret="",
+    )
+
+    captured_manifests: list[dict] = []
+
+    def _fake_k8s_request(method, path, *, json_body=None, ok_statuses=None):
+        if json_body:
+            captured_manifests.append(json_body)
+        return SimpleNamespace(status_code=200)
+
+    monkeypatch.setattr("app.container.manager._k8s_request", _fake_k8s_request)
+    monkeypatch.setattr("app.container.manager._k8s_delete_if_exists", lambda _kind, _name: None)
+
+    _k8s_apply_resources(
+        user_id="user-123",
+        container_name="openclaw-user-123",
+        port=18789,
+        env_vars={"FOO": "bar"},
+    )
+
+    # Pod manifest is the second POST (after Service)
+    pod_manifest = captured_manifests[1]
+    container_spec = pod_manifest["spec"]["containers"][0]
+    assert "startupProbe" in container_spec
+    probe = container_spec["startupProbe"]
+    assert "tcpSocket" in probe
+    assert probe["tcpSocket"]["port"] == 18789
+
+
+@pytest.mark.unit
+def test_config_volume_mount_is_writable_docker(tmp_path):
+    """Docker volume args must NOT mount openclaw.json as read-only."""
+    workspace_dir = tmp_path / "openclaw" / "user-123"
+    runtime_dir = tmp_path / "openclaw-runtime" / "user-123"
+    workspace_dir.mkdir(parents=True)
+    runtime_dir.mkdir(parents=True)
+
+    args = _build_volume_args(workspace_dir, runtime_dir)
+    config_mount = [a for a in args if "openclaw.json" in a]
+    assert len(config_mount) == 1
+    assert ":ro" not in config_mount[0]
+
+
+@pytest.mark.unit
+def test_config_volume_mount_is_writable_k8s(monkeypatch):
+    """K8s volumeMount for openclaw.json must NOT be readOnly."""
+    _patch_settings(
+        monkeypatch,
+        openclaw_runtime="k8s",
+        openclaw_k8s_namespace="project",
+        openclaw_image="test-image:latest",
+        openclaw_k8s_image_pull_secret="",
+    )
+
+    captured_manifests: list[dict] = []
+
+    def _fake_k8s_request(method, path, *, json_body=None, ok_statuses=None):
+        if json_body:
+            captured_manifests.append(json_body)
+        return SimpleNamespace(status_code=200)
+
+    monkeypatch.setattr("app.container.manager._k8s_request", _fake_k8s_request)
+    monkeypatch.setattr("app.container.manager._k8s_delete_if_exists", lambda _kind, _name: None)
+
+    _k8s_apply_resources(
+        user_id="user-123",
+        container_name="openclaw-user-123",
+        port=18789,
+        env_vars={"FOO": "bar"},
+    )
+
+    pod_manifest = captured_manifests[1]
+    volume_mounts = pod_manifest["spec"]["containers"][0]["volumeMounts"]
+    config_mount = [vm for vm in volume_mounts if vm["mountPath"] == "/openclaw.json"]
+    assert len(config_mount) == 1
+    assert config_mount[0].get("readOnly") is not True

@@ -224,7 +224,9 @@ def _build_volume_args(workspace_dir: Path, runtime_dir: Path) -> list[str]:
         "-v",
         f"{workspace_dir / 'workspace'}:/workspace",
         "-v",
-        f"{workspace_dir / 'openclaw.json'}:/openclaw.json:ro",
+        # Not :ro — OpenClaw performs atomic config saves (write tmp + rename).
+        # Backend regenerates openclaw.json on every container start anyway.
+        f"{workspace_dir / 'openclaw.json'}:/openclaw.json",
         "-v",
         f"{runtime_dir}:/runtime",
     ]
@@ -486,10 +488,11 @@ def _k8s_apply_resources(
                         "subPath": f"openclaw/{user_subpath}/workspace",
                     },
                     {
+                        # Not readOnly — OpenClaw performs atomic config
+                        # saves.  Backend regenerates on every start.
                         "name": "backend-files",
                         "mountPath": "/openclaw.json",
                         "subPath": f"openclaw/{user_subpath}/openclaw.json",
-                        "readOnly": True,
                     },
                     {
                         "name": "backend-files",
@@ -510,6 +513,11 @@ def _k8s_apply_resources(
                         "cpu": settings.openclaw_k8s_cpu_limit,
                         "memory": settings.openclaw_k8s_memory_limit,
                     },
+                },
+                "startupProbe": {
+                    "tcpSocket": {"port": port},
+                    "periodSeconds": 5,
+                    "failureThreshold": 60,
                 },
             }
         ],
@@ -653,6 +661,7 @@ def start_container(user_id: str) -> ContainerInfo:
             k8s_fallback="http://storybook",
         ),
         "OPENCLAW_CONFIG_PATH": "/openclaw.json",
+        "NODE_OPTIONS": "--max-old-space-size=1536",
     }
 
     if _use_k8s_runtime():
@@ -705,6 +714,8 @@ def start_container(user_id: str) -> ContainerInfo:
                 f"COPILOT_STORYBOOK_URL={env_vars['COPILOT_STORYBOOK_URL']}",
                 "-e",
                 "OPENCLAW_CONFIG_PATH=/openclaw.json",
+                "-e",
+                f"NODE_OPTIONS={env_vars['NODE_OPTIONS']}",
                 *label_args,
                 settings.openclaw_image,
             ]

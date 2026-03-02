@@ -346,7 +346,9 @@ def load_settings() -> Settings:
         openclaw_idle_timeout_seconds=int(
             _get_env("OPENCLAW_IDLE_TIMEOUT_SECONDS", "1800") or "1800"
         ),
-        openclaw_health_check_timeout=int(_get_env("OPENCLAW_HEALTH_CHECK_TIMEOUT", "30") or "30"),
+        openclaw_health_check_timeout=int(
+            _get_env("OPENCLAW_HEALTH_CHECK_TIMEOUT", "180") or "180"
+        ),
         openclaw_project_mount_path=_get_env("OPENCLAW_PROJECT_MOUNT_PATH", str(ROOT_DIR)) or "",
         openclaw_k8s_api_url=_get_env("OPENCLAW_K8S_API_URL", "https://kubernetes.default.svc")
         or "https://kubernetes.default.svc",
@@ -373,9 +375,9 @@ def load_settings() -> Settings:
             _get_env("OPENCLAW_K8S_DELETE_TIMEOUT_SECONDS", "20") or "20"
         ),
         openclaw_k8s_cpu_request=_get_env("OPENCLAW_K8S_CPU_REQUEST", "100m") or "100m",
-        openclaw_k8s_memory_request=_get_env("OPENCLAW_K8S_MEMORY_REQUEST", "256Mi") or "256Mi",
+        openclaw_k8s_memory_request=_get_env("OPENCLAW_K8S_MEMORY_REQUEST", "512Mi") or "512Mi",
         openclaw_k8s_cpu_limit=_get_env("OPENCLAW_K8S_CPU_LIMIT", "500m") or "500m",
-        openclaw_k8s_memory_limit=_get_env("OPENCLAW_K8S_MEMORY_LIMIT", "1Gi") or "1Gi",
+        openclaw_k8s_memory_limit=_get_env("OPENCLAW_K8S_MEMORY_LIMIT", "2Gi") or "2Gi",
         openclaw_k8s_max_concurrent_pods=int(
             _get_env("OPENCLAW_K8S_MAX_CONCURRENT_PODS", "8") or "8"
         ),

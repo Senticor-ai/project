@@ -33,7 +33,10 @@ class TestBuildVolumeArgs:
 
         joined = " ".join(args)
         assert ":/workspace" in joined
-        assert ":/openclaw.json:ro" in joined
+        assert ":/openclaw.json" in joined
+        # Config mount must NOT be read-only (OpenClaw writes temp files)
+        config_arg = [a for a in args if "openclaw.json" in a][0]
+        assert not config_arg.endswith(":ro")
         assert ":/runtime" in joined
         assert ":/project" not in joined
 
