@@ -345,10 +345,7 @@ async def _stream_openclaw(
         yield _encode_ndjson_event(
             {
                 "type": "error",
-                "detail": (
-                    "OpenClaw session initialization failed. "
-                    "Please try again."
-                ),
+                "detail": ("OpenClaw session initialization failed. Please try again."),
             }
         )
         return
@@ -441,22 +438,40 @@ def chat_completions(
 ):
     user_id = str(current_user["id"])
     org_id = current_org["org_id"]
-    agent_backend = get_user_agent_backend(user_id)
 
-    # 1. Get or create conversation (scoped by agent_backend)
-    conv = get_or_create_conversation(
-        org_id=org_id,
-        user_id=user_id,
-        external_id=req.conversationId,
-        agent_backend=agent_backend,
-    )
-    conversation_id = str(conv["conversation_id"])
+    try:
+        agent_backend = get_user_agent_backend(user_id)
 
-    # 2. Save user message
-    save_message(conversation_id, "user", req.message)
+        # 1. Get or create conversation (scoped by agent_backend)
+        conv = get_or_create_conversation(
+            org_id=org_id,
+            user_id=user_id,
+            external_id=req.conversationId,
+            agent_backend=agent_backend,
+        )
+        conversation_id = str(conv["conversation_id"])
 
-    # 3. Fetch history
-    history = get_conversation_messages(conversation_id)
+        # 2. Save user message
+        save_message(conversation_id, "user", req.message)
+
+        # 3. Fetch history
+        history = get_conversation_messages(conversation_id)
+    except Exception:
+        logger.exception(
+            "chat.db_setup_failed",
+            extra={"user_id": user_id, "conversation_external_id": req.conversationId},
+        )
+        err = json.dumps(
+            {"type": "error", "detail": "Chat service temporarily unavailable. Please try again."}
+        )
+
+        async def _db_error_stream() -> AsyncGenerator[bytes, None]:
+            yield (err + "\n").encode()
+
+        return StreamingResponse(
+            _db_error_stream(),
+            media_type="application/x-ndjson",
+        )
 
     # 4. Route to the right backend
 

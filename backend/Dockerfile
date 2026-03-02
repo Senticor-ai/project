@@ -20,7 +20,8 @@ RUN uv sync --frozen --no-dev
 
 COPY backend/ ./
 
-ENV PATH="/app/backend/.venv/bin:${PATH}"
+ENV PATH="/app/backend/.venv/bin:${PATH}" \
+    HOME=/app/backend
 
 EXPOSE 8000
 

@@ -403,9 +403,7 @@ class TestChatCompletions:
         assert len(error_events) == 1
         assert "timeout" in error_events[0]["detail"].lower()
 
-    def test_openclaw_waits_for_startup_and_auto_forwards_message(
-        self, auth_client, monkeypatch
-    ):
+    def test_openclaw_waits_for_startup_and_auto_forwards_message(self, auth_client, monkeypatch):
         _patch_settings(
             monkeypatch,
             agents_url="http://localhost:8002",
@@ -465,9 +463,7 @@ class TestChatCompletions:
         assert done_events[0]["text"] == "Antwort"
         assert attempts["count"] >= 2
 
-    def test_openclaw_streams_timeout_when_startup_never_completes(
-        self, auth_client, monkeypatch
-    ):
+    def test_openclaw_streams_timeout_when_startup_never_completes(self, auth_client, monkeypatch):
         _patch_settings(
             monkeypatch,
             agents_url="http://localhost:8002",
@@ -531,6 +527,68 @@ class TestChatCompletions:
         error_events = [e for e in parsed if e["type"] == "error"]
         assert len(error_events) == 1
         assert "health check timeout" in error_events[0]["detail"].lower()
+
+    def test_db_error_in_get_user_agent_backend_returns_ndjson_error(
+        self, auth_client, monkeypatch
+    ):
+        """DB failure in get_user_agent_backend must return NDJSON error, not raw 500."""
+        _patch_settings(monkeypatch, agents_url="http://localhost:8002")
+        monkeypatch.setattr(
+            "app.chat.routes.get_user_agent_backend",
+            lambda _user_id: (_ for _ in ()).throw(RuntimeError("connection reset")),
+        )
+
+        response = auth_client.post(
+            "/chat/completions",
+            json={"message": "Hallo", "conversationId": "conv-db-err-1"},
+        )
+        assert response.status_code == 200
+
+        parsed = _parse_ndjson(response)
+        error_events = [e for e in parsed if e["type"] == "error"]
+        assert len(error_events) == 1
+
+    def test_db_error_in_get_or_create_conversation_returns_ndjson_error(
+        self, auth_client, monkeypatch
+    ):
+        """DB failure in get_or_create_conversation must return NDJSON error, not raw 500."""
+        _patch_settings(monkeypatch, agents_url="http://localhost:8002")
+        monkeypatch.setattr(
+            "app.chat.routes.get_or_create_conversation",
+            lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("pool exhausted")),
+        )
+
+        response = auth_client.post(
+            "/chat/completions",
+            json={"message": "Hallo", "conversationId": "conv-db-err-2"},
+        )
+        assert response.status_code == 200
+
+        parsed = _parse_ndjson(response)
+        error_events = [e for e in parsed if e["type"] == "error"]
+        assert len(error_events) == 1
+
+    def test_db_error_in_save_message_returns_ndjson_error(self, auth_client, monkeypatch):
+        """DB failure in save_message must return NDJSON error, not raw 500."""
+        _patch_settings(monkeypatch, agents_url="http://localhost:8002")
+
+        call_count = {"n": 0}
+        original_save = None
+
+        def _failing_save(*args, **kwargs):
+            raise RuntimeError("disk full")
+
+        monkeypatch.setattr("app.chat.routes.save_message", _failing_save)
+
+        response = auth_client.post(
+            "/chat/completions",
+            json={"message": "Hallo", "conversationId": "conv-db-err-3"},
+        )
+        assert response.status_code == 200
+
+        parsed = _parse_ndjson(response)
+        error_events = [e for e in parsed if e["type"] == "error"]
+        assert len(error_events) == 1
 
     def test_openclaw_streams_error_when_session_init_fails(self, auth_client, monkeypatch):
         _patch_settings(monkeypatch, agents_url="http://localhost:8002")
@@ -928,7 +986,15 @@ class TestExecuteTool:
             "toolCall": {
                 "name": "copilot_cli",
                 "arguments": {
-                    "argv": ["items", "triage", "--id", canonical_id, "--bucket", "reference", "--apply"],
+                    "argv": [
+                        "items",
+                        "triage",
+                        "--id",
+                        canonical_id,
+                        "--bucket",
+                        "reference",
+                        "--apply",
+                    ],
                 },
             },
             "conversationId": "conv-42",

@@ -213,9 +213,12 @@ def _build_model_string(provider: str, model: str) -> str:
 def _build_volume_args(workspace_dir: Path, runtime_dir: Path) -> list[str]:
     """Build the -v flags for the container run command."""
     args: list[str] = [
-        "-v", f"{workspace_dir / 'workspace'}:/workspace",
-        "-v", f"{workspace_dir / 'openclaw.json'}:/openclaw.json:ro",
-        "-v", f"{runtime_dir}:/runtime",
+        "-v",
+        f"{workspace_dir / 'workspace'}:/workspace",
+        "-v",
+        f"{workspace_dir / 'openclaw.json'}:/openclaw.json:ro",
+        "-v",
+        f"{runtime_dir}:/runtime",
     ]
     if settings.openclaw_project_mount_path:
         project_path = Path(settings.openclaw_project_mount_path).resolve()
@@ -382,6 +385,7 @@ def _k8s_labels(user_id: str, container_name: str) -> dict[str, str]:
         "app.kubernetes.io/name": "openclaw",
         "app.kubernetes.io/component": "runtime",
         "app.kubernetes.io/managed-by": "project-backend",
+        "app.kubernetes.io/part-of": "project",
         "openclaw.instance": container_name,
         "copilot.user_id": user_id,
         "copilot.managed": "true",

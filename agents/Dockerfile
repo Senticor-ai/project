@@ -12,7 +12,8 @@ RUN uv sync --frozen --no-dev
 
 COPY agents/ ./
 
-ENV PATH="/app/agents/.venv/bin:${PATH}"
+ENV PATH="/app/agents/.venv/bin:${PATH}" \
+    HOME=/app/agents
 
 EXPOSE 8002
 

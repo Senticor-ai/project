@@ -89,7 +89,12 @@ function ToggleGroup<T extends string>({
   value,
   onChange,
 }: {
-  options: { value: T; label: string; description: string }[];
+  options: {
+    value: T;
+    label: string;
+    description: string;
+    disabled?: boolean;
+  }[];
   value: T;
   onChange: (v: T) => void;
 }) {
@@ -100,29 +105,36 @@ function ToggleGroup<T extends string>({
           key={opt.value}
           type="button"
           aria-pressed={value === opt.value}
+          disabled={opt.disabled}
           onClick={() => onChange(opt.value)}
           className={cn(
             "flex w-full items-start gap-2 rounded-[var(--radius-sm)] border px-3 py-2 text-left text-xs",
-            value === opt.value
-              ? "border-blueprint-400 bg-blueprint-50"
-              : "border-border hover:bg-paper-100",
+            opt.disabled
+              ? "cursor-not-allowed border-border opacity-50"
+              : value === opt.value
+                ? "border-blueprint-400 bg-blueprint-50"
+                : "border-border hover:bg-paper-100",
           )}
         >
           <span
             className={cn(
               "mt-0.5 size-3 shrink-0 rounded-full border-2",
-              value === opt.value
-                ? "border-blueprint-500 bg-blueprint-500"
-                : "border-text-muted",
+              opt.disabled
+                ? "border-text-muted"
+                : value === opt.value
+                  ? "border-blueprint-500 bg-blueprint-500"
+                  : "border-text-muted",
             )}
           />
           <span>
             <span
               className={cn(
                 "font-medium",
-                value === opt.value
-                  ? "text-blueprint-700"
-                  : "text-text-primary",
+                opt.disabled
+                  ? "text-text-muted"
+                  : value === opt.value
+                    ? "text-blueprint-700"
+                    : "text-text-primary",
               )}
             >
               {opt.label}
@@ -356,7 +368,8 @@ export function AgentSetupPanel({
               value: "haystack" as AgentBackend,
               label: "Copilot",
               description:
-                "Use your own OpenRouter/OpenAI key. Suggests changes for your approval.",
+                "Temporarily unavailable. OpenClaw is the active backend.",
+              disabled: true,
             },
             {
               value: "openclaw" as AgentBackend,

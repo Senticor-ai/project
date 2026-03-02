@@ -112,7 +112,6 @@ trap cleanup EXIT INT TERM
 echo "[dev] PORT_OFFSET=$PORT_OFFSET"
 echo "[dev]   Frontend:  http://${PROJECT_PREFIX}.localhost:$DEV_FRONTEND_PORT"
 echo "[dev]   Backend:   http://${PROJECT_PREFIX}.localhost:$DEV_BACKEND_PORT"
-echo "[dev]   Agents:    http://localhost:$DEV_AGENTS_PORT"
 echo "[dev]   Storybook: http://${PROJECT_PREFIX}.localhost:$DEV_STORYBOOK_PORT"
 echo "[dev]   Postgres:  localhost:${PG_PORT}"
 echo ""
@@ -122,11 +121,10 @@ run_db_init_if_enabled
 
 cd "$ROOT_DIR/frontend"
 npx concurrently -k \
-  -n backend,worker,watch,agents,frontend,storybook \
-  -c blue,magenta,yellow,green,cyan,white \
+  -n backend,worker,watch,frontend,storybook \
+  -c blue,magenta,yellow,cyan,white \
   "bash $SCRIPT_DIR/start_backend.sh" \
   "bash $SCRIPT_DIR/start_worker.sh" \
   "bash $SCRIPT_DIR/start_watch_worker.sh" \
-  "bash $SCRIPT_DIR/start_agents.sh" \
   "bash $SCRIPT_DIR/start_frontend.sh" \
   "bash $SCRIPT_DIR/start_storybook.sh"

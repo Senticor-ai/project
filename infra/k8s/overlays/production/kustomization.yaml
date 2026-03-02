@@ -16,9 +16,7 @@ images:
   - name: project-storybook
     newName: registry.onstackit.cloud/senticor/project/storybook
     newTag: "2d5ab5b687b69cb9f3c5b3217b8c476667b11cff"
-  - name: project-agents
-    newName: registry.onstackit.cloud/senticor/project/agents
-    newTag: "2d5ab5b687b69cb9f3c5b3217b8c476667b11cff"
+  # project-agents image disabled — Copilot/Haystack not in use
   - name: project-openclaw
     newName: registry.onstackit.cloud/senticor/project/openclaw
     newTag: "2d5ab5b687b69cb9f3c5b3217b8c476667b11cff"
@@ -28,7 +26,7 @@ patches:
   - path: patches/worker.yaml
   - path: patches/push-worker.yaml
   - path: patches/watch-worker.yaml
-  - path: patches/agents.yaml
+  # patches/agents.yaml disabled — Copilot/Haystack not in use
   - path: patches/frontend.yaml
   - path: patches/storybook.yaml
   - path: patches/postgres.yaml

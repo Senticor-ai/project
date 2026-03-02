@@ -11,6 +11,7 @@ from app.config import settings
 from app.container.manager import (
     _build_container_name,
     _is_container_ready,
+    _k8s_labels,
     ensure_running,
     get_identity_name,
     hard_refresh_container,
@@ -382,7 +383,9 @@ def test_ensure_running_promotes_starting_container_when_ready(monkeypatch):
 
     marked_running: list[str] = []
     touched: list[str] = []
-    monkeypatch.setattr("app.container.manager._mark_running", lambda uid: marked_running.append(uid))
+    monkeypatch.setattr(
+        "app.container.manager._mark_running", lambda uid: marked_running.append(uid)
+    )
     monkeypatch.setattr("app.container.manager.touch_activity", lambda uid: touched.append(uid))
 
     url, token = ensure_running(user_id)
@@ -561,3 +564,10 @@ def test_is_container_ready_accepts_chat_endpoint_when_health_missing(monkeypatc
 
     monkeypatch.setattr("app.container.manager.httpx.get", _fake_get)
     assert _is_container_ready("http://localhost:18800") is True
+
+
+@pytest.mark.unit
+def test_k8s_labels_include_part_of_project():
+    """OpenClaw pods must carry app.kubernetes.io/part-of=project so Alloy discovers them."""
+    labels = _k8s_labels("user-123", "openclaw-user-123")
+    assert labels.get("app.kubernetes.io/part-of") == "project"

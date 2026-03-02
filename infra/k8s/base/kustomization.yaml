@@ -8,7 +8,7 @@ resources:
   - worker.yaml
   - push-worker.yaml
   - watch-worker.yaml
-  - agents.yaml
+  # agents.yaml disabled — Copilot/Haystack backend not in use, OpenClaw is active
   - frontend.yaml
   - storybook.yaml
   - network-policies.yaml
