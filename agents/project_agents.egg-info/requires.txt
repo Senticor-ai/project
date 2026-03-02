@@ -1,4 +1,4 @@
-haystack-ai<2.25,>=2.24
+haystack-ai>=2.24,<2.26
 fastapi
 uvicorn[standard]
 python-dotenv
