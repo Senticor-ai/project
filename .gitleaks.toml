@@ -1,0 +1,19 @@
+# Gitleaks configuration
+# Allowlist known CI test fixtures that are not real secrets.
+
+[allowlist]
+  description = "Known CI test fixtures"
+
+  # CI workflow test credentials (not real secrets)
+  regexTarget = "line"
+  regexes = [
+    '''ci-jwt-secret''',
+    '''ci-delegation-jwt-secret''',
+    '''ci_test_password''',
+    '''ci-dummy-openrouter-key''',
+    '''t9se0op9pzW1QFbY3nnGn-5zzElb4Tjl84fjnCb6zCY=''',
+  ]
+
+  paths = [
+    '''\.gitleaks\.toml$''',
+  ]

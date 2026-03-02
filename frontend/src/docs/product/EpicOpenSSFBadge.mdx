@@ -1,0 +1,255 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Product/Epics/OpenSSF Best Practices Badge" />
+
+# Epic: OpenSSF Best Practices Badge
+
+**Status:** Draft
+**Priority:** Operational excellence — can be completed independently of feature work
+**Last updated:** 2026-03-02
+**Depends on:** None (audit of existing infrastructure)
+**Related:** [Engineering: Architecture](?path=/docs/engineering-architecture--docs), [Engineering: Testing](?path=/docs/engineering-testing--docs)
+
+---
+
+## Context
+
+The [OpenSSF Best Practices Badge](https://www.bestpractices.dev/en) is a voluntary self-certification
+from the Open Source Security Foundation (Linux Foundation). Projects demonstrate adherence to 67
+security, quality, and governance criteria across six categories. Earning the **passing** badge signals
+to users, integrators, and procurement teams that the project follows industry-recognized practices.
+
+The project already meets **~90% of criteria** thanks to existing CI/CD, testing, documentation, and
+security infrastructure. This epic closes the remaining gaps and tracks the badge submission.
+
+### Current state
+
+| Category | Criteria | Met | Partial | Gap | Verify |
+|----------|----------|-----|---------|-----|--------|
+| Basics | 13 | 13 | 0 | 0 | 0 |
+| Change Control | 9 | 5 | 2 | 2 | 0 |
+| Reporting | 8 | 8 | 0 | 0 | 0 |
+| Quality | 13 | 13 | 0 | 0 | 0 |
+| Security | 16 | 14 | 0 | 0 | 2 |
+| Analysis | 8 | 7 | 1 | 0 | 0 |
+| **Total** | **67** | **60** | **3** | **2** | **2** |
+
+---
+
+## User Story
+
+> "As a project maintainer, I need an externally recognized security and quality badge so that
+> public-sector procurement teams and open-source integrators can trust our engineering practices
+> without requiring a custom audit."
+
+---
+
+## Goals
+
+1. Close all MUST-level gaps so the project qualifies for the OpenSSF passing badge.
+2. Document the full 67-criterion audit as a living reference for ongoing compliance.
+3. Establish a release process that satisfies change-control criteria (tags, release notes, CVE tracking).
+4. Submit the badge application and display the badge in README.md.
+
+---
+
+## Out of Scope
+
+- Silver or Gold badge levels (future epic).
+- DAST tooling integration (SUGGESTED-level, not required for passing).
+- Automated CVE scanning beyond existing Dependabot + pip-audit + npm-audit setup.
+
+---
+
+## Full Audit: 67 Criteria
+
+### Basics (13/13 MET)
+
+| # | ID | Level | Requirement | Status | Evidence |
+|---|-----|-------|-------------|--------|----------|
+| 1 | description_good | MUST | Describe what software does | MET | README.md + Storybook ProductVision |
+| 2 | interact | MUST | Info on obtain/feedback/contribute | MET | README.md + CONTRIBUTING.md + GitHub Issues |
+| 3 | contribution | MUST | Explain contribution process | MET | CONTRIBUTING.md: PR workflow, quality gates |
+| 4 | contribution_requirements | SHOULD | Requirements for acceptable contributions | MET | CONTRIBUTING.md + CLAUDE.md: coding standards, tests, linting |
+| 5 | floss_license | MUST | Released as FLOSS | MET | EUPL-1.2 in `LICENSE` |
+| 6 | floss_license_osi | SUGGESTED | OSI-approved license | MET | EUPL-1.2 is OSI-approved |
+| 7 | license_location | MUST | License in standard location | MET | `LICENSE` at repo root, SPDX in package.json |
+| 8 | documentation_basics | MUST | Basic documentation | MET | README.md + Storybook docs hub |
+| 9 | documentation_interface | MUST | Reference docs for external interface | MET | OpenAPI at `/docs`, Storybook component catalog |
+| 10 | sites_https | MUST | Project sites support HTTPS | MET | GitHub HTTPS, deployed site uses TLS |
+| 11 | discussion | MUST | Searchable discussion mechanism | MET | GitHub Issues + PRs (searchable, URL-addressable) |
+| 12 | english | SHOULD | Documentation in English | MET | All docs, code, commits in English per language policy |
+| 13 | maintained | MUST | Project is maintained | MET | Daily commits, active CI, recent merges |
+
+### Change Control (5/9 MET, 2 PARTIAL, 2 GAP)
+
+| # | ID | Level | Requirement | Status | Evidence / Gap |
+|---|-----|-------|-------------|--------|----------------|
+| 14 | repo_public | MUST | Public version-controlled repo | MET | GitHub repository |
+| 15 | repo_track | MUST | Track changes, who, when | MET | Git history with author + timestamp |
+| 16 | repo_interim | MUST | Interim versions between releases | MET | Continuous deployment from main, every commit is a version |
+| 17 | repo_distributed | SUGGESTED | Use distributed VCS | MET | Git |
+| 18 | version_unique | MUST | Unique version per release | MET | Docker images tagged with commit SHA |
+| 19 | version_semver | SUGGESTED | Use SemVer or CalVer | PARTIAL | package.json/pyproject.toml have 0.1.0 but no tagged releases |
+| 20 | version_tags | SUGGESTED | Use git tags for releases | **GAP** | No git tags for releases currently |
+| 21 | release_notes | MUST | Human-readable release notes | PARTIAL | CHANGELOG.md is deployment-focused, not feature-oriented |
+| 22 | release_notes_vulns | MUST | Identify fixed vulnerabilities | **GAP** | No CVE/vulnerability tracking in release notes |
+
+### Reporting (8/8 MET)
+
+| # | ID | Level | Requirement | Status | Evidence |
+|---|-----|-------|-------------|--------|----------|
+| 23 | report_process | MUST | Bug report process | MET | GitHub Issues |
+| 24 | report_tracker | SHOULD | Use issue tracker | MET | GitHub Issues |
+| 25 | report_responses | MUST | Acknowledge majority of bug reports | MET | Active issue management |
+| 26 | enhancement_responses | SHOULD | Respond to enhancement requests | MET | Issues and PRs actively managed |
+| 27 | report_archive | MUST | Public archive of reports | MET | GitHub Issues (publicly archived) |
+| 28 | vulnerability_report_process | MUST | Published vuln reporting process | MET | SECURITY.md |
+| 29 | vulnerability_report_private | MUST | Private reporting mechanism | MET | SECURITY.md: GitHub Security Advisories |
+| 30 | vulnerability_report_response | MUST | Initial response within 14 days | MET | SECURITY.md commits to 5 business days |
+
+### Quality (13/13 MET)
+
+| # | ID | Level | Requirement | Status | Evidence |
+|---|-----|-------|-------------|--------|----------|
+| 31 | build | MUST | Automated build system | MET | Vite, uv, Docker multi-stage builds |
+| 32 | build_common_tools | SUGGESTED | Use common build tools | MET | npm, Vite, uv, Docker |
+| 33 | build_floss_tools | SHOULD | Buildable with FLOSS tools | MET | All tools are open source |
+| 34 | test | MUST | Automated test suite (FLOSS) | MET | Vitest, Playwright, pytest |
+| 35 | test_invocation | SHOULD | Standard test invocation | MET | `npm test`, `pytest`, documented in CONTRIBUTING.md |
+| 36 | test_most | SUGGESTED | Cover most branches/functionality | MET | 80% combined coverage threshold enforced in CI |
+| 37 | test_continuous_integration | SUGGESTED | Continuous integration | MET | GitHub Actions CI on every PR |
+| 38 | test_policy | MUST | Policy to add tests for new functionality | MET | CLAUDE.md TDD requirement, CONTRIBUTING.md quality gates |
+| 39 | tests_are_added | MUST | Evidence policy is followed | MET | CI enforces coverage thresholds, PRs require tests |
+| 40 | tests_documented_added | SUGGESTED | Testing policy in change proposals | MET | CONTRIBUTING.md documents test requirements |
+| 41 | warnings | MUST | Use linter/warning flags | MET | ESLint, ruff, mypy, tsc strict mode |
+| 42 | warnings_fixed | MUST | Address warnings | MET | CI blocks on lint/type errors |
+| 43 | warnings_strict | SUGGESTED | Maximally strict warnings | MET | Strict TypeScript, mypy, ruff security rules (bandit) |
+
+### Security (14/16 MET, 2 VERIFIED)
+
+| # | ID | Level | Requirement | Status | Evidence |
+|---|-----|-------|-------------|--------|----------|
+| 44 | know_secure_design | MUST | Developer knows secure design | MET | SECURITY.md, security scanning in CI |
+| 45 | know_common_errors | MUST | Developer knows common vulns | MET | OWASP-aware practices documented |
+| 46 | crypto_published | MUST | Use published crypto algorithms | MET | JWT HS256, PBKDF2-SHA256, Fernet (AES-128-CBC) |
+| 47 | crypto_call | SHOULD | Call dedicated crypto libraries | MET | PyJWT, hashlib/PBKDF2, cryptography (Fernet) |
+| 48 | crypto_floss | MUST | Crypto implementable with FLOSS | MET | All crypto via open-source libraries |
+| 49 | crypto_keylength | MUST | Meet NIST minimum keylengths | MET | PBKDF2: 260K iterations (NIST min 100K), AES-128, session tokens 32-48 bytes |
+| 50 | crypto_working | MUST | No broken algorithms | MET | Modern algorithms only (SHA256, AES, HMAC) |
+| 51 | crypto_weaknesses | SHOULD | No known-weak algorithms | MET | No SHA-1 or weak modes |
+| 52 | crypto_pfs | SHOULD | Perfect forward secrecy | MET | TLS at infrastructure level |
+| 53 | crypto_password_storage | MUST | Iterated hashes with per-user salt | MET | PBKDF2-SHA256, 260K iterations, 16-byte per-user salt |
+| 54 | crypto_random | MUST | Cryptographically secure RNG | MET | `secrets.token_urlsafe()` (CSPRNG) |
+| 55 | delivery_mitm | MUST | Delivery counters MITM | MET | HTTPS + SSH for all delivery |
+| 56 | delivery_unsigned | MUST | No hash over plain HTTP | MET | GitHub HTTPS only |
+| 57 | vulnerabilities_fixed_60_days | MUST | No unpatched medium+ vulns >60 days | MET | Verified: npm audit clean, pip-audit clean, Dependabot weekly |
+| 58 | vulnerabilities_critical_fixed | SHOULD | Fix critical vulns rapidly | MET | Security scanning in CI, Dependabot weekly |
+| 59 | no_leaked_credentials | MUST | No leaked credentials in repo | MET | .env in .gitignore, .env.example committed, documented policy |
+
+### Analysis (7/8 MET, 1 PARTIAL)
+
+| # | ID | Level | Requirement | Status | Evidence |
+|---|-----|-------|-------------|--------|----------|
+| 60 | static_analysis | MUST | Static analysis before release | MET | ESLint, ruff, mypy, tsc in CI |
+| 61 | static_analysis_common_vulnerabilities | SUGGESTED | SA looks for common vulns | MET | ruff/bandit security rules, npm audit |
+| 62 | static_analysis_fixed | MUST | Fix medium+ SA findings timely | MET | CI blocks on findings |
+| 63 | static_analysis_often | SUGGESTED | SA on every commit | MET | Runs on every PR via GitHub Actions |
+| 64 | dynamic_analysis | SUGGESTED | Dynamic analysis tool | PARTIAL | Playwright E2E exercises runtime; no dedicated DAST tool |
+| 65 | dynamic_analysis_unsafe | SUGGESTED | Memory safety checks | N/A | Python + TypeScript are memory-safe languages |
+| 66 | dynamic_analysis_enable_assertions | SUGGESTED | Enable assertions in tests | MET | Test suites use assertions extensively |
+| 67 | dynamic_analysis_fixed | MUST | Fix medium+ dynamic findings | MET | No outstanding findings |
+
+---
+
+## Gap Summary
+
+| ID | Level | Gap | Resolution |
+|----|-------|-----|------------|
+| version_tags (#20) | SUGGESTED | No git tags | Establish tagging convention, create first tag |
+| release_notes (#21) | MUST | Deployment-focused changelog | Add feature-oriented section to CHANGELOG.md |
+| release_notes_vulns (#22) | MUST | No CVE tracking in notes | Add "Security" section convention to release notes |
+| dynamic_analysis (#64) | SUGGESTED | No DAST tool | Out of scope for passing badge (SUGGESTED only) |
+
+---
+
+## MVP Scope
+
+### 1) Governance documentation
+
+- Create `CODE_OF_CONDUCT.md` at repo root (Contributor Covenant 2.1). Not a badge criterion itself
+  but expected for open-source projects and strengthens the `contribution` criterion answer.
+
+### 2) Release process
+
+- Add a **Releases** section to `CONTRIBUTING.md` documenting:
+  - Git tag convention: `v{MAJOR}.{MINOR}.{PATCH}` (SemVer)
+  - CHANGELOG.md format: [Keep a Changelog](https://keepachangelog.com/) headers above CI entries
+  - Security section in release notes: list CVE IDs for any fixed vulnerabilities
+- Restructure `CHANGELOG.md` top section with feature-oriented format template.
+
+### 3) Badge submission
+
+- Self-certify at [bestpractices.dev](https://www.bestpractices.dev/en) using audit tables above.
+- Add badge SVG to `README.md`.
+
+---
+
+## Key Files
+
+| File | Change |
+|------|--------|
+| `CODE_OF_CONDUCT.md` | Create (Contributor Covenant 2.1) |
+| `CONTRIBUTING.md` | Add release process and CVE tracking sections |
+| `CHANGELOG.md` | Add feature-oriented format header |
+| `README.md` | Add OpenSSF badge after submission |
+| `frontend/src/docs/product/EpicOpenSSFBadge.mdx` | This epic (living audit reference) |
+
+---
+
+## Delivery Plan
+
+### Phase 1: Quick wins — governance docs
+- [ ] Create `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1)
+- [ ] Verify crypto key lengths meet NIST minimums (PBKDF2 iterations, AES key size)
+- [ ] Verify no unpatched medium+ vulnerabilities (`npm audit`, `pip-audit`)
+
+### Phase 2: Release process — close MUST gaps
+- [ ] Add "Releases" section to `CONTRIBUTING.md` (tag convention, changelog format, CVE tracking)
+- [ ] Add feature-oriented format header to `CHANGELOG.md`
+- [ ] Create first git tag (`v0.1.0`) for current state
+
+### Phase 3: Badge submission
+- [ ] Self-certify at bestpractices.dev using the audit tables in this epic
+- [ ] Add badge SVG to `README.md`
+- [ ] Update this epic status to **Complete**
+
+### Phase 4: Optional hardening (post-badge)
+- [ ] Consider DAST tool in CI (e.g., OWASP ZAP baseline scan)
+- [ ] Add `CODEOWNERS` file for review routing
+- [ ] Add `.pre-commit-config.yaml` for local developer enforcement
+- [ ] Evaluate Silver badge criteria for future epic
+
+---
+
+## Acceptance Criteria
+
+- [ ] All 67 OpenSSF criteria assessed and documented in this epic
+- [ ] All MUST-level criteria are MET (no gaps or partials)
+- [ ] `CODE_OF_CONDUCT.md` exists at repo root
+- [ ] `CONTRIBUTING.md` documents release tagging and CVE-in-release-notes process
+- [ ] `CHANGELOG.md` has a feature-oriented format section
+- [ ] Badge application submitted at bestpractices.dev
+- [ ] Badge SVG displayed in README.md
+
+---
+
+## Definition of Done
+
+- [ ] All acceptance criteria implemented
+- [ ] Backend tests pass (`uv run python -m pytest`)
+- [ ] Frontend unit tests pass (`CI=1 npx vitest run --project=unit`)
+- [ ] TypeScript clean (`npx tsc -b --noEmit`)
+- [ ] ESLint clean (`npx eslint src/`)
+- [ ] Prettier clean (`npx prettier --check src/`)
+- [ ] `npm run preflight:local` passes

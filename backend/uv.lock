@@ -10,6 +10,9 @@ resolution-markers = [
     "python_full_version < '3.13' and sys_platform == 'darwin'",
 ]
 
+[manifest]
+constraints = [{ name = "urllib3", specifier = ">=2.6.3" }]
+
 [[package]]
 name = "aiohappyeyeballs"
 version = "2.6.1"
@@ -1695,7 +1698,7 @@ requires-dist = [
     { name = "sqlalchemy", specifier = ">=2.0.0" },
     { name = "structlog" },
     { name = "uvicorn", extras = ["standard"] },
-    { name = "weasyprint", specifier = ">=62.0" },
+    { name = "weasyprint", specifier = ">=68.0" },
 ]
 provides-extras = ["dev"]
 

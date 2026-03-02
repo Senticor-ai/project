@@ -13,6 +13,10 @@ RUN npm run build
 
 FROM nginx:1.27-alpine
 
+# Prepare writable dirs for non-root nginx (K8s runAsUser: 101)
+RUN chown -R 101:101 /var/cache/nginx /var/log/nginx \
+ && touch /var/run/nginx.pid && chown 101:101 /var/run/nginx.pid
+
 COPY frontend/nginx/rate-limit.conf /etc/nginx/conf.d/rate-limit.conf
 COPY frontend/nginx/default.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
