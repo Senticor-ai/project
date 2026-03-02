@@ -387,6 +387,20 @@ def _k8s_delete_if_exists(kind: str, name: str) -> None:
     raise RuntimeError(f"Timed out deleting Kubernetes {kind}: {name}")
 
 
+def _k8s_runtime_resources_exist(container_name: str) -> bool:
+    pod = _k8s_request(
+        "GET",
+        _k8s_resource_path("pod", container_name),
+        ok_statuses={200, 404},
+    )
+    service = _k8s_request(
+        "GET",
+        _k8s_resource_path("service", container_name),
+        ok_statuses={200, 404},
+    )
+    return pod.status_code == 200 and service.status_code == 200
+
+
 def _k8s_labels(user_id: str, container_name: str) -> dict[str, str]:
     return {
         "app": "openclaw",
@@ -556,6 +570,7 @@ def start_container(user_id: str) -> ContainerInfo:
 
             _enforce_k8s_tenant_capacity(cur)
             port = _select_gateway_port(cur)
+            persisted_port: int | None = None if _use_k8s_runtime() else port
             gateway_token = secrets.token_urlsafe(32)
             container_name = _build_container_name(user_id)
             container_url = _build_container_url(container_name, port)
@@ -577,7 +592,7 @@ def start_container(user_id: str) -> ContainerInfo:
                 (
                     container_name,
                     container_url,
-                    port,
+                    persisted_port,
                     user_id,
                 ),
             )
@@ -916,6 +931,30 @@ def ensure_running(user_id: str) -> tuple[str, str]:
             )
             stop_container(user_id)
     elif row and row["container_status"] in ("starting", "error"):
+        if _use_k8s_runtime() and row.get("container_name"):
+            try:
+                if not _k8s_runtime_resources_exist(str(row["container_name"])):
+                    logger.warning(
+                        "container.k8s_runtime_missing_for_state",
+                        extra={
+                            "user_id": user_id,
+                            "container_name": row["container_name"],
+                            "status": row["container_status"],
+                        },
+                    )
+                    stop_container(user_id)
+                    row = None
+            except Exception:
+                logger.warning(
+                    "container.k8s_runtime_presence_check_failed",
+                    extra={"user_id": user_id, "container_name": row["container_name"]},
+                    exc_info=True,
+                )
+
+        if not row:
+            info = start_container(user_id)
+            return info.url, info.token
+
         current_url = row["container_url"]
         if current_url:
             try:

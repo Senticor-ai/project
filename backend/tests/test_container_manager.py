@@ -310,6 +310,85 @@ def test_start_container_uses_k8s_runtime_when_enabled(monkeypatch, tmp_path):
 
 
 @pytest.mark.unit
+def test_start_container_does_not_persist_shared_k8s_gateway_port(monkeypatch, tmp_path):
+    user_id = "702a4639-e654-46b8-a4fa-83ecc2bcd06c"
+    row = {
+        "provider": "openrouter",
+        "api_key_encrypted": "encrypted-key",
+        "model": "google/gemini-3-flash-preview",
+    }
+
+    class _RecordingCursor:
+        def __init__(self, row):
+            self._row = row
+            self._last_query = ""
+            self.update_params = None
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def execute(self, query, params=None):
+            self._last_query = query
+            if "UPDATE user_agent_settings SET" in query:
+                self.update_params = params
+
+        def fetchone(self):
+            if "COUNT(*)::int AS active" in self._last_query:
+                return {"active": 0}
+            return self._row
+
+    class _RecordingConn:
+        def __init__(self, row):
+            self.cursor_obj = _RecordingCursor(row)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def cursor(self):
+            return self.cursor_obj
+
+        def commit(self):
+            return None
+
+    conn = _RecordingConn(row)
+    _patch_settings(
+        monkeypatch,
+        openclaw_runtime="k8s",
+        openclaw_k8s_namespace="project",
+        openclaw_k8s_gateway_port=18789,
+    )
+    monkeypatch.setattr("app.container.manager.db_conn", lambda: conn)
+    monkeypatch.setattr("app.container.manager._decrypt_api_key", lambda _enc: "decrypted-key")
+    monkeypatch.setattr("app.container.manager._wait_for_healthy", lambda _user, _url: None)
+    monkeypatch.setattr(
+        "app.container.manager.provision_workspace",
+        lambda **_kwargs: (
+            (tmp_path / "openclaw" / user_id),
+            (tmp_path / "openclaw-runtime" / user_id),
+        ),
+    )
+    monkeypatch.setattr("app.container.manager._k8s_apply_resources", lambda **_kwargs: None)
+    monkeypatch.setattr(
+        "app.container.manager.run_cmd",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("run_cmd must not be called in k8s runtime mode")
+        ),
+    )
+
+    start_container(user_id)
+
+    assert conn.cursor_obj.update_params is not None
+    # (container_name, container_url, container_port, user_id)
+    assert conn.cursor_obj.update_params[2] is None
+
+
+@pytest.mark.unit
 def test_start_container_reconciles_workspace_memory_before_run(monkeypatch, tmp_path):
     user_id = "702a4639-e654-46b8-a4fa-83ecc2bcd06c"
     row = {
@@ -463,6 +542,38 @@ def test_ensure_running_reports_starting_state_without_forced_restart(monkeypatc
 
     assert stop_calls == []
     assert start_calls == []
+
+
+@pytest.mark.unit
+def test_ensure_running_recovers_stale_k8s_starting_row_when_resources_are_missing(monkeypatch):
+    user_id = "702a4639-e654-46b8-a4fa-83ecc2bcd06c"
+    row = {
+        "container_url": "http://openclaw-user.project.svc.cluster.local:18789",
+        "container_status": "starting",
+        "container_name": "openclaw-user",
+        "container_error": None,
+    }
+
+    _patch_settings(monkeypatch, openclaw_runtime="k8s")
+    monkeypatch.setattr("app.container.manager.db_conn", lambda: _FakeConn(row))
+    monkeypatch.setattr("app.container.manager._is_container_ready", lambda _url: False)
+    monkeypatch.setattr(
+        "app.container.manager._k8s_runtime_resources_exist",
+        lambda _name: False,
+    )
+
+    stop_calls: list[str] = []
+    monkeypatch.setattr("app.container.manager.stop_container", lambda uid: stop_calls.append(uid))
+    monkeypatch.setattr(
+        "app.container.manager.start_container",
+        lambda _uid: SimpleNamespace(url="http://fresh-runtime", token="fresh-token"),
+    )
+
+    url, token = ensure_running(user_id)
+
+    assert url == "http://fresh-runtime"
+    assert token == "fresh-token"
+    assert stop_calls == [user_id]
 
 
 @pytest.mark.unit
