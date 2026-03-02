@@ -1,5 +1,30 @@
 # Changelog
 
+All notable project changes are documented in this file.
+
+The top section follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
+and release tags follow Semantic Versioning.
+
+## [Unreleased]
+
+### Added
+
+- None yet.
+
+### Changed
+
+- None yet.
+
+### Fixed
+
+- None yet.
+
+### Security
+
+- No known security fixes in this release window.
+
+## CI Deployment History
+
 Deployment updates written by CI.
 
 ## 2026-02-23 16:33:56 UTC - dc1cfa6b3108959b079a59f30ec6e7d19f3cf794

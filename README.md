@@ -104,6 +104,11 @@ npm run preflight:ci
 - For backend behavior/API changes, the strict gate must pass.
 - If a required gate cannot run locally, treat the task as incomplete and report the blocker.
 
+## OpenSSF Best Practices Badge
+
+- Submission target: early April 2026, contingent on continuing to meet the documented OpenSSF standards.
+- After bestpractices.dev approval, add the official badge SVG URL in this section.
+
 ## API
 
 - **OpenAPI UI**: http://localhost:8000/docs

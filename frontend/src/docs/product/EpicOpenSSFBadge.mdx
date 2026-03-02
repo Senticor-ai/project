@@ -31,8 +31,8 @@ security infrastructure. This epic closes the remaining gaps and tracks the badg
 | Reporting | 8 | 8 | 0 | 0 | 0 |
 | Quality | 13 | 13 | 0 | 0 | 0 |
 | Security | 16 | 14 | 0 | 0 | 2 |
-| Analysis | 8 | 7 | 1 | 0 | 0 |
-| **Total** | **67** | **60** | **3** | **2** | **2** |
+| Analysis | 8 | 8 | 0 | 0 | 0 |
+| **Total** | **67** | **61** | **2** | **2** | **2** |
 
 ---
 
@@ -56,7 +56,7 @@ security infrastructure. This epic closes the remaining gaps and tracks the badg
 ## Out of Scope
 
 - Silver or Gold badge levels (future epic).
-- DAST tooling integration (SUGGESTED-level, not required for passing).
+- Additional DAST hardening beyond the nightly OWASP ZAP baseline scan (criterion #64 is now MET).
 - Automated CVE scanning beyond existing Dependabot + pip-audit + npm-audit setup.
 
 ---
@@ -147,7 +147,7 @@ security infrastructure. This epic closes the remaining gaps and tracks the badg
 | 58 | vulnerabilities_critical_fixed | SHOULD | Fix critical vulns rapidly | MET | Security scanning in CI, Dependabot weekly |
 | 59 | no_leaked_credentials | MUST | No leaked credentials in repo | MET | .env in .gitignore, .env.example committed, documented policy |
 
-### Analysis (7/8 MET, 1 PARTIAL)
+### Analysis (8/8 MET)
 
 | # | ID | Level | Requirement | Status | Evidence |
 |---|-----|-------|-------------|--------|----------|
@@ -155,7 +155,7 @@ security infrastructure. This epic closes the remaining gaps and tracks the badg
 | 61 | static_analysis_common_vulnerabilities | SUGGESTED | SA looks for common vulns | MET | ruff/bandit security rules, npm audit |
 | 62 | static_analysis_fixed | MUST | Fix medium+ SA findings timely | MET | CI blocks on findings |
 | 63 | static_analysis_often | SUGGESTED | SA on every commit | MET | Runs on every PR via GitHub Actions |
-| 64 | dynamic_analysis | SUGGESTED | Dynamic analysis tool | PARTIAL | Playwright E2E exercises runtime; no dedicated DAST tool |
+| 64 | dynamic_analysis | SUGGESTED | Dynamic analysis tool | MET | Nightly OWASP ZAP baseline DAST scan in `.github/workflows/security.yml` |
 | 65 | dynamic_analysis_unsafe | SUGGESTED | Memory safety checks | N/A | Python + TypeScript are memory-safe languages |
 | 66 | dynamic_analysis_enable_assertions | SUGGESTED | Enable assertions in tests | MET | Test suites use assertions extensively |
 | 67 | dynamic_analysis_fixed | MUST | Fix medium+ dynamic findings | MET | No outstanding findings |
@@ -169,7 +169,6 @@ security infrastructure. This epic closes the remaining gaps and tracks the badg
 | version_tags (#20) | SUGGESTED | No git tags | Establish tagging convention, create first tag |
 | release_notes (#21) | MUST | Deployment-focused changelog | Add feature-oriented section to CHANGELOG.md |
 | release_notes_vulns (#22) | MUST | No CVE tracking in notes | Add "Security" section convention to release notes |
-| dynamic_analysis (#64) | SUGGESTED | No DAST tool | Out of scope for passing badge (SUGGESTED only) |
 
 ---
 
@@ -210,22 +209,23 @@ security infrastructure. This epic closes the remaining gaps and tracks the badg
 ## Delivery Plan
 
 ### Phase 1: Quick wins — governance docs
-- [ ] Create `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1)
-- [ ] Verify crypto key lengths meet NIST minimums (PBKDF2 iterations, AES key size)
-- [ ] Verify no unpatched medium+ vulnerabilities (`npm audit`, `pip-audit`)
+- [x] Create `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1)
+- [x] Verify crypto key lengths meet NIST minimums (PBKDF2 iterations, AES key size)
+- [x] Verify no unpatched medium+ vulnerabilities (`npm audit`, `pip-audit`)
 
 ### Phase 2: Release process — close MUST gaps
-- [ ] Add "Releases" section to `CONTRIBUTING.md` (tag convention, changelog format, CVE tracking)
-- [ ] Add feature-oriented format header to `CHANGELOG.md`
+- [x] Add "Releases" section to `CONTRIBUTING.md` (tag convention, changelog format, CVE tracking)
+- [x] Add feature-oriented format header to `CHANGELOG.md`
 - [ ] Create first git tag (`v0.1.0`) for current state
 
 ### Phase 3: Badge submission
+- [ ] Reminder: target self-certification in **early April 2026** if MUST criteria remain MET and security checks stay green
 - [ ] Self-certify at bestpractices.dev using the audit tables in this epic
-- [ ] Add badge SVG to `README.md`
+- [ ] Add badge SVG URL to `README.md` after badge issuance
 - [ ] Update this epic status to **Complete**
 
 ### Phase 4: Optional hardening (post-badge)
-- [ ] Consider DAST tool in CI (e.g., OWASP ZAP baseline scan)
+- [x] Consider DAST tool in CI (e.g., OWASP ZAP baseline scan)
 - [ ] Add `CODEOWNERS` file for review routing
 - [ ] Add `.pre-commit-config.yaml` for local developer enforcement
 - [ ] Evaluate Silver badge criteria for future epic
