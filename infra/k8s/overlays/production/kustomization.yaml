@@ -4,7 +4,9 @@ resources:
   - ../../base
   - configmap.yaml
   - rbac-openclaw-runtime.yaml
-  - secrets-per-workload.yaml
+  # secrets-per-workload.yaml disabled — contains SOPS placeholders, not real
+  # encrypted values.  Workers use app-secrets until per-workload SOPS is set up.
+  # - secrets-per-workload.yaml
 
 images:
   - name: project-backend

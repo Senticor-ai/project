@@ -276,13 +276,15 @@ export function EmailConnectionCard({
           <p className="text-xs text-text-muted">Kalender werden geladen...</p>
         )}
         {isCalendarSyncEnabled && !calendarsLoading && calendarLoadError && (
-          <p
+          <div
             className="rounded-[var(--radius-sm)] bg-status-error/10 px-2 py-1 text-xs text-status-error"
             title={calendarLoadError}
           >
-            Kalender konnten nicht geladen werden. Bitte Verbindung neu
-            herstellen und erneut synchronisieren.
-          </p>
+            <p>Kalender konnten nicht geladen werden.</p>
+            <p className="mt-1">
+              Bitte Verbindung trennen und Gmail-Konto neu verbinden.
+            </p>
+          </div>
         )}
         {isCalendarSyncEnabled &&
           !calendarsLoading &&

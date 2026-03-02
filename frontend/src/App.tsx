@@ -172,7 +172,10 @@ function AuthenticatedApp({
         connection.is_active &&
         (connection.calendar_sync_enabled ?? true),
       retry: (failureCount: number, error: unknown) => {
-        if (error instanceof ApiError && error.status === 404) return false;
+        if (error instanceof ApiError) {
+          // Don't retry auth/gateway errors — user must reconnect Gmail
+          if ([401, 403, 404, 502].includes(error.status)) return false;
+        }
         return failureCount < 3;
       },
       staleTime: 60_000,

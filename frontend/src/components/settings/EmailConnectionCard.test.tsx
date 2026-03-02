@@ -313,12 +313,23 @@ describe("EmailConnectionCard", () => {
     );
 
     expect(
-      screen.getByText(
-        /Kalender konnten nicht geladen werden\. Bitte Verbindung neu herstellen/,
-      ),
+      screen.getByText(/Kalender konnten nicht geladen werden/),
     ).toBeInTheDocument();
     expect(
       screen.queryByText("Keine Kalender verfügbar."),
     ).not.toBeInTheDocument();
+  });
+
+  it("shows reconnect guidance for Google API gateway errors", () => {
+    render(
+      <EmailConnectionCard
+        connection={baseConnection}
+        calendarLoadError="Failed to list Google calendars: invalid_grant"
+      />,
+    );
+
+    expect(
+      screen.getByText(/Verbindung trennen und Gmail-Konto neu verbinden/),
+    ).toBeInTheDocument();
   });
 });
