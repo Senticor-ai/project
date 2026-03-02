@@ -168,6 +168,47 @@ def test_start_container_fails_when_image_pull_fails(monkeypatch, tmp_path):
 
 
 @pytest.mark.unit
+def test_start_container_fails_fast_when_template_assets_are_missing(monkeypatch):
+    user_id = "702a4639-e654-46b8-a4fa-83ecc2bcd06c"
+    row = {
+        "provider": "openrouter",
+        "api_key_encrypted": "encrypted-key",
+        "model": "google/gemini-3-flash-preview",
+    }
+
+    _patch_settings(monkeypatch, openclaw_project_mount_path="", openclaw_pull_policy="never")
+    monkeypatch.setattr("app.container.manager.db_conn", lambda: _FakeConn(row))
+    monkeypatch.setattr("app.container.manager._allocate_port", lambda _cur: 18800)
+    monkeypatch.setattr("app.container.manager._decrypt_api_key", lambda _enc: "decrypted-key")
+    monkeypatch.setattr(
+        "app.container.manager.provision_workspace",
+        lambda **_kwargs: (_ for _ in ()).throw(
+            FileNotFoundError(2, "No such file or directory", "/app/openclaw")
+        ),
+    )
+
+    marked: dict[str, str] = {}
+
+    def _fake_mark_error(target_user_id: str, message: str) -> None:
+        marked["user_id"] = target_user_id
+        marked["message"] = message
+
+    monkeypatch.setattr("app.container.manager._mark_error", _fake_mark_error)
+    monkeypatch.setattr(
+        "app.container.manager.run_cmd",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("run_cmd must not execute when template assets are missing")
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="template files are missing"):
+        start_container(user_id)
+
+    assert marked["user_id"] == user_id
+    assert "/app/openclaw" in marked["message"]
+
+
+@pytest.mark.unit
 def test_start_container_skips_pull_when_image_exists_locally(monkeypatch, tmp_path):
     user_id = "702a4639-e654-46b8-a4fa-83ecc2bcd06c"
     row = {

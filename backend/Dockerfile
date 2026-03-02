@@ -19,6 +19,7 @@ COPY backend/pyproject.toml backend/uv.lock ./
 RUN uv sync --frozen --no-dev
 
 COPY backend/ ./
+COPY openclaw/ /app/openclaw/
 
 ENV PATH="/app/backend/.venv/bin:${PATH}" \
     HOME=/app/backend

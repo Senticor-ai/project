@@ -210,6 +210,14 @@ def _build_model_string(provider: str, model: str) -> str:
     return model
 
 
+def _build_missing_template_assets_error(exc: FileNotFoundError) -> str:
+    missing_path = exc.filename or str(exc)
+    return (
+        "OpenClaw runtime template files are missing in the backend image "
+        f"(path: {missing_path}). Ensure /app/openclaw is packaged before deploying."
+    )
+
+
 def _build_volume_args(workspace_dir: Path, runtime_dir: Path) -> list[str]:
     """Build the -v flags for the container run command."""
     args: list[str] = [
@@ -580,13 +588,18 @@ def start_container(user_id: str) -> ContainerInfo:
     openclaw_model = _build_model_string(provider, model)
 
     # Provision workspace + runtime directory on disk
-    workspace_dir, runtime_dir = provision_workspace(
-        user_id=user_id,
-        storage_base=settings.file_storage_path,
-        port=port,
-        model=openclaw_model,
-        token=gateway_token,
-    )
+    try:
+        workspace_dir, runtime_dir = provision_workspace(
+            user_id=user_id,
+            storage_base=settings.file_storage_path,
+            port=port,
+            model=openclaw_model,
+            token=gateway_token,
+        )
+    except FileNotFoundError as exc:
+        detail = _build_missing_template_assets_error(exc)
+        _mark_error(user_id, detail[:300])
+        raise RuntimeError(detail) from exc
     try:
         memory_sync = reconcile_workspace_memory(user_id=user_id)
         if memory_sync["restored"] or memory_sync["seeded"]:

@@ -58,6 +58,21 @@ def test_provision_workspace_populates_bootstrap_for_new_workspace(monkeypatch, 
 
 
 @pytest.mark.unit
+def test_provision_workspace_fails_fast_when_template_dir_missing(monkeypatch, tmp_path):
+    missing_template_dir = tmp_path / "missing-openclaw"
+    _patch_template_dirs(monkeypatch, missing_template_dir, missing_template_dir / "workspace")
+
+    with pytest.raises(FileNotFoundError, match="OpenClaw template directory is missing"):
+        workspace_mod.provision_workspace(
+            user_id="user-missing-template",
+            storage_base=tmp_path / "storage",
+            port=18888,
+            model="openrouter/google/gemini-3-flash-preview",
+            token="gateway-token",
+        )
+
+
+@pytest.mark.unit
 def test_provision_workspace_migrates_legacy_identity_and_adds_bootstrap(monkeypatch, tmp_path):
     template_dir, workspace_template_dir = _write_template(tmp_path)
     _patch_template_dirs(monkeypatch, template_dir, workspace_template_dir)

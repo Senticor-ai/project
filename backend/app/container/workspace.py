@@ -7,6 +7,7 @@ is NEVER written to disk — it's injected as an env var at container start.
 
 from __future__ import annotations
 
+import errno
 import json
 import shutil
 from pathlib import Path
@@ -18,6 +19,34 @@ WORKSPACE_TEMPLATE_DIR = TEMPLATE_DIR / "workspace"
 BOOTSTRAP_FILENAME = "BOOTSTRAP.md"
 IDENTITY_FILENAME = "IDENTITY.md"
 LEGACY_IDENTITY_SENTINEL = "name: Copilot"
+
+
+def validate_template_assets() -> None:
+    """Fail fast when required OpenClaw template assets are missing."""
+    if not TEMPLATE_DIR.is_dir():
+        raise FileNotFoundError(
+            errno.ENOENT,
+            (
+                "OpenClaw template directory is missing. "
+                "Ensure backend image includes /app/openclaw."
+            ),
+            str(TEMPLATE_DIR),
+        )
+
+    template_config_path = TEMPLATE_DIR / "openclaw.json"
+    if not template_config_path.is_file():
+        raise FileNotFoundError(
+            errno.ENOENT,
+            "OpenClaw template config is missing.",
+            str(template_config_path),
+        )
+
+    if not WORKSPACE_TEMPLATE_DIR.is_dir():
+        raise FileNotFoundError(
+            errno.ENOENT,
+            "OpenClaw workspace template directory is missing.",
+            str(WORKSPACE_TEMPLATE_DIR),
+        )
 
 
 def _read_text_if_exists(path: Path) -> str | None:
@@ -73,6 +102,8 @@ def provision_workspace(
 
     Returns (workspace_dir, runtime_dir).
     """
+    validate_template_assets()
+
     # Docker volume mounts require absolute paths
     abs_base = storage_base.resolve()
     workspace_dir = abs_base / "openclaw" / user_id
