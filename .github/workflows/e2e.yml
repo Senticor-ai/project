@@ -203,7 +203,7 @@ jobs:
           npm run dev -- --host 0.0.0.0 --port 5173 > /tmp/frontend.log 2>&1 &
           wait_for "http://localhost:5173" "Frontend" 75 1
 
-          CI=1 npm run test:e2e
+          E2E_BASE_URL=http://localhost:5173 CI=1 npm run test:e2e
 
       - name: Upload fullstack artifacts
         if: always()
