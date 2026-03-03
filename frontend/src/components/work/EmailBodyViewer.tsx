@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import DOMPurify from "dompurify";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
@@ -33,6 +33,13 @@ export function EmailBodyViewer({
 }: EmailBodyViewerProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [copied, setCopied] = useState(false);
+  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+    };
+  }, []);
 
   const sanitizedHtml = useMemo(() => {
     if (!htmlBody) return "";
@@ -93,7 +100,8 @@ export function EmailBodyViewer({
       document.body.removeChild(ta);
     }
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+    copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
   }
 
   return (
