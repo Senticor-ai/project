@@ -29,6 +29,17 @@ test.describe("Real User Journey", () => {
     await expect(loginPage.heading).toHaveText("Sign in to continue");
     await loginPage.register(email, password);
 
+    // Dismiss first-login disclaimer modal (new users must acknowledge)
+    const disclaimerButton = page.getByRole("button", { name: "Ich verstehe" });
+    const hasDisclaimer = await disclaimerButton
+      .waitFor({ state: "visible", timeout: 5_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (hasDisclaimer) {
+      await disclaimerButton.click();
+      await disclaimerButton.waitFor({ state: "hidden" });
+    }
+
     // Should land on workspace
     const ws = new WorkspacePage(page);
     await expect(ws.bucketNav).toBeVisible({ timeout: 15_000 });
@@ -55,7 +66,9 @@ test.describe("Real User Journey", () => {
     await expect(ws.bucketCount("Inbox")).toHaveText("2");
 
     await ws.triageButton("Waiting").click();
-    await expect(page.getByText("Artikel über Testing lesen")).not.toBeVisible();
+    await expect(
+      page.getByText("Artikel über Testing lesen"),
+    ).not.toBeVisible();
     await expect(ws.bucketCount("Inbox")).toHaveText("1");
 
     await ws.triageButton("Later").click();
@@ -84,7 +97,9 @@ test.describe("Real User Journey", () => {
       page.getByRole("complementary", { name: "Copilot Chat" }),
     ).toBeVisible();
 
-    const chatInput = page.getByRole("textbox", { name: "Nachricht an Copilot" });
+    const chatInput = page.getByRole("textbox", {
+      name: "Nachricht an Copilot",
+    });
     await chatInput.fill(
       "Erstelle mir bitte ein Projekt 'Steuererklärung 2025' " +
         "mit dem gewünschten Ergebnis 'Steuererklärung fristgerecht abgeben' " +
