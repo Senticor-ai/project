@@ -26,6 +26,14 @@ from ..db import db_conn
 from ..delegation import create_delegated_token
 from ..deps import get_current_org, get_current_user
 from ..routes.agent_settings import get_user_agent_backend, get_user_llm_config
+from .instrumentation import (
+    ChatContext,
+    FirstTokenTracker,
+    record_persistence_outcome,
+    span_chat_completions,
+    span_db_setup,
+    span_ensure_running,
+)
 from .queries import (
     archive_conversation,
     get_conversation_messages,
@@ -140,10 +148,12 @@ def _stream_and_persist(
     agents_url: str,
     agent_payload: dict,
     conversation_id: str,
+    ctx: ChatContext | None = None,
 ) -> Generator[bytes, None, None]:
     """Stream NDJSON from agents, forward to client, persist assistant response."""
     full_text = ""
     tool_calls: list[dict] | None = None
+    tracker = FirstTokenTracker("haystack") if ctx else None
 
     try:
         with httpx.stream(
@@ -160,6 +170,8 @@ def _stream_and_persist(
                 try:
                     event = json.loads(line)
                     if event.get("type") == "text_delta":
+                        if tracker:
+                            tracker.mark_first_token()
                         full_text += event.get("content", "")
                     elif event.get("type") == "tool_calls":
                         tool_calls = event.get("toolCalls")
@@ -181,7 +193,14 @@ def _stream_and_persist(
         return
 
     # Persist the assistant response after stream completes
-    save_message(conversation_id, "assistant", full_text, tool_calls)
+    try:
+        save_message(conversation_id, "assistant", full_text, tool_calls)
+        if ctx:
+            record_persistence_outcome("history", True, ctx)
+    except Exception as exc:
+        logger.warning("chat.haystack_persist_failed", exc_info=True)
+        if ctx:
+            record_persistence_outcome("history", False, ctx, error=exc)
 
 
 # ---------------------------------------------------------------------------
@@ -232,6 +251,7 @@ async def _stream_openclaw_after_startup(
     conversation_id: str,
     messages: list[dict],
     initial_detail: str,
+    ctx: ChatContext | None = None,
 ) -> AsyncGenerator[bytes, None]:
     """Keep request open during startup, then forward chat to OpenClaw once ready."""
     timeout_seconds = max(
@@ -313,6 +333,7 @@ async def _stream_openclaw_after_startup(
         conversation_id,
         user_id=user_id,
         org_id=org_id,
+        ctx=ctx,
     ):
         yield chunk
 
@@ -324,6 +345,7 @@ async def _stream_openclaw(
     conversation_id: str,
     user_id: str,
     org_id: str,
+    ctx: ChatContext | None = None,
 ) -> AsyncGenerator[bytes, None]:
     """Stream SSE from OpenClaw, translate to NDJSON.
 
@@ -351,6 +373,7 @@ async def _stream_openclaw(
         return
 
     translator = SseToNdjsonTranslator()
+    tracker = FirstTokenTracker("openclaw") if ctx else None
 
     payload = {
         "model": "openclaw",
@@ -380,6 +403,8 @@ async def _stream_openclaw(
                         # Forward text and done events; skip tool_calls
                         # (OpenClaw handles exec tool calls internally)
                         if event["type"] in ("text_delta", "done", "error"):
+                            if event["type"] == "text_delta" and tracker:
+                                tracker.mark_first_token()
                             yield (json.dumps(event) + "\n").encode()
     except httpx.ConnectError:
         err = {"type": "error", "detail": "OpenClaw service unreachable"}
@@ -405,20 +430,28 @@ async def _stream_openclaw(
     # Persist assistant response (text only, no tool_calls)
     try:
         save_message(conversation_id, "assistant", translator.full_text)
-    except Exception:
+        if ctx:
+            record_persistence_outcome("history", True, ctx)
+    except Exception as exc:
         logger.warning(
             "chat.openclaw_persist_failed",
             extra={"user_id": user_id, "conversation_id": conversation_id},
             exc_info=True,
         )
+        if ctx:
+            record_persistence_outcome("history", False, ctx, error=exc)
     try:
         sync_workspace_memory_to_db(user_id=user_id, org_id=org_id, source=SOURCE_RUNTIME_SYNC)
-    except Exception:
+        if ctx:
+            record_persistence_outcome("openclaw_memory", True, ctx)
+    except Exception as exc:
         logger.warning(
             "chat.openclaw_memory_sync_failed",
             extra={"user_id": user_id},
             exc_info=True,
         )
+        if ctx:
+            record_persistence_outcome("openclaw_memory", False, ctx, error=exc)
 
     # Notify frontend that items may have changed
     yield (json.dumps({"type": "items_changed"}) + "\n").encode()
@@ -438,24 +471,49 @@ def chat_completions(
 ):
     user_id = str(current_user["id"])
     org_id = current_org["org_id"]
+    request_id = getattr(request.state, "request_id", None)
+
+    ctx = ChatContext(
+        conversation_id=req.conversationId,
+        request_id=str(request_id) if request_id else None,
+        user_id=user_id,
+        org_id=org_id,
+    )
+
+    with span_chat_completions(ctx):
+        return _handle_chat_completions(request, req, ctx, current_user)
+
+
+def _handle_chat_completions(
+    request: Request,
+    req: ChatCompletionRequest,
+    ctx: ChatContext,
+    current_user: dict,
+) -> StreamingResponse:
+    """Inner handler wrapped by span_chat_completions."""
+    user_id = ctx.user_id
+    org_id = ctx.org_id
 
     try:
-        agent_backend = get_user_agent_backend(user_id)
+        with span_db_setup(ctx):
+            agent_backend = get_user_agent_backend(user_id)
+            ctx.agent_backend = agent_backend
 
-        # 1. Get or create conversation (scoped by agent_backend)
-        conv = get_or_create_conversation(
-            org_id=org_id,
-            user_id=user_id,
-            external_id=req.conversationId,
-            agent_backend=agent_backend,
-        )
-        conversation_id = str(conv["conversation_id"])
+            # 1. Get or create conversation (scoped by agent_backend)
+            conv = get_or_create_conversation(
+                org_id=org_id,
+                user_id=user_id,
+                external_id=req.conversationId,
+                agent_backend=agent_backend,
+            )
+            conversation_id = str(conv["conversation_id"])
+            ctx.conversation_id = conversation_id
 
-        # 2. Save user message
-        save_message(conversation_id, "user", req.message)
+            # 2. Save user message
+            save_message(conversation_id, "user", req.message)
 
-        # 3. Fetch history
-        history = get_conversation_messages(conversation_id)
+            # 3. Fetch history
+            history = get_conversation_messages(conversation_id)
     except Exception:
         logger.exception(
             "chat.db_setup_failed",
@@ -478,7 +536,8 @@ def chat_completions(
     if agent_backend == "openclaw":
         messages = _build_openai_messages(history)
         try:
-            container_url, container_token = ensure_running(user_id)
+            with span_ensure_running(ctx):
+                container_url, container_token = ensure_running(user_id)
         except ValueError as exc:
             logger.warning(
                 "container.not_configured",
@@ -513,6 +572,7 @@ def chat_completions(
                         conversation_id=conversation_id,
                         messages=messages,
                         initial_detail=detail,
+                        ctx=ctx,
                     ),
                     media_type="application/x-ndjson",
                 )
@@ -535,6 +595,7 @@ def chat_completions(
                 conversation_id,
                 user_id=user_id,
                 org_id=org_id,
+                ctx=ctx,
             ),
             media_type="application/x-ndjson",
         )
@@ -633,7 +694,7 @@ def chat_completions(
         }
 
     return StreamingResponse(
-        _stream_and_persist(settings.agents_url, agent_payload, conversation_id),
+        _stream_and_persist(settings.agents_url, agent_payload, conversation_id, ctx=ctx),
         media_type="application/x-ndjson",
     )
 

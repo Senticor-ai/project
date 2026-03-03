@@ -1110,6 +1110,70 @@ class TestGetConversationMessages:
         assert messages[1]["content"] == "Antwort"
 
 
+class TestChatInstrumentationIntegration:
+    """Integration tests verifying instrumentation wiring in chat routes."""
+
+    def test_persistence_failure_still_delivers_stream(self, auth_client, monkeypatch):
+        """If save_message fails for the assistant response, the client still receives the stream."""
+        _patch_settings(monkeypatch, agents_url="http://localhost:8002")
+
+        events = [
+            {"type": "text_delta", "content": "Antwort"},
+            {"type": "done", "text": "Antwort"},
+        ]
+        monkeypatch.setattr("app.chat.routes.httpx.stream", _make_stream_response(events))
+
+        # Fail only the second save_message call (the assistant persist)
+        call_count = {"n": 0}
+        original_save = None
+
+        import app.chat.routes as routes_mod
+
+        original_save = routes_mod.save_message
+
+        def _failing_save(*args, **kwargs):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                return original_save(*args, **kwargs)  # user message succeeds
+            raise RuntimeError("DB write failed")
+
+        monkeypatch.setattr("app.chat.routes.save_message", _failing_save)
+
+        response = auth_client.post(
+            "/chat/completions",
+            json={
+                "message": "Hallo",
+                "conversationId": f"conv-persist-fail-{uuid.uuid4().hex[:8]}",
+            },
+        )
+        assert response.status_code == 200
+        parsed = _parse_ndjson(response)
+        text_deltas = [e for e in parsed if e["type"] == "text_delta"]
+        assert len(text_deltas) == 1
+        assert text_deltas[0]["content"] == "Antwort"
+
+    def test_metrics_include_chat_counters_after_request(self, auth_client, monkeypatch):
+        """After a chat request, /metrics should include chat_requests_total."""
+        _patch_settings(monkeypatch, agents_url="http://localhost:8002")
+
+        events = [
+            {"type": "text_delta", "content": "ok"},
+            {"type": "done", "text": "ok"},
+        ]
+        monkeypatch.setattr("app.chat.routes.httpx.stream", _make_stream_response(events))
+
+        auth_client.post(
+            "/chat/completions",
+            json={"message": "Hallo", "conversationId": f"conv-metrics-{uuid.uuid4().hex[:8]}"},
+        )
+
+        metrics_response = auth_client.get("/metrics")
+        assert metrics_response.status_code == 200
+        body = metrics_response.text
+        assert "chat_requests_total" in body
+        assert "chat_request_duration_seconds" in body
+
+
 class TestArchiveConversation:
     def test_returns_401_without_auth(self, client):
         response = client.patch("/chat/conversations/fake-id/archive")
