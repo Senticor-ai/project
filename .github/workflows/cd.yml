@@ -1,0 +1,366 @@
+name: CD
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  STACKIT_REGISTRY: registry.onstackit.cloud
+  STACKIT_IMAGE_PREFIX: registry.onstackit.cloud/senticor/project
+
+concurrency:
+  group: cd-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  push-frontend:
+    if: >-
+      (github.event_name == 'workflow_dispatch') ||
+      (github.event.workflow_run.conclusion == 'success'
+       && github.event.workflow_run.actor.login != 'github-actions[bot]')
+    runs-on: ubuntu-latest
+    outputs:
+      image_pushed: ${{ steps.push_frontend.outcome == 'success' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: docker/setup-buildx-action@v3
+      - name: Authenticate to StackIT registry
+        id: registry_auth
+        env:
+          STACKIT_REGISTRY_USER: ${{ secrets.STACKIT_REGISTRY_USER }}
+          STACKIT_REGISTRY_PASSWORD: ${{ secrets.STACKIT_REGISTRY_PASSWORD }}
+        run: |
+          REGISTRY_USER="$(printf '%s' "${STACKIT_REGISTRY_USER:-}" | tr -d '\r\n')"
+          REGISTRY_PASSWORD="$(printf '%s' "${STACKIT_REGISTRY_PASSWORD:-}" | tr -d '\r\n')"
+
+          if [ -z "${REGISTRY_USER}" ] || [ -z "${REGISTRY_PASSWORD}" ]; then
+            echo "::warning::Missing StackIT registry credentials; skipping frontend image push."
+            echo "can_push=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if printf '%s' "${REGISTRY_PASSWORD}" | docker login "${STACKIT_REGISTRY}" --username "${REGISTRY_USER}" --password-stdin; then
+            echo "can_push=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "::warning::StackIT registry authentication failed; skipping frontend image push."
+          echo "can_push=false" >> "$GITHUB_OUTPUT"
+      - name: Build and push frontend image
+        id: push_frontend
+        if: steps.registry_auth.outputs.can_push == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: frontend/Dockerfile
+          push: true
+          tags: ${{ env.STACKIT_IMAGE_PREFIX }}/frontend:${{ github.event.workflow_run.head_sha || github.sha }}
+      - name: Skip frontend image push
+        if: steps.registry_auth.outputs.can_push != 'true'
+        run: echo "Frontend image push skipped because registry authentication was unavailable."
+
+  push-backend:
+    if: >-
+      (github.event_name == 'workflow_dispatch') ||
+      (github.event.workflow_run.conclusion == 'success'
+       && github.event.workflow_run.actor.login != 'github-actions[bot]')
+    runs-on: ubuntu-latest
+    outputs:
+      image_pushed: ${{ steps.push_backend.outcome == 'success' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: docker/setup-buildx-action@v3
+      - name: Authenticate to StackIT registry
+        id: registry_auth
+        env:
+          STACKIT_REGISTRY_USER: ${{ secrets.STACKIT_REGISTRY_USER }}
+          STACKIT_REGISTRY_PASSWORD: ${{ secrets.STACKIT_REGISTRY_PASSWORD }}
+        run: |
+          REGISTRY_USER="$(printf '%s' "${STACKIT_REGISTRY_USER:-}" | tr -d '\r\n')"
+          REGISTRY_PASSWORD="$(printf '%s' "${STACKIT_REGISTRY_PASSWORD:-}" | tr -d '\r\n')"
+
+          if [ -z "${REGISTRY_USER}" ] || [ -z "${REGISTRY_PASSWORD}" ]; then
+            echo "::warning::Missing StackIT registry credentials; skipping backend image push."
+            echo "can_push=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if printf '%s' "${REGISTRY_PASSWORD}" | docker login "${STACKIT_REGISTRY}" --username "${REGISTRY_USER}" --password-stdin; then
+            echo "can_push=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "::warning::StackIT registry authentication failed; skipping backend image push."
+          echo "can_push=false" >> "$GITHUB_OUTPUT"
+      - name: Build and push backend image
+        id: push_backend
+        if: steps.registry_auth.outputs.can_push == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend/Dockerfile
+          push: true
+          tags: ${{ env.STACKIT_IMAGE_PREFIX }}/backend:${{ github.event.workflow_run.head_sha || github.sha }}
+      - name: Skip backend image push
+        if: steps.registry_auth.outputs.can_push != 'true'
+        run: echo "Backend image push skipped because registry authentication was unavailable."
+
+  push-storybook:
+    if: >-
+      (github.event_name == 'workflow_dispatch') ||
+      (github.event.workflow_run.conclusion == 'success'
+       && github.event.workflow_run.actor.login != 'github-actions[bot]')
+    runs-on: ubuntu-latest
+    outputs:
+      image_pushed: ${{ steps.push_storybook.outcome == 'success' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: docker/setup-buildx-action@v3
+      - name: Authenticate to StackIT registry
+        id: registry_auth
+        env:
+          STACKIT_REGISTRY_USER: ${{ secrets.STACKIT_REGISTRY_USER }}
+          STACKIT_REGISTRY_PASSWORD: ${{ secrets.STACKIT_REGISTRY_PASSWORD }}
+        run: |
+          REGISTRY_USER="$(printf '%s' "${STACKIT_REGISTRY_USER:-}" | tr -d '\r\n')"
+          REGISTRY_PASSWORD="$(printf '%s' "${STACKIT_REGISTRY_PASSWORD:-}" | tr -d '\r\n')"
+
+          if [ -z "${REGISTRY_USER}" ] || [ -z "${REGISTRY_PASSWORD}" ]; then
+            echo "::warning::Missing StackIT registry credentials; skipping storybook image push."
+            echo "can_push=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if printf '%s' "${REGISTRY_PASSWORD}" | docker login "${STACKIT_REGISTRY}" --username "${REGISTRY_USER}" --password-stdin; then
+            echo "can_push=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "::warning::StackIT registry authentication failed; skipping storybook image push."
+          echo "can_push=false" >> "$GITHUB_OUTPUT"
+      - name: Build and push storybook image
+        id: push_storybook
+        if: steps.registry_auth.outputs.can_push == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: frontend/Dockerfile.storybook
+          build-args: |
+            STORYBOOK_BASE=/storybook/
+          push: true
+          tags: ${{ env.STACKIT_IMAGE_PREFIX }}/storybook:${{ github.event.workflow_run.head_sha || github.sha }}
+      - name: Skip storybook image push
+        if: steps.registry_auth.outputs.can_push != 'true'
+        run: echo "Storybook image push skipped because registry authentication was unavailable."
+
+  push-agents:
+    if: >-
+      (github.event_name == 'workflow_dispatch') ||
+      (github.event.workflow_run.conclusion == 'success'
+       && github.event.workflow_run.actor.login != 'github-actions[bot]')
+    runs-on: ubuntu-latest
+    outputs:
+      image_pushed: ${{ steps.push_agents.outcome == 'success' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: docker/setup-buildx-action@v3
+      - name: Authenticate to StackIT registry
+        id: registry_auth
+        env:
+          STACKIT_REGISTRY_USER: ${{ secrets.STACKIT_REGISTRY_USER }}
+          STACKIT_REGISTRY_PASSWORD: ${{ secrets.STACKIT_REGISTRY_PASSWORD }}
+        run: |
+          REGISTRY_USER="$(printf '%s' "${STACKIT_REGISTRY_USER:-}" | tr -d '\r\n')"
+          REGISTRY_PASSWORD="$(printf '%s' "${STACKIT_REGISTRY_PASSWORD:-}" | tr -d '\r\n')"
+
+          if [ -z "${REGISTRY_USER}" ] || [ -z "${REGISTRY_PASSWORD}" ]; then
+            echo "::warning::Missing StackIT registry credentials; skipping agents image push."
+            echo "can_push=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if printf '%s' "${REGISTRY_PASSWORD}" | docker login "${STACKIT_REGISTRY}" --username "${REGISTRY_USER}" --password-stdin; then
+            echo "can_push=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "::warning::StackIT registry authentication failed; skipping agents image push."
+          echo "can_push=false" >> "$GITHUB_OUTPUT"
+      - name: Build and push agents image
+        id: push_agents
+        if: steps.registry_auth.outputs.can_push == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: agents/Dockerfile
+          push: true
+          tags: ${{ env.STACKIT_IMAGE_PREFIX }}/agents:${{ github.event.workflow_run.head_sha || github.sha }}
+      - name: Skip agents image push
+        if: steps.registry_auth.outputs.can_push != 'true'
+        run: echo "Agents image push skipped because registry authentication was unavailable."
+
+  push-openclaw:
+    if: >-
+      (github.event_name == 'workflow_dispatch') ||
+      (github.event.workflow_run.conclusion == 'success'
+       && github.event.workflow_run.actor.login != 'github-actions[bot]')
+    runs-on: ubuntu-latest
+    outputs:
+      image_pushed: ${{ steps.push_openclaw.outcome == 'success' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: docker/setup-buildx-action@v3
+      - name: Authenticate to StackIT registry
+        id: registry_auth
+        env:
+          STACKIT_REGISTRY_USER: ${{ secrets.STACKIT_REGISTRY_USER }}
+          STACKIT_REGISTRY_PASSWORD: ${{ secrets.STACKIT_REGISTRY_PASSWORD }}
+        run: |
+          REGISTRY_USER="$(printf '%s' "${STACKIT_REGISTRY_USER:-}" | tr -d '\r\n')"
+          REGISTRY_PASSWORD="$(printf '%s' "${STACKIT_REGISTRY_PASSWORD:-}" | tr -d '\r\n')"
+
+          if [ -z "${REGISTRY_USER}" ] || [ -z "${REGISTRY_PASSWORD}" ]; then
+            echo "::warning::Missing StackIT registry credentials; skipping openclaw image push."
+            echo "can_push=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if printf '%s' "${REGISTRY_PASSWORD}" | docker login "${STACKIT_REGISTRY}" --username "${REGISTRY_USER}" --password-stdin; then
+            echo "can_push=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "::warning::StackIT registry authentication failed; skipping openclaw image push."
+          echo "can_push=false" >> "$GITHUB_OUTPUT"
+      - name: Build and push openclaw image
+        id: push_openclaw
+        if: steps.registry_auth.outputs.can_push == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: openclaw/Dockerfile.alpha
+          push: true
+          tags: ${{ env.STACKIT_IMAGE_PREFIX }}/openclaw:${{ github.event.workflow_run.head_sha || github.sha }}
+      - name: Skip openclaw image push
+        if: steps.registry_auth.outputs.can_push != 'true'
+        run: echo "OpenClaw image push skipped because registry authentication was unavailable."
+
+  update-manifests:
+    if: >-
+      (github.event_name == 'workflow_dispatch') ||
+      (github.event.workflow_run.conclusion == 'success'
+       && github.event.workflow_run.actor.login != 'github-actions[bot]')
+    needs:
+      - push-frontend
+      - push-backend
+      - push-storybook
+      - push-agents
+      - push-openclaw
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+      - name: Update production image tags for Flux
+        if: >-
+          needs.push-frontend.outputs.image_pushed == 'true'
+          && needs.push-backend.outputs.image_pushed == 'true'
+          && needs.push-storybook.outputs.image_pushed == 'true'
+          && needs.push-agents.outputs.image_pushed == 'true'
+          && needs.push-openclaw.outputs.image_pushed == 'true'
+        run: |
+          IMAGE_TAG="${{ github.event.workflow_run.head_sha || github.sha }}"
+          KUST="infra/k8s/overlays/production/kustomization.yaml"
+          CONFIG="infra/k8s/overlays/production/configmap.yaml"
+          CHANGELOG_FILE="CHANGELOG.md"
+          RUN_URL="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          TIMESTAMP="$(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+
+          sed -i "s|newName: .*/backend|newName: ${STACKIT_IMAGE_PREFIX}/backend|" "$KUST"
+          sed -i "s|newName: .*/frontend|newName: ${STACKIT_IMAGE_PREFIX}/frontend|" "$KUST"
+          sed -i "s|newName: .*/storybook|newName: ${STACKIT_IMAGE_PREFIX}/storybook|" "$KUST"
+          sed -i "s|newName: .*/agents|newName: ${STACKIT_IMAGE_PREFIX}/agents|" "$KUST"
+          sed -i "s|newName: .*/openclaw|newName: ${STACKIT_IMAGE_PREFIX}/openclaw|" "$KUST"
+          sed -i "s/newTag: .*/newTag: \"${IMAGE_TAG}\"/" "$KUST"
+          sed -i "s|OPENCLAW_IMAGE: \".*\"|OPENCLAW_IMAGE: \"${STACKIT_IMAGE_PREFIX}/openclaw:${IMAGE_TAG}\"|" "$CONFIG"
+
+          if git diff --quiet -- "$KUST" "$CONFIG"; then
+            echo "No manifest change to commit"
+            exit 0
+          fi
+
+          if [ ! -f "$CHANGELOG_FILE" ]; then
+            {
+              echo "# Changelog"
+              echo
+              echo "Deployment updates written by CI."
+            } > "$CHANGELOG_FILE"
+          fi
+
+          {
+            echo
+            echo "## ${TIMESTAMP} - ${IMAGE_TAG}"
+            echo
+            echo "- Updated \`${KUST}\` image tags to \`${IMAGE_TAG}\`."
+            echo "- Updated \`${CONFIG}\` OpenClaw image to \`${STACKIT_IMAGE_PREFIX}/openclaw:${IMAGE_TAG}\`."
+            echo "- Workflow run: ${RUN_URL}"
+            echo "- Actor: \`${GITHUB_ACTOR}\`"
+          } >> "$CHANGELOG_FILE"
+
+          git config user.email "ci@project.dev"
+          git config user.name "github-actions[bot]"
+          git add "$KUST" "$CONFIG" "$CHANGELOG_FILE"
+          git commit -m "deploy: update image tag to ${IMAGE_TAG} [skip ci]"
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+  smoke-openclaw-production:
+    if: >-
+      (github.event_name == 'workflow_dispatch') ||
+      (github.event.workflow_run.conclusion == 'success'
+       && github.event.workflow_run.actor.login != 'github-actions[bot]')
+    needs:
+      - update-manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install smoke dependencies
+        run: python -m pip install --upgrade pip httpx
+      - name: Run OpenClaw smoke against production
+        env:
+          SMOKE_BASE_URL: https://project.senticor.runs.onstackit.cloud
+          SMOKE_OPENROUTER_API_KEY: ${{ secrets.E2E_OPENROUTER_API_KEY }}
+          SMOKE_OPENROUTER_MODEL: google/gemini-2.5-flash
+        run: |
+          if [ -z "${SMOKE_OPENROUTER_API_KEY:-}" ]; then
+            echo "::warning::Missing E2E_OPENROUTER_API_KEY; skipping OpenClaw smoke."
+            exit 0
+          fi
+
+          python scripts/smoke-openclaw-prod.py \
+            --base-url "${SMOKE_BASE_URL}" \
+            --api-key "${SMOKE_OPENROUTER_API_KEY}" \
+            --model "${SMOKE_OPENROUTER_MODEL}" \
+            --wait-seconds 900
