@@ -285,3 +285,20 @@ def classify_error(exc: Exception, backend: str) -> str:
             return "container_error" if backend == "openclaw" else "provider_error"
         return "client_error"
     return "backend_error"
+
+
+def build_error_event(
+    detail: str,
+    ctx: ChatContext | None = None,
+    exc: Exception | None = None,
+) -> dict:
+    """Build a NDJSON error event dict with optional observability fields.
+
+    Enriches the standard ``{"type": "error", "detail": ...}`` shape with
+    ``requestId`` and ``errorType`` when a :class:`ChatContext` is available.
+    """
+    event: dict = {"type": "error", "detail": detail}
+    if ctx is not None:
+        event["requestId"] = ctx.request_id
+        event["errorType"] = classify_error(exc, ctx.agent_backend) if exc else "backend_error"
+    return event

@@ -127,6 +127,32 @@ const messages: Record<string, { en: string; de: string }> = {
   "action.label.edit": { en: "Edit", de: "Bearbeiten" },
   "action.label.collapse": { en: "Collapse", de: "Zuklappen" },
   "action.label.more": { en: "More", de: "Mehr" },
+
+  // Copilot error messages (resolved from backend errorType)
+  "copilot.error.provider_timeout": {
+    en: "The AI service did not respond in time. Please try again.",
+    de: "Der KI-Dienst hat nicht rechtzeitig geantwortet. Bitte versuchen Sie es erneut.",
+  },
+  "copilot.error.container_timeout": {
+    en: "The service did not respond in time. Please try again.",
+    de: "Der Dienst hat nicht rechtzeitig geantwortet. Bitte versuchen Sie es erneut.",
+  },
+  "copilot.error.container_unreachable": {
+    en: "The service is currently unreachable. Please try again shortly.",
+    de: "Der Dienst ist derzeit nicht erreichbar. Bitte versuchen Sie es in Kürze erneut.",
+  },
+  "copilot.error.provider_unreachable": {
+    en: "The AI service is currently unreachable. Please try again shortly.",
+    de: "Der KI-Dienst ist derzeit nicht erreichbar. Bitte versuchen Sie es in Kürze erneut.",
+  },
+  "copilot.error.backend_error": {
+    en: "An internal error occurred. Please try again.",
+    de: "Ein interner Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
+  },
+  "copilot.error.client_timeout": {
+    en: "The request timed out. Please try again.",
+    de: "Die Anfrage hat zu lange gedauert. Bitte versuchen Sie es erneut.",
+  },
 };
 
 export function getMessage(key: string, locale?: string): string {

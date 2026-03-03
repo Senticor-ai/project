@@ -219,6 +219,11 @@ function ChatMessageRenderer({
         <div className="flex items-start gap-2">
           <div className="ml-9 max-w-[80%] rounded-2xl rounded-bl-md bg-red-50 px-4 py-2.5 text-sm text-red-700">
             {message.content}
+            {message.requestId && (
+              <p className="mt-1 text-xs text-red-400">
+                Ref: {message.requestId}
+              </p>
+            )}
           </div>
         </div>
       );

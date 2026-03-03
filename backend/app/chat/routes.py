@@ -29,6 +29,7 @@ from ..routes.agent_settings import get_user_agent_backend, get_user_llm_config
 from .instrumentation import (
     ChatContext,
     FirstTokenTracker,
+    build_error_event,
     record_persistence_outcome,
     span_chat_completions,
     span_db_setup,
@@ -181,15 +182,15 @@ def _stream_and_persist(
                             full_text = event["text"]
                 except json.JSONDecodeError:
                     pass
-    except httpx.ConnectError:
-        yield json.dumps({"type": "error", "detail": "Agents service unreachable"}).encode() + b"\n"
+    except httpx.ConnectError as exc:
+        yield json.dumps(build_error_event("Agents service unreachable", ctx, exc)).encode() + b"\n"
         return
-    except httpx.TimeoutException:
-        yield json.dumps({"type": "error", "detail": "Agents service timeout"}).encode() + b"\n"
+    except httpx.TimeoutException as exc:
+        yield json.dumps(build_error_event("Agents service timeout", ctx, exc)).encode() + b"\n"
         return
     except httpx.HTTPStatusError as exc:
         detail = f"Agents service error: {exc.response.status_code}"
-        yield json.dumps({"type": "error", "detail": detail}).encode() + b"\n"
+        yield json.dumps(build_error_event(detail, ctx, exc)).encode() + b"\n"
         return
 
     # Persist the assistant response after stream completes
@@ -275,10 +276,7 @@ async def _stream_openclaw_after_startup(
         remaining_seconds = deadline - loop.time()
         if remaining_seconds <= 0:
             yield _encode_ndjson_event(
-                {
-                    "type": "error",
-                    "detail": "OpenClaw container startup timed out. Please try again.",
-                }
+                build_error_event("OpenClaw container startup timed out. Please try again.", ctx)
             )
             return
 
@@ -293,7 +291,7 @@ async def _stream_openclaw_after_startup(
                 "Bitte öffne die Einstellungen → Copilot-Einrichtung "
                 "und hinterlege einen API-Schlüssel."
             )
-            yield _encode_ndjson_event({"type": "error", "detail": detail})
+            yield _encode_ndjson_event(build_error_event(detail, ctx))
             return
         except Exception as exc:
             state, _state_error = _get_openclaw_container_state(user_id)
@@ -315,7 +313,7 @@ async def _stream_openclaw_after_startup(
                 continue
 
             detail = _build_openclaw_startup_error_detail(user_id, exc)
-            yield _encode_ndjson_event({"type": "error", "detail": detail})
+            yield _encode_ndjson_event(build_error_event(detail, ctx, exc))
             return
 
     yield _encode_ndjson_event(
@@ -362,13 +360,10 @@ async def _stream_openclaw(
             ttl_seconds=300,
         )
         write_token_file(user_id, delegated_token)
-    except Exception:
+    except Exception as exc:
         logger.exception("chat.openclaw_init_failed", extra={"user_id": user_id})
         yield _encode_ndjson_event(
-            {
-                "type": "error",
-                "detail": ("OpenClaw session initialization failed. Please try again."),
-            }
+            build_error_event("OpenClaw session initialization failed. Please try again.", ctx, exc)
         )
         return
 
@@ -406,24 +401,20 @@ async def _stream_openclaw(
                             if event["type"] == "text_delta" and tracker:
                                 tracker.mark_first_token()
                             yield (json.dumps(event) + "\n").encode()
-    except httpx.ConnectError:
-        err = {"type": "error", "detail": "OpenClaw service unreachable"}
-        yield (json.dumps(err) + "\n").encode()
+    except httpx.ConnectError as exc:
+        yield _encode_ndjson_event(build_error_event("OpenClaw service unreachable", ctx, exc))
         return
-    except httpx.TimeoutException:
-        yield (json.dumps({"type": "error", "detail": "OpenClaw service timeout"}) + "\n").encode()
+    except httpx.TimeoutException as exc:
+        yield _encode_ndjson_event(build_error_event("OpenClaw service timeout", ctx, exc))
         return
     except httpx.HTTPStatusError as exc:
         detail = f"OpenClaw error: {exc.response.status_code}"
-        yield (json.dumps({"type": "error", "detail": detail}) + "\n").encode()
+        yield _encode_ndjson_event(build_error_event(detail, ctx, exc))
         return
-    except Exception:
+    except Exception as exc:
         logger.exception("chat.openclaw_stream_failed", extra={"user_id": user_id})
         yield _encode_ndjson_event(
-            {
-                "type": "error",
-                "detail": "OpenClaw response stream failed. Please try again.",
-            }
+            build_error_event("OpenClaw response stream failed. Please try again.", ctx, exc)
         )
         return
 
@@ -520,7 +511,7 @@ def _handle_chat_completions(
             extra={"user_id": user_id, "conversation_external_id": req.conversationId},
         )
         err = json.dumps(
-            {"type": "error", "detail": "Chat service temporarily unavailable. Please try again."}
+            build_error_event("Chat service temporarily unavailable. Please try again.", ctx)
         )
 
         async def _db_error_stream() -> AsyncGenerator[bytes, None]:
@@ -548,7 +539,7 @@ def _handle_chat_completions(
                 "Bitte öffne die Einstellungen → Copilot-Einrichtung "
                 "und hinterlege einen API-Schlüssel."
             )
-            err = json.dumps({"type": "error", "detail": detail})
+            err = json.dumps(build_error_event(detail, ctx, exc))
 
             async def _config_error_stream() -> AsyncGenerator[bytes, None]:
                 yield (err + "\n").encode()
@@ -577,7 +568,7 @@ def _handle_chat_completions(
                     media_type="application/x-ndjson",
                 )
             detail = _build_openclaw_startup_error_detail(user_id, exc)
-            err = json.dumps({"type": "error", "detail": detail})
+            err = json.dumps(build_error_event(detail, ctx, exc))
 
             async def _error_stream() -> AsyncGenerator[bytes, None]:
                 yield (err + "\n").encode()
@@ -610,7 +601,7 @@ def _handle_chat_completions(
             "Copilot ist noch nicht eingerichtet. "
             "Bitte öffne Einstellungen → Agent Setup und hinterlege einen API-Schlüssel."
         )
-        err = json.dumps({"type": "error", "detail": detail})
+        err = json.dumps(build_error_event(detail, ctx))
 
         async def _config_error_stream() -> AsyncGenerator[bytes, None]:
             yield (err + "\n").encode()
@@ -624,7 +615,7 @@ def _handle_chat_completions(
             "Copilot unterstützt nur OpenRouter- oder OpenAI-Schlüssel. "
             "Bitte aktualisiere den Provider in Einstellungen → Agent Setup."
         )
-        err = json.dumps({"type": "error", "detail": detail})
+        err = json.dumps(build_error_event(detail, ctx))
 
         async def _provider_error_stream() -> AsyncGenerator[bytes, None]:
             yield (err + "\n").encode()

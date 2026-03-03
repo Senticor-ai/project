@@ -12,6 +12,7 @@ import type {
   CreatedItemRef,
   StreamEvent,
 } from "@/model/chat-types";
+import { getMessage } from "@/lib/messages";
 import { useCopilotApi } from "./use-copilot-api";
 import { useCopilotActions } from "./use-copilot-actions";
 
@@ -227,11 +228,19 @@ export function useChatState(options: ChatStateOptions = {}) {
             }
 
             case "error": {
+              const messageKey = event.errorType
+                ? `copilot.error.${event.errorType}`
+                : null;
+              const resolved = messageKey ? getMessage(messageKey) : null;
+              const content =
+                resolved && resolved !== messageKey ? resolved : event.detail;
               const errorMsg: CopilotErrorMessage = {
                 id: generateId(),
                 role: "copilot",
                 kind: "error",
-                content: event.detail,
+                content,
+                requestId: event.requestId,
+                errorType: event.errorType,
                 timestamp: new Date().toISOString(),
               };
               const staleStatusMsgId = statusMsgId;

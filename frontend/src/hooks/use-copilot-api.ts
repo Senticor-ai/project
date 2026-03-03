@@ -277,8 +277,11 @@ function isLikelyInvalidCsrf(status: number, detail: string | null): boolean {
   return detail.toLowerCase().includes("csrf");
 }
 
+const CHAT_TIMEOUT_MS = 120_000;
+
 async function postChatCompletions(
   payload: Record<string, unknown>,
+  signal?: AbortSignal,
 ): Promise<Response> {
   let csrfToken = await getOrRefreshCsrfToken();
   let response = await fetch(`${API_BASE}/chat/completions`, {
@@ -289,6 +292,7 @@ async function postChatCompletions(
     },
     credentials: "include",
     body: JSON.stringify(payload),
+    signal,
   });
 
   if (response.ok) return response;
@@ -309,6 +313,7 @@ async function postChatCompletions(
     },
     credentials: "include",
     body: JSON.stringify(payload),
+    signal,
   });
 
   if (!response.ok) {
@@ -327,17 +332,32 @@ export function useCopilotApi() {
       onEvent: (event: StreamEvent) => void,
       extraContext?: Partial<ChatClientContext>,
     ): Promise<void> => {
-      const res = await postChatCompletions({
-        message,
-        conversationId,
-        context: getClientContext(extraContext),
-      });
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS);
 
-      if (!res.body) {
-        throw new Error("No response body for streaming");
+      try {
+        const res = await postChatCompletions(
+          {
+            message,
+            conversationId,
+            context: getClientContext(extraContext),
+          },
+          controller.signal,
+        );
+
+        if (!res.body) {
+          throw new Error("No response body for streaming");
+        }
+
+        await readNdjsonStream(res.body, onEvent);
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          throw new Error("Chat request timed out");
+        }
+        throw err;
+      } finally {
+        clearTimeout(timeout);
       }
-
-      await readNdjsonStream(res.body, onEvent);
     },
     [],
   );

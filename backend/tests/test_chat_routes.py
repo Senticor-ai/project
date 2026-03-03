@@ -434,6 +434,7 @@ class TestChatCompletions:
             conversation_id: str,
             user_id: str,
             org_id: str,
+            **kwargs,
         ):
             assert openclaw_url == "http://openclaw.local"
             assert openclaw_token == "token-abc"
@@ -1151,6 +1152,67 @@ class TestChatInstrumentationIntegration:
         text_deltas = [e for e in parsed if e["type"] == "text_delta"]
         assert len(text_deltas) == 1
         assert text_deltas[0]["content"] == "Antwort"
+
+    def test_error_event_includes_request_id_when_agents_down(self, auth_client, monkeypatch):
+        """Error events in NDJSON must include requestId and errorType."""
+        _patch_settings(monkeypatch, agents_url="http://localhost:8002")
+
+        @contextmanager
+        def _raise_connection(*args, **kwargs):
+            raise httpx.ConnectError("Connection refused")
+            yield  # noqa: RUF027
+
+        monkeypatch.setattr("app.chat.routes.httpx.stream", _raise_connection)
+
+        response = auth_client.post(
+            "/chat/completions",
+            json={
+                "message": "Hallo",
+                "conversationId": f"conv-enrich-err-{uuid.uuid4().hex[:8]}",
+            },
+        )
+        assert response.status_code == 200
+
+        parsed = _parse_ndjson(response)
+        error_events = [e for e in parsed if e["type"] == "error"]
+        assert len(error_events) == 1
+
+        err = error_events[0]
+        assert "requestId" in err, "Error event must include requestId"
+        assert err["requestId"] is not None, "requestId must not be None"
+        assert "errorType" in err, "Error event must include errorType"
+        assert err["errorType"] == "provider_unreachable"
+
+        # requestId should match what middleware sets in X-Request-Id header
+        request_id_header = response.headers.get("X-Request-Id")
+        assert request_id_header is not None
+        assert err["requestId"] == request_id_header
+
+    def test_error_event_includes_request_id_when_agents_timeout(self, auth_client, monkeypatch):
+        """Timeout errors carry errorType=provider_timeout and a requestId."""
+        _patch_settings(monkeypatch, agents_url="http://localhost:8002")
+
+        @contextmanager
+        def _raise_timeout(*args, **kwargs):
+            raise httpx.ReadTimeout("Read timed out")
+            yield  # noqa: RUF027
+
+        monkeypatch.setattr("app.chat.routes.httpx.stream", _raise_timeout)
+
+        response = auth_client.post(
+            "/chat/completions",
+            json={
+                "message": "Hallo",
+                "conversationId": f"conv-enrich-timeout-{uuid.uuid4().hex[:8]}",
+            },
+        )
+        parsed = _parse_ndjson(response)
+        error_events = [e for e in parsed if e["type"] == "error"]
+        assert len(error_events) == 1
+
+        err = error_events[0]
+        assert err["errorType"] == "provider_timeout"
+        assert err["requestId"] == response.headers.get("X-Request-Id")
 
     def test_metrics_include_chat_counters_after_request(self, auth_client, monkeypatch):
         """After a chat request, /metrics should include chat_requests_total."""

@@ -437,6 +437,93 @@ describe("useChatState", () => {
       expect(errors[0]!.content).toBe("Agents service unreachable");
     });
 
+    it("propagates requestId and errorType from enriched error event", async () => {
+      mockSendMessageStreaming.mockImplementationOnce(
+        (
+          _message: string,
+          _conversationId: string,
+          onEvent: (event: StreamEvent) => void,
+        ) => {
+          onEvent({
+            type: "error",
+            detail: "Agents service timeout",
+            requestId: "req-abc-123",
+            errorType: "provider_timeout",
+          });
+          return Promise.resolve();
+        },
+      );
+
+      const hook = renderHook(() => useChatState());
+
+      await sendAndWait(hook, "Test");
+
+      const errors = findByKind(hook.result.current.messages, "error");
+      expect(errors).toHaveLength(1);
+      // Content is resolved via i18n (not the raw detail)
+      expect(errors[0]!.content).not.toBe("Agents service timeout");
+      expect(errors[0]!).toHaveProperty("requestId", "req-abc-123");
+      expect(errors[0]!).toHaveProperty("errorType", "provider_timeout");
+    });
+
+    it("resolves provider_timeout errorType to i18n message", async () => {
+      mockSendMessageStreaming.mockImplementationOnce(
+        (
+          _message: string,
+          _conversationId: string,
+          onEvent: (event: StreamEvent) => void,
+        ) => {
+          onEvent({
+            type: "error",
+            detail: "raw backend detail",
+            requestId: "req-i18n-1",
+            errorType: "provider_timeout",
+          });
+          return Promise.resolve();
+        },
+      );
+
+      const hook = renderHook(() => useChatState());
+
+      await sendAndWait(hook, "Test");
+
+      const errors = findByKind(hook.result.current.messages, "error");
+      expect(errors).toHaveLength(1);
+      // Should use the i18n message, not the raw backend detail
+      expect(errors[0]!.content).not.toBe("raw backend detail");
+      // Locale-dependent: English or German depending on test env
+      expect(
+        errors[0]!.content.includes("did not respond in time") ||
+          errors[0]!.content.includes("nicht rechtzeitig geantwortet"),
+      ).toBe(true);
+    });
+
+    it("falls back to raw detail for unknown errorType", async () => {
+      mockSendMessageStreaming.mockImplementationOnce(
+        (
+          _message: string,
+          _conversationId: string,
+          onEvent: (event: StreamEvent) => void,
+        ) => {
+          onEvent({
+            type: "error",
+            detail: "Some novel error",
+            requestId: "req-fallback",
+            errorType: "totally_unknown_error_type",
+          });
+          return Promise.resolve();
+        },
+      );
+
+      const hook = renderHook(() => useChatState());
+
+      await sendAndWait(hook, "Test");
+
+      const errors = findByKind(hook.result.current.messages, "error");
+      expect(errors).toHaveLength(1);
+      expect(errors[0]!.content).toBe("Some novel error");
+    });
+
     it("replaces thinking with thrown error detail on fetch failure", async () => {
       mockSendMessageStreaming.mockRejectedValueOnce(new Error("API down"));
       const hook = renderHook(() => useChatState());

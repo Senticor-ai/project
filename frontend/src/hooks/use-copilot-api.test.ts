@@ -420,6 +420,56 @@ describe("useCopilotApi", () => {
       result.current.sendMessageStreaming("Test", "conv-1", () => {}),
     ).rejects.toThrow("Network error");
   });
+
+  it("parses enriched error event with requestId and errorType", async () => {
+    mockFetch.mockReturnValue(
+      streamResponse(
+        [
+          {
+            type: "error",
+            detail: "Agents service timeout",
+            requestId: "req-abc-123",
+            errorType: "provider_timeout",
+          },
+        ],
+        false,
+        503,
+      ),
+    );
+    const { result } = renderHook(() => useCopilotApi());
+
+    const events: StreamEvent[] = [];
+    await expect(
+      result.current.sendMessageStreaming("Test", "conv-1", (e) =>
+        events.push(e),
+      ),
+    ).rejects.toThrow("Agents service timeout");
+  });
+
+  it("aborts request after timeout deadline", async () => {
+    // The AbortController in sendMessageStreaming uses setTimeout(120s).
+    // Instead of fake timers, verify the signal is passed to fetch
+    // and that an AbortError is translated to a user-friendly message.
+    mockFetch.mockImplementation(
+      (_url: string, opts: { signal?: AbortSignal }) => {
+        // Immediately abort to simulate timeout firing
+        if (opts?.signal) {
+          const abortError = new DOMException(
+            "The operation was aborted.",
+            "AbortError",
+          );
+          return Promise.reject(abortError);
+        }
+        return Promise.reject(new Error("No signal provided"));
+      },
+    );
+
+    const { result } = renderHook(() => useCopilotApi());
+
+    await expect(
+      result.current.sendMessageStreaming("Test", "conv-timeout", () => {}),
+    ).rejects.toThrow("Chat request timed out");
+  });
 });
 
 describe("ChatApi", () => {

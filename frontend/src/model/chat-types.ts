@@ -65,6 +65,8 @@ export interface CopilotErrorMessage extends ChatMessageBase {
   role: "copilot";
   kind: "error";
   content: string;
+  requestId?: string;
+  errorType?: string;
 }
 
 export type ChatMessage =
@@ -205,7 +207,7 @@ export type StreamEvent =
     }
   | { type: "items_changed" }
   | { type: "done"; text: string }
-  | { type: "error"; detail: string };
+  | { type: "error"; detail: string; requestId?: string; errorType?: string };
 
 // ---------------------------------------------------------------------------
 // Conversation Management Types

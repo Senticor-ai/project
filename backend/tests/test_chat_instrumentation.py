@@ -14,6 +14,7 @@ from app.chat.instrumentation import (
     CHAT_REQUESTS_TOTAL,
     ChatContext,
     FirstTokenTracker,
+    build_error_event,
     classify_error,
     record_persistence_outcome,
     span_chat_completions,
@@ -90,6 +91,52 @@ class TestClassifyError:
 
     def test_generic_exception(self):
         assert classify_error(RuntimeError("oops"), "haystack") == "backend_error"
+
+
+# ---------------------------------------------------------------------------
+# build_error_event
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestBuildErrorEvent:
+    def test_includes_request_id_and_error_type(self):
+        ctx = _make_ctx(agent_backend="haystack")
+        exc = httpx.TimeoutException("timed out")
+        event = build_error_event("Agents service timeout", ctx=ctx, exc=exc)
+        assert event["type"] == "error"
+        assert event["detail"] == "Agents service timeout"
+        assert event["requestId"] == "req-test-456"
+        assert event["errorType"] == "provider_timeout"
+
+    def test_without_exception_defaults_to_backend_error(self):
+        ctx = _make_ctx()
+        event = build_error_event("Something went wrong", ctx=ctx)
+        assert event["errorType"] == "backend_error"
+        assert event["requestId"] == "req-test-456"
+
+    def test_none_request_id(self):
+        ctx = _make_ctx(request_id=None)
+        event = build_error_event("fail", ctx=ctx)
+        assert event["requestId"] is None
+
+    def test_without_ctx(self):
+        event = build_error_event("no context")
+        assert event == {"type": "error", "detail": "no context"}
+        assert "requestId" not in event
+        assert "errorType" not in event
+
+    def test_openclaw_timeout(self):
+        ctx = _make_ctx(agent_backend="openclaw")
+        exc = httpx.TimeoutException("timed out")
+        event = build_error_event("OpenClaw timeout", ctx=ctx, exc=exc)
+        assert event["errorType"] == "container_timeout"
+
+    def test_connect_error(self):
+        ctx = _make_ctx(agent_backend="haystack")
+        exc = httpx.ConnectError("refused")
+        event = build_error_event("Agents unreachable", ctx=ctx, exc=exc)
+        assert event["errorType"] == "provider_unreachable"
 
 
 # ---------------------------------------------------------------------------

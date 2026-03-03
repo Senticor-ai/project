@@ -7,6 +7,7 @@ import type {
   CopilotTextMessage,
   CopilotThinkingMessage,
   CopilotConfirmationMessage,
+  CopilotErrorMessage,
 } from "@/model/chat-types";
 import type { CanonicalId } from "@/model/canonical-id";
 
@@ -101,6 +102,34 @@ describe("ChatMessageList", () => {
     expect(texts).toContain("Hi");
     expect(texts).toContain("Hallo!");
     expect(texts).toContain("Was kannst du?");
+  });
+
+  it("renders error message with requestId reference", () => {
+    const errorMsg: CopilotErrorMessage = {
+      id: "err1",
+      role: "copilot",
+      kind: "error",
+      content: "An internal error occurred.",
+      requestId: "req-abc-123",
+      errorType: "backend_error",
+      timestamp: new Date().toISOString(),
+    };
+    render(<ChatMessageList messages={[errorMsg]} />);
+    expect(screen.getByText("An internal error occurred.")).toBeInTheDocument();
+    expect(screen.getByText("Ref: req-abc-123")).toBeInTheDocument();
+  });
+
+  it("renders error message without requestId reference when absent", () => {
+    const errorMsg: CopilotErrorMessage = {
+      id: "err2",
+      role: "copilot",
+      kind: "error",
+      content: "Something failed.",
+      timestamp: new Date().toISOString(),
+    };
+    render(<ChatMessageList messages={[errorMsg]} />);
+    expect(screen.getByText("Something failed.")).toBeInTheDocument();
+    expect(screen.queryByText(/Ref:/)).not.toBeInTheDocument();
   });
 
   it("renders suggestion messages with suggestion card", () => {
