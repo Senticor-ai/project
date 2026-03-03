@@ -255,13 +255,13 @@ def _build_container_name(user_id: str) -> str:
     normalized = _DNS_LABEL_SANITIZE_RE.sub("-", raw).strip("-")
 
     if not normalized:
-        digest = hashlib.sha1(user_id.encode("utf-8")).hexdigest()[:12]
+        digest = hashlib.sha256(user_id.encode("utf-8")).hexdigest()[:12]
         return f"openclaw-{digest}"
 
     if len(normalized) <= _MAX_DNS_LABEL_LEN:
         return normalized
 
-    digest = hashlib.sha1(user_id.encode("utf-8")).hexdigest()[:12]
+    digest = hashlib.sha256(user_id.encode("utf-8")).hexdigest()[:12]
     keep = _MAX_DNS_LABEL_LEN - len(digest) - 1
     prefix = normalized[:keep].rstrip("-")
     if not prefix:

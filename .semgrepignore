@@ -1,0 +1,24 @@
+# ── Semgrep path exclusions ─────────────────────────────────────────
+# Documented threat model: these paths contain non-production code
+# that triggers false positives in security scanning.
+#
+# See: https://github.com/Senticor-ai/project/security/code-scanning
+
+# HTML fixtures — scraped snapshots of German government websites
+# (FIM Portal, Bundesagentur, etc.) used as test context data.
+# Alerts: missing-integrity, plaintext-http-link, detected-jwt-token
+# Threat model: static test data, never served to browsers or parsed
+# as trusted HTML. Links and integrity attributes are irrelevant.
+fixtures/
+
+# Generated coverage reports from Vitest/Istanbul.
+# Already in .gitignore; only appears if tests ran locally.
+# Alerts: insecure-document-method, detect-non-literal-regexp
+# Threat model: auto-generated tooling output, not project code.
+frontend/coverage/
+
+# Third-party dependencies
+node_modules/
+
+# Build artifacts
+frontend/dist/

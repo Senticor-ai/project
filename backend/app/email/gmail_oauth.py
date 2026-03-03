@@ -51,9 +51,8 @@ def exchange_gmail_code(code: str) -> dict[str, Any]:
     response = httpx.post(GOOGLE_TOKEN_URL, data=payload, timeout=30)
     if response.status_code != 200:
         logger.error(
-            "Google token exchange returned %d: %s",
+            "Google token exchange returned %d",
             response.status_code,
-            response.text[:1000],
         )
     response.raise_for_status()
     result: dict[str, Any] = response.json()
@@ -178,9 +177,8 @@ def revoke_google_token(token: str) -> None:
             logger.info("Google token revoked successfully")
         else:
             logger.warning(
-                "Google token revocation returned %d: %s",
+                "Google token revocation returned %d",
                 response.status_code,
-                response.text[:500],
             )
     except httpx.TimeoutException:
         logger.warning("Google token revocation timed out")

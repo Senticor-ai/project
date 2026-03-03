@@ -567,6 +567,7 @@ def schema_health_check():
     required_tables = [
         "items",
         "files",
+        "file_uploads",
         "search_index_jobs",
         "import_jobs",
         "outbox_events",
@@ -581,6 +582,8 @@ def schema_health_check():
                     missing.append(table)
 
     warnings: list[str] = []
+    if "file_uploads" in missing:
+        warnings.append("file_uploads missing: chunked file upload disabled")
     if "search_index_jobs" in missing:
         warnings.append("search_index_jobs missing: file upload indexing queue disabled")
     if "import_jobs" in missing:

@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.12-alpine
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
@@ -12,8 +12,13 @@ RUN uv sync --frozen --no-dev
 
 COPY agents/ ./
 
+RUN adduser -D -u 1000 appuser
+
 ENV PATH="/app/agents/.venv/bin:${PATH}" \
-    HOME=/app/agents
+    HOME=/app/agents \
+    HAYSTACK_TELEMETRY_ENABLED="false"
+
+USER appuser
 
 EXPOSE 8002
 

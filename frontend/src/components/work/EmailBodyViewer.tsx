@@ -16,9 +16,8 @@ export interface EmailBodyViewerProps {
 }
 
 function extractPlaintext(html: string): string {
-  const el = document.createElement("div");
-  el.innerHTML = html;
-  return el.textContent ?? "";
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  return doc.body.textContent ?? "";
 }
 
 export function EmailBodyViewer({
@@ -166,6 +165,10 @@ export function EmailBodyViewer({
       {isExpanded && (
         <div className="border-t border-border px-3 py-3">
           {hasHtml ? (
+            // nosemgrep: typescript.react.security.audit.react-dangerouslysetinnerhtml.react-dangerouslysetinnerhtml
+            // Threat model: sanitizedHtml is pre-sanitized by DOMPurify with an
+            // explicit allowlist of safe tags/attributes (see useMemo above).
+            // This is the standard React pattern for rendering sanitized HTML.
             <div
               className="prose prose-sm max-w-none text-xs text-text-primary
                 overflow-x-auto break-words

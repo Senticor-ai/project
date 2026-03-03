@@ -5,6 +5,7 @@ import json
 from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException, status
+from psycopg import sql as psysql
 
 from ..config import settings
 from ..db import db_conn, jsonb
@@ -201,35 +202,35 @@ def _fail_stale_queued_jobs(
         return 0
 
     clauses = [
-        "org_id = %s",
-        "status = 'queued'",
-        "created_at <= %s",
+        psysql.SQL("org_id = %s"),
+        psysql.SQL("status = 'queued'"),
+        psysql.SQL("created_at <= %s"),
     ]
     params: list = [org_id, _queue_timeout_cutoff()]
     if file_id:
-        clauses.append("file_id = %s")
+        clauses.append(psysql.SQL("file_id = %s"))
         params.append(file_id)
     if source:
-        clauses.append("source = %s")
+        clauses.append(psysql.SQL("source = %s"))
         params.append(source)
     if options is not None:
-        clauses.append("options = %s")
+        clauses.append(psysql.SQL("options = %s"))
         params.append(jsonb(options))
 
-    sql = f"""
+    query = psysql.SQL("""
         UPDATE import_jobs
         SET status = 'failed',
             error = %s,
             finished_at = %s,
             updated_at = %s
-        WHERE {" AND ".join(clauses)}
-    """
+        WHERE {where}
+    """).format(where=psysql.SQL(" AND ").join(clauses))
     now = datetime.now(UTC)
     final_params = [_IMPORT_JOB_STALE_ERROR, now, now, *params]
 
     if conn is not None:
         with conn.cursor() as cur:
-            cur.execute(sql, final_params)
+            cur.execute(query, final_params)
             updated = cur.rowcount
         if updated:
             logger.warning(
@@ -243,7 +244,7 @@ def _fail_stale_queued_jobs(
 
     with db_conn() as local_conn:
         with local_conn.cursor() as cur:
-            cur.execute(sql, final_params)
+            cur.execute(query, final_params)
             updated = cur.rowcount
         local_conn.commit()
     if updated:

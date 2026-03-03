@@ -29,6 +29,7 @@ spec:
         prometheus.io/port: "8000"
     spec:
       serviceAccountName: backend-openclaw-runtime
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000

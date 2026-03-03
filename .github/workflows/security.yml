@@ -113,13 +113,13 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build backend image
-        run: docker build -t project-backend:scan -f backend/Dockerfile .
+        run: docker build --pull -t project-backend:scan -f backend/Dockerfile .
 
       - name: Build frontend image
-        run: docker build -t project-frontend:scan -f frontend/Dockerfile .
+        run: docker build --pull -t project-frontend:scan -f frontend/Dockerfile .
 
       - name: Build agents image
-        run: docker build -t project-agents:scan -f agents/Dockerfile .
+        run: docker build --pull -t project-agents:scan -f agents/Dockerfile .
 
       - name: Scan backend image
         uses: aquasecurity/trivy-action@0.34.2
