@@ -14,6 +14,7 @@ import os
 import re
 import secrets
 import shutil
+import stat
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -108,6 +109,15 @@ def _pull_policy() -> str:
         return policy
     logger.warning("container.pull_policy_unknown", extra={"policy": policy})
     return OPENCLAW_PULL_NEVER
+
+
+def _parse_memory_mib(k8s_mem: str) -> int:
+    """Parse a K8s memory string (e.g. '2Gi', '512Mi') to MiB."""
+    if k8s_mem.endswith("Gi"):
+        return int(k8s_mem[:-2]) * 1024
+    if k8s_mem.endswith("Mi"):
+        return int(k8s_mem[:-2])
+    raise ValueError(f"Unsupported memory format: {k8s_mem}")
 
 
 def _image_present_locally(image: str) -> bool:
@@ -474,6 +484,13 @@ def _k8s_apply_resources(
     user_subpath = user_id.replace("/", "-")
     pod_spec: dict[str, object] = {
         "restartPolicy": "Always",
+        "securityContext": {
+            "runAsNonRoot": True,
+            "runAsUser": 1000,
+            "runAsGroup": 1000,
+            "fsGroup": 1000,
+            "seccompProfile": {"type": "RuntimeDefault"},
+        },
         "containers": [
             {
                 "name": "openclaw",
@@ -661,7 +678,10 @@ def start_container(user_id: str) -> ContainerInfo:
             k8s_fallback="http://storybook",
         ),
         "OPENCLAW_CONFIG_PATH": "/openclaw.json",
-        "NODE_OPTIONS": "--max-old-space-size=1536",
+        "NODE_OPTIONS": (
+            f"--max-old-space-size="
+            f"{int(_parse_memory_mib(settings.openclaw_k8s_memory_limit) * 0.75)}"
+        ),
     }
 
     if _use_k8s_runtime():
@@ -857,6 +877,38 @@ def stop_container(user_id: str) -> None:
     logger.info("container.stopped", extra={"user_id": user_id})
 
 
+def _on_rmtree_error(
+    func: object,
+    path: str,
+    exc_info: object,
+) -> None:
+    """Handle permission errors during rmtree by fixing permissions and retrying."""
+    p = Path(path)
+    # Ensure the parent is writable (needed for unlink/rmdir of children)
+    p.parent.chmod(stat.S_IRWXU)
+    # Ensure the target itself is writable
+    if p.exists():
+        p.chmod(stat.S_IRWXU)
+    if callable(func):
+        func(path)
+
+
+def _rmtree_force(path: Path) -> bool:
+    """Remove directory tree, handling permission mismatches robustly."""
+    if not path.exists():
+        return False
+    try:
+        shutil.rmtree(path, onerror=_on_rmtree_error)
+        return True
+    except OSError:
+        logger.warning(
+            "container.rmtree_failed",
+            extra={"path": str(path)},
+            exc_info=True,
+        )
+        return False
+
+
 def hard_refresh_container(user_id: str) -> dict[str, bool]:
     """Stop the container and delete persisted per-user OpenClaw state."""
     stop_container(user_id)
@@ -865,15 +917,8 @@ def hard_refresh_container(user_id: str) -> dict[str, bool]:
     workspace_dir = storage_root / "openclaw" / user_id
     runtime_dir = storage_root / "openclaw-runtime" / user_id
 
-    removed_workspace = False
-    if workspace_dir.exists():
-        shutil.rmtree(workspace_dir)
-        removed_workspace = True
-
-    removed_runtime = False
-    if runtime_dir.exists():
-        shutil.rmtree(runtime_dir)
-        removed_runtime = True
+    removed_workspace = _rmtree_force(workspace_dir)
+    removed_runtime = _rmtree_force(runtime_dir)
 
     logger.info(
         "container.hard_refreshed",

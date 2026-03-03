@@ -14,6 +14,7 @@ from app.container.manager import (
     _is_container_ready,
     _k8s_apply_resources,
     _k8s_labels,
+    _parse_memory_mib,
     ensure_running,
     get_identity_name,
     hard_refresh_container,
@@ -766,7 +767,8 @@ def test_start_container_injects_node_options_in_docker_env(monkeypatch, tmp_pat
     start_container(user_id)
 
     run_args = run_calls[-1]  # last call is the `run` command
-    assert "NODE_OPTIONS=--max-old-space-size=1536" in run_args
+    expected_heap = int(_parse_memory_mib(settings.openclaw_k8s_memory_limit) * 0.75)
+    assert f"NODE_OPTIONS=--max-old-space-size={expected_heap}" in run_args
 
 
 @pytest.mark.unit
@@ -813,7 +815,8 @@ def test_start_container_passes_node_options_to_k8s(monkeypatch, tmp_path):
 
     assert len(k8s_calls) == 1
     env_vars = k8s_calls[0]["env_vars"]
-    assert env_vars["NODE_OPTIONS"] == "--max-old-space-size=1536"
+    expected_heap = int(_parse_memory_mib(settings.openclaw_k8s_memory_limit) * 0.75)
+    assert env_vars["NODE_OPTIONS"] == f"--max-old-space-size={expected_heap}"
 
 
 @pytest.mark.unit
@@ -900,3 +903,150 @@ def test_config_volume_mount_is_writable_k8s(monkeypatch):
     config_mount = [vm for vm in volume_mounts if vm["mountPath"] == "/openclaw.json"]
     assert len(config_mount) == 1
     assert config_mount[0].get("readOnly") is not True
+
+
+# ---------------------------------------------------------------------------
+# _parse_memory_mib
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_parse_memory_mib_gibibytes():
+    assert _parse_memory_mib("2Gi") == 2048
+    assert _parse_memory_mib("1Gi") == 1024
+    assert _parse_memory_mib("4Gi") == 4096
+
+
+@pytest.mark.unit
+def test_parse_memory_mib_mebibytes():
+    assert _parse_memory_mib("512Mi") == 512
+    assert _parse_memory_mib("256Mi") == 256
+
+
+@pytest.mark.unit
+def test_parse_memory_mib_rejects_unsupported():
+    with pytest.raises(ValueError, match="Unsupported memory format"):
+        _parse_memory_mib("1024Ki")
+
+
+# ---------------------------------------------------------------------------
+# NODE_OPTIONS scales with memory limit
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_node_options_scales_with_memory_limit(monkeypatch, tmp_path):
+    """NODE_OPTIONS heap must be 75% of the configured memory limit."""
+    user_id = "702a4639-e654-46b8-a4fa-83ecc2bcd06c"
+    row = {
+        "provider": "openrouter",
+        "api_key_encrypted": "encrypted-key",
+        "model": "google/gemini-3-flash-preview",
+    }
+
+    _patch_settings(
+        monkeypatch,
+        openclaw_runtime="k8s",
+        openclaw_k8s_namespace="project",
+        openclaw_k8s_gateway_port=18789,
+        openclaw_k8s_memory_limit="1Gi",  # smaller limit than default
+    )
+    monkeypatch.setattr("app.container.manager.db_conn", lambda: _FakeConn(row))
+    monkeypatch.setattr("app.container.manager._decrypt_api_key", lambda _enc: "decrypted-key")
+    monkeypatch.setattr("app.container.manager._wait_for_healthy", lambda _user, _url: None)
+    monkeypatch.setattr(
+        "app.container.manager.provision_workspace",
+        lambda **_kwargs: (
+            (tmp_path / "openclaw" / user_id),
+            (tmp_path / "openclaw-runtime" / user_id),
+        ),
+    )
+
+    k8s_calls: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        "app.container.manager._k8s_apply_resources",
+        lambda **kwargs: k8s_calls.append(kwargs),
+    )
+
+    start_container(user_id)
+
+    env_vars = k8s_calls[0]["env_vars"]
+    # 1Gi = 1024 MiB, 75% = 768
+    assert env_vars["NODE_OPTIONS"] == "--max-old-space-size=768"
+
+
+# ---------------------------------------------------------------------------
+# hard_refresh_container handles permission errors
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_hard_refresh_handles_permission_error(monkeypatch, tmp_path):
+    """hard_refresh_container must succeed even when dirs have restrictive perms."""
+    user_id = "702a4639-e654-46b8-a4fa-83ecc2bcd06c"
+    _patch_settings(monkeypatch, file_storage_path=tmp_path)
+
+    workspace_dir = tmp_path / "openclaw" / user_id / "workspace"
+    runtime_dir = tmp_path / "openclaw-runtime" / user_id
+    workspace_dir.mkdir(parents=True, exist_ok=True)
+    runtime_dir.mkdir(parents=True, exist_ok=True)
+    (runtime_dir / "token").write_text("token")
+
+    # Make runtime dir read-only to simulate permission mismatch
+    import stat
+
+    (runtime_dir / "token").chmod(stat.S_IRUSR)
+    runtime_dir.chmod(stat.S_IRUSR | stat.S_IXUSR)
+
+    stopped: list[str] = []
+    monkeypatch.setattr("app.container.manager.stop_container", lambda uid: stopped.append(uid))
+
+    result = hard_refresh_container(user_id)
+
+    assert stopped == [user_id]
+    assert result["removedWorkspace"] is True
+    assert result["removedRuntime"] is True
+    assert not (tmp_path / "openclaw-runtime" / user_id).exists()
+
+
+# ---------------------------------------------------------------------------
+# K8s pod spec includes pod-level securityContext
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_k8s_pod_spec_includes_pod_security_context(monkeypatch, tmp_path):
+    """Spawned OpenClaw pods must have pod-level securityContext for PVC ownership."""
+    captured_manifests: list[dict] = []
+
+    def _fake_k8s_request(method, path, *, json_body=None, ok_statuses=None):
+        if json_body:
+            captured_manifests.append(json_body)
+        return SimpleNamespace(status_code=200)
+
+    monkeypatch.setattr("app.container.manager._k8s_request", _fake_k8s_request)
+    monkeypatch.setattr("app.container.manager._k8s_delete_if_exists", lambda _kind, _name: None)
+    _patch_settings(
+        monkeypatch,
+        openclaw_runtime="k8s",
+        openclaw_k8s_namespace="project",
+        openclaw_k8s_gateway_port=18789,
+        openclaw_k8s_image_pull_secret="",
+    )
+
+    _k8s_apply_resources(
+        user_id="user-123",
+        container_name="openclaw-user-123",
+        port=18789,
+        env_vars={"FOO": "bar"},
+    )
+
+    # Second manifest is the Pod (first is the Service)
+    pod_manifest = captured_manifests[1]
+    pod_sec = pod_manifest["spec"]["securityContext"]
+
+    assert pod_sec["runAsNonRoot"] is True
+    assert pod_sec["runAsUser"] == 1000
+    assert pod_sec["runAsGroup"] == 1000
+    assert pod_sec["fsGroup"] == 1000
+    assert pod_sec["seccompProfile"] == {"type": "RuntimeDefault"}
