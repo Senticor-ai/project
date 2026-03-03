@@ -379,6 +379,28 @@ describe("useCopilotApi", () => {
     ).rejects.toThrow("OpenClaw container is still starting.");
   });
 
+  it("does not double-consume response body when text() returns no detail", async () => {
+    // Regression: real fetch Response has both .text() and .body.
+    // When .text() finds no parseable detail, the code must NOT fall through
+    // to .body.getReader() — the stream is already consumed by .text().
+    const body = ndjsonStream([{ type: "error", detail: "Agent unavailable" }]);
+    mockFetch.mockReturnValue(
+      Promise.resolve({
+        ok: false,
+        status: 504,
+        body,
+        // .text() returns a non-JSON gateway error — no parseable detail
+        text: async () => "<html>504 Gateway Timeout</html>",
+      }),
+    );
+    const { result } = renderHook(() => useCopilotApi());
+
+    // Should throw with generic message, NOT with ReadableStream lock error
+    await expect(
+      result.current.sendMessageStreaming("Test", "conv-1", () => {}),
+    ).rejects.toThrow("Chat request failed: 504");
+  });
+
   it("throws when response body is missing", async () => {
     mockFetch.mockReturnValue(
       Promise.resolve({ ok: true, status: 200, body: null }),

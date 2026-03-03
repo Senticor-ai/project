@@ -243,14 +243,18 @@ function parseErrorDetailFromText(raw: string): string | null {
   return null;
 }
 
-async function extractChatErrorDetail(response: ChatErrorResponse): Promise<string | null> {
+async function extractChatErrorDetail(
+  response: ChatErrorResponse,
+): Promise<string | null> {
   if (typeof response.text === "function") {
     try {
       const detail = parseErrorDetailFromText(await response.text());
       if (detail) return detail;
     } catch {
-      // Continue with stream parsing fallback.
+      // text() failed — body is still consumed/disturbed, cannot retry with stream.
     }
+    // Body is consumed by text() — do not fall through to stream reader.
+    return null;
   }
 
   if (response.body) {
@@ -289,7 +293,9 @@ async function postChatCompletions(
 
   if (response.ok) return response;
 
-  const firstDetail = await extractChatErrorDetail(response as ChatErrorResponse);
+  const firstDetail = await extractChatErrorDetail(
+    response as ChatErrorResponse,
+  );
   if (!isLikelyInvalidCsrf(response.status, firstDetail)) {
     throw new Error(firstDetail ?? `Chat request failed: ${response.status}`);
   }
