@@ -36,7 +36,7 @@ test.describe("Settings — Agent Setup (mocked)", () => {
 
     // Backend toggle options visible
     await expect(page.getByText("Copilot")).toBeVisible();
-    await expect(page.getByRole("button", { name: /OpenClaw/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^OpenClaw/ })).toBeVisible();
 
     // Provider dropdown visible
     await expect(page.locator("#agent-provider")).toBeVisible();

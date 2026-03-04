@@ -41,11 +41,11 @@ test.describe("Copilot Chat (mocked)", () => {
       // 1. Open chat panel
       await page.getByRole("button", { name: /Chat mit Copilot/ }).click();
       await expect(
-        page.getByRole("complementary", { name: "Copilot Chat" }),
+        page.getByRole("complementary", { name: /Chat$/ }),
       ).toBeVisible();
 
       // 2. Send prompt from golden dataset
-      const input = page.getByRole("textbox", { name: "Nachricht an Copilot" });
+      const input = page.getByRole("textbox", { name: /Nachricht an/ });
       await input.fill(scenario.prompt);
       await input.press("Enter");
 
@@ -86,7 +86,7 @@ test.describe("Copilot Chat (mocked)", () => {
 
       // 6. Close chat panel
       await page
-        .getByRole("complementary", { name: "Copilot Chat" })
+        .getByRole("complementary", { name: /Chat$/ })
         .getByRole("button", { name: "Chat minimieren" })
         .click();
 

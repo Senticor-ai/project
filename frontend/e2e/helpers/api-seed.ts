@@ -105,6 +105,27 @@ export class ApiSeed {
     return json.item_id;
   }
 
+  /** Create a project action via the collaboration API. Returns the action id. */
+  async createProjectAction(
+    projectId: string,
+    title: string,
+    options?: { status?: string; description?: string },
+  ): Promise<string> {
+    const response = await this.request.post(
+      `/api/projects/${encodeURIComponent(projectId)}/actions`,
+      {
+        headers: this.headers(),
+        data: {
+          name: title,
+          ...(options?.status ? { action_status: options.status } : {}),
+          ...(options?.description ? { description: options.description } : {}),
+        },
+      },
+    );
+    const json = await response.json();
+    return json.id;
+  }
+
   /** Create a calendar event (Event type, calendar bucket). Returns canonical_id. */
   async createCalendarEvent(
     title: string,
@@ -118,11 +139,9 @@ export class ApiSeed {
     const id = `urn:app:event:local:${crypto.randomUUID()}`;
     const now = new Date().toISOString();
     const startDate =
-      options?.startDate ??
-      new Date(Date.now() + 60 * 60 * 1000).toISOString();
+      options?.startDate ?? new Date(Date.now() + 60 * 60 * 1000).toISOString();
     const endDate =
-      options?.endDate ??
-      new Date(Date.now() + 90 * 60 * 1000).toISOString();
+      options?.endDate ?? new Date(Date.now() + 90 * 60 * 1000).toISOString();
 
     const response = await this.request.post("/api/items", {
       headers: this.headers(),
@@ -150,7 +169,9 @@ export class ApiSeed {
             pv("app:isFocused", false),
             pv("app:ports", []),
             pv("app:typedReferences", []),
-            pv("app:provenanceHistory", [{ timestamp: now, action: "created" }]),
+            pv("app:provenanceHistory", [
+              { timestamp: now, action: "created" },
+            ]),
             pv("app:projectRefs", []),
           ],
         },
@@ -214,7 +235,9 @@ export class ApiSeed {
     const now = new Date().toISOString();
     const senderEmail = options?.from ?? "sender@example.de";
     const senderName = options?.fromName ?? "Test Sender";
-    const htmlBody = options?.htmlBody ?? `<p>${subject}</p>`;
+    const htmlBody =
+      options?.htmlBody ??
+      `<p>Sehr geehrte Damen und Herren, bezüglich: ${subject}</p>`;
 
     const response = await this.request.post("/api/items", {
       headers: this.headers(),

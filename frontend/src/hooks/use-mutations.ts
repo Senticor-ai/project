@@ -25,6 +25,7 @@ import { isActionItem } from "@/model/types";
 import type { ActionItem, ActionItemBucket, TriageResult } from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
 import { ITEMS_QUERY_KEY } from "./use-items";
+import { CALENDAR_EVENTS_QUERY_KEY } from "./use-calendar-events";
 
 // ---------------------------------------------------------------------------
 // Cache keys for active and completed partitions
@@ -907,9 +908,12 @@ export function useMoveAction() {
     onError: (_err, _vars, context) => {
       if (context?.prev) qc.setQueryData(ACTIVE_KEY, context.prev);
     },
-    onSettled: async (_data, _err, { canonicalId }) => {
+    onSettled: async (_data, _err, { canonicalId, bucket }) => {
       savedMeta.current.delete(canonicalId);
       await qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
+      if (bucket === "calendar") {
+        await qc.invalidateQueries({ queryKey: CALENDAR_EVENTS_QUERY_KEY });
+      }
     },
   });
 }

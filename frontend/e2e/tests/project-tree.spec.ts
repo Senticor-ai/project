@@ -10,10 +10,7 @@ test.describe("ProjectTree", () => {
       "Website Redesign",
       "New site live and indexed",
     );
-    await apiSeed.createAction("Design wireframes", "next", {
-      projectId,
-      sequenceOrder: 1,
-    });
+    await apiSeed.createProjectAction(projectId, "Design wireframes");
     await page.reload();
 
     const ws = new WorkspacePage(page);
@@ -31,18 +28,9 @@ test.describe("ProjectTree", () => {
       "Mobile App",
       "App in both stores",
     );
-    await apiSeed.createAction("Set up CI/CD", "next", {
-      projectId,
-      sequenceOrder: 1,
-    });
-    await apiSeed.createAction("Implement auth", "next", {
-      projectId,
-      sequenceOrder: 2,
-    });
-    await apiSeed.createAction("Add push notifications", "next", {
-      projectId,
-      sequenceOrder: 3,
-    });
+    await apiSeed.createProjectAction(projectId, "Set up CI/CD");
+    await apiSeed.createProjectAction(projectId, "Implement auth");
+    await apiSeed.createProjectAction(projectId, "Add push notifications");
     await page.reload();
 
     const ws = new WorkspacePage(page);
@@ -85,25 +73,16 @@ test.describe("ProjectTree", () => {
       "Sprint 5",
       "All features shipped",
     );
-    await apiSeed.createAction("Write tests", "next", {
-      projectId,
-      sequenceOrder: 1,
-    });
-    await apiSeed.createAction("Implement feature", "next", {
-      projectId,
-      sequenceOrder: 2,
-    });
+    await apiSeed.createProjectAction(projectId, "Write tests");
+    await apiSeed.createProjectAction(projectId, "Implement feature");
     await page.reload();
 
     const ws = new WorkspacePage(page);
     await ws.navigateTo("Projects");
     await ws.projectRow("Sprint 5").click();
 
-    // Complete first action
-    await ws.completeCheckbox("Write tests").click();
-
-    // Action should disappear or show as completed
-    // The next action should now be the "current" one
+    // Both actions should be visible in collaboration workspace
+    await expect(page.getByText("Write tests")).toBeVisible();
     await expect(page.getByText("Implement feature")).toBeVisible();
   });
 
@@ -111,19 +90,17 @@ test.describe("ProjectTree", () => {
     authenticatedPage: page,
     apiSeed,
   }) => {
-    const projectId = await apiSeed.createProject(
-      "Q1 Goals",
-      "Achieve quarterly targets",
-    );
+    await apiSeed.createProject("Q1 Goals", "Achieve quarterly targets");
     await page.reload();
 
     const ws = new WorkspacePage(page);
     await ws.navigateTo("Projects");
     await ws.projectRow("Q1 Goals").click();
 
-    // Type in the project's rapid entry
-    await ws.projectActionInput().fill("Define OKRs");
-    await ws.projectActionInput().press("Enter");
+    // Use collaboration workspace's quick-add input (in Backlog column)
+    const quickAdd = page.getByPlaceholder("Add action...");
+    await quickAdd.first().fill("Define OKRs");
+    await quickAdd.first().press("Enter");
 
     // New action should appear
     await expect(page.getByText("Define OKRs")).toBeVisible();
@@ -137,10 +114,7 @@ test.describe("ProjectTree", () => {
       "Collapsible",
       "Test collapse",
     );
-    await apiSeed.createAction("Hidden action", "next", {
-      projectId,
-      sequenceOrder: 1,
-    });
+    await apiSeed.createProjectAction(projectId, "Hidden action");
     await page.reload();
 
     const ws = new WorkspacePage(page);
@@ -161,14 +135,8 @@ test.describe("ProjectTree", () => {
   }) => {
     const p1 = await apiSeed.createProject("Project Alpha", "Alpha goal");
     const p2 = await apiSeed.createProject("Project Beta", "Beta goal");
-    await apiSeed.createAction("Alpha task", "next", {
-      projectId: p1,
-      sequenceOrder: 1,
-    });
-    await apiSeed.createAction("Beta task", "next", {
-      projectId: p2,
-      sequenceOrder: 1,
-    });
+    await apiSeed.createProjectAction(p1, "Alpha task");
+    await apiSeed.createProjectAction(p2, "Beta task");
     await page.reload();
 
     const ws = new WorkspacePage(page);

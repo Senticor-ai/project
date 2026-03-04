@@ -165,14 +165,10 @@ export function LoginPage({
 
             {error && (
               <div className="space-y-1">
-                <p role="alert" className="text-xs text-status-error">
-                  <Icon
-                    name="error"
-                    size={12}
-                    className="relative -top-px mr-1 inline-block"
-                  />
-                  {error}
-                </p>
+                <div className="flex items-center gap-1 text-xs text-status-error">
+                  <Icon name="error" size={12} className="shrink-0" />
+                  <p role="alert">{error}</p>
+                </div>
                 <button
                   type="submit"
                   className="text-xs text-blueprint-600 hover:text-blueprint-700"

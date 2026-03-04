@@ -65,7 +65,7 @@ test.describe("Calendar Epic E2E", () => {
     await acknowledgeDisclaimerIfVisible(page);
 
     await expect(
-      page.getByRole("complementary", { name: "Copilot Chat" }),
+      page.getByRole("complementary", { name: /Chat$/ }),
     ).not.toBeVisible();
 
     await apiSeed.sendNotification({
@@ -81,7 +81,7 @@ test.describe("Calendar Epic E2E", () => {
     });
 
     await expect(
-      page.getByRole("complementary", { name: "Copilot Chat" }),
+      page.getByRole("complementary", { name: /Chat$/ }),
     ).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText(proposalId)).toBeVisible({ timeout: 15_000 });
   });
@@ -102,7 +102,8 @@ test.describe("Calendar Epic E2E", () => {
     await expect(page.getByText("Event details")).toBeVisible();
 
     // Local-only events created via apiSeed show "Local only" badge
-    await expect(page.getByText("Local only")).toBeVisible();
+    // Use .first() because "Local only" appears in both list badge and detail panel
+    await expect(page.getByText("Local only").first()).toBeVisible();
   });
 
   test("inbox triage to calendar creates Event type and shows in calendar", async ({

@@ -72,6 +72,9 @@ test.describe("Authentication", () => {
     const workspace = new WorkspacePage(page);
     await expect(workspace.menuTrigger).toBeVisible({ timeout: 10_000 });
 
+    // Wait for layout animations and network to settle before interacting
+    await page.waitForLoadState("networkidle");
+
     // Sign out via menu
     await workspace.signOut();
 
