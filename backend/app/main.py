@@ -125,6 +125,55 @@ def _bind_user_context_from_request_state(request: Request) -> None:
     )
 
 
+def _check_storage_health() -> None:
+    """Verify file storage is writable at startup.
+
+    Creates base subdirectories (uploads/, files/) and writes a probe file
+    to surface permission or mount issues immediately rather than at first
+    upload request.
+    """
+    from .storage import LocalStorage, get_storage
+
+    storage = get_storage()
+    if not isinstance(storage, LocalStorage):
+        return
+
+    base = settings.file_storage_path
+    for subdir in ("uploads", "files"):
+        target = base / subdir
+        try:
+            target.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            logger.error(
+                "storage.health_check_failed",
+                path=str(target),
+                error=str(exc),
+                uid=os.getuid(),
+                gid=os.getgid(),
+            )
+            raise RuntimeError(
+                f"Storage directory not writable: {target} ({exc})"
+            ) from exc
+
+    probe = base / ".health"
+    try:
+        probe.write_text("ok")
+        probe.unlink()
+    except OSError as exc:
+        logger.error(
+            "storage.write_probe_failed",
+            path=str(probe),
+            error=str(exc),
+            uid=os.getuid(),
+            gid=os.getgid(),
+        )
+        raise RuntimeError(
+            f"Storage not writable: {base} ({exc})"
+        ) from exc
+
+    logger.info("storage.health_check_ok", path=str(base))
+
+
 @asynccontextmanager
 async def lifespan(application: FastAPI):
     worker_id = os.environ.get("UVICORN_WORKER_ID") or os.environ.get("WORKER_ID") or "main"
@@ -135,6 +184,7 @@ async def lifespan(application: FastAPI):
         worker_id=worker_id,
         port=port,
     )
+    _check_storage_health()
     tracer_provider = configure_tracing(application)
     try:
         yield

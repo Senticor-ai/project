@@ -109,6 +109,104 @@ def archive_conversation(conversation_id: str, org_id: str) -> bool:
     return updated
 
 
+def create_chat_request(
+    request_id: str,
+    conversation_id: str,
+    user_id: str,
+) -> dict:
+    """Create a chat request tracking row with status='accepted'."""
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO chat_requests (request_id, conversation_id, user_id, status)
+                VALUES (%s, %s, %s, 'accepted')
+                RETURNING request_id, conversation_id, user_id, status,
+                          error_detail, error_type, created_at, updated_at
+                """,
+                (request_id, conversation_id, user_id),
+            )
+            row = cur.fetchone()
+        conn.commit()
+    assert row is not None
+    return row
+
+
+def update_chat_request_status(
+    request_id: str,
+    status: str,
+    error_detail: str | None = None,
+    error_type: str | None = None,
+) -> bool:
+    """Update chat request status. Returns True if a row was updated."""
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE chat_requests
+                SET status = %s,
+                    error_detail = %s,
+                    error_type = %s,
+                    updated_at = now()
+                WHERE request_id = %s
+                """,
+                (status, error_detail, error_type, request_id),
+            )
+            updated = cur.rowcount > 0
+        conn.commit()
+    return updated
+
+
+def get_chat_request(request_id: str) -> dict | None:
+    """Fetch a chat request by ID. Returns None if not found."""
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT request_id, conversation_id, user_id, status,
+                       error_detail, error_type, created_at, updated_at
+                FROM chat_requests
+                WHERE request_id = %s
+                """,
+                (request_id,),
+            )
+            return cur.fetchone()
+
+
+def get_reconciliation_report(conversation_id: str) -> dict:
+    """Check for gaps where a user message has no following assistant response."""
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT message_id, role, created_at
+                FROM chat_messages
+                WHERE conversation_id = %s
+                ORDER BY created_at ASC
+                """,
+                (conversation_id,),
+            )
+            messages = cur.fetchall()
+
+    gaps: list[dict] = []
+    for i, msg in enumerate(messages):
+        if msg["role"] == "user":
+            if i + 1 >= len(messages) or messages[i + 1]["role"] != "assistant":
+                gaps.append(
+                    {
+                        "userMessageId": str(msg["message_id"]),
+                        "createdAt": msg["created_at"].isoformat(),
+                        "issue": "missing_assistant_response",
+                    }
+                )
+    return {
+        "conversationId": conversation_id,
+        "totalMessages": len(messages),
+        "gaps": gaps,
+        "status": "ok" if not gaps else "divergent",
+    }
+
+
 def get_conversation_messages(conversation_id: str, limit: int = 50) -> list[dict]:
     """Fetch last N messages for a conversation, ordered chronologically.
 

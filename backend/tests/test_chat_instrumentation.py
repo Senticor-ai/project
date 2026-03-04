@@ -20,6 +20,10 @@ from app.chat.instrumentation import (
     span_chat_completions,
     span_db_setup,
     span_ensure_running,
+    span_openclaw_exec,
+    span_openrouter_request,
+    span_persist_history,
+    span_persist_openclaw_memory,
 )
 
 
@@ -245,3 +249,60 @@ class TestSpanEnsureRunning:
                 raise RuntimeError("container down")
         after = CHAT_OPENCLAW_ENSURE_RUNNING_TOTAL.labels(outcome="failure")._value.get()
         assert after == before + 1
+
+
+# ---------------------------------------------------------------------------
+# New span context managers (issue #98 phase 4)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestSpanOpenrouterRequest:
+    def test_does_not_raise_on_success(self):
+        ctx = _make_ctx()
+        with span_openrouter_request(ctx):
+            pass
+
+    def test_propagates_exception(self):
+        ctx = _make_ctx()
+        with pytest.raises(RuntimeError, match="provider fail"):
+            with span_openrouter_request(ctx):
+                raise RuntimeError("provider fail")
+
+
+@pytest.mark.unit
+class TestSpanOpenclawExec:
+    def test_creates_context_manager(self):
+        """span_openclaw_exec returns an async context manager."""
+        ctx = _make_ctx(agent_backend="openclaw")
+        acm = span_openclaw_exec(ctx)
+        assert hasattr(acm, "__aenter__")
+        assert hasattr(acm, "__aexit__")
+
+
+@pytest.mark.unit
+class TestSpanPersistHistory:
+    def test_does_not_raise_on_success(self):
+        ctx = _make_ctx()
+        with span_persist_history(ctx):
+            pass
+
+    def test_propagates_exception(self):
+        ctx = _make_ctx()
+        with pytest.raises(RuntimeError, match="db fail"):
+            with span_persist_history(ctx):
+                raise RuntimeError("db fail")
+
+
+@pytest.mark.unit
+class TestSpanPersistOpenclawMemory:
+    def test_does_not_raise_on_success(self):
+        ctx = _make_ctx(agent_backend="openclaw")
+        with span_persist_openclaw_memory(ctx):
+            pass
+
+    def test_propagates_exception(self):
+        ctx = _make_ctx(agent_backend="openclaw")
+        with pytest.raises(RuntimeError, match="sync fail"):
+            with span_persist_openclaw_memory(ctx):
+                raise RuntimeError("sync fail")

@@ -1276,3 +1276,224 @@ class TestArchiveConversation:
         conversations = response.json()
         archived = [c for c in conversations if c["externalId"] == "conv-archive-1"]
         assert len(archived) == 0
+
+
+# ---------------------------------------------------------------------------
+# Issue #98 — edge-case integration tests
+# ---------------------------------------------------------------------------
+
+
+class TestSlowProviderResponse:
+    """Slow but successful provider responses should complete normally."""
+
+    def test_slow_provider_still_delivers_stream(self, auth_client, monkeypatch):
+        import time
+
+        _patch_settings(monkeypatch, agents_url="http://localhost:8002")
+
+        events = [
+            {"type": "text_delta", "content": "Thinking..."},
+            {"type": "text_delta", "content": " Done."},
+            {"type": "done", "text": "Thinking... Done."},
+        ]
+
+        @contextmanager
+        def slow_stream(*args, **kwargs):
+            time.sleep(1)  # simulate slow first token
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.raise_for_status = MagicMock()
+            lines = [json.dumps(e) for e in events]
+            mock_resp.iter_lines = MagicMock(return_value=iter(lines))
+            yield mock_resp
+
+        monkeypatch.setattr("app.chat.routes.httpx.stream", slow_stream)
+
+        response = auth_client.post(
+            "/chat/completions",
+            json={
+                "message": "Slow query",
+                "conversationId": f"conv-slow-{uuid.uuid4().hex[:8]}",
+            },
+        )
+        assert response.status_code == 200
+        parsed = _parse_ndjson(response)
+        text_deltas = [e for e in parsed if e["type"] == "text_delta"]
+        assert len(text_deltas) == 2
+        done_events = [e for e in parsed if e["type"] == "done"]
+        assert len(done_events) == 1
+
+
+class TestOpenclawMidStreamFailure:
+    """OpenClaw container restart during turn should emit error event."""
+
+    def test_openclaw_stream_failure_emits_error_event(
+        self, auth_client, monkeypatch
+    ):
+        _patch_settings(monkeypatch, default_agent_backend="openclaw")
+        monkeypatch.setattr(
+            "app.chat.routes.get_user_agent_backend", lambda uid: "openclaw"
+        )
+        monkeypatch.setattr(
+            "app.chat.routes.ensure_running",
+            lambda uid: ("http://fake-openclaw:8080", "tok"),
+        )
+        monkeypatch.setattr("app.chat.routes.write_token_file", lambda uid, tok: None)
+        monkeypatch.setattr(
+            "app.chat.routes.create_delegated_token",
+            lambda **kw: "fake-delegated-token",
+        )
+
+        import app.chat.routes as routes_mod
+
+        class FakeAsyncClient:
+            def __init__(self, **kw):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *a):
+                pass
+
+            def stream(self, *a, **kw):
+                from contextlib import asynccontextmanager
+
+                @asynccontextmanager
+                async def _raise():
+                    raise httpx.ConnectError("container restarted")
+                    yield  # noqa: RUF027
+
+                return _raise()
+
+        monkeypatch.setattr(routes_mod.httpx, "AsyncClient", FakeAsyncClient)
+
+        response = auth_client.post(
+            "/chat/completions",
+            json={
+                "message": "Test",
+                "conversationId": f"conv-restart-{uuid.uuid4().hex[:8]}",
+            },
+        )
+        assert response.status_code == 200
+        parsed = _parse_ndjson(response)
+        error_events = [e for e in parsed if e["type"] == "error"]
+        assert len(error_events) >= 1
+        assert "unreachable" in error_events[0]["detail"].lower()
+
+
+class TestOpenclawPersistenceFailure:
+    """OpenClaw path: persistence failure after successful stream."""
+
+    def test_openclaw_persist_failure_still_delivers_stream(
+        self, auth_client, monkeypatch
+    ):
+        from contextlib import asynccontextmanager
+
+        _patch_settings(monkeypatch, default_agent_backend="openclaw")
+        monkeypatch.setattr(
+            "app.chat.routes.get_user_agent_backend", lambda uid: "openclaw"
+        )
+        monkeypatch.setattr(
+            "app.chat.routes.ensure_running",
+            lambda uid: ("http://fake-openclaw:8080", "tok"),
+        )
+        monkeypatch.setattr("app.chat.routes.write_token_file", lambda uid, tok: None)
+        monkeypatch.setattr(
+            "app.chat.routes.create_delegated_token",
+            lambda **kw: "fake-delegated-token",
+        )
+        monkeypatch.setattr(
+            "app.chat.routes.sync_workspace_memory_to_db",
+            lambda **kw: None,
+        )
+
+        # SSE lines that the translator will parse
+        sse_lines = [
+            'data: {"choices":[{"delta":{"content":"Reply"}}]}',
+            "data: [DONE]",
+        ]
+
+        import app.chat.routes as routes_mod
+
+        class FakeSSEResponse:
+            status_code = 200
+
+            def raise_for_status(self):
+                pass
+
+            async def aiter_lines(self):
+                for line in sse_lines:
+                    yield line
+
+        class FakeAsyncClient:
+            def __init__(self, **kw):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *a):
+                pass
+
+            def stream(self, *a, **kw):
+                @asynccontextmanager
+                async def _ctx():
+                    yield FakeSSEResponse()
+
+                return _ctx()
+
+        monkeypatch.setattr(routes_mod.httpx, "AsyncClient", FakeAsyncClient)
+
+        # Fail only the assistant persist (second save_message call)
+        call_count = {"n": 0}
+        original_save = routes_mod.save_message
+
+        def _failing_save(*args, **kwargs):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                return original_save(*args, **kwargs)
+            raise RuntimeError("DB write failed")
+
+        monkeypatch.setattr("app.chat.routes.save_message", _failing_save)
+
+        response = auth_client.post(
+            "/chat/completions",
+            json={
+                "message": "Test",
+                "conversationId": f"conv-oc-persist-{uuid.uuid4().hex[:8]}",
+            },
+        )
+        assert response.status_code == 200
+        parsed = _parse_ndjson(response)
+        text_deltas = [e for e in parsed if e["type"] == "text_delta"]
+        assert len(text_deltas) >= 1
+        assert text_deltas[0]["content"] == "Reply"
+
+
+class TestAcceptedEvent:
+    """The stream should start with an accepted event containing requestId."""
+
+    def test_stream_starts_with_accepted_event(self, auth_client, monkeypatch):
+        _patch_settings(monkeypatch, agents_url="http://localhost:8002")
+
+        events = [
+            {"type": "text_delta", "content": "ok"},
+            {"type": "done", "text": "ok"},
+        ]
+        monkeypatch.setattr(
+            "app.chat.routes.httpx.stream", _make_stream_response(events)
+        )
+
+        response = auth_client.post(
+            "/chat/completions",
+            json={
+                "message": "Test",
+                "conversationId": f"conv-accepted-{uuid.uuid4().hex[:8]}",
+            },
+        )
+        assert response.status_code == 200
+        parsed = _parse_ndjson(response)
+        accepted_events = [e for e in parsed if e["type"] == "accepted"]
+        assert len(accepted_events) == 1
+        assert "requestId" in accepted_events[0]

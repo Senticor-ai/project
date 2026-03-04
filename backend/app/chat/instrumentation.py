@@ -8,7 +8,7 @@ existing code blocks — no logic changes, only observability added.
 from __future__ import annotations
 
 import time
-from contextlib import contextmanager
+from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass
 
 import httpx
@@ -211,6 +211,62 @@ def span_ensure_running(ctx: ChatContext):
             outcome=outcome,
             duration_seconds=round(duration, 3),
         )
+
+
+@contextmanager
+def span_openrouter_request(ctx: ChatContext):
+    """Span for the upstream request to the agents/Haystack service."""
+    span = _start_span("backend.openrouter.request")
+    _set_span_attrs(span, ctx)
+    try:
+        yield span
+    except Exception as exc:
+        _fail_span(span, exc)
+        raise
+    finally:
+        _end_span(span)
+
+
+@asynccontextmanager
+async def span_openclaw_exec(ctx: ChatContext):
+    """Span for the OpenClaw SSE streaming call."""
+    span = _start_span("backend.openclaw.exec")
+    _set_span_attrs(span, ctx)
+    try:
+        yield span
+    except Exception as exc:
+        _fail_span(span, exc)
+        raise
+    finally:
+        _end_span(span)
+
+
+@contextmanager
+def span_persist_history(ctx: ChatContext):
+    """Span for persisting the assistant message to chat_messages."""
+    span = _start_span("backend.persistence.write_history")
+    _set_span_attrs(span, ctx)
+    try:
+        yield span
+    except Exception as exc:
+        _fail_span(span, exc)
+        raise
+    finally:
+        _end_span(span)
+
+
+@contextmanager
+def span_persist_openclaw_memory(ctx: ChatContext):
+    """Span for syncing OpenClaw workspace memory to DB."""
+    span = _start_span("backend.persistence.write_openclaw_memory")
+    _set_span_attrs(span, ctx)
+    try:
+        yield span
+    except Exception as exc:
+        _fail_span(span, exc)
+        raise
+    finally:
+        _end_span(span)
 
 
 # ---------------------------------------------------------------------------

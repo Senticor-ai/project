@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import type {
   ChatClientContext,
+  ChatRequestStatusResponse,
   ConversationMessageResponse,
   ConversationSummary,
   StreamEvent,
@@ -278,6 +279,8 @@ function isLikelyInvalidCsrf(status: number, detail: string | null): boolean {
 }
 
 const CHAT_TIMEOUT_MS = 120_000;
+const POLL_INTERVAL_MS = 5_000;
+const POLL_MAX_ATTEMPTS = 12;
 
 async function postChatCompletions(
   payload: Record<string, unknown>,
@@ -324,6 +327,32 @@ async function postChatCompletions(
   return response;
 }
 
+async function pollRequestStatus(
+  requestId: string,
+): Promise<ChatRequestStatusResponse> {
+  const res = await fetch(`${API_BASE}/chat/requests/${requestId}/status`, {
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error(`Status poll failed: ${res.status}`);
+  return res.json() as Promise<ChatRequestStatusResponse>;
+}
+
+/**
+ * Poll until request reaches a terminal state or max attempts exhausted.
+ */
+async function awaitRequestCompletion(
+  requestId: string,
+): Promise<ChatRequestStatusResponse> {
+  for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt++) {
+    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+    const status = await pollRequestStatus(requestId);
+    if (status.status === "completed" || status.status === "failed" || status.status === "timed_out") {
+      return status;
+    }
+  }
+  throw new Error("Chat request timed out");
+}
+
 export function useCopilotApi() {
   const sendMessageStreaming = useCallback(
     async (
@@ -333,7 +362,24 @@ export function useCopilotApi() {
       extraContext?: Partial<ChatClientContext>,
     ): Promise<void> => {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS);
+      let capturedRequestId: string | undefined;
+      let activityTimer = setTimeout(
+        () => controller.abort(),
+        CHAT_TIMEOUT_MS,
+      );
+
+      const resetTimer = () => {
+        clearTimeout(activityTimer);
+        activityTimer = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS);
+      };
+
+      const wrappedOnEvent = (event: StreamEvent) => {
+        resetTimer(); // reset timeout on every received event
+        if (event.type === "accepted") {
+          capturedRequestId = event.requestId;
+        }
+        onEvent(event);
+      };
 
       try {
         const res = await postChatCompletions(
@@ -349,14 +395,40 @@ export function useCopilotApi() {
           throw new Error("No response body for streaming");
         }
 
-        await readNdjsonStream(res.body, onEvent);
+        await readNdjsonStream(res.body, wrappedOnEvent);
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") {
+          // Stream timed out — attempt recovery via polling
+          if (capturedRequestId) {
+            try {
+              const status = await awaitRequestCompletion(capturedRequestId);
+              if (status.status === "completed") {
+                // Backend completed; UI should reload messages
+                onEvent({
+                  type: "done",
+                  text: "",
+                });
+                onEvent({ type: "items_changed" });
+                return;
+              }
+              // Backend failed or timed out
+              onEvent({
+                type: "error",
+                detail: status.errorDetail ?? "Chat request failed",
+                requestId: capturedRequestId,
+                errorType: status.errorType ?? "backend_error",
+              });
+              return;
+            } catch {
+              // Polling also failed
+              throw new Error("Chat request timed out");
+            }
+          }
           throw new Error("Chat request timed out");
         }
         throw err;
       } finally {
-        clearTimeout(timeout);
+        clearTimeout(activityTimer);
       }
     },
     [],

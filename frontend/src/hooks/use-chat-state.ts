@@ -63,6 +63,10 @@ export function useChatState(options: ChatStateOptions = {}) {
       try {
         const onEvent = (event: StreamEvent) => {
           switch (event.type) {
+            case "accepted": {
+              // Request acknowledged by backend; requestId captured in use-copilot-api
+              break;
+            }
             case "text_delta": {
               if (!streamingMsgId) {
                 if (statusMsgId) {

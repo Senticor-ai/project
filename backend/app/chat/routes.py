@@ -11,7 +11,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from collections.abc import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator
+from contextlib import nullcontext
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -34,13 +35,20 @@ from .instrumentation import (
     span_chat_completions,
     span_db_setup,
     span_ensure_running,
+    span_openclaw_exec,
+    span_openrouter_request,
+    span_persist_history,
+    span_persist_openclaw_memory,
 )
 from .queries import (
     archive_conversation,
+    create_chat_request,
+    get_chat_request,
     get_conversation_messages,
     get_or_create_conversation,
     list_conversations,
     save_message,
+    update_chat_request_status,
 )
 from .sse_translator import SseToNdjsonTranslator
 from .tool_executor import AuthContext as ToolAuthContext
@@ -145,63 +153,135 @@ def _build_agent_messages(history: list[dict]) -> list[dict]:
     return messages
 
 
-def _stream_and_persist(
+def _run_haystack_sync(
+    queue: asyncio.Queue,
     agents_url: str,
     agent_payload: dict,
     conversation_id: str,
+    request_id: str | None,
     ctx: ChatContext | None = None,
-) -> Generator[bytes, None, None]:
-    """Stream NDJSON from agents, forward to client, persist assistant response."""
+) -> None:
+    """Synchronous worker: stream from agents, enqueue events, persist.
+
+    Runs in a thread via ``asyncio.to_thread`` so the event loop stays free
+    and client disconnects don't cancel the LLM call.
+    """
     full_text = ""
     tool_calls: list[dict] | None = None
     tracker = FirstTokenTracker("haystack") if ctx else None
+    status_updated_to_running = False
 
     try:
-        with httpx.stream(
-            "POST",
-            f"{agents_url}/chat/completions",
-            json=agent_payload,
-            timeout=60.0,
-        ) as resp:
-            resp.raise_for_status()
-            for line in resp.iter_lines():
-                if not line:
-                    continue
-                yield (line + "\n").encode()
-                try:
-                    event = json.loads(line)
-                    if event.get("type") == "text_delta":
-                        if tracker:
-                            tracker.mark_first_token()
-                        full_text += event.get("content", "")
-                    elif event.get("type") == "tool_calls":
-                        tool_calls = event.get("toolCalls")
-                    elif event.get("type") == "done":
-                        # done event may carry the full text
-                        if not full_text and event.get("text"):
-                            full_text = event["text"]
-                except json.JSONDecodeError:
-                    pass
-    except httpx.ConnectError as exc:
-        yield json.dumps(build_error_event("Agents service unreachable", ctx, exc)).encode() + b"\n"
-        return
-    except httpx.TimeoutException as exc:
-        yield json.dumps(build_error_event("Agents service timeout", ctx, exc)).encode() + b"\n"
-        return
-    except httpx.HTTPStatusError as exc:
-        detail = f"Agents service error: {exc.response.status_code}"
-        yield json.dumps(build_error_event(detail, ctx, exc)).encode() + b"\n"
-        return
+        with span_openrouter_request(ctx) if ctx else nullcontext():
+            try:
+                with httpx.stream(
+                    "POST",
+                    f"{agents_url}/chat/completions",
+                    json=agent_payload,
+                    timeout=60.0,
+                ) as resp:
+                    resp.raise_for_status()
+                    for line in resp.iter_lines():
+                        if not line:
+                            continue
+                        try:
+                            event = json.loads(line)
+                            etype = event.get("type")
+                            if etype == "text_delta":
+                                if tracker:
+                                    tracker.mark_first_token()
+                                if not status_updated_to_running and request_id:
+                                    update_chat_request_status(request_id, "running")
+                                    status_updated_to_running = True
+                                full_text += event.get("content", "")
+                            elif etype == "tool_calls":
+                                tool_calls = event.get("toolCalls")
+                            elif etype == "done":
+                                if not full_text and event.get("text"):
+                                    full_text = event["text"]
+                        except json.JSONDecodeError:
+                            pass
+                        queue.put_nowait((line + "\n").encode())
+            except httpx.ConnectError as exc:
+                err = build_error_event("Agents service unreachable", ctx, exc)
+                queue.put_nowait(json.dumps(err).encode() + b"\n")
+                if request_id:
+                    update_chat_request_status(
+                        request_id, "failed",
+                        error_detail=str(exc)[:200],
+                        error_type="provider_unreachable",
+                    )
+                return
+            except httpx.TimeoutException as exc:
+                err = build_error_event("Agents service timeout", ctx, exc)
+                queue.put_nowait(json.dumps(err).encode() + b"\n")
+                if request_id:
+                    update_chat_request_status(
+                        request_id, "failed",
+                        error_detail=str(exc)[:200],
+                        error_type="provider_timeout",
+                    )
+                return
+            except httpx.HTTPStatusError as exc:
+                detail = f"Agents service error: {exc.response.status_code}"
+                err = build_error_event(detail, ctx, exc)
+                queue.put_nowait(json.dumps(err).encode() + b"\n")
+                if request_id:
+                    update_chat_request_status(
+                        request_id, "failed",
+                        error_detail=detail,
+                        error_type="provider_error",
+                    )
+                return
 
-    # Persist the assistant response after stream completes
-    try:
-        save_message(conversation_id, "assistant", full_text, tool_calls)
-        if ctx:
-            record_persistence_outcome("history", True, ctx)
+        # Persist the assistant response after stream completes
+        with span_persist_history(ctx) if ctx else nullcontext():
+            try:
+                save_message(conversation_id, "assistant", full_text, tool_calls)
+                if ctx:
+                    record_persistence_outcome("history", True, ctx)
+            except Exception as exc:
+                logger.warning("chat.haystack_persist_failed", exc_info=True)
+                if ctx:
+                    record_persistence_outcome("history", False, ctx, error=exc)
+
+        if request_id:
+            update_chat_request_status(request_id, "completed")
     except Exception as exc:
-        logger.warning("chat.haystack_persist_failed", exc_info=True)
-        if ctx:
-            record_persistence_outcome("history", False, ctx, error=exc)
+        logger.exception("chat.haystack_background_failed")
+        if request_id:
+            update_chat_request_status(
+                request_id, "failed",
+                error_detail=str(exc)[:200],
+                error_type="backend_error",
+            )
+        err = build_error_event("Stream failed", ctx, exc)
+        queue.put_nowait(json.dumps(err).encode() + b"\n")
+    finally:
+        queue.put_nowait(None)  # sentinel
+
+
+async def _stream_from_queue(
+    queue: asyncio.Queue,
+) -> AsyncGenerator[bytes, None]:
+    """Read events from a background-task queue and yield as NDJSON bytes."""
+    while True:
+        item = await queue.get()
+        if item is None:
+            break
+        yield item
+
+
+async def _accepted_then_stream(
+    ctx: ChatContext,
+    inner: AsyncGenerator[bytes, None],
+) -> AsyncGenerator[bytes, None]:
+    """Prepend an ``accepted`` event, then yield from inner stream."""
+    yield _encode_ndjson_event(
+        {"type": "accepted", "requestId": ctx.request_id}
+    )
+    async for chunk in inner:
+        yield chunk
 
 
 # ---------------------------------------------------------------------------
@@ -252,6 +332,7 @@ async def _stream_openclaw_after_startup(
     conversation_id: str,
     messages: list[dict],
     initial_detail: str,
+    request_id: str | None = None,
     ctx: ChatContext | None = None,
 ) -> AsyncGenerator[bytes, None]:
     """Keep request open during startup, then forward chat to OpenClaw once ready."""
@@ -276,8 +357,17 @@ async def _stream_openclaw_after_startup(
         remaining_seconds = deadline - loop.time()
         if remaining_seconds <= 0:
             yield _encode_ndjson_event(
-                build_error_event("OpenClaw container startup timed out. Please try again.", ctx)
+                build_error_event(
+                    "OpenClaw container startup timed out. Please try again.",
+                    ctx,
+                )
             )
+            if request_id:
+                update_chat_request_status(
+                    request_id, "timed_out",
+                    error_detail="Container startup timeout",
+                    error_type="container_timeout",
+                )
             return
 
         await asyncio.sleep(min(_OPENCLAW_STARTUP_POLL_SECONDS, remaining_seconds))
@@ -292,6 +382,12 @@ async def _stream_openclaw_after_startup(
                 "und hinterlege einen API-Schlüssel."
             )
             yield _encode_ndjson_event(build_error_event(detail, ctx))
+            if request_id:
+                update_chat_request_status(
+                    request_id, "failed",
+                    error_detail="Agent not configured",
+                    error_type="client_error",
+                )
             return
         except Exception as exc:
             state, _state_error = _get_openclaw_container_state(user_id)
@@ -314,6 +410,12 @@ async def _stream_openclaw_after_startup(
 
             detail = _build_openclaw_startup_error_detail(user_id, exc)
             yield _encode_ndjson_event(build_error_event(detail, ctx, exc))
+            if request_id:
+                update_chat_request_status(
+                    request_id, "failed",
+                    error_detail=detail[:200],
+                    error_type="container_error",
+                )
             return
 
     yield _encode_ndjson_event(
@@ -324,31 +426,40 @@ async def _stream_openclaw_after_startup(
         }
     )
 
-    async for chunk in _stream_openclaw(
-        container_url,
-        container_token,
-        messages,
-        conversation_id,
-        user_id=user_id,
-        org_id=org_id,
-        ctx=ctx,
-    ):
+    # Delegate to background task + queue for the actual LLM call
+    queue: asyncio.Queue = asyncio.Queue()
+    asyncio.create_task(
+        _run_openclaw_background(
+            queue,
+            container_url,
+            container_token,
+            messages,
+            conversation_id,
+            user_id=user_id,
+            org_id=org_id,
+            request_id=request_id,
+            ctx=ctx,
+        )
+    )
+    async for chunk in _stream_from_queue(queue):
         yield chunk
 
 
-async def _stream_openclaw(
+async def _run_openclaw_background(
+    queue: asyncio.Queue,
     openclaw_url: str,
     openclaw_token: str,
     messages: list[dict],
     conversation_id: str,
     user_id: str,
     org_id: str,
+    request_id: str | None,
     ctx: ChatContext | None = None,
-) -> AsyncGenerator[bytes, None]:
-    """Stream SSE from OpenClaw, translate to NDJSON.
+) -> None:
+    """Background task: stream SSE from OpenClaw, enqueue events, persist.
 
-    Phase 3: OpenClaw uses native skills (exec + curl) to create items
-    directly via the backend API. No function-calling tools, no auto-execution.
+    Runs as an ``asyncio.Task`` so client disconnects don't cancel
+    the LLM call or persistence.
     """
     try:
         # Write fresh delegated token for the skill to use.
@@ -362,13 +473,22 @@ async def _stream_openclaw(
         write_token_file(user_id, delegated_token)
     except Exception as exc:
         logger.exception("chat.openclaw_init_failed", extra={"user_id": user_id})
-        yield _encode_ndjson_event(
-            build_error_event("OpenClaw session initialization failed. Please try again.", ctx, exc)
+        err = build_error_event(
+            "OpenClaw session initialization failed. Please try again.", ctx, exc
         )
+        queue.put_nowait(_encode_ndjson_event(err))
+        if request_id:
+            update_chat_request_status(
+                request_id, "failed",
+                error_detail=str(exc)[:200],
+                error_type="backend_error",
+            )
+        queue.put_nowait(None)
         return
 
     translator = SseToNdjsonTranslator()
     tracker = FirstTokenTracker("openclaw") if ctx else None
+    status_updated_to_running = False
 
     payload = {
         "model": "openclaw",
@@ -382,70 +502,123 @@ async def _stream_openclaw(
     }
 
     try:
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            async with client.stream(
-                "POST",
-                f"{openclaw_url}/v1/chat/completions",
-                json=payload,
-                headers=headers,
-            ) as resp:
-                resp.raise_for_status()
-                async for line in resp.aiter_lines():
-                    if not line:
-                        continue
-                    ndjson_events = translator.feed(line)
-                    for event in ndjson_events:
-                        # Forward text and done events; skip tool_calls
-                        # (OpenClaw handles exec tool calls internally)
-                        if event["type"] in ("text_delta", "done", "error"):
-                            if event["type"] == "text_delta" and tracker:
-                                tracker.mark_first_token()
-                            yield (json.dumps(event) + "\n").encode()
-    except httpx.ConnectError as exc:
-        yield _encode_ndjson_event(build_error_event("OpenClaw service unreachable", ctx, exc))
-        return
-    except httpx.TimeoutException as exc:
-        yield _encode_ndjson_event(build_error_event("OpenClaw service timeout", ctx, exc))
-        return
-    except httpx.HTTPStatusError as exc:
-        detail = f"OpenClaw error: {exc.response.status_code}"
-        yield _encode_ndjson_event(build_error_event(detail, ctx, exc))
-        return
-    except Exception as exc:
-        logger.exception("chat.openclaw_stream_failed", extra={"user_id": user_id})
-        yield _encode_ndjson_event(
-            build_error_event("OpenClaw response stream failed. Please try again.", ctx, exc)
-        )
-        return
+        async with span_openclaw_exec(ctx) if ctx else nullcontext():
+            try:
+                async with httpx.AsyncClient(timeout=120.0) as client:
+                    async with client.stream(
+                        "POST",
+                        f"{openclaw_url}/v1/chat/completions",
+                        json=payload,
+                        headers=headers,
+                    ) as resp:
+                        resp.raise_for_status()
+                        async for line in resp.aiter_lines():
+                            if not line:
+                                continue
+                            ndjson_events = translator.feed(line)
+                            for event in ndjson_events:
+                                if event["type"] in ("text_delta", "done", "error"):
+                                    if event["type"] == "text_delta":
+                                        if tracker:
+                                            tracker.mark_first_token()
+                                        if not status_updated_to_running and request_id:
+                                            update_chat_request_status(request_id, "running")
+                                            status_updated_to_running = True
+                                    queue.put_nowait(
+                                        (json.dumps(event) + "\n").encode()
+                                    )
+            except httpx.ConnectError as exc:
+                err = build_error_event("OpenClaw service unreachable", ctx, exc)
+                queue.put_nowait(_encode_ndjson_event(err))
+                if request_id:
+                    update_chat_request_status(
+                        request_id, "failed",
+                        error_detail=str(exc)[:200],
+                        error_type="container_unreachable",
+                    )
+                return
+            except httpx.TimeoutException as exc:
+                err = build_error_event("OpenClaw service timeout", ctx, exc)
+                queue.put_nowait(_encode_ndjson_event(err))
+                if request_id:
+                    update_chat_request_status(
+                        request_id, "failed",
+                        error_detail=str(exc)[:200],
+                        error_type="container_timeout",
+                    )
+                return
+            except httpx.HTTPStatusError as exc:
+                detail = f"OpenClaw error: {exc.response.status_code}"
+                err = build_error_event(detail, ctx, exc)
+                queue.put_nowait(_encode_ndjson_event(err))
+                if request_id:
+                    update_chat_request_status(
+                        request_id, "failed",
+                        error_detail=detail,
+                        error_type="container_error",
+                    )
+                return
+            except Exception as exc:
+                logger.exception(
+                    "chat.openclaw_stream_failed", extra={"user_id": user_id}
+                )
+                err = build_error_event(
+                    "OpenClaw response stream failed. Please try again.", ctx, exc
+                )
+                queue.put_nowait(_encode_ndjson_event(err))
+                if request_id:
+                    update_chat_request_status(
+                        request_id, "failed",
+                        error_detail=str(exc)[:200],
+                        error_type="backend_error",
+                    )
+                return
 
-    # Persist assistant response (text only, no tool_calls)
-    try:
-        save_message(conversation_id, "assistant", translator.full_text)
-        if ctx:
-            record_persistence_outcome("history", True, ctx)
-    except Exception as exc:
-        logger.warning(
-            "chat.openclaw_persist_failed",
-            extra={"user_id": user_id, "conversation_id": conversation_id},
-            exc_info=True,
-        )
-        if ctx:
-            record_persistence_outcome("history", False, ctx, error=exc)
-    try:
-        sync_workspace_memory_to_db(user_id=user_id, org_id=org_id, source=SOURCE_RUNTIME_SYNC)
-        if ctx:
-            record_persistence_outcome("openclaw_memory", True, ctx)
-    except Exception as exc:
-        logger.warning(
-            "chat.openclaw_memory_sync_failed",
-            extra={"user_id": user_id},
-            exc_info=True,
-        )
-        if ctx:
-            record_persistence_outcome("openclaw_memory", False, ctx, error=exc)
+        # Persist assistant response (text only, no tool_calls)
+        with span_persist_history(ctx) if ctx else nullcontext():
+            try:
+                save_message(conversation_id, "assistant", translator.full_text)
+                if ctx:
+                    record_persistence_outcome("history", True, ctx)
+            except Exception as exc:
+                logger.warning(
+                    "chat.openclaw_persist_failed",
+                    extra={"user_id": user_id, "conversation_id": conversation_id},
+                    exc_info=True,
+                )
+                if ctx:
+                    record_persistence_outcome("history", False, ctx, error=exc)
+        with span_persist_openclaw_memory(ctx) if ctx else nullcontext():
+            try:
+                sync_workspace_memory_to_db(
+                    user_id=user_id, org_id=org_id, source=SOURCE_RUNTIME_SYNC
+                )
+                if ctx:
+                    record_persistence_outcome("openclaw_memory", True, ctx)
+            except Exception as exc:
+                logger.warning(
+                    "chat.openclaw_memory_sync_failed",
+                    extra={"user_id": user_id},
+                    exc_info=True,
+                )
+                if ctx:
+                    record_persistence_outcome("openclaw_memory", False, ctx, error=exc)
 
-    # Notify frontend that items may have changed
-    yield (json.dumps({"type": "items_changed"}) + "\n").encode()
+        # Notify frontend that items may have changed
+        queue.put_nowait(_encode_ndjson_event({"type": "items_changed"}))
+
+        if request_id:
+            update_chat_request_status(request_id, "completed")
+    except Exception as exc:
+        logger.exception("chat.openclaw_background_failed")
+        if request_id:
+            update_chat_request_status(
+                request_id, "failed",
+                error_detail=str(exc)[:200],
+                error_type="backend_error",
+            )
+    finally:
+        queue.put_nowait(None)  # sentinel
 
 
 # ---------------------------------------------------------------------------
@@ -522,7 +695,17 @@ def _handle_chat_completions(
             media_type="application/x-ndjson",
         )
 
-    # 4. Route to the right backend
+    # 4. Create chat request tracking row
+    try:
+        create_chat_request(
+            request_id=ctx.request_id or conversation_id,
+            conversation_id=conversation_id,
+            user_id=user_id,
+        )
+    except Exception:
+        logger.warning("chat.request_tracking_failed", exc_info=True)
+
+    # 5. Route to the right backend
 
     if agent_backend == "openclaw":
         messages = _build_openai_messages(history)
@@ -557,13 +740,17 @@ def _handle_chat_completions(
                     "Your message is queued and will be sent automatically."
                 )
                 return StreamingResponse(
-                    _stream_openclaw_after_startup(
-                        user_id=user_id,
-                        org_id=org_id,
-                        conversation_id=conversation_id,
-                        messages=messages,
-                        initial_detail=detail,
-                        ctx=ctx,
+                    _accepted_then_stream(
+                        ctx,
+                        _stream_openclaw_after_startup(
+                            user_id=user_id,
+                            org_id=org_id,
+                            conversation_id=conversation_id,
+                            messages=messages,
+                            initial_detail=detail,
+                            request_id=ctx.request_id,
+                            ctx=ctx,
+                        ),
                     ),
                     media_type="application/x-ndjson",
                 )
@@ -578,20 +765,35 @@ def _handle_chat_completions(
                 media_type="application/x-ndjson",
             )
 
+        # Direct OpenClaw path: background task + queue
+        queue: asyncio.Queue = asyncio.Queue()
+
+        async def _openclaw_stream() -> AsyncGenerator[bytes, None]:
+            yield _encode_ndjson_event(
+                {"type": "accepted", "requestId": ctx.request_id}
+            )
+            asyncio.create_task(
+                _run_openclaw_background(
+                    queue,
+                    container_url,
+                    container_token,
+                    messages,
+                    conversation_id,
+                    user_id=user_id,
+                    org_id=org_id,
+                    request_id=ctx.request_id,
+                    ctx=ctx,
+                )
+            )
+            async for chunk in _stream_from_queue(queue):
+                yield chunk
+
         return StreamingResponse(
-            _stream_openclaw(
-                container_url,
-                container_token,
-                messages,
-                conversation_id,
-                user_id=user_id,
-                org_id=org_id,
-                ctx=ctx,
-            ),
+            _openclaw_stream(),
             media_type="application/x-ndjson",
         )
 
-    # Default: Haystack path (unchanged)
+    # Default: Haystack path
     if not settings.agents_url:
         raise HTTPException(status_code=503, detail="Agents service not available")
 
@@ -684,8 +886,31 @@ def _handle_chat_completions(
             "apiKey": llm_config.api_key,
         }
 
+    # Haystack path: background thread + queue
+    haystack_queue: asyncio.Queue = asyncio.Queue()
+
+    async def _haystack_stream() -> AsyncGenerator[bytes, None]:
+        yield _encode_ndjson_event(
+            {"type": "accepted", "requestId": ctx.request_id}
+        )
+        agents_url = settings.agents_url or ""
+        loop = asyncio.get_event_loop()
+        loop.run_in_executor(
+            None,
+            lambda: _run_haystack_sync(
+                haystack_queue,
+                agents_url,
+                agent_payload,
+                conversation_id,
+                ctx.request_id,
+                ctx,
+            ),
+        )
+        async for chunk in _stream_from_queue(haystack_queue):
+            yield chunk
+
     return StreamingResponse(
-        _stream_and_persist(settings.agents_url, agent_payload, conversation_id, ctx=ctx),
+        _haystack_stream(),
         media_type="application/x-ndjson",
     )
 
@@ -1030,3 +1255,45 @@ def archive_conversation_endpoint(
     updated = archive_conversation(conversation_id, org_id)
     if not updated:
         raise HTTPException(status_code=404, detail="Conversation not found")
+
+
+# ---------------------------------------------------------------------------
+# Request status polling (timeout recovery)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/requests/{request_id}/status")
+def get_request_status(
+    request_id: str,
+    current_user: dict = Depends(get_current_user),  # noqa: B008
+):
+    """Poll the status of a chat request for timeout recovery."""
+    row = get_chat_request(request_id)
+    if row is None or str(row["user_id"]) != str(current_user["id"]):
+        raise HTTPException(status_code=404, detail="Request not found")
+    return {
+        "requestId": str(row["request_id"]),
+        "conversationId": str(row["conversation_id"]),
+        "status": row["status"],
+        "errorDetail": row.get("error_detail"),
+        "errorType": row.get("error_type"),
+        "createdAt": row["created_at"].isoformat(),
+        "updatedAt": row["updated_at"].isoformat(),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Reconciliation
+# ---------------------------------------------------------------------------
+
+
+@router.get("/conversations/{conversation_id}/reconcile")
+def reconcile_conversation_endpoint(
+    conversation_id: str,
+    current_user: dict = Depends(get_current_user),  # noqa: B008
+    current_org: dict = Depends(get_current_org),  # noqa: B008
+):
+    """Check for persistence gaps in a conversation's message history."""
+    from .queries import get_reconciliation_report
+
+    return get_reconciliation_report(conversation_id)

@@ -192,6 +192,7 @@ export interface ChatCompletionResponse {
 // ---------------------------------------------------------------------------
 
 export type StreamEvent =
+  | { type: "accepted"; requestId: string }
   | { type: "text_delta"; content: string }
   | { type: "tool_calls"; toolCalls: ChatToolCall[] }
   | {
@@ -208,6 +209,27 @@ export type StreamEvent =
   | { type: "items_changed" }
   | { type: "done"; text: string }
   | { type: "error"; detail: string; requestId?: string; errorType?: string };
+
+// ---------------------------------------------------------------------------
+// Request Status (polling endpoint)
+// ---------------------------------------------------------------------------
+
+export type ChatRequestStatus =
+  | "accepted"
+  | "running"
+  | "completed"
+  | "failed"
+  | "timed_out";
+
+export interface ChatRequestStatusResponse {
+  requestId: string;
+  conversationId: string;
+  status: ChatRequestStatus;
+  errorDetail?: string | null;
+  errorType?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
 
 // ---------------------------------------------------------------------------
 // Conversation Management Types
