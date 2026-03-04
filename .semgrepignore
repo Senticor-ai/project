@@ -17,6 +17,12 @@ fixtures/
 # Threat model: auto-generated tooling output, not project code.
 frontend/coverage/
 
+# Playwright E2E page objects and test helpers.
+# Alerts: detect-non-literal-regexp (ReDoS)
+# Threat model: test infrastructure only, never runs in production.
+# Dynamic RegExp inputs are pre-escaped via escapeRegex() helper.
+frontend/e2e/
+
 # Third-party dependencies
 node_modules/
 

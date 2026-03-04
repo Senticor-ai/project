@@ -230,6 +230,7 @@ def _fail_stale_queued_jobs(
 
     if conn is not None:
         with conn.cursor() as cur:
+            # nosemgrep: sqlalchemy-execute-raw-query
             cur.execute(query, final_params)
             updated = cur.rowcount
         if updated:
@@ -244,6 +245,7 @@ def _fail_stale_queued_jobs(
 
     with db_conn() as local_conn:
         with local_conn.cursor() as cur:
+            # nosemgrep: sqlalchemy-execute-raw-query
             cur.execute(query, final_params)
             updated = cur.rowcount
         local_conn.commit()
