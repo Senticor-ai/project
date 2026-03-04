@@ -29,6 +29,9 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
+# nosemgrep: python.flask.security.xss.audit.direct-use-of-jinja2.direct-use-of-jinja2
+# Threat model: renders LLM prompt templates (plain text, not HTML) from a
+# controlled filesystem directory. No browser context — XSS not applicable.
 _jinja_env = Environment(
     loader=FileSystemLoader(str(_PROMPTS_DIR)),
     keep_trailing_newline=False,
@@ -55,6 +58,7 @@ def load_prompt(template_path: str, **kwargs) -> str:
         **kwargs: Template variables.
     """
     template = _jinja_env.get_template(template_path)
+    # nosemgrep: python.flask.security.xss.audit.direct-use-of-jinja2.direct-use-of-jinja2
     return template.render(**kwargs)
 
 

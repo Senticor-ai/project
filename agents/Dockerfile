@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.12-alpine
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
@@ -12,9 +12,17 @@ RUN uv sync --frozen --no-dev
 
 COPY agents/ ./
 
+RUN adduser -D -u 1000 appuser
+
 ENV PATH="/app/agents/.venv/bin:${PATH}" \
-    HOME=/app/agents
+    HOME=/app/agents \
+    HAYSTACK_TELEMETRY_ENABLED="false"
+
+USER appuser
 
 EXPOSE 8002
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD wget -qO /dev/null http://localhost:8002/health || exit 1
 
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8002"]

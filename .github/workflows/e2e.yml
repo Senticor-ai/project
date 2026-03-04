@@ -63,11 +63,9 @@ jobs:
           npx playwright install --with-deps chromium
 
       - name: Run smoke suite
+        env:
+          BASE_URL: ${{ github.event.inputs.base_url || 'https://project.senticor.runs.onstackit.cloud' }}
         run: |
-          BASE_URL="${{ github.event.inputs.base_url }}"
-          if [ -z "$BASE_URL" ]; then
-            BASE_URL="https://project.senticor.runs.onstackit.cloud"
-          fi
           cd frontend
           E2E_BASE_URL="$BASE_URL" CI=1 npx playwright test --config e2e/playwright.config.ts --project=smoke
 

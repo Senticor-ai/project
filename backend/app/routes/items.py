@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
 from fastapi.responses import JSONResponse, StreamingResponse
+from psycopg import sql
 
 from ..db import db_conn, jsonb
 from ..deps import get_current_org, get_current_user
@@ -335,25 +336,25 @@ def export_items(
 ):
     org_id = current_org["org_id"]
 
-    conditions = ["org_id = %s"]
+    conditions = [sql.SQL("org_id = %s")]
     params: list = [org_id]
 
     if not include_archived:
-        conditions.append("archived_at IS NULL")
+        conditions.append(sql.SQL("archived_at IS NULL"))
 
     if not include_completed:
-        conditions.append("(schema_jsonld->>'endTime') IS NULL")
+        conditions.append(sql.SQL("(schema_jsonld->>'endTime') IS NULL"))
 
     # Org knowledge docs are system-managed records and should not be exported.
-    conditions.append("canonical_id NOT LIKE %s")
+    conditions.append(sql.SQL("canonical_id NOT LIKE %s"))
     params.append(ORG_KNOWLEDGE_CANONICAL_PATTERN)
 
-    where_clause = " AND ".join(conditions)
+    where_clause = sql.SQL(" AND ").join(conditions)
 
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                f"""
+                sql.SQL("""
                 SELECT
                     item_id,
                     canonical_id,
@@ -363,9 +364,9 @@ def export_items(
                     created_at,
                     updated_at
                 FROM items
-                WHERE {where_clause}
+                WHERE {where}
                 ORDER BY created_at ASC, item_id ASC
-                """,
+                """).format(where=where_clause),
                 tuple(params),
             )
             rows = cur.fetchall()
@@ -505,11 +506,11 @@ def sync_items(
     # Validate and build completed filter clause
     completed_value = (completed or "false").lower()
     if completed_value == "false":
-        endtime_clause = "AND (schema_jsonld->>'endTime') IS NULL"
+        endtime_clause = sql.SQL("AND (schema_jsonld->>'endTime') IS NULL")
     elif completed_value == "true":
-        endtime_clause = "AND (schema_jsonld->>'endTime') IS NOT NULL"
+        endtime_clause = sql.SQL("AND (schema_jsonld->>'endTime') IS NOT NULL")
     elif completed_value == "all":
-        endtime_clause = ""
+        endtime_clause = sql.SQL("")
     else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -524,7 +525,7 @@ def sync_items(
         with conn.cursor() as cur:
             if cursor_filter:
                 cur.execute(
-                    f"""
+                    sql.SQL("""
                     SELECT
                         item_id,
                         canonical_id,
@@ -536,11 +537,11 @@ def sync_items(
                     FROM items
                     WHERE archived_at IS NULL AND org_id = %s
                       AND canonical_id NOT LIKE %s
-                      {endtime_clause}
+                      {endtime}
                       AND (created_at, item_id) > (%s, %s)
                     ORDER BY created_at ASC, item_id ASC
                     LIMIT %s
-                    """,
+                    """).format(endtime=endtime_clause),
                     (
                         org_id,
                         ORG_KNOWLEDGE_CANONICAL_PATTERN,
@@ -551,7 +552,7 @@ def sync_items(
                 )
             elif since_filter:
                 cur.execute(
-                    f"""
+                    sql.SQL("""
                     SELECT
                         item_id,
                         canonical_id,
@@ -565,15 +566,15 @@ def sync_items(
                       AND org_id = %s
                       AND updated_at > %s
                       AND canonical_id NOT LIKE %s
-                      {endtime_clause}
+                      {endtime}
                     ORDER BY created_at ASC, item_id ASC
                     LIMIT %s
-                    """,
+                    """).format(endtime=endtime_clause),
                     (org_id, since_filter, ORG_KNOWLEDGE_CANONICAL_PATTERN, limit),
                 )
             else:
                 cur.execute(
-                    f"""
+                    sql.SQL("""
                     SELECT
                         item_id,
                         canonical_id,
@@ -585,10 +586,10 @@ def sync_items(
                     FROM items
                     WHERE archived_at IS NULL AND org_id = %s
                       AND canonical_id NOT LIKE %s
-                      {endtime_clause}
+                      {endtime}
                     ORDER BY created_at ASC, item_id ASC
                     LIMIT %s
-                    """,
+                    """).format(endtime=endtime_clause),
                     (org_id, ORG_KNOWLEDGE_CANONICAL_PATTERN, limit),
                 )
             rows = cur.fetchall()

@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from psycopg import sql
 from pydantic import BaseModel, Field
 
 from ..db import db_conn, jsonb
@@ -831,35 +832,35 @@ def list_project_actions(
             )
 
             where_clauses = [
-                "a.org_id = %s",
-                "a.project_item_id = %s",
-                "a.archived_at IS NULL",
+                sql.SQL("a.org_id = %s"),
+                sql.SQL("a.project_item_id = %s"),
+                sql.SQL("a.archived_at IS NULL"),
             ]
             params: list[Any] = [org_id, project["item_id"]]
 
             if statuses:
-                where_clauses.append("COALESCE(p.status, a.action_status) = ANY(%s)")
+                where_clauses.append(sql.SQL("COALESCE(p.status, a.action_status) = ANY(%s)"))
                 params.append(statuses)
 
             if tag is not None and tag.strip():
-                where_clauses.append("a.tags @> %s")
+                where_clauses.append(sql.SQL("a.tags @> %s"))
                 params.append(jsonb([tag.strip()]))
 
             if owner_user_id is not None and owner_user_id.strip():
-                where_clauses.append("a.owner_user_id::text = %s")
+                where_clauses.append(sql.SQL("a.owner_user_id::text = %s"))
                 params.append(owner_user_id.strip())
 
             if due_before is not None:
-                where_clauses.append("a.due_at <= %s")
+                where_clauses.append(sql.SQL("a.due_at <= %s"))
                 params.append(due_before)
 
             if due_after is not None:
-                where_clauses.append("a.due_at >= %s")
+                where_clauses.append(sql.SQL("a.due_at >= %s"))
                 params.append(due_after)
 
-            where_sql = " AND ".join(where_clauses)
+            where_composed = sql.SQL(" AND ").join(where_clauses)
             cur.execute(
-                f"""
+                sql.SQL("""
                 SELECT
                     a.*,
                     p.status AS projected_status,
@@ -872,9 +873,9 @@ def list_project_actions(
                     FROM action_comment c
                     WHERE c.action_id = a.id
                 ) AS comment_counts ON TRUE
-                WHERE {where_sql}
+                WHERE {where}
                 ORDER BY a.due_at ASC NULLS LAST, a.created_at ASC
-                """,
+                """).format(where=where_composed),
                 tuple(params),
             )
             rows = cur.fetchall()

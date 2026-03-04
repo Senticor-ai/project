@@ -21,8 +21,12 @@ RUN uv sync --frozen --no-dev
 COPY backend/ ./
 COPY openclaw/ /app/openclaw/
 
+RUN useradd -m -u 1000 appuser
+
 ENV PATH="/app/backend/.venv/bin:${PATH}" \
     HOME=/app/backend
+
+USER appuser
 
 EXPOSE 8000
 

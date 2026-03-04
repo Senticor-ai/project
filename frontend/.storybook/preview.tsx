@@ -122,6 +122,7 @@ const preview: Preview = {
             "Data Retention",
             "i18n",
             "Secrets Documentation",
+            "Docker Image Security CVEs",
             "ADR",
             ["*"],
           ],

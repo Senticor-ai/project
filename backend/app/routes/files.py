@@ -1,6 +1,7 @@
 import hashlib
 from datetime import UTC, datetime, timedelta
 
+import psycopg
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, status
 from fastapi.responses import JSONResponse
 
@@ -26,12 +27,14 @@ from ..models import (
     RenderPdfResponse,
     SearchIndexStatusResponse,
 )
+from ..observability import get_logger
 from ..outbox import enqueue_event
 from ..rate_limit import limiter
 from ..search.jobs import enqueue_job, get_job, serialize_job
 from ..storage import get_storage
 from ..text_extractor import extract_file_text
 
+logger = get_logger("files")
 router = APIRouter(prefix="/files", tags=["files"], dependencies=[Depends(get_current_user)])
 FILE_UPLOAD_RATE_LIMIT = "120/minute"
 
@@ -79,37 +82,62 @@ def initiate_upload(
     chunk_size = settings.upload_chunk_size
     chunk_total = max(1, (payload.total_size + chunk_size - 1) // chunk_size)
 
-    with db_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO file_uploads (
-                    org_id,
-                    owner_id,
-                    filename,
-                    content_type,
-                    total_size,
-                    chunk_size,
-                    chunk_total
+    try:
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO file_uploads (
+                        org_id,
+                        owner_id,
+                        filename,
+                        content_type,
+                        total_size,
+                        chunk_size,
+                        chunk_total
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    RETURNING upload_id, created_at
+                    """,
+                    (
+                        org_id,
+                        current_user["id"],
+                        payload.filename,
+                        payload.content_type,
+                        payload.total_size,
+                        chunk_size,
+                        chunk_total,
+                    ),
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                RETURNING upload_id, created_at
-                """,
-                (
-                    org_id,
-                    current_user["id"],
-                    payload.filename,
-                    payload.content_type,
-                    payload.total_size,
-                    chunk_size,
-                    chunk_total,
-                ),
-            )
-            row = cur.fetchone()
-        conn.commit()
+                row = cur.fetchone()
+            conn.commit()
+    except psycopg.errors.UndefinedTable as exc:
+        logger.error("initiate_upload.table_missing", table="file_uploads")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="file_uploads table not found — run database migrations",
+        ) from exc
+    except psycopg.Error as exc:
+        logger.exception("initiate_upload.db_error", error=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error during upload initiation",
+        ) from exc
 
     upload_id = str(row["upload_id"])
-    storage.ensure_dir(f"uploads/{upload_id}")
+    try:
+        storage.ensure_dir(f"uploads/{upload_id}")
+    except OSError as exc:
+        logger.exception(
+            "initiate_upload.storage_error",
+            upload_id=upload_id,
+            storage_path=str(settings.file_storage_path),
+            error=str(exc),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Storage directory creation failed",
+        ) from exc
 
     expires_at = (datetime.now(UTC) + timedelta(hours=24)).isoformat()
 

@@ -15,6 +15,10 @@ import { fileURLToPath } from "node:url";
 
 const API_BASE = process.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
+// nosemgrep: javascript.ajv.security.audit.ajv-allerrors-true.ajv-allerrors-true
+// Threat model: allErrors is intentional for test diagnostics — this is a
+// test-only file (__tests__/) validating backend contract schemas. No untrusted
+// input is processed; the performance cost of collecting all errors is acceptable.
 const ajv = new Ajv({ allErrors: true, strict: false });
 
 const __dirname = dirname(fileURLToPath(import.meta.url));

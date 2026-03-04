@@ -1,5 +1,9 @@
 import type { Page, Locator } from "@playwright/test";
 
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 export class WorkspacePage {
   readonly menuTrigger: Locator;
   readonly signOutMenuItem: Locator;
@@ -31,7 +35,7 @@ export class WorkspacePage {
     if (isMobile) {
       await this.menuTrigger.click();
       await this.page
-        .getByRole("menuitem", { name: new RegExp(bucket) })
+        .getByRole("menuitem", { name: new RegExp(escapeRegex(bucket)) })
         .click();
     } else {
       await this.bucketNav.getByRole("button", { name: bucket }).click();
@@ -107,7 +111,7 @@ export class WorkspacePage {
   }
 
   focusStar(title: string): Locator {
-    return this.page.getByLabel(new RegExp(`(Focus|Unfocus) ${title}`));
+    return this.page.getByLabel(new RegExp(`(Focus|Unfocus) ${escapeRegex(title)}`));
   }
 
   moveMenuButton(title: string): Locator {
@@ -168,7 +172,7 @@ export class WorkspacePage {
   // ----- Project star toggle -----
 
   projectStar(title: string): Locator {
-    return this.page.getByLabel(new RegExp(`(Star|Unstar) ${title}`));
+    return this.page.getByLabel(new RegExp(`(Star|Unstar) ${escapeRegex(title)}`));
   }
 
   // ----- Starred projects in nav -----
@@ -185,7 +189,7 @@ export class WorkspacePage {
 
   contextChip(context: string): Locator {
     return this.contextFilterBar().getByRole("checkbox", {
-      name: new RegExp(context),
+      name: new RegExp(escapeRegex(context)),
     });
   }
 
@@ -196,7 +200,7 @@ export class WorkspacePage {
   // ----- Project Tree -----
 
   projectRow(title: string): Locator {
-    return this.page.getByLabel(new RegExp(`(Expand|Collapse) ${title}`));
+    return this.page.getByLabel(new RegExp(`(Expand|Collapse) ${escapeRegex(title)}`));
   }
 
   projectActionInput(): Locator {

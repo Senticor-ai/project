@@ -14,6 +14,7 @@ import httpx
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import RedirectResponse
+from psycopg import sql
 from pydantic import BaseModel, Field
 
 from app.config import settings
@@ -492,7 +493,7 @@ def gmail_callback(
         tokens = exchange_gmail_code(code)
     except httpx.HTTPStatusError as exc:
         detail = _format_google_error(exc)
-        logger.exception("Gmail token exchange failed: %s", detail)
+        logger.exception("Gmail token exchange failed (status %d)", exc.response.status_code)
         raise HTTPException(
             status_code=502, detail=f"Gmail token exchange failed: {detail}"
         ) from exc
@@ -794,18 +795,18 @@ def update_connection(
     if not existing:
         raise HTTPException(status_code=404, detail="Connection not found")
 
-    updates: list[str] = []
+    update_parts: list[sql.Composable] = []
     values: list[Any] = []
     deselected_calendar_ids: list[str] = []
 
     if body.sync_interval_minutes is not None:
-        updates.append("sync_interval_minutes = %s")
+        update_parts.append(sql.SQL("sync_interval_minutes = %s"))
         values.append(body.sync_interval_minutes)
     if body.sync_mark_read is not None:
-        updates.append("sync_mark_read = %s")
+        update_parts.append(sql.SQL("sync_mark_read = %s"))
         values.append(body.sync_mark_read)
     if body.calendar_sync_enabled is not None:
-        updates.append("calendar_sync_enabled = %s")
+        update_parts.append(sql.SQL("calendar_sync_enabled = %s"))
         values.append(body.calendar_sync_enabled)
     if body.calendar_selected_ids is not None:
         selected_calendar_ids = _normalize_calendar_ids(body.calendar_selected_ids)
@@ -817,11 +818,11 @@ def update_connection(
         previous_ids = _selected_calendar_ids_from_row(existing)
         deselected_calendar_ids = [cid for cid in previous_ids if cid not in selected_calendar_ids]
         filtered_sync_tokens = _filtered_calendar_sync_tokens(existing, selected_calendar_ids)
-        updates.extend(
+        update_parts.extend(
             [
-                "calendar_selected_ids = %s",
-                "calendar_sync_tokens = %s",
-                "calendar_sync_token = %s",
+                sql.SQL("calendar_selected_ids = %s"),
+                sql.SQL("calendar_sync_tokens = %s"),
+                sql.SQL("calendar_sync_token = %s"),
             ]
         )
         values.extend(
@@ -831,18 +832,18 @@ def update_connection(
                 filtered_sync_tokens.get("primary"),
             ]
         )
-    updates.append("updated_at = now()")
+    update_parts.append(sql.SQL("updated_at = now()"))
     values.extend([connection_id, str(current_user["id"]), org["org_id"]])
 
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                f"""
+                sql.SQL("""
                 UPDATE email_connections
-                SET {", ".join(updates)}
+                SET {sets}
                 WHERE connection_id = %s AND user_id = %s AND org_id = %s
                 RETURNING *
-                """,
+                """).format(sets=sql.SQL(", ").join(update_parts)),
                 values,
             )
             row = cur.fetchone()
