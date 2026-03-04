@@ -415,3 +415,10 @@ Deployment updates written by CI.
 - Updated `infra/k8s/overlays/production/configmap.yaml` OpenClaw image to `registry.onstackit.cloud/senticor/project/openclaw:ade3b300d31b5af1fe55526d0ad25e2dbd7b8091`.
 - Workflow run: https://github.com/Senticor-ai/project/actions/runs/22667510096
 - Actor: `wolfgangihloff`
+
+## 2026-03-04 14:20:55 UTC - 0337734cc0b277e75fc0fd14f3daaff95de50a62
+
+- Updated `infra/k8s/overlays/production/kustomization.yaml` image tags to `0337734cc0b277e75fc0fd14f3daaff95de50a62`.
+- Updated `infra/k8s/overlays/production/configmap.yaml` OpenClaw image to `registry.onstackit.cloud/senticor/project/openclaw:0337734cc0b277e75fc0fd14f3daaff95de50a62`.
+- Workflow run: https://github.com/Senticor-ai/project/actions/runs/22673193109
+- Actor: `wolfgangihloff`
