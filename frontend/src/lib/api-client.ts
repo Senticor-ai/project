@@ -263,6 +263,34 @@ async function requestWithResponse<T>(
       });
     }
 
+    // Retry once on CSRF token mismatch (403 with "csrf" in detail)
+    if (
+      response.status === 403 &&
+      !_isRetry &&
+      typeof details?.detail === "string" &&
+      details.detail.toLowerCase().includes("csrf")
+    ) {
+      try {
+        await refreshCsrfToken();
+        const retryHeaders = new Headers(init?.headers ?? {});
+        retryHeaders.set(REQUEST_ID_HEADER, requestId);
+        if (csrfToken) {
+          retryHeaders.set(CSRF_HEADER, csrfToken);
+        }
+        if (currentUserId && !retryHeaders.has(USER_ID_HEADER)) {
+          retryHeaders.set(USER_ID_HEADER, currentUserId);
+        }
+        return requestWithResponse<T>(
+          path,
+          { ...init, headers: retryHeaders },
+          true,
+          requestId,
+        );
+      } catch {
+        // CSRF refresh failed — fall through to generic error
+      }
+    }
+
     const detail = details?.detail;
     throw new ApiError({
       message: detailMessage(detail) ?? "Request failed",

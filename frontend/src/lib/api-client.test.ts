@@ -531,6 +531,81 @@ describe("401 session recovery", () => {
 });
 
 // ---------------------------------------------------------------------------
+// 403 CSRF recovery
+// ---------------------------------------------------------------------------
+
+describe("403 CSRF recovery", () => {
+  it("retries original request after refreshing CSRF on 403", async () => {
+    setCsrfToken("stale-csrf");
+    fetchSpy
+      .mockResolvedValueOnce(
+        errorResponse("Invalid CSRF token", 403),
+      ) // POST /items
+      .mockResolvedValueOnce(
+        jsonResponse({ csrf_token: "fresh-csrf" }),
+      ) // GET /auth/csrf
+      .mockResolvedValueOnce(jsonResponse({ id: "i-1" })); // retry POST /items
+
+    const result = await ItemsApi.create({ name: "test" });
+    expect(result).toEqual({ id: "i-1" });
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+
+    // Verify the retry carries the refreshed CSRF token
+    const [, retryInit] = fetchSpy.mock.calls[2] as [string, RequestInit];
+    const retryHeaders = new Headers(retryInit.headers);
+    expect(retryHeaders.get("X-CSRF-Token")).toBe("fresh-csrf");
+  });
+
+  it("does not retry when 403 detail does not mention csrf", async () => {
+    setCsrfToken("tok");
+    fetchSpy.mockResolvedValueOnce(
+      errorResponse("Forbidden", 403),
+    );
+
+    await expect(ItemsApi.create({ name: "test" })).rejects.toThrow(ApiError);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not retry CSRF more than once", async () => {
+    setCsrfToken("tok");
+    fetchSpy
+      .mockResolvedValueOnce(
+        errorResponse("Invalid CSRF token", 403),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ csrf_token: "fresh" }),
+      ) // refresh
+      .mockResolvedValueOnce(
+        errorResponse("Invalid CSRF token", 403),
+      ); // retry also 403
+
+    await expect(ItemsApi.create({ name: "test" })).rejects.toThrow(ApiError);
+    // 3 calls: original + csrf refresh + retry (no second retry)
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+  });
+
+  it("preserves request ID across CSRF retry", async () => {
+    setCsrfToken("stale");
+    fetchSpy
+      .mockResolvedValueOnce(
+        errorResponse("Invalid CSRF token", 403),
+      )
+      .mockResolvedValueOnce(jsonResponse({ csrf_token: "ok" }))
+      .mockResolvedValueOnce(jsonResponse({ id: "i-1" }));
+
+    await ItemsApi.create({ name: "test" });
+
+    const [, firstInit] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    const [, retryInit] = fetchSpy.mock.calls[2] as [string, RequestInit];
+    const firstHeaders = new Headers(firstInit.headers);
+    const retryHeaders = new Headers(retryInit.headers);
+    expect(firstHeaders.get("X-Request-ID")).toBe(
+      retryHeaders.get("X-Request-ID"),
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
 // CalendarApi
 // ---------------------------------------------------------------------------
 
