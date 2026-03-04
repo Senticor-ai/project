@@ -23,6 +23,19 @@ frontend/coverage/
 # Dynamic RegExp inputs are pre-escaped via escapeRegex() helper.
 frontend/e2e/
 
+# Backend test files — use hardcoded test credentials, raw SQL assertions,
+# and dynamic URLs intentionally. Not production code.
+# Alerts: jwt-hardcoded-secret, hardcoded-password-default-argument,
+#         dynamic-urllib-use-detected, sqlalchemy-execute-raw-query
+backend/tests/
+
+# Kustomize strategic merge patches — these are partial YAML overlays
+# that inherit securityContext (runAsNonRoot, etc.) from base manifests.
+# Semgrep doesn't understand Kustomize patching and flags them as missing
+# security contexts.
+# Alerts: run-as-non-root, allow-privilege-escalation-no-securitycontext
+infra/k8s/overlays/
+
 # Third-party dependencies
 node_modules/
 

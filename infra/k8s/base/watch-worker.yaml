@@ -33,6 +33,13 @@ spec:
             capabilities:
               drop: ["ALL"]
             readOnlyRootFilesystem: true
+          resources:
+            requests:
+              memory: "32Mi"
+              cpu: "10m"
+            limits:
+              memory: "64Mi"
+              cpu: "100m"
           envFrom:
             - configMapRef:
                 name: app-config
@@ -54,6 +61,14 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
+            readOnlyRootFilesystem: true
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "300m"
           command: ["python", "-m", "app.email.watch_worker", "--loop", "--poll-seconds", "5"]
           ports:
             - containerPort: 9092
@@ -63,6 +78,9 @@ spec:
                 name: app-config
             - secretRef:
                 name: app-secrets
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           livenessProbe:
             httpGet:
               path: /health
@@ -76,3 +94,7 @@ spec:
               port: health
             initialDelaySeconds: 5
             periodSeconds: 5
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 50Mi

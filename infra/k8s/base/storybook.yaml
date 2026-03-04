@@ -41,9 +41,26 @@ spec:
             capabilities:
               drop: ["ALL"]
               add: ["NET_BIND_SERVICE"]
+            readOnlyRootFilesystem: true
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "200m"
           ports:
             - containerPort: 80
               name: http
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: nginx-cache
+              mountPath: /var/cache/nginx
+            - name: nginx-log
+              mountPath: /var/log/nginx
+            - name: nginx-run
+              mountPath: /var/run
           readinessProbe:
             httpGet:
               path: /healthz
@@ -56,3 +73,16 @@ spec:
               port: http
             initialDelaySeconds: 10
             periodSeconds: 10
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 10Mi
+        - name: nginx-cache
+          emptyDir:
+            sizeLimit: 50Mi
+        - name: nginx-log
+          emptyDir:
+            sizeLimit: 10Mi
+        - name: nginx-run
+          emptyDir:
+            sizeLimit: 1Mi

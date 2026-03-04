@@ -44,6 +44,14 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
+            readOnlyRootFilesystem: true
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
           ports:
             - containerPort: 8002
               name: http
@@ -52,6 +60,9 @@ spec:
                 name: app-config
             - secretRef:
                 name: app-secrets
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           readinessProbe:
             httpGet:
               path: /health
@@ -64,3 +75,7 @@ spec:
               port: http
             initialDelaySeconds: 15
             periodSeconds: 10
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 50Mi

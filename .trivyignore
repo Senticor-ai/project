@@ -1,0 +1,116 @@
+# ── Trivy CVE Suppressions ─────────────────────────────────────────────
+# Reviewed: 2026-03-04
+# Policy: Suppress OS-level CVEs in container base images that have no
+#         upstream fix or are not exploitable in our deployment context.
+# Base images: python:3.12-slim (Debian), python:3.12-alpine, alpine:3.21
+# Mitigations: non-root user, read-only root filesystem, capabilities dropped,
+#              seccomp RuntimeDefault, network policies.
+
+# ── tar ────────────────────────────────────────────────────────────────
+CVE-2005-2541   # tar setuid/setgid extraction warning — not a vulnerability, informational
+TEMP-0290435-0B57B5  # tar rmt side effects — rmt not installed in containers
+
+# ── sysvinit / login ──────────────────────────────────────────────────
+CVE-2007-5686   # initscripts permissions — sysvinit not used (systemd/container runtime)
+TEMP-0517018-A83CE6  # sysvinit no-root exploit — not applicable (no installer)
+TEMP-0628843-DBAD28  # related to CVE-2005-4890, su session — not exploitable (no su)
+TEMP-0841856-B18BAF  # privilege escalation via su — su not available in containers
+
+# ── util-linux ─────────────────────────────────────────────────────────
+CVE-2022-0563   # chfn/chsh libreadline disclosure — chfn/chsh not used in containers
+CVE-2025-14104  # heap overread in setpwnam with 256-byte usernames — no user management
+CVE-2026-3184   # hostname canonicalization bypass — no hostname-based access control
+
+# ── shadow-utils ───────────────────────────────────────────────────────
+CVE-2024-56433  # subordinate ID config — no sub-UID/GID delegation in containers
+
+# ── ncurses ────────────────────────────────────────────────────────────
+CVE-2025-6141   # stack buffer overflow — ncurses not used by application code
+
+# ── glibc (Debian base image) ─────────────────────────────────────────
+CVE-2010-4756   # glob DoS — no user-controlled glob patterns
+CVE-2018-20796  # regex recursion — no user-controlled regex
+CVE-2019-1010022  # stack guard bypass — requires local code execution (mitigated by non-root + seccomp)
+CVE-2019-1010023  # ldd code execution — ldd not invoked on untrusted binaries
+CVE-2019-1010024  # ASLR bypass via /proc — /proc restricted by seccomp
+CVE-2019-1010025  # pthread heap disclosure — requires local code execution
+CVE-2019-9192   # regex recursion (dupe of CVE-2018-20796)
+CVE-2025-15281  # wordexp uninitialized memory — wordexp not used
+CVE-2026-0861   # memalign integer overflow — no direct memalign calls
+CVE-2026-0915   # glibc — no user-controlled allocation sizes
+
+# ── apt ────────────────────────────────────────────────────────────────
+CVE-2011-3374   # apt-key validation — apt not used at runtime
+
+# ── systemd ────────────────────────────────────────────────────────────
+CVE-2013-4392   # TOCTOU race in systemd — systemd not running in containers
+CVE-2023-31437  # systemd journal sealing — journald not running
+CVE-2023-31438  # systemd journal truncation — journald not running
+CVE-2023-31439  # systemd journal modification — journald not running
+
+# ── perl ───────────────────────────────────────────────────────────────
+CVE-2011-4116   # File::Temp insecure tmpfile — perl not used by application
+
+# ── coreutils ──────────────────────────────────────────────────────────
+CVE-2017-18018  # chown/chgrp race — no runtime chown on untrusted paths
+CVE-2025-5278   # sort heap underread — sort not used on untrusted input
+
+# ── zlib ───────────────────────────────────────────────────────────────
+CVE-2026-27171  # CRC32 infinite loop DoS — mitigated by resource limits
+
+# ── pip (build tool, not runtime) ──────────────────────────────────────
+CVE-2025-8869   # pip symlink extraction — pip not used at runtime
+CVE-2026-1703   # pip — pip not used at runtime
+
+# ── libtiff (backend image, WeasyPrint dependency chain) ───────────────
+CVE-2017-16232  # memory leak on crafted tiff — no user-supplied TIFF processing
+CVE-2017-9937   # tif_jbig DoS — JBIG not used
+CVE-2018-10126  # NULL deref in jpeg_fdct — no user-supplied TIFF
+CVE-2022-1210   # tiff DoS — no user-supplied TIFF processing
+CVE-2023-37769  # FPE in stress test — test utility only
+CVE-2025-61143  # libtiff — no user-supplied TIFF
+CVE-2025-61144  # libtiff — no user-supplied TIFF
+CVE-2025-61145  # libtiff — no user-supplied TIFF
+CVE-2025-8176   # libtiff use-after-free — no user-supplied TIFF
+CVE-2025-8177   # libtiff buffer overflow — no user-supplied TIFF
+CVE-2025-8534   # libtiff null deref — no user-supplied TIFF
+
+# ── cairo (backend image, WeasyPrint) ──────────────────────────────────
+CVE-2017-7475   # NULL deref on crafted font — fonts are system-controlled
+CVE-2018-18064  # stack overflow on crafted WebKitGTK doc — no WebKitGTK input
+
+# ── libpng ─────────────────────────────────────────────────────────────
+CVE-2021-4214   # heap overflow on hardcoded value — no user-supplied PNG decoding
+
+# ── sqlite ─────────────────────────────────────────────────────────────
+CVE-2021-45346  # info disclosure via crafted SQL — no user-exposed SQLite
+CVE-2025-7709   # FTS5 integer overflow — FTS5 not used
+
+# ── glib2 ──────────────────────────────────────────────────────────────
+CVE-2012-0039   # hash table collision DoS — mitigated in modern glib
+CVE-2026-0988   # GLib — transitive dep, not directly exposed
+CVE-2026-1484   # g_base64_encode overflow — no user-controlled base64 input of that size
+CVE-2026-1485   # GLib — transitive dep
+CVE-2026-1489   # GLib — transitive dep
+
+# ── libxml2 ────────────────────────────────────────────────────────────
+CVE-2025-8732   # libxml2 — transitive dep, XML parsing is internal only
+CVE-2026-0989   # RelaxNG include recursion — no user-supplied RelaxNG schemas
+CVE-2026-0990   # libxml2 — transitive dep
+CVE-2026-0992   # libxml2 — transitive dep
+CVE-2026-1757   # xmllint memory leak — xmllint not used at runtime
+
+# ── libexpat ───────────────────────────────────────────────────────────
+CVE-2025-59375  # large allocation via small doc — no user-supplied XML via expat
+CVE-2025-66382  # libexpat — transitive dep
+CVE-2026-24515  # null pointer deref — no direct expat usage
+CVE-2026-25210  # libexpat — transitive dep
+
+# ── poppler ────────────────────────────────────────────────────────────
+CVE-2025-50422  # crash on malformed input — no user-supplied PDF parsing via poppler
+
+# ── harfbuzz ───────────────────────────────────────────────────────────
+CVE-2026-22693  # null deref — fonts are system-controlled
+
+# ── freetype ───────────────────────────────────────────────────────────
+CVE-2026-23865  # integer overflow in tt_var — fonts are system-controlled

@@ -85,6 +85,7 @@ jobs:
           scan-type: fs
           scan-ref: .
           scanners: vuln,misconfig
+          trivyignores: .trivyignore
           format: sarif
           output: trivy-fs.sarif
 
@@ -126,6 +127,7 @@ jobs:
         with:
           scan-type: image
           image-ref: project-backend:scan
+          trivyignores: .trivyignore
           format: sarif
           output: trivy-image-backend.sarif
 
@@ -134,6 +136,7 @@ jobs:
         with:
           scan-type: image
           image-ref: project-frontend:scan
+          trivyignores: .trivyignore
           format: sarif
           output: trivy-image-frontend.sarif
 
@@ -142,6 +145,7 @@ jobs:
         with:
           scan-type: image
           image-ref: project-agents:scan
+          trivyignores: .trivyignore
           format: sarif
           output: trivy-image-agents.sarif
 
