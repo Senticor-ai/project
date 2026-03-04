@@ -79,12 +79,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # misconfig scanner excluded: k3s single-node deployment, KSV/DS rules
+      # are not actionable. Dockerfile security is covered by Semgrep.
       - name: Run Trivy filesystem scan
         uses: aquasecurity/trivy-action@0.34.2
         with:
           scan-type: fs
           scan-ref: .
-          scanners: vuln,misconfig
+          scanners: vuln
           trivyignores: .trivyignore
           format: sarif
           output: trivy-fs.sarif

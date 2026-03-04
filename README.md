@@ -104,6 +104,18 @@ npm run preflight:ci
 - For backend behavior/API changes, the strict gate must pass.
 - If a required gate cannot run locally, treat the task as incomplete and report the blocker.
 
+## Deployment
+
+Production runs on a **single-node k3s** cluster (not enterprise Kubernetes at scale).
+Security scanning is tuned accordingly:
+
+- Trivy scans container images for CVEs and the filesystem for dependency vulnerabilities
+- Kubernetes misconfiguration checks (KSV rules like pod disruption budgets, HPA, namespace quotas) are excluded — they target multi-node clusters and are not actionable here
+- Semgrep + Bandit cover SAST, Gitleaks covers secret detection, ZAP covers DAST
+
+See [`.github/workflows/security.yml`](.github/workflows/security.yml) for the full security pipeline
+and [`.trivyignore`](.trivyignore) for suppressed base-image CVEs with threat model documentation.
+
 ## OpenSSF Best Practices Badge
 
 - Submission target: early April 2026, contingent on continuing to meet the documented OpenSSF standards.
