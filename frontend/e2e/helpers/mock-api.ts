@@ -56,6 +56,9 @@ export type EmailConnectionResponse = {
   last_sync_at: string | null;
   last_sync_error: string | null;
   last_sync_message_count?: number | null;
+  last_calendar_sync_at?: string | null;
+  last_calendar_sync_error?: string | null;
+  last_calendar_sync_event_count?: number | null;
   is_active: boolean;
   watch_active: boolean;
   watch_expires_at: string | null;
@@ -275,6 +278,10 @@ export function buildEmailConnection(
     last_sync_at: overrides.last_sync_at ?? null,
     last_sync_error: overrides.last_sync_error ?? null,
     last_sync_message_count: overrides.last_sync_message_count ?? null,
+    last_calendar_sync_at: overrides.last_calendar_sync_at ?? null,
+    last_calendar_sync_error: overrides.last_calendar_sync_error ?? null,
+    last_calendar_sync_event_count:
+      overrides.last_calendar_sync_event_count ?? null,
     is_active: overrides.is_active ?? true,
     watch_active: overrides.watch_active ?? false,
     watch_expires_at: overrides.watch_expires_at ?? null,
@@ -419,6 +426,20 @@ export async function mockEmailApi(
       body: JSON.stringify({ synced: 5, created: 2, skipped: 3, errors: 0 }),
     }),
   );
+
+  // GET /email/oauth/gmail/authorize (JSON response with Google OAuth URL)
+  await page.route("**/email/oauth/gmail/authorize*", (route: Route) => {
+    if (route.request().method() === "GET") {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          url: "https://accounts.google.com/o/oauth2/v2/auth?mock=true",
+        }),
+      });
+    }
+    return route.continue();
+  });
 
   // GET /email/connections/:id/calendars
   await page.route("**/email/connections/*/calendars", (route: Route) => {

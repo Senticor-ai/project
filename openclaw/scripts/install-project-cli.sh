@@ -75,7 +75,11 @@ main() {
     cd "${build_dir}"
     npm ci
     npm run build
-    npm install -g .
+    # Use npm pack + install tarball to force a copy into the global dir.
+    # Plain "npm install -g ." creates a symlink back to the build dir, which
+    # breaks when the temp dir is cleaned up or has restrictive permissions.
+    npm pack
+    npm install -g ./*.tgz
   )
 
   project-cli --help >/dev/null

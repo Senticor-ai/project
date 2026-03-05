@@ -114,6 +114,42 @@ test.describe("Settings — Email (mocked)", () => {
     await expect(page.getByText("Urlaub")).toBeVisible();
   });
 
+  test("reconnect button fetches OAuth URL with login_hint", async ({
+    authenticatedPage: page,
+  }) => {
+    const conn = buildEmailConnection({
+      connection_id: "conn-reconnect-test",
+      email_address: "reconnect@bundesamt.de",
+      is_active: true,
+      last_sync_at: new Date().toISOString(),
+      calendar_sync_enabled: true,
+      last_calendar_sync_error:
+        "Google Calendar permission missing. Disconnect and reconnect Google to grant calendar access.",
+    });
+    await setupEmailPanel(page, [conn]);
+
+    // The "Neu verbinden" button should be visible due to the calendar error
+    const reconnectBtn = page.getByRole("button", { name: /neu verbinden/i });
+    await expect(reconnectBtn).toBeVisible();
+
+    // Listen for the OAuth authorize API call
+    const authorizePromise = page.waitForRequest(
+      (req) =>
+        req.url().includes("/email/oauth/gmail/authorize") &&
+        req.method() === "GET" &&
+        !req.url().includes("redirect=true"),
+    );
+
+    // Click "Neu verbinden" — should trigger the API call
+    await reconnectBtn.click();
+    const authorizeReq = await authorizePromise;
+
+    // Verify login_hint was passed
+    const url = new URL(authorizeReq.url());
+    expect(url.searchParams.get("login_hint")).toBe("reconnect@bundesamt.de");
+    expect(url.searchParams.get("return_url")).toBeTruthy();
+  });
+
   test("disconnect removes connection", async ({ authenticatedPage: page }) => {
     const conn = buildEmailConnection({
       connection_id: "conn-disc-test",

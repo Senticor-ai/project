@@ -943,8 +943,11 @@ export type EmailConnectionUpdateRequest = {
 };
 
 export const EmailApi = {
-  getGmailAuthUrl: (returnUrl?: string) => {
-    const qs = returnUrl ? `?return_url=${encodeURIComponent(returnUrl)}` : "";
+  getGmailAuthUrl: (returnUrl?: string, loginHint?: string) => {
+    const params = new URLSearchParams();
+    if (returnUrl) params.set("return_url", returnUrl);
+    if (loginHint) params.set("login_hint", loginHint);
+    const qs = params.size > 0 ? `?${params.toString()}` : "";
     return request<{ url: string }>(`/email/oauth/gmail/authorize${qs}`);
   },
 

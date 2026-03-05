@@ -315,7 +315,9 @@ export function ActionList({
     if (isFocusView) {
       return items.filter((t) => t.isFocused);
     }
-    return items.filter((t) => t.bucket === bucket);
+    return items.filter(
+      (t) => t.bucket === bucket && t.projectIds.length === 0,
+    );
   }, [items, bucket, isFocusView]);
 
   // Completed items from the lazy-loaded query
@@ -323,7 +325,9 @@ export function ActionList({
     if (!completedQuery.data) return [];
     const items = isFocusView
       ? completedQuery.data.filter((t) => t.isFocused)
-      : completedQuery.data.filter((t) => t.bucket === bucket);
+      : completedQuery.data.filter(
+          (t) => t.bucket === bucket && t.projectIds.length === 0,
+        );
     return items.sort(
       (a, b) =>
         new Date(b.completedAt!).getTime() - new Date(a.completedAt!).getTime(),

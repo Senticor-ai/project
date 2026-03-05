@@ -390,12 +390,10 @@ function AuthenticatedApp({
     window.setTimeout(() => window.clearInterval(pollId), 5 * 60_000);
   }, [queryClient]);
 
-  const handleReconnectGmail = useCallback((emailHint: string) => {
+  const handleReconnectGmail = useCallback(async (emailHint: string) => {
     const returnUrl = `${window.location.origin}/settings/email`;
-    const authorizeUrl = EmailApi.getGmailAuthRedirectUrl(returnUrl, emailHint);
-    // Full-page redirect instead of popup — more reliable for re-auth
-    // because the current page already has the auth cookie.
-    window.location.assign(authorizeUrl);
+    const { url } = await EmailApi.getGmailAuthUrl(returnUrl, emailHint);
+    window.location.assign(url);
   }, []);
 
   // Detect ?gmail=connected for full-page fallback after OAuth callback.

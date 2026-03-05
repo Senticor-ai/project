@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 env:
   STACKIT_REGISTRY: registry.onstackit.cloud
@@ -287,7 +288,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 0
       - name: Update production image tags for Flux
         if: >-
@@ -296,51 +296,97 @@ jobs:
           && needs.push-storybook.outputs.image_pushed == 'true'
           && needs.push-agents.outputs.image_pushed == 'true'
           && needs.push-openclaw.outputs.image_pushed == 'true'
+        env:
+          IMAGE_TAG: ${{ github.event.workflow_run.head_sha || github.sha }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          IMAGE_TAG="${{ github.event.workflow_run.head_sha || github.sha }}"
           KUST="infra/k8s/overlays/production/kustomization.yaml"
           CONFIG="infra/k8s/overlays/production/configmap.yaml"
           CHANGELOG_FILE="CHANGELOG.md"
           RUN_URL="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           TIMESTAMP="$(date -u +"%Y-%m-%d %H:%M:%S UTC")"
 
-          sed -i "s|newName: .*/backend|newName: ${STACKIT_IMAGE_PREFIX}/backend|" "$KUST"
-          sed -i "s|newName: .*/frontend|newName: ${STACKIT_IMAGE_PREFIX}/frontend|" "$KUST"
-          sed -i "s|newName: .*/storybook|newName: ${STACKIT_IMAGE_PREFIX}/storybook|" "$KUST"
-          sed -i "s|newName: .*/agents|newName: ${STACKIT_IMAGE_PREFIX}/agents|" "$KUST"
-          sed -i "s|newName: .*/openclaw|newName: ${STACKIT_IMAGE_PREFIX}/openclaw|" "$KUST"
-          sed -i "s/newTag: .*/newTag: \"${IMAGE_TAG}\"/" "$KUST"
-          sed -i "s|OPENCLAW_IMAGE: \".*\"|OPENCLAW_IMAGE: \"${STACKIT_IMAGE_PREFIX}/openclaw:${IMAGE_TAG}\"|" "$CONFIG"
-
-          if git diff --quiet -- "$KUST" "$CONFIG"; then
-            echo "No manifest change to commit"
-            exit 0
-          fi
-
-          if [ ! -f "$CHANGELOG_FILE" ]; then
-            {
-              echo "# Changelog"
-              echo
-              echo "Deployment updates written by CI."
-            } > "$CHANGELOG_FILE"
-          fi
-
-          {
-            echo
-            echo "## ${TIMESTAMP} - ${IMAGE_TAG}"
-            echo
-            echo "- Updated \`${KUST}\` image tags to \`${IMAGE_TAG}\`."
-            echo "- Updated \`${CONFIG}\` OpenClaw image to \`${STACKIT_IMAGE_PREFIX}/openclaw:${IMAGE_TAG}\`."
-            echo "- Workflow run: ${RUN_URL}"
-            echo "- Actor: \`${GITHUB_ACTOR}\`"
-          } >> "$CHANGELOG_FILE"
-
           git config user.email "ci@project.dev"
           git config user.name "github-actions[bot]"
-          git add "$KUST" "$CONFIG" "$CHANGELOG_FILE"
-          git commit -m "deploy: update image tag to ${IMAGE_TAG} [skip ci]"
-          git pull --rebase origin main
-          git push origin HEAD:main
+
+          apply_changes() {
+            sed -i "s|newName: .*/backend|newName: ${STACKIT_IMAGE_PREFIX}/backend|" "$KUST"
+            sed -i "s|newName: .*/frontend|newName: ${STACKIT_IMAGE_PREFIX}/frontend|" "$KUST"
+            sed -i "s|newName: .*/storybook|newName: ${STACKIT_IMAGE_PREFIX}/storybook|" "$KUST"
+            sed -i "s|newName: .*/agents|newName: ${STACKIT_IMAGE_PREFIX}/agents|" "$KUST"
+            sed -i "s|newName: .*/openclaw|newName: ${STACKIT_IMAGE_PREFIX}/openclaw|" "$KUST"
+            sed -i "s/newTag: .*/newTag: \"${IMAGE_TAG}\"/" "$KUST"
+            sed -i "s|OPENCLAW_IMAGE: \".*\"|OPENCLAW_IMAGE: \"${STACKIT_IMAGE_PREFIX}/openclaw:${IMAGE_TAG}\"|" "$CONFIG"
+
+            if git diff --quiet -- "$KUST" "$CONFIG"; then
+              echo "No manifest change needed (already up to date)"
+              return 1
+            fi
+
+            if [ ! -f "$CHANGELOG_FILE" ]; then
+              printf '# Changelog\n\nDeployment updates written by CI.\n' > "$CHANGELOG_FILE"
+            fi
+            {
+              echo
+              echo "## ${TIMESTAMP} - ${IMAGE_TAG}"
+              echo
+              echo "- Updated \`${KUST}\` image tags to \`${IMAGE_TAG}\`."
+              echo "- Updated \`${CONFIG}\` OpenClaw image to \`${STACKIT_IMAGE_PREFIX}/openclaw:${IMAGE_TAG}\`."
+              echo "- Workflow run: ${RUN_URL}"
+              echo "- Actor: \`${GITHUB_ACTOR}\`"
+            } >> "$CHANGELOG_FILE"
+
+            git add "$KUST" "$CONFIG" "$CHANGELOG_FILE"
+            git commit -m "deploy: update image tag to ${IMAGE_TAG} [skip ci]"
+          }
+
+          # Try direct push to main (up to 3 attempts)
+          for attempt in 1 2 3; do
+            echo "=== Attempt ${attempt} ==="
+            git fetch origin main
+            git checkout origin/main
+
+            if ! apply_changes; then
+              exit 0
+            fi
+
+            if git push origin HEAD:main; then
+              echo "Push succeeded on attempt ${attempt}"
+              exit 0
+            fi
+
+            echo "Push failed on attempt ${attempt}, retrying..."
+            sleep 2
+          done
+
+          # Fallback: create a PR instead of failing
+          echo "Direct push failed after 3 attempts, falling back to PR..."
+
+          # Close any stale deploy PRs (older image tags)
+          EXISTING_PRS=$(gh pr list --label "deploy" --json number --jq '.[].number' 2>/dev/null || true)
+          for pr in $EXISTING_PRS; do
+            echo "Closing stale deploy PR #${pr}"
+            gh pr close "$pr" --delete-branch --comment "Superseded by deploy of ${IMAGE_TAG}" || true
+          done
+
+          BRANCH="deploy/image-tag-${IMAGE_TAG:0:12}"
+          git fetch origin main
+          git checkout -b "$BRANCH" origin/main
+          apply_changes
+          git push origin "$BRANCH"
+
+          gh pr create \
+            --title "deploy: update image tag to ${IMAGE_TAG:0:12}" \
+            --body "$(cat <<EOF
+          Automatic deploy PR — direct push to main failed after 3 attempts.
+
+          **Image tag:** \`${IMAGE_TAG}\`
+          **Workflow run:** ${RUN_URL}
+          EOF
+          )" \
+            --label "deploy" \
+            --base main \
+            --head "$BRANCH"
 
   smoke-openclaw-production:
     if: >-
