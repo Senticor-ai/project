@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 from collections.abc import AsyncGenerator
 from contextlib import nullcontext
 
@@ -26,6 +25,7 @@ from ..container.memory_store import SOURCE_RUNTIME_SYNC, sync_workspace_memory_
 from ..db import db_conn
 from ..delegation import create_delegated_token
 from ..deps import get_current_org, get_current_user
+from ..observability import get_logger, request_context_headers
 from ..routes.agent_settings import get_user_agent_backend, get_user_llm_config
 from .instrumentation import (
     ChatContext,
@@ -54,7 +54,7 @@ from .sse_translator import SseToNdjsonTranslator
 from .tool_executor import AuthContext as ToolAuthContext
 from .tool_executor import execute_tool as local_execute_tool
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/chat", tags=["chat"], dependencies=[Depends(get_current_user)])
 
@@ -178,6 +178,7 @@ def _run_haystack_sync(
                     "POST",
                     f"{agents_url}/chat/completions",
                     json=agent_payload,
+                    headers=request_context_headers(),
                     timeout=60.0,
                 ) as resp:
                     resp.raise_for_status()
@@ -207,7 +208,8 @@ def _run_haystack_sync(
                 queue.put_nowait(json.dumps(err).encode() + b"\n")
                 if request_id:
                     update_chat_request_status(
-                        request_id, "failed",
+                        request_id,
+                        "failed",
                         error_detail=str(exc)[:200],
                         error_type="provider_unreachable",
                     )
@@ -217,7 +219,8 @@ def _run_haystack_sync(
                 queue.put_nowait(json.dumps(err).encode() + b"\n")
                 if request_id:
                     update_chat_request_status(
-                        request_id, "failed",
+                        request_id,
+                        "failed",
                         error_detail=str(exc)[:200],
                         error_type="provider_timeout",
                     )
@@ -228,7 +231,8 @@ def _run_haystack_sync(
                 queue.put_nowait(json.dumps(err).encode() + b"\n")
                 if request_id:
                     update_chat_request_status(
-                        request_id, "failed",
+                        request_id,
+                        "failed",
                         error_detail=detail,
                         error_type="provider_error",
                     )
@@ -251,7 +255,8 @@ def _run_haystack_sync(
         logger.exception("chat.haystack_background_failed")
         if request_id:
             update_chat_request_status(
-                request_id, "failed",
+                request_id,
+                "failed",
                 error_detail=str(exc)[:200],
                 error_type="backend_error",
             )
@@ -277,9 +282,7 @@ async def _accepted_then_stream(
     inner: AsyncGenerator[bytes, None],
 ) -> AsyncGenerator[bytes, None]:
     """Prepend an ``accepted`` event, then yield from inner stream."""
-    yield _encode_ndjson_event(
-        {"type": "accepted", "requestId": ctx.request_id}
-    )
+    yield _encode_ndjson_event({"type": "accepted", "requestId": ctx.request_id})
     async for chunk in inner:
         yield chunk
 
@@ -306,7 +309,7 @@ def _get_openclaw_container_state(user_id: str) -> tuple[str | None, str]:
     try:
         status = get_container_status(user_id)
     except Exception:
-        logger.warning("container.status_lookup_failed", extra={"user_id": user_id}, exc_info=True)
+        logger.warning("container.status_lookup_failed", user_id=user_id, exc_info=True)
         return None, ""
     return status.get("status"), str(status.get("error") or "").strip()
 
@@ -364,7 +367,8 @@ async def _stream_openclaw_after_startup(
             )
             if request_id:
                 update_chat_request_status(
-                    request_id, "timed_out",
+                    request_id,
+                    "timed_out",
                     error_detail="Container startup timeout",
                     error_type="container_timeout",
                 )
@@ -384,7 +388,8 @@ async def _stream_openclaw_after_startup(
             yield _encode_ndjson_event(build_error_event(detail, ctx))
             if request_id:
                 update_chat_request_status(
-                    request_id, "failed",
+                    request_id,
+                    "failed",
                     error_detail="Agent not configured",
                     error_type="client_error",
                 )
@@ -412,7 +417,8 @@ async def _stream_openclaw_after_startup(
             yield _encode_ndjson_event(build_error_event(detail, ctx, exc))
             if request_id:
                 update_chat_request_status(
-                    request_id, "failed",
+                    request_id,
+                    "failed",
                     error_detail=detail[:200],
                     error_type="container_error",
                 )
@@ -472,14 +478,15 @@ async def _run_openclaw_background(
         )
         write_token_file(user_id, delegated_token)
     except Exception as exc:
-        logger.exception("chat.openclaw_init_failed", extra={"user_id": user_id})
+        logger.exception("chat.openclaw_init_failed", user_id=user_id)
         err = build_error_event(
             "OpenClaw session initialization failed. Please try again.", ctx, exc
         )
         queue.put_nowait(_encode_ndjson_event(err))
         if request_id:
             update_chat_request_status(
-                request_id, "failed",
+                request_id,
+                "failed",
                 error_detail=str(exc)[:200],
                 error_type="backend_error",
             )
@@ -524,15 +531,14 @@ async def _run_openclaw_background(
                                         if not status_updated_to_running and request_id:
                                             update_chat_request_status(request_id, "running")
                                             status_updated_to_running = True
-                                    queue.put_nowait(
-                                        (json.dumps(event) + "\n").encode()
-                                    )
+                                    queue.put_nowait((json.dumps(event) + "\n").encode())
             except httpx.ConnectError as exc:
                 err = build_error_event("OpenClaw service unreachable", ctx, exc)
                 queue.put_nowait(_encode_ndjson_event(err))
                 if request_id:
                     update_chat_request_status(
-                        request_id, "failed",
+                        request_id,
+                        "failed",
                         error_detail=str(exc)[:200],
                         error_type="container_unreachable",
                     )
@@ -542,7 +548,8 @@ async def _run_openclaw_background(
                 queue.put_nowait(_encode_ndjson_event(err))
                 if request_id:
                     update_chat_request_status(
-                        request_id, "failed",
+                        request_id,
+                        "failed",
                         error_detail=str(exc)[:200],
                         error_type="container_timeout",
                     )
@@ -553,22 +560,22 @@ async def _run_openclaw_background(
                 queue.put_nowait(_encode_ndjson_event(err))
                 if request_id:
                     update_chat_request_status(
-                        request_id, "failed",
+                        request_id,
+                        "failed",
                         error_detail=detail,
                         error_type="container_error",
                     )
                 return
             except Exception as exc:
-                logger.exception(
-                    "chat.openclaw_stream_failed", extra={"user_id": user_id}
-                )
+                logger.exception("chat.openclaw_stream_failed", user_id=user_id)
                 err = build_error_event(
                     "OpenClaw response stream failed. Please try again.", ctx, exc
                 )
                 queue.put_nowait(_encode_ndjson_event(err))
                 if request_id:
                     update_chat_request_status(
-                        request_id, "failed",
+                        request_id,
+                        "failed",
                         error_detail=str(exc)[:200],
                         error_type="backend_error",
                     )
@@ -583,7 +590,8 @@ async def _run_openclaw_background(
             except Exception as exc:
                 logger.warning(
                     "chat.openclaw_persist_failed",
-                    extra={"user_id": user_id, "conversation_id": conversation_id},
+                    user_id=user_id,
+                    conversation_id=conversation_id,
                     exc_info=True,
                 )
                 if ctx:
@@ -598,7 +606,7 @@ async def _run_openclaw_background(
             except Exception as exc:
                 logger.warning(
                     "chat.openclaw_memory_sync_failed",
-                    extra={"user_id": user_id},
+                    user_id=user_id,
                     exc_info=True,
                 )
                 if ctx:
@@ -613,7 +621,8 @@ async def _run_openclaw_background(
         logger.exception("chat.openclaw_background_failed")
         if request_id:
             update_chat_request_status(
-                request_id, "failed",
+                request_id,
+                "failed",
                 error_detail=str(exc)[:200],
                 error_type="backend_error",
             )
@@ -681,7 +690,8 @@ def _handle_chat_completions(
     except Exception:
         logger.exception(
             "chat.db_setup_failed",
-            extra={"user_id": user_id, "conversation_external_id": req.conversationId},
+            user_id=user_id,
+            conversation_external_id=req.conversationId,
         )
         err = json.dumps(
             build_error_event("Chat service temporarily unavailable. Please try again.", ctx)
@@ -715,7 +725,8 @@ def _handle_chat_completions(
         except ValueError as exc:
             logger.warning(
                 "container.not_configured",
-                extra={"user_id": user_id, "detail": str(exc)},
+                user_id=user_id,
+                detail=str(exc),
             )
             detail = (
                 "Copilot ist noch nicht eingerichtet. "
@@ -732,7 +743,7 @@ def _handle_chat_completions(
                 media_type="application/x-ndjson",
             )
         except Exception as exc:
-            logger.exception("container.ensure_running_failed", extra={"user_id": user_id})
+            logger.exception("container.ensure_running_failed", user_id=user_id)
             state, _state_error = _get_openclaw_container_state(user_id)
             if state == "starting":
                 detail = (
@@ -769,9 +780,7 @@ def _handle_chat_completions(
         queue: asyncio.Queue = asyncio.Queue()
 
         async def _openclaw_stream() -> AsyncGenerator[bytes, None]:
-            yield _encode_ndjson_event(
-                {"type": "accepted", "requestId": ctx.request_id}
-            )
+            yield _encode_ndjson_event({"type": "accepted", "requestId": ctx.request_id})
             asyncio.create_task(
                 _run_openclaw_background(
                     queue,
@@ -890,9 +899,7 @@ def _handle_chat_completions(
     haystack_queue: asyncio.Queue = asyncio.Queue()
 
     async def _haystack_stream() -> AsyncGenerator[bytes, None]:
-        yield _encode_ndjson_event(
-            {"type": "accepted", "requestId": ctx.request_id}
-        )
+        yield _encode_ndjson_event({"type": "accepted", "requestId": ctx.request_id})
         agents_url = settings.agents_url or ""
         loop = asyncio.get_event_loop()
         loop.run_in_executor(
@@ -1169,6 +1176,7 @@ async def execute_tool_endpoint(
                     "orgId": org_id,
                 },
             },
+            headers=request_context_headers(),
             timeout=60.0,
         )
         resp.raise_for_status()

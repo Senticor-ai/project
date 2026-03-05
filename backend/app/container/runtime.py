@@ -5,12 +5,13 @@ Works with Docker Desktop, Rancher Desktop (nerdctl), and Podman.
 
 from __future__ import annotations
 
-import logging
 import shutil
 import subprocess
 from functools import lru_cache
 
-logger = logging.getLogger(__name__)
+from ..observability import get_logger
+
+logger = get_logger(__name__)
 
 _RUNTIMES = ["docker", "nerdctl", "podman"]
 
@@ -38,7 +39,7 @@ def detect_runtime() -> str:
                 check=False,
             )
             if result.returncode == 0:
-                logger.info("container.runtime_detected", extra={"runtime": rt})
+                logger.info("container.runtime_detected", runtime=rt)
                 return path
         except subprocess.TimeoutExpired:
             continue

@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import logging
 import os
 import re
 import secrets
@@ -25,6 +24,7 @@ import httpx
 from ..config import settings
 from ..db import db_conn
 from ..email.crypto import CryptoService
+from ..observability import get_logger
 from .memory_store import (
     SOURCE_RUNTIME_SYNC,
     reconcile_workspace_memory,
@@ -33,7 +33,7 @@ from .memory_store import (
 from .runtime import run_cmd
 from .workspace import provision_workspace
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 API_KEY_ENV_MAP = {
     "openrouter": "OPENROUTER_API_KEY",
@@ -95,7 +95,7 @@ def _runtime_mode() -> str:
     mode = (settings.openclaw_runtime or OPENCLAW_RUNTIME_LOCAL).strip().lower()
     if mode in {OPENCLAW_RUNTIME_LOCAL, OPENCLAW_RUNTIME_K8S}:
         return mode
-    logger.warning("container.runtime_unknown", extra={"mode": mode})
+    logger.warning("container.runtime_unknown", mode=mode)
     return OPENCLAW_RUNTIME_LOCAL
 
 
@@ -107,7 +107,7 @@ def _pull_policy() -> str:
     policy = (settings.openclaw_pull_policy or OPENCLAW_PULL_NEVER).strip().lower()
     if policy in {OPENCLAW_PULL_ALWAYS, OPENCLAW_PULL_IF_NOT_PRESENT, OPENCLAW_PULL_NEVER}:
         return policy
-    logger.warning("container.pull_policy_unknown", extra={"policy": policy})
+    logger.warning("container.pull_policy_unknown", policy=policy)
     return OPENCLAW_PULL_NEVER
 
 
@@ -245,7 +245,7 @@ def _build_volume_args(workspace_dir: Path, runtime_dir: Path) -> list[str]:
         if project_path.is_dir():
             args.extend(["-v", f"{project_path}:/project:ro"])
         else:
-            logger.warning("container.project_mount_skipped", extra={"path": str(project_path)})
+            logger.warning("container.project_mount_skipped", path=str(project_path))
     return args
 
 
@@ -645,16 +645,14 @@ def start_container(user_id: str) -> ContainerInfo:
         if memory_sync["restored"] or memory_sync["seeded"]:
             logger.info(
                 "container.memory_reconciled",
-                extra={
-                    "user_id": user_id,
-                    "restored": memory_sync["restored"],
-                    "seeded": memory_sync["seeded"],
-                },
+                user_id=user_id,
+                restored=memory_sync["restored"],
+                seeded=memory_sync["seeded"],
             )
     except Exception:
         logger.warning(
             "container.memory_reconcile_failed",
-            extra={"user_id": user_id},
+            user_id=user_id,
             exc_info=True,
         )
 
@@ -836,10 +834,11 @@ def stop_container(user_id: str) -> None:
         if backup_stats["backed_up"]:
             logger.info(
                 "container.memory_backed_up",
-                extra={"user_id": user_id, "backed_up": backup_stats["backed_up"]},
+                user_id=user_id,
+                backed_up=backup_stats["backed_up"],
             )
     except Exception:
-        logger.warning("container.memory_backup_failed", extra={"user_id": user_id}, exc_info=True)
+        logger.warning("container.memory_backup_failed", user_id=user_id, exc_info=True)
 
     if not row or not row["container_name"]:
         return
@@ -852,7 +851,8 @@ def stop_container(user_id: str) -> None:
         except Exception:
             logger.warning(
                 "container.k8s_stop_failed",
-                extra={"user_id": user_id, "container_name": container_name},
+                user_id=user_id,
+                container_name=container_name,
                 exc_info=True,
             )
     else:
@@ -874,7 +874,7 @@ def stop_container(user_id: str) -> None:
             )
         conn.commit()
 
-    logger.info("container.stopped", extra={"user_id": user_id})
+    logger.info("container.stopped", user_id=user_id)
 
 
 def _on_rmtree_error(
@@ -903,7 +903,7 @@ def _rmtree_force(path: Path) -> bool:
     except OSError:
         logger.warning(
             "container.rmtree_failed",
-            extra={"path": str(path)},
+            path=str(path),
             exc_info=True,
         )
         return False
@@ -922,11 +922,9 @@ def hard_refresh_container(user_id: str) -> dict[str, bool]:
 
     logger.info(
         "container.hard_refreshed",
-        extra={
-            "user_id": user_id,
-            "removed_workspace": removed_workspace,
-            "removed_runtime": removed_runtime,
-        },
+        user_id=user_id,
+        removed_workspace=removed_workspace,
+        removed_runtime=removed_runtime,
     )
     return {
         "removedWorkspace": removed_workspace,
@@ -983,7 +981,7 @@ def ensure_running(user_id: str) -> tuple[str, str]:
         except (httpx.ConnectError, httpx.TimeoutException, httpx.RemoteProtocolError):
             logger.warning(
                 "container.health_failed",
-                extra={"user_id": user_id},
+                user_id=user_id,
             )
             stop_container(user_id)
     elif row and row["container_status"] in ("starting", "error"):
@@ -992,18 +990,17 @@ def ensure_running(user_id: str) -> tuple[str, str]:
                 if not _k8s_runtime_resources_exist(str(row["container_name"])):
                     logger.warning(
                         "container.k8s_runtime_missing_for_state",
-                        extra={
-                            "user_id": user_id,
-                            "container_name": row["container_name"],
-                            "status": row["container_status"],
-                        },
+                        user_id=user_id,
+                        container_name=row["container_name"],
+                        container_status=row["container_status"],
                     )
                     stop_container(user_id)
                     row = None
             except Exception:
                 logger.warning(
                     "container.k8s_runtime_presence_check_failed",
-                    extra={"user_id": user_id, "container_name": row["container_name"]},
+                    user_id=user_id,
+                    container_name=row["container_name"],
                     exc_info=True,
                 )
 
@@ -1022,7 +1019,8 @@ def ensure_running(user_id: str) -> tuple[str, str]:
             except (httpx.ConnectError, httpx.TimeoutException, httpx.RemoteProtocolError):
                 logger.warning(
                     "container.health_failed",
-                    extra={"user_id": user_id, "status": row["container_status"]},
+                    user_id=user_id,
+                    container_status=row["container_status"],
                     exc_info=True,
                 )
 
@@ -1057,7 +1055,7 @@ def get_identity_name(user_id: str) -> str | None:
     except FileNotFoundError:
         return None
     except OSError:
-        logger.warning("container.identity_read_failed", extra={"user_id": user_id}, exc_info=True)
+        logger.warning("container.identity_read_failed", user_id=user_id, exc_info=True)
         return None
 
     for line in content.splitlines():
@@ -1121,15 +1119,13 @@ def reap_idle(timeout_seconds: int | None = None) -> int:
             stopped += 1
             logger.info(
                 "container.idle_reaped",
-                extra={
-                    "user_id": row["user_id"],
-                    "container_name": row["container_name"],
-                },
+                user_id=row["user_id"],
+                container_name=row["container_name"],
             )
         except Exception:
             logger.exception(
                 "container.reap_failed",
-                extra={"user_id": row["user_id"]},
+                user_id=row["user_id"],
             )
 
     return stopped
@@ -1191,10 +1187,8 @@ def reap_orphaned_k8s_resources() -> dict[str, int]:
     if deleted_pods or deleted_services:
         logger.info(
             "container.k8s_orphans_reaped",
-            extra={
-                "deleted_pods": deleted_pods,
-                "deleted_services": deleted_services,
-            },
+            deleted_pods=deleted_pods,
+            deleted_services=deleted_services,
         )
 
     return {"pods": deleted_pods, "services": deleted_services}

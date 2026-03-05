@@ -8,14 +8,14 @@ from __future__ import annotations
 
 import hashlib
 import json
-import logging
 from pathlib import Path
 from typing import NamedTuple
 
 from ..config import settings
 from ..db import db_conn
+from ..observability import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 SOURCE_BOOTSTRAP = "bootstrap"
 SOURCE_RUNTIME_SYNC = "runtime-sync"
@@ -364,11 +364,9 @@ def reconcile_workspace_memory(user_id: str, *, org_id: str | None = None) -> di
                     if content is None:
                         logger.warning(
                             "memory.reconcile.read_failed",
-                            extra={
-                                "user_id": user_id,
-                                "db_filename": state_file.db_filename,
-                                "path": str(path),
-                            },
+                            user_id=user_id,
+                            db_filename=state_file.db_filename,
+                            path=str(path),
                         )
                         continue
                     if _append_version(
@@ -391,11 +389,9 @@ def reconcile_workspace_memory(user_id: str, *, org_id: str | None = None) -> di
                 except OSError:
                     logger.warning(
                         "memory.reconcile.write_failed",
-                        extra={
-                            "user_id": user_id,
-                            "db_filename": state_file.db_filename,
-                            "path": str(path),
-                        },
+                        user_id=user_id,
+                        db_filename=state_file.db_filename,
+                        path=str(path),
                         exc_info=True,
                     )
                     continue
@@ -414,11 +410,9 @@ def reconcile_workspace_memory(user_id: str, *, org_id: str | None = None) -> di
                 except OSError:
                     logger.warning(
                         "memory.reconcile.write_failed",
-                        extra={
-                            "user_id": user_id,
-                            "db_filename": db_filename,
-                            "path": str(path),
-                        },
+                        user_id=user_id,
+                        db_filename=db_filename,
+                        path=str(path),
                         exc_info=True,
                     )
                     continue
@@ -459,11 +453,9 @@ def sync_workspace_memory_to_db(
                 if content is None:
                     logger.warning(
                         "memory.sync.read_failed",
-                        extra={
-                            "user_id": user_id,
-                            "db_filename": state_file.db_filename,
-                            "path": str(path),
-                        },
+                        user_id=user_id,
+                        db_filename=state_file.db_filename,
+                        path=str(path),
                     )
                     continue
 

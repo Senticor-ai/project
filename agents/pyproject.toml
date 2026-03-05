@@ -10,6 +10,7 @@ dependencies = [
   "python-dotenv",
   "httpx",
   "jinja2",
+  "structlog>=24.1.0",
   "opentelemetry-sdk",
   "opentelemetry-exporter-otlp-proto-http",
   "opentelemetry-instrumentation-fastapi",

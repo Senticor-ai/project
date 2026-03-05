@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -20,8 +19,9 @@ from ..db import db_conn
 from ..deps import get_current_user
 from ..email.crypto import CryptoService
 from ..llm_validation import ProviderStatus, ProviderValidationError, probe_provider_status
+from ..observability import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/agent", tags=["agent"], dependencies=[Depends(get_current_user)])
 
