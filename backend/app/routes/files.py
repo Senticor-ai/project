@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from ..config import settings
 from ..db import db_conn
 from ..deps import get_current_org, get_current_user
-from ..file_validator import ALLOWED_MIME_TYPES, validate_file_size, validate_file_type
+from ..file_validator import validate_file_size
 from ..idempotency import (
     compute_request_hash,
     get_idempotent_response,
@@ -70,13 +70,6 @@ def initiate_upload(
 
     # Validate file size early (before upload begins)
     validate_file_size(payload.total_size)
-
-    # Validate declared content type (early rejection of disallowed types)
-    if payload.content_type not in ALLOWED_MIME_TYPES:
-        raise HTTPException(
-            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail=f"Content type {payload.content_type} not allowed",
-        )
 
     storage = get_storage()
     chunk_size = settings.upload_chunk_size
@@ -367,17 +360,6 @@ def complete_upload(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Uploaded size mismatch",
             )
-
-        # Validate actual file type by content (magic bytes) after assembly
-        local_path = storage.resolve_path(target_key)
-        if local_path is None or not local_path.exists():
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="File not found after assembly",
-            )
-        with open(local_path, "rb") as f:
-            file_header = f.read(2048)
-        validate_file_type(file_header, upload["filename"])
 
         with conn.cursor() as cur:
             cur.execute(

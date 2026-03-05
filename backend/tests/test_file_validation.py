@@ -1,12 +1,10 @@
 """
-End-to-end tests for file upload validation (size and type).
+End-to-end tests for file upload validation.
 
 Tests verify:
 1. Files exceeding 50MB are rejected with HTTP 413
-2. Disallowed file types (.exe, etc.) are rejected with HTTP 415
-3. Valid PDFs are accepted with HTTP 201
-
-These tests cover the security requirements from subtask-3-8 and subtask-5-3.
+2. Any file type is accepted (no MIME whitelist)
+3. Valid uploads return HTTP 201
 """
 
 
@@ -58,51 +56,9 @@ def test_file_size_validation_within_limit(auth_client):
     assert response.status_code != 413
 
 
-def test_file_type_validation_disallowed_exe(auth_client):
-    """
-    Test that .exe files are rejected with HTTP 415.
-
-    Verification step 2: POST /files/initiate with .exe file
-    Expected: HTTP 415 (Unsupported Media Type)
-    """
-    response = auth_client.post(
-        "/files/initiate",
-        json={
-            "filename": "malware.exe",
-            "content_type": "application/x-msdownload",
-            "total_size": 1024,  # 1KB, within size limit
-        },
-    )
-
-    assert response.status_code == 415
-    assert "not allowed" in response.json()["detail"].lower()
-
-
-def test_file_type_validation_disallowed_zip(auth_client):
-    """
-    Test that .zip files are rejected with HTTP 415.
-
-    Additional test case for another common disallowed type.
-    """
-    response = auth_client.post(
-        "/files/initiate",
-        json={
-            "filename": "archive.zip",
-            "content_type": "application/zip",
-            "total_size": 1024,
-        },
-    )
-
-    assert response.status_code == 415
-    assert "not allowed" in response.json()["detail"].lower()
-
-
 def test_file_type_validation_allowed_pdf(auth_client):
     """
     Test that valid PDF files are accepted with HTTP 201.
-
-    Verification step 3: POST /files/initiate with valid PDF
-    Expected: HTTP 201 (Created)
     """
     response = auth_client.post(
         "/files/initiate",
@@ -118,18 +74,16 @@ def test_file_type_validation_allowed_pdf(auth_client):
     assert "upload_url" in response.json()
 
 
-def test_file_type_validation_allowed_jpeg(auth_client):
+def test_file_type_csv_accepted(auth_client):
     """
-    Test that valid JPEG images are accepted.
-
-    Additional test case for another allowed type.
+    Test that CSV files are accepted with HTTP 201.
     """
     response = auth_client.post(
         "/files/initiate",
         json={
-            "filename": "photo.jpg",
-            "content_type": "image/jpeg",
-            "total_size": 512 * 1024,  # 512KB
+            "filename": "data.csv",
+            "content_type": "text/csv",
+            "total_size": 5337,
         },
     )
 
@@ -137,18 +91,16 @@ def test_file_type_validation_allowed_jpeg(auth_client):
     assert "upload_id" in response.json()
 
 
-def test_file_type_validation_allowed_docx(auth_client):
+def test_file_type_xml_accepted(auth_client):
     """
-    Test that valid Word documents are accepted.
-
-    Additional test case for Office document format.
+    Test that XML files are accepted with HTTP 201.
     """
     response = auth_client.post(
         "/files/initiate",
         json={
-            "filename": "report.docx",
-            "content_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "total_size": 2 * 1024 * 1024,  # 2MB
+            "filename": "tax_data.xml",
+            "content_type": "text/xml",
+            "total_size": 10240,
         },
     )
 
@@ -156,24 +108,37 @@ def test_file_type_validation_allowed_docx(auth_client):
     assert "upload_id" in response.json()
 
 
-def test_combined_validation_oversized_disallowed_type(auth_client):
+def test_file_type_any_accepted(auth_client):
     """
-    Test that a file with both oversized AND disallowed type is properly rejected.
+    Test that any file type is accepted (no MIME whitelist).
+    """
+    response = auth_client.post(
+        "/files/initiate",
+        json={
+            "filename": "archive.zip",
+            "content_type": "application/zip",
+            "total_size": 1024,
+        },
+    )
 
-    This tests the validation order - size is checked first (line 65 in files.py),
-    so we expect HTTP 413, not HTTP 415.
+    assert response.status_code == 201
+    assert "upload_id" in response.json()
+
+
+def test_combined_validation_oversized_any_type(auth_client):
     """
-    # 51MB .exe file
+    Test that oversized files are still rejected regardless of type.
+    """
+    # 51MB .zip file
     oversized_file_size = 51 * 1024 * 1024
 
     response = auth_client.post(
         "/files/initiate",
         json={
-            "filename": "large_malware.exe",
-            "content_type": "application/x-msdownload",
+            "filename": "large_archive.zip",
+            "content_type": "application/zip",
             "total_size": oversized_file_size,
         },
     )
 
-    # Size validation happens first, so should get 413
     assert response.status_code == 413
