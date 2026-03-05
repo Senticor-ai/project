@@ -7,14 +7,14 @@ OpenClaw is the agent backend and tool_calls are auto-executed.
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 
 import httpx
 
+from ..observability import get_logger
 from .jsonld_builders import build_action_jsonld, build_project_jsonld, build_reference_jsonld
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass

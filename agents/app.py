@@ -8,14 +8,14 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 import os
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncGenerator  # noqa: UP035 — keep for 3.12 compat
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from haystack.dataclasses import ChatMessage, StreamingChunk, ToolCall
 from pydantic import BaseModel
@@ -26,12 +26,23 @@ load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 # fmt: off
 from backend_client import AuthContext  # noqa: E402 — must load env before importing
 from copilot import MODELS, RuntimeLlmConfig, create_agent  # noqa: E402
+from observability import (  # noqa: E402
+    REQUEST_ID_HEADER,
+    TRAIL_ID_HEADER,
+    bind_request_context,
+    bind_trace_context,
+    clear_request_context,
+    configure_logging,
+    generate_request_id,
+    get_logger,
+)
 from secrets_manager import SecretsManager, get_secrets_manager  # noqa: E402
 from tool_executor import CopilotCliError, ToolCallInput, execute_tool  # noqa: E402
 from tracing import configure_tracing, shutdown_tracing  # noqa: E402
 # fmt: on
 
-logger = logging.getLogger(__name__)
+configure_logging()
+logger = get_logger(__name__)
 
 # Initialize secrets manager (env fallback for dev, Vault/AWS for production)
 secrets_manager: SecretsManager | None
@@ -42,18 +53,18 @@ except Exception as e:
     backend = os.environ.get("SECRETS_BACKEND", "env").lower()
     if backend in {"vault", "aws"} and isinstance(e, ImportError):
         logger.warning(
-            "Secrets backend '%s' SDK unavailable, falling back to environment variables: %s",
-            backend,
-            e,
+            "secrets.backend_unavailable",
+            secrets_backend=backend,
+            error=str(e),
         )
         secrets_manager = None
     elif backend != "env":
         # Fail fast for configured non-env backends when dependencies are present
         # but backend init/auth still fails.
-        logger.error(f"Failed to initialize secrets manager ({backend}): {e}")
+        logger.error("secrets.init_failed", secrets_backend=backend, error=str(e))
         raise
     else:
-        logger.warning(f"Secrets manager initialization issue (using env fallback): {e}")
+        logger.warning("secrets.init_fallback", error=str(e))
         secrets_manager = None
 
 
@@ -87,10 +98,10 @@ def _enable_haystack_logging(*, enable_otel_tracing: bool) -> None:
                     otel_trace.get_tracer("senticor.agents.haystack"),
                 )
             )
-            logger.info("Haystack OpenTelemetryTracer enabled")
+            logger.info("haystack.otel_tracer_enabled")
             return
         except Exception as exc:  # noqa: BLE001
-            logger.warning("Failed to enable Haystack OpenTelemetry tracer: %s", exc)
+            logger.warning("haystack.otel_tracer_failed", error=str(exc))
 
     tracing.enable_tracing(
         LoggingTracer(
@@ -100,7 +111,7 @@ def _enable_haystack_logging(*, enable_otel_tracing: bool) -> None:
             }
         )
     )
-    logger.info("Haystack LoggingTracer enabled")
+    logger.info("haystack.logging_tracer_enabled")
 
 
 @asynccontextmanager
@@ -112,6 +123,58 @@ async def lifespan(application: FastAPI):
 
 
 app = FastAPI(title="Senticor Project Agents", version="0.1.0", lifespan=lifespan)
+
+
+async def _context_aware_body(
+    body_iterator: AsyncIterator[bytes],
+    ctx_tokens: dict,
+) -> AsyncIterator[bytes]:
+    """Wrap a response body iterator so structlog context vars stay bound.
+
+    For ``StreamingResponse``, Starlette iterates the body *after* the
+    middleware stack returns.  Without re-binding, ``clear_request_context()``
+    would have already wiped the context vars, and any log emitted during
+    streaming (model fallback warnings, streaming errors, etc.) would lose
+    ``request_id`` / ``trail_id`` / trace fields.
+
+    We re-bind the captured context tokens before each iteration step and
+    clean up only after the body is fully consumed.
+    """
+    from structlog.contextvars import bind_contextvars
+
+    try:
+        bind_contextvars(**ctx_tokens)
+        async for chunk in body_iterator:
+            yield chunk
+    finally:
+        clear_request_context()
+
+
+@app.middleware("http")
+async def request_context_middleware(request: Request, call_next):
+    request_id = request.headers.get(REQUEST_ID_HEADER) or generate_request_id()
+    trail_id = request.headers.get(TRAIL_ID_HEADER) or ""
+    bind_request_context(request_id, request.method, request.url.path, trail_id=trail_id or None)
+    response = await call_next(request)
+
+    # For streaming responses the body iterator runs *after* this middleware
+    # returns.  Wrap it so the structlog context stays alive during iteration
+    # and is only cleared once the stream is fully consumed.
+    if hasattr(response, "body_iterator"):
+        ctx_tokens = {
+            "request_id": request_id,
+            "http_method": request.method,
+            "http_path": str(request.url.path),
+        }
+        if trail_id:
+            ctx_tokens["trail_id"] = trail_id
+        response.body_iterator = _context_aware_body(response.body_iterator, ctx_tokens)
+    else:
+        clear_request_context()
+
+    response.headers[REQUEST_ID_HEADER] = request_id
+    return response
+
 
 # ---------------------------------------------------------------------------
 # Pydantic models
@@ -366,7 +429,7 @@ async def run_agent(
             return _find_assistant_message(result)
         except Exception as exc:
             last_error = exc
-            logger.warning("Model %s failed: %s. Trying next model...", model, exc)
+            logger.warning("agent.model_failed", model=model, error=str(exc))
 
     raise RuntimeError(f"All {len(MODELS)} models failed. Last error: {last_error}") from last_error
 
@@ -425,7 +488,7 @@ async def run_agent_streaming(
                 return _find_assistant_message(result)
             except Exception as exc:
                 last_error = exc
-                logger.warning("Model %s failed (streaming): %s", model, exc)
+                logger.warning("agent.model_failed", model=model, streaming=True, error=str(exc))
         raise RuntimeError(
             f"All {len(MODELS)} models failed. Last error: {last_error}"
         ) from last_error
@@ -475,7 +538,7 @@ async def run_agent_streaming(
         yield json.dumps({"type": "done", "text": full_text or result_text}) + "\n"
 
     except Exception as exc:
-        logger.exception("Streaming error")
+        logger.exception("agent.streaming_error")
         if not task.done():
             task.cancel()
         yield json.dumps({"type": "error", "detail": str(exc)}) + "\n"
@@ -488,6 +551,7 @@ async def chat_completions(req: ChatCompletionRequest):
     trace_ctx = req.traceContext.model_dump(exclude_none=True) if req.traceContext else {}
     if req.conversationId and "externalConversationId" not in trace_ctx:
         trace_ctx["externalConversationId"] = req.conversationId
+    bind_trace_context(trace_ctx)
     llm = _build_llm_config(req.llm)
 
     if req.stream:
@@ -511,7 +575,7 @@ async def chat_completions(req: ChatCompletionRequest):
             llm_config=llm,
         )
     except Exception as exc:
-        logger.exception("Agent error")
+        logger.exception("agent.error")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     text = last_message.text or ""
@@ -547,9 +611,14 @@ async def execute_tool_endpoint(req: ExecuteToolRequest):
     except CopilotCliError as exc:
         status_code = _status_code_for_tool_error(exc)
         if status_code >= 500:
-            logger.exception("Tool execution error")
+            logger.exception("tool.execution_error", tool_name=req.toolCall.name)
         else:
-            logger.warning("Tool execution failed with status %s: %s", status_code, exc)
+            logger.warning(
+                "tool.execution_failed",
+                tool_name=req.toolCall.name,
+                status_code=status_code,
+                error=str(exc),
+            )
         detail: dict[str, object] = {
             "message": exc.detail,
             "needsReauth": status_code == 401,
@@ -560,7 +629,7 @@ async def execute_tool_endpoint(req: ExecuteToolRequest):
             detail["retryable"] = exc.retryable
         raise HTTPException(status_code=status_code, detail=detail) from exc
     except Exception as exc:
-        logger.exception("Tool execution error")
+        logger.exception("tool.execution_error", tool_name=req.toolCall.name)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     return ExecuteToolResponse(
