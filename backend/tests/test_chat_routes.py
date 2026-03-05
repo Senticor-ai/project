@@ -427,14 +427,16 @@ class TestChatCompletions:
             lambda _user_id: {"status": "starting", "error": None},
         )
 
-        async def _fake_stream_openclaw(
-            openclaw_url: str,
-            openclaw_token: str,
-            messages: list[dict],
-            conversation_id: str,
-            user_id: str,
-            org_id: str,
-            **kwargs,
+        async def _fake_run_openclaw_background(
+            queue,
+            openclaw_url,
+            openclaw_token,
+            messages,
+            conversation_id,
+            user_id,
+            org_id,
+            request_id=None,
+            ctx=None,
         ):
             assert openclaw_url == "http://openclaw.local"
             assert openclaw_token == "token-abc"
@@ -443,9 +445,12 @@ class TestChatCompletions:
             assert org_id
             assert messages[-1]["role"] == "user"
             assert messages[-1]["content"] == "Hallo"
-            yield (json.dumps({"type": "done", "text": "Antwort"}) + "\n").encode()
+            queue.put_nowait((json.dumps({"type": "done", "text": "Antwort"}) + "\n").encode())
+            queue.put_nowait(None)
 
-        monkeypatch.setattr("app.chat.routes._stream_openclaw", _fake_stream_openclaw)
+        monkeypatch.setattr(
+            "app.chat.routes._run_openclaw_background", _fake_run_openclaw_background
+        )
 
         response = auth_client.post(
             "/chat/completions",
@@ -484,11 +489,10 @@ class TestChatCompletions:
 
         streamed = {"called": False}
 
-        async def _unexpected_stream(*args, **kwargs):
+        async def _unexpected_background(*args, **kwargs):
             streamed["called"] = True
-            yield b""
 
-        monkeypatch.setattr("app.chat.routes._stream_openclaw", _unexpected_stream)
+        monkeypatch.setattr("app.chat.routes._run_openclaw_background", _unexpected_background)
 
         response = auth_client.post(
             "/chat/completions",
@@ -1327,13 +1331,9 @@ class TestSlowProviderResponse:
 class TestOpenclawMidStreamFailure:
     """OpenClaw container restart during turn should emit error event."""
 
-    def test_openclaw_stream_failure_emits_error_event(
-        self, auth_client, monkeypatch
-    ):
+    def test_openclaw_stream_failure_emits_error_event(self, auth_client, monkeypatch):
         _patch_settings(monkeypatch, default_agent_backend="openclaw")
-        monkeypatch.setattr(
-            "app.chat.routes.get_user_agent_backend", lambda uid: "openclaw"
-        )
+        monkeypatch.setattr("app.chat.routes.get_user_agent_backend", lambda uid: "openclaw")
         monkeypatch.setattr(
             "app.chat.routes.ensure_running",
             lambda uid: ("http://fake-openclaw:8080", "tok"),
@@ -1385,15 +1385,11 @@ class TestOpenclawMidStreamFailure:
 class TestOpenclawPersistenceFailure:
     """OpenClaw path: persistence failure after successful stream."""
 
-    def test_openclaw_persist_failure_still_delivers_stream(
-        self, auth_client, monkeypatch
-    ):
+    def test_openclaw_persist_failure_still_delivers_stream(self, auth_client, monkeypatch):
         from contextlib import asynccontextmanager
 
         _patch_settings(monkeypatch, default_agent_backend="openclaw")
-        monkeypatch.setattr(
-            "app.chat.routes.get_user_agent_backend", lambda uid: "openclaw"
-        )
+        monkeypatch.setattr("app.chat.routes.get_user_agent_backend", lambda uid: "openclaw")
         monkeypatch.setattr(
             "app.chat.routes.ensure_running",
             lambda uid: ("http://fake-openclaw:8080", "tok"),
@@ -1481,9 +1477,7 @@ class TestAcceptedEvent:
             {"type": "text_delta", "content": "ok"},
             {"type": "done", "text": "ok"},
         ]
-        monkeypatch.setattr(
-            "app.chat.routes.httpx.stream", _make_stream_response(events)
-        )
+        monkeypatch.setattr("app.chat.routes.httpx.stream", _make_stream_response(events))
 
         response = auth_client.post(
             "/chat/completions",
