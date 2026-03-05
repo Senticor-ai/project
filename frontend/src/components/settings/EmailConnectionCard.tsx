@@ -12,6 +12,7 @@ export interface EmailConnectionCardProps {
   calendarLoadError?: string;
   onSync?: () => void;
   onDisconnect?: () => void;
+  onReconnect?: () => void;
   onUpdateSyncInterval?: (minutes: number) => void;
   onUpdateMarkRead?: (markRead: boolean) => void;
   onToggleCalendarSync?: (enabled: boolean) => void;
@@ -122,6 +123,7 @@ export function EmailConnectionCard({
   calendarLoadError,
   onSync,
   onDisconnect,
+  onReconnect,
   onUpdateSyncInterval,
   onUpdateMarkRead,
   onToggleCalendarSync,
@@ -281,9 +283,11 @@ export function EmailConnectionCard({
             title={calendarLoadError}
           >
             <p>Kalender konnten nicht geladen werden.</p>
-            <p className="mt-1">
-              Bitte Verbindung trennen und Gmail-Konto neu verbinden.
-            </p>
+            {!onReconnect && (
+              <p className="mt-1">
+                Bitte Verbindung trennen und Gmail-Konto neu verbinden.
+              </p>
+            )}
           </div>
         )}
         {isCalendarSyncEnabled &&
@@ -336,11 +340,26 @@ export function EmailConnectionCard({
 
       {/* Actions */}
       <div className="flex gap-2 border-t border-border pt-3">
+        {onReconnect && (connection.last_sync_error || calendarLoadError) && (
+          <button
+            type="button"
+            onClick={onReconnect}
+            className="flex items-center gap-1 rounded-[var(--radius-md)] bg-blueprint-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blueprint-700"
+          >
+            <Icon name="link" size={14} />
+            Neu verbinden
+          </button>
+        )}
         <button
           type="button"
           onClick={onSync}
           disabled={isSyncing}
-          className="flex items-center gap-1 rounded-[var(--radius-md)] bg-blueprint-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blueprint-700 disabled:opacity-50"
+          className={cn(
+            "flex items-center gap-1 rounded-[var(--radius-md)] px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50",
+            onReconnect && (connection.last_sync_error || calendarLoadError)
+              ? "border border-border text-text-muted hover:bg-paper-100"
+              : "bg-blueprint-600 text-white hover:bg-blueprint-700",
+          )}
         >
           <Icon name="sync" size={14} />
           Jetzt synchronisieren

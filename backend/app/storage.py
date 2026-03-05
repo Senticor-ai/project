@@ -7,12 +7,15 @@ A future ``S3Storage`` can be added without touching call-sites.
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
 from fastapi import Response
 from fastapi.responses import FileResponse
+
+logger = logging.getLogger(__name__)
 
 
 @runtime_checkable
@@ -106,7 +109,10 @@ class LocalStorage:
             for child in path.iterdir():
                 if child.is_file():
                     child.unlink(missing_ok=True)
-            path.rmdir()
+            try:
+                path.rmdir()
+            except OSError:
+                logger.warning("delete_prefix.rmdir_failed", extra={"path": str(path)})
 
     def resolve_path(self, key: str) -> Path | None:
         path = self._resolve(key)

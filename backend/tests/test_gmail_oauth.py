@@ -1,10 +1,12 @@
-"""Tests for Gmail OAuth helpers — token revocation."""
+"""Tests for Gmail OAuth helpers — URL building, token revocation, and refresh."""
+
+from urllib.parse import parse_qs, urlparse
 
 import httpx
 import pytest
 import respx
 
-from app.email.gmail_oauth import GOOGLE_REVOKE_URL, refresh_gmail_token, revoke_google_token
+from app.email.gmail_oauth import GOOGLE_REVOKE_URL, build_gmail_auth_url, refresh_gmail_token, revoke_google_token
 
 
 class _DummyCursor:
@@ -62,6 +64,31 @@ class _DummyHttpResponse:
 
     def json(self) -> dict[str, int | str]:
         return {"access_token": "new-access-token", "expires_in": 3600}
+
+
+@pytest.mark.unit
+class TestBuildGmailAuthUrl:
+    """build_gmail_auth_url should support optional login_hint."""
+
+    def test_includes_login_hint_when_provided(self):
+        url = build_gmail_auth_url("test-state", login_hint="user@gmail.com")
+        parsed = urlparse(url)
+        params = parse_qs(parsed.query)
+        assert params["login_hint"] == ["user@gmail.com"]
+
+    def test_omits_login_hint_when_not_provided(self):
+        url = build_gmail_auth_url("test-state")
+        parsed = urlparse(url)
+        params = parse_qs(parsed.query)
+        assert "login_hint" not in params
+
+    def test_includes_required_params(self):
+        url = build_gmail_auth_url("test-state")
+        parsed = urlparse(url)
+        params = parse_qs(parsed.query)
+        assert params["state"] == ["test-state"]
+        assert params["prompt"] == ["consent"]
+        assert params["access_type"] == ["offline"]
 
 
 @pytest.mark.unit

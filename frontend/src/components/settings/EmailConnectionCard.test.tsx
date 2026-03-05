@@ -332,4 +332,71 @@ describe("EmailConnectionCard", () => {
       screen.getByText(/Verbindung trennen und Gmail-Konto neu verbinden/),
     ).toBeInTheDocument();
   });
+
+  it("shows reconnect button when calendarLoadError is present", () => {
+    render(
+      <EmailConnectionCard
+        connection={baseConnection}
+        calendarLoadError="Google Calendar permission missing."
+        onReconnect={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: /neu verbinden/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("calls onReconnect when reconnect button is clicked", async () => {
+    const user = userEvent.setup();
+    const onReconnect = vi.fn();
+    render(
+      <EmailConnectionCard
+        connection={baseConnection}
+        calendarLoadError="Google Calendar permission missing."
+        onReconnect={onReconnect}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /neu verbinden/i }));
+    expect(onReconnect).toHaveBeenCalledOnce();
+  });
+
+  it("replaces static reconnect guidance with clickable button when onReconnect provided", () => {
+    render(
+      <EmailConnectionCard
+        connection={baseConnection}
+        calendarLoadError="Google Calendar permission missing."
+        onReconnect={vi.fn()}
+      />,
+    );
+    expect(
+      screen.queryByText(
+        /Bitte Verbindung trennen und Gmail-Konto neu verbinden/,
+      ),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /neu verbinden/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("does not show reconnect button when no error", () => {
+    render(
+      <EmailConnectionCard connection={baseConnection} onReconnect={vi.fn()} />,
+    );
+    expect(
+      screen.queryByRole("button", { name: /neu verbinden/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows reconnect button in actions bar when sync error exists", () => {
+    render(
+      <EmailConnectionCard
+        connection={{ ...baseConnection, last_sync_error: "Token expired" }}
+        onReconnect={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: /neu verbinden/i }),
+    ).toBeInTheDocument();
+  });
 });

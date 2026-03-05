@@ -53,6 +53,32 @@ spec:
                 echo "waiting for postgres..."
                 sleep 2
               done
+        - name: storage-init
+          image: busybox:1.37
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+          resources:
+            requests:
+              memory: "16Mi"
+              cpu: "10m"
+            limits:
+              memory: "32Mi"
+              cpu: "50m"
+          volumeMounts:
+            - name: backend-files
+              mountPath: /data/storage
+          command:
+            - sh
+            - -ec
+            - |
+              echo "storage-init: uid=$(id -u) gid=$(id -g)"
+              mkdir -p /data/storage/uploads /data/storage/files
+              echo ok > /data/storage/.health && rm /data/storage/.health
+              echo "storage-init: ready"
       containers:
         - name: worker
           image: project-backend:local

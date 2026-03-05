@@ -57,6 +57,7 @@ const meta = {
     connection: baseConnection,
     onSync: fn(),
     onDisconnect: fn(),
+    onReconnect: fn(),
     onUpdateSyncInterval: fn(),
     onUpdateMarkRead: fn(),
     onToggleCalendarSync: fn(),
@@ -138,6 +139,28 @@ export const ManualOnly: Story = {
     connection: {
       ...baseConnection,
       sync_interval_minutes: 0,
+    },
+  },
+};
+
+export const CalendarPermissionError: Story = {
+  args: {
+    connection: {
+      ...baseConnection,
+      last_calendar_sync_error:
+        "Google Calendar permission missing. Disconnect and reconnect Google to grant calendar access.",
+    },
+    calendarLoadError:
+      "Google Calendar permission missing. Disconnect and reconnect Google to grant calendar access.",
+    availableCalendars: [],
+  },
+};
+
+export const SyncErrorWithReconnect: Story = {
+  args: {
+    connection: {
+      ...baseConnection,
+      last_sync_error: "OAuth token expired. Please reconnect.",
     },
   },
 };

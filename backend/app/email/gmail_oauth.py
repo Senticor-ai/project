@@ -24,9 +24,9 @@ GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke"
 GOOGLE_GMAIL_PROFILE_URL = "https://gmail.googleapis.com/gmail/v1/users/me/profile"
 
 
-def build_gmail_auth_url(state: str) -> str:
+def build_gmail_auth_url(state: str, *, login_hint: str | None = None) -> str:
     """Build Google OAuth authorization URL for Gmail IMAP access."""
-    params = {
+    params: dict[str, str] = {
         "client_id": settings.gmail_client_id,
         "redirect_uri": settings.gmail_redirect_uri,
         "response_type": "code",
@@ -36,6 +36,8 @@ def build_gmail_auth_url(state: str) -> str:
         "include_granted_scopes": "true",
         "state": state,
     }
+    if login_hint:
+        params["login_hint"] = login_hint
     return f"{GOOGLE_AUTH_URL}?{urlencode(params)}"
 
 

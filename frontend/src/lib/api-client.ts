@@ -948,10 +948,13 @@ export const EmailApi = {
     return request<{ url: string }>(`/email/oauth/gmail/authorize${qs}`);
   },
 
-  getGmailAuthRedirectUrl: (returnUrl?: string) => {
+  getGmailAuthRedirectUrl: (returnUrl?: string, loginHint?: string) => {
     const params = new URLSearchParams();
     if (returnUrl) {
       params.set("return_url", returnUrl);
+    }
+    if (loginHint) {
+      params.set("login_hint", loginHint);
     }
     params.set("redirect", "true");
     return `${API_BASE_URL}/email/oauth/gmail/authorize?${params.toString()}`;

@@ -454,12 +454,13 @@ def gmail_authorize(
     org=Depends(get_current_org),
     return_url: Annotated[str, Query()] = "",
     redirect: Annotated[bool, Query()] = False,
+    login_hint: Annotated[str, Query()] = "",
 ):
     if not settings.gmail_client_id or not settings.gmail_client_secret:
         raise HTTPException(status_code=500, detail="Gmail OAuth not configured")
     sanitized = _sanitize_return_url(return_url)
     state = _build_state(str(current_user["id"]), str(org["org_id"]), sanitized)
-    url = build_gmail_auth_url(state)
+    url = build_gmail_auth_url(state, login_hint=login_hint or None)
     if redirect:
         return RedirectResponse(url=url, status_code=303)
     return {"url": url}

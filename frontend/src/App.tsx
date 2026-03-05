@@ -390,6 +390,37 @@ function AuthenticatedApp({
     window.setTimeout(() => window.clearInterval(pollId), 5 * 60_000);
   }, [queryClient]);
 
+  const handleReconnectGmail = useCallback(
+    (emailHint: string) => {
+      const w = 500;
+      const h = 600;
+      const left = window.screenX + (window.outerWidth - w) / 2;
+      const top = window.screenY + (window.outerHeight - h) / 2;
+      const popupFeatures = `width=${w},height=${h},left=${left},top=${top}`;
+      const returnUrl = `${window.location.origin}/settings/email`;
+      const authorizeUrl = EmailApi.getGmailAuthRedirectUrl(
+        returnUrl,
+        emailHint,
+      );
+
+      const popup = window.open(authorizeUrl, "gmail-oauth", popupFeatures);
+      if (!popup) {
+        window.location.assign(authorizeUrl);
+        return;
+      }
+
+      const pollId = window.setInterval(() => {
+        if (!popup.closed) return;
+        window.clearInterval(pollId);
+        void queryClient.invalidateQueries({
+          queryKey: EMAIL_CONNECTIONS_QUERY_KEY,
+        });
+      }, 500);
+      window.setTimeout(() => window.clearInterval(pollId), 5 * 60_000);
+    },
+    [queryClient],
+  );
+
   // Detect ?gmail=connected for full-page fallback after OAuth callback.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -564,6 +595,7 @@ function AuthenticatedApp({
               }
               emailLoading={emailLoading}
               onConnectGmail={handleConnectGmail}
+              onReconnectGmail={handleReconnectGmail}
               onEmailSync={(id) => triggerEmailSync.mutate(id)}
               onEmailDisconnect={(id) => disconnectEmail.mutate(id)}
               onEmailUpdateSyncInterval={(id, minutes) =>

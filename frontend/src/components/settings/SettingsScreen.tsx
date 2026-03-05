@@ -63,6 +63,7 @@ export interface SettingsScreenProps {
   emailCalendarsErrorByConnectionId?: Record<string, string>;
   emailLoading?: boolean;
   onConnectGmail?: () => void;
+  onReconnectGmail?: (emailHint: string) => void;
   onEmailSync?: (connectionId: string) => void;
   onEmailDisconnect?: (connectionId: string) => void;
   onEmailUpdateSyncInterval?: (connectionId: string, minutes: number) => void;
@@ -113,6 +114,7 @@ export function SettingsScreen({
   emailCalendarsErrorByConnectionId,
   emailLoading,
   onConnectGmail,
+  onReconnectGmail,
   onEmailSync,
   onEmailDisconnect,
   onEmailUpdateSyncInterval,
@@ -188,6 +190,7 @@ export function SettingsScreen({
               calendarsErrorByConnectionId={emailCalendarsErrorByConnectionId}
               isLoading={emailLoading}
               onConnectGmail={onConnectGmail}
+              onReconnectGmail={onReconnectGmail}
               onSync={onEmailSync}
               onDisconnect={onEmailDisconnect}
               onUpdateSyncInterval={onEmailUpdateSyncInterval}

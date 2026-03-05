@@ -213,7 +213,19 @@ async def upload_chunk(
                 detail="Invalid chunk index",
             )
 
-        storage.write(f"uploads/{upload_id}/part-{chunk_index}", body)
+        try:
+            storage.write(f"uploads/{upload_id}/part-{chunk_index}", body)
+        except OSError as exc:
+            logger.exception(
+                "upload_chunk.storage_error",
+                upload_id=upload_id,
+                chunk_index=chunk_index,
+                error=str(exc),
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to write upload chunk",
+            ) from exc
 
         with conn.cursor() as cur:
             cur.execute(
@@ -337,7 +349,18 @@ def complete_upload(
 
         part_keys = [f"{upload_prefix}/part-{i}" for i in range(chunk_total)]
         target_key = f"files/{payload.upload_id}"
-        size_bytes, digest = storage.concatenate(part_keys, target_key)
+        try:
+            size_bytes, digest = storage.concatenate(part_keys, target_key)
+        except OSError as exc:
+            logger.exception(
+                "complete_upload.concatenate_error",
+                upload_id=payload.upload_id,
+                error=str(exc),
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to assemble uploaded file",
+            ) from exc
 
         if size_bytes != int(upload["total_size"]):
             raise HTTPException(
@@ -403,7 +426,14 @@ def complete_upload(
     )
     enqueue_event("file_uploaded", {"file_id": str(file_row["file_id"]), "org_id": org_id})
 
-    storage.delete_prefix(upload_prefix)
+    try:
+        storage.delete_prefix(upload_prefix)
+    except OSError:
+        logger.warning(
+            "complete_upload.cleanup_failed",
+            upload_id=payload.upload_id,
+            upload_prefix=upload_prefix,
+        )
 
     response = FileRecord(
         file_id=str(file_row["file_id"]),

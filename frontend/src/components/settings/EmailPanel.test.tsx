@@ -205,6 +205,23 @@ describe("EmailPanel", () => {
     ]);
   });
 
+  it("calls onReconnectGmail with email address when reconnect is clicked", async () => {
+    const user = userEvent.setup();
+    const onReconnectGmail = vi.fn();
+    render(
+      <EmailPanel
+        connections={[mockConnection]}
+        calendarsErrorByConnectionId={{
+          "conn-1": "Google Calendar permission missing.",
+        }}
+        onReconnectGmail={onReconnectGmail}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /neu verbinden/i }));
+    expect(onReconnectGmail).toHaveBeenCalledWith("beamte@gmail.com");
+  });
+
   it("passes calendar loading errors to connection card", () => {
     render(
       <EmailPanel

@@ -42,6 +42,7 @@ const meta = {
   ],
   args: {
     onConnectGmail: fn(),
+    onReconnectGmail: fn(),
     onSync: fn(),
     onDisconnect: fn(),
     onUpdateSyncInterval: fn(),
@@ -152,6 +153,31 @@ export const MultipleConnections: Story = {
         },
       ],
     },
+  },
+};
+
+export const CalendarPermissionError: Story = {
+  args: {
+    connections: [
+      {
+        ...mockConnection,
+        last_calendar_sync_error:
+          "Google Calendar permission missing. Disconnect and reconnect Google to grant calendar access.",
+      },
+    ],
+    calendarsErrorByConnectionId: {
+      "conn-1":
+        "Google Calendar permission missing. Disconnect and reconnect Google to grant calendar access.",
+    },
+  },
+  play: async ({ canvas }) => {
+    await waitFor(() => {
+      expect(canvas.getByText("Max Mustermann")).toBeInTheDocument();
+    });
+    const reconnectBtn = canvas.getByRole("button", {
+      name: /neu verbinden/i,
+    });
+    await expect(reconnectBtn).toBeInTheDocument();
   },
 };
 

@@ -13,6 +13,7 @@ export interface EmailPanelProps {
   calendarsErrorByConnectionId?: Record<string, string>;
   isLoading?: boolean;
   onConnectGmail?: () => void;
+  onReconnectGmail?: (emailHint: string) => void;
   onSync?: (connectionId: string) => void;
   onDisconnect?: (connectionId: string) => void;
   onUpdateSyncInterval?: (connectionId: string, minutes: number) => void;
@@ -33,6 +34,7 @@ export function EmailPanel({
   calendarsErrorByConnectionId = {},
   isLoading,
   onConnectGmail,
+  onReconnectGmail,
   onSync,
   onDisconnect,
   onUpdateSyncInterval,
@@ -100,6 +102,11 @@ export function EmailPanel({
               }
               onSync={() => onSync?.(conn.connection_id)}
               onDisconnect={() => onDisconnect?.(conn.connection_id)}
+              onReconnect={
+                onReconnectGmail
+                  ? () => onReconnectGmail(conn.email_address)
+                  : undefined
+              }
               onUpdateSyncInterval={(minutes) =>
                 onUpdateSyncInterval?.(conn.connection_id, minutes)
               }
