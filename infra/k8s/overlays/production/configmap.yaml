@@ -26,7 +26,7 @@ data:
   BACKEND_BASE_URL: "http://backend:8000"
   STORYBOOK_URL: "http://storybook"
   OPENCLAW_RUNTIME: "k8s"
-  OPENCLAW_IMAGE: "registry.onstackit.cloud/senticor/project/openclaw:73a39bd0d6f22351b3d957ba28207ef4f9fdb0c5"
+  OPENCLAW_IMAGE: "registry.onstackit.cloud/senticor/project/openclaw:f3da41a6eab72c48f0f757723061675ef7b1ae4d"
   OPENCLAW_K8S_NAMESPACE: "project"
   OPENCLAW_K8S_PVC_NAME: "backend-files"
   OPENCLAW_K8S_IMAGE_PULL_SECRET: "stackit-registry"

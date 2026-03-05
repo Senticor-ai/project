@@ -11,19 +11,19 @@ resources:
 images:
   - name: project-backend
     newName: registry.onstackit.cloud/senticor/project/backend
-    newTag: "73a39bd0d6f22351b3d957ba28207ef4f9fdb0c5"
+    newTag: "f3da41a6eab72c48f0f757723061675ef7b1ae4d"
   - name: project-frontend
     newName: registry.onstackit.cloud/senticor/project/frontend
-    newTag: "73a39bd0d6f22351b3d957ba28207ef4f9fdb0c5"
+    newTag: "f3da41a6eab72c48f0f757723061675ef7b1ae4d"
   - name: project-storybook
     newName: registry.onstackit.cloud/senticor/project/storybook
-    newTag: "73a39bd0d6f22351b3d957ba28207ef4f9fdb0c5"
+    newTag: "f3da41a6eab72c48f0f757723061675ef7b1ae4d"
   - name: project-agents
     newName: registry.onstackit.cloud/senticor/project/agents
-    newTag: "73a39bd0d6f22351b3d957ba28207ef4f9fdb0c5"
+    newTag: "f3da41a6eab72c48f0f757723061675ef7b1ae4d"
   - name: project-openclaw
     newName: registry.onstackit.cloud/senticor/project/openclaw
-    newTag: "73a39bd0d6f22351b3d957ba28207ef4f9fdb0c5"
+    newTag: "f3da41a6eab72c48f0f757723061675ef7b1ae4d"
 
 patches:
   - path: patches/backend.yaml
