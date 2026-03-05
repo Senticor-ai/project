@@ -58,6 +58,24 @@ logger = get_logger(__name__)
 
 router = APIRouter(prefix="/chat", tags=["chat"], dependencies=[Depends(get_current_user)])
 
+
+def _safe_update_request_status(
+    request_id: str | None,
+    status: str,
+    error_detail: str | None = None,
+    error_type: str | None = None,
+) -> None:
+    """Best-effort chat request status update — never raises."""
+    if not request_id:
+        return
+    try:
+        update_chat_request_status(
+            request_id, status, error_detail=error_detail, error_type=error_type
+        )
+    except Exception:
+        logger.warning("chat.request_status_update_failed", exc_info=True)
+
+
 _OPENCLAW_STARTUP_WAIT_SECONDS = 45.0
 _OPENCLAW_STARTUP_POLL_SECONDS = 1.0
 _OPENCLAW_STARTUP_PROGRESS_STEP_SECONDS = 5.0
@@ -192,7 +210,7 @@ def _run_haystack_sync(
                                 if tracker:
                                     tracker.mark_first_token()
                                 if not status_updated_to_running and request_id:
-                                    update_chat_request_status(request_id, "running")
+                                    _safe_update_request_status(request_id, "running")
                                     status_updated_to_running = True
                                 full_text += event.get("content", "")
                             elif etype == "tool_calls":
@@ -206,36 +224,33 @@ def _run_haystack_sync(
             except httpx.ConnectError as exc:
                 err = build_error_event("Agents service unreachable", ctx, exc)
                 queue.put_nowait(json.dumps(err).encode() + b"\n")
-                if request_id:
-                    update_chat_request_status(
-                        request_id,
-                        "failed",
-                        error_detail=str(exc)[:200],
-                        error_type="provider_unreachable",
-                    )
+                _safe_update_request_status(
+                    request_id,
+                    "failed",
+                    error_detail=str(exc)[:200],
+                    error_type="provider_unreachable",
+                )
                 return
             except httpx.TimeoutException as exc:
                 err = build_error_event("Agents service timeout", ctx, exc)
                 queue.put_nowait(json.dumps(err).encode() + b"\n")
-                if request_id:
-                    update_chat_request_status(
-                        request_id,
-                        "failed",
-                        error_detail=str(exc)[:200],
-                        error_type="provider_timeout",
-                    )
+                _safe_update_request_status(
+                    request_id,
+                    "failed",
+                    error_detail=str(exc)[:200],
+                    error_type="provider_timeout",
+                )
                 return
             except httpx.HTTPStatusError as exc:
                 detail = f"Agents service error: {exc.response.status_code}"
                 err = build_error_event(detail, ctx, exc)
                 queue.put_nowait(json.dumps(err).encode() + b"\n")
-                if request_id:
-                    update_chat_request_status(
-                        request_id,
-                        "failed",
-                        error_detail=detail,
-                        error_type="provider_error",
-                    )
+                _safe_update_request_status(
+                    request_id,
+                    "failed",
+                    error_detail=detail,
+                    error_type="provider_error",
+                )
                 return
 
         # Persist the assistant response after stream completes
@@ -249,17 +264,15 @@ def _run_haystack_sync(
                 if ctx:
                     record_persistence_outcome("history", False, ctx, error=exc)
 
-        if request_id:
-            update_chat_request_status(request_id, "completed")
+        _safe_update_request_status(request_id, "completed")
     except Exception as exc:
         logger.exception("chat.haystack_background_failed")
-        if request_id:
-            update_chat_request_status(
-                request_id,
-                "failed",
-                error_detail=str(exc)[:200],
-                error_type="backend_error",
-            )
+        _safe_update_request_status(
+            request_id,
+            "failed",
+            error_detail=str(exc)[:200],
+            error_type="backend_error",
+        )
         err = build_error_event("Stream failed", ctx, exc)
         queue.put_nowait(json.dumps(err).encode() + b"\n")
     finally:
@@ -365,13 +378,12 @@ async def _stream_openclaw_after_startup(
                     ctx,
                 )
             )
-            if request_id:
-                update_chat_request_status(
-                    request_id,
-                    "timed_out",
-                    error_detail="Container startup timeout",
-                    error_type="container_timeout",
-                )
+            _safe_update_request_status(
+                request_id,
+                "timed_out",
+                error_detail="Container startup timeout",
+                error_type="container_timeout",
+            )
             return
 
         await asyncio.sleep(min(_OPENCLAW_STARTUP_POLL_SECONDS, remaining_seconds))
@@ -386,13 +398,12 @@ async def _stream_openclaw_after_startup(
                 "und hinterlege einen API-Schlüssel."
             )
             yield _encode_ndjson_event(build_error_event(detail, ctx))
-            if request_id:
-                update_chat_request_status(
-                    request_id,
-                    "failed",
-                    error_detail="Agent not configured",
-                    error_type="client_error",
-                )
+            _safe_update_request_status(
+                request_id,
+                "failed",
+                error_detail="Agent not configured",
+                error_type="client_error",
+            )
             return
         except Exception as exc:
             state, _state_error = _get_openclaw_container_state(user_id)
@@ -415,13 +426,12 @@ async def _stream_openclaw_after_startup(
 
             detail = _build_openclaw_startup_error_detail(user_id, exc)
             yield _encode_ndjson_event(build_error_event(detail, ctx, exc))
-            if request_id:
-                update_chat_request_status(
-                    request_id,
-                    "failed",
-                    error_detail=detail[:200],
-                    error_type="container_error",
-                )
+            _safe_update_request_status(
+                request_id,
+                "failed",
+                error_detail=detail[:200],
+                error_type="container_error",
+            )
             return
 
     yield _encode_ndjson_event(
@@ -483,13 +493,12 @@ async def _run_openclaw_background(
             "OpenClaw session initialization failed. Please try again.", ctx, exc
         )
         queue.put_nowait(_encode_ndjson_event(err))
-        if request_id:
-            update_chat_request_status(
-                request_id,
-                "failed",
-                error_detail=str(exc)[:200],
-                error_type="backend_error",
-            )
+        _safe_update_request_status(
+            request_id,
+            "failed",
+            error_detail=str(exc)[:200],
+            error_type="backend_error",
+        )
         queue.put_nowait(None)
         return
 
@@ -529,42 +538,39 @@ async def _run_openclaw_background(
                                         if tracker:
                                             tracker.mark_first_token()
                                         if not status_updated_to_running and request_id:
-                                            update_chat_request_status(request_id, "running")
+                                            _safe_update_request_status(request_id, "running")
                                             status_updated_to_running = True
                                     queue.put_nowait((json.dumps(event) + "\n").encode())
             except httpx.ConnectError as exc:
                 err = build_error_event("OpenClaw service unreachable", ctx, exc)
                 queue.put_nowait(_encode_ndjson_event(err))
-                if request_id:
-                    update_chat_request_status(
-                        request_id,
-                        "failed",
-                        error_detail=str(exc)[:200],
-                        error_type="container_unreachable",
-                    )
+                _safe_update_request_status(
+                    request_id,
+                    "failed",
+                    error_detail=str(exc)[:200],
+                    error_type="container_unreachable",
+                )
                 return
             except httpx.TimeoutException as exc:
                 err = build_error_event("OpenClaw service timeout", ctx, exc)
                 queue.put_nowait(_encode_ndjson_event(err))
-                if request_id:
-                    update_chat_request_status(
-                        request_id,
-                        "failed",
-                        error_detail=str(exc)[:200],
-                        error_type="container_timeout",
-                    )
+                _safe_update_request_status(
+                    request_id,
+                    "failed",
+                    error_detail=str(exc)[:200],
+                    error_type="container_timeout",
+                )
                 return
             except httpx.HTTPStatusError as exc:
                 detail = f"OpenClaw error: {exc.response.status_code}"
                 err = build_error_event(detail, ctx, exc)
                 queue.put_nowait(_encode_ndjson_event(err))
-                if request_id:
-                    update_chat_request_status(
-                        request_id,
-                        "failed",
-                        error_detail=detail,
-                        error_type="container_error",
-                    )
+                _safe_update_request_status(
+                    request_id,
+                    "failed",
+                    error_detail=detail,
+                    error_type="container_error",
+                )
                 return
             except Exception as exc:
                 logger.exception("chat.openclaw_stream_failed", user_id=user_id)
@@ -572,13 +578,12 @@ async def _run_openclaw_background(
                     "OpenClaw response stream failed. Please try again.", ctx, exc
                 )
                 queue.put_nowait(_encode_ndjson_event(err))
-                if request_id:
-                    update_chat_request_status(
-                        request_id,
-                        "failed",
-                        error_detail=str(exc)[:200],
-                        error_type="backend_error",
-                    )
+                _safe_update_request_status(
+                    request_id,
+                    "failed",
+                    error_detail=str(exc)[:200],
+                    error_type="backend_error",
+                )
                 return
 
         # Persist assistant response (text only, no tool_calls)
@@ -615,17 +620,15 @@ async def _run_openclaw_background(
         # Notify frontend that items may have changed
         queue.put_nowait(_encode_ndjson_event({"type": "items_changed"}))
 
-        if request_id:
-            update_chat_request_status(request_id, "completed")
+        _safe_update_request_status(request_id, "completed")
     except Exception as exc:
         logger.exception("chat.openclaw_background_failed")
-        if request_id:
-            update_chat_request_status(
-                request_id,
-                "failed",
-                error_detail=str(exc)[:200],
-                error_type="backend_error",
-            )
+        _safe_update_request_status(
+            request_id,
+            "failed",
+            error_detail=str(exc)[:200],
+            error_type="backend_error",
+        )
     finally:
         queue.put_nowait(None)  # sentinel
 

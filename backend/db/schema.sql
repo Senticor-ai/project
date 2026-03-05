@@ -537,6 +537,24 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 CREATE INDEX IF NOT EXISTS idx_chat_messages_conversation
   ON chat_messages (conversation_id, created_at ASC);
 
+-- Chat request lifecycle tracking (timeout recovery, observability)
+CREATE TABLE IF NOT EXISTS chat_requests (
+  request_id      TEXT PRIMARY KEY,
+  conversation_id UUID NOT NULL REFERENCES conversations(conversation_id),
+  user_id         UUID NOT NULL REFERENCES users(id),
+  status          TEXT NOT NULL DEFAULT 'accepted'
+                  CHECK (status IN ('accepted', 'running', 'completed', 'failed', 'timed_out')),
+  error_detail    TEXT,
+  error_type      TEXT,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_chat_requests_conversation
+  ON chat_requests (conversation_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_chat_requests_user_status
+  ON chat_requests (user_id, status)
+  WHERE status IN ('accepted', 'running');
+
 -- User agent settings (OpenClaw vs Haystack backend choice)
 CREATE TABLE IF NOT EXISTS user_agent_settings (
   user_id                UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
