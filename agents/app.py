@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncGenerator  # noqa: UP035 — keep for 3.12 compat
@@ -124,15 +125,53 @@ async def lifespan(application: FastAPI):
 app = FastAPI(title="Senticor Project Agents", version="0.1.0", lifespan=lifespan)
 
 
+async def _context_aware_body(
+    body_iterator: AsyncIterator[bytes],
+    ctx_tokens: dict,
+) -> AsyncIterator[bytes]:
+    """Wrap a response body iterator so structlog context vars stay bound.
+
+    For ``StreamingResponse``, Starlette iterates the body *after* the
+    middleware stack returns.  Without re-binding, ``clear_request_context()``
+    would have already wiped the context vars, and any log emitted during
+    streaming (model fallback warnings, streaming errors, etc.) would lose
+    ``request_id`` / ``trail_id`` / trace fields.
+
+    We re-bind the captured context tokens before each iteration step and
+    clean up only after the body is fully consumed.
+    """
+    from structlog.contextvars import bind_contextvars
+
+    try:
+        bind_contextvars(**ctx_tokens)
+        async for chunk in body_iterator:
+            yield chunk
+    finally:
+        clear_request_context()
+
+
 @app.middleware("http")
 async def request_context_middleware(request: Request, call_next):
     request_id = request.headers.get(REQUEST_ID_HEADER) or generate_request_id()
     trail_id = request.headers.get(TRAIL_ID_HEADER) or ""
     bind_request_context(request_id, request.method, request.url.path, trail_id=trail_id or None)
-    try:
-        response = await call_next(request)
-    finally:
+    response = await call_next(request)
+
+    # For streaming responses the body iterator runs *after* this middleware
+    # returns.  Wrap it so the structlog context stays alive during iteration
+    # and is only cleared once the stream is fully consumed.
+    if hasattr(response, "body_iterator"):
+        ctx_tokens = {
+            "request_id": request_id,
+            "http_method": request.method,
+            "http_path": str(request.url.path),
+        }
+        if trail_id:
+            ctx_tokens["trail_id"] = trail_id
+        response.body_iterator = _context_aware_body(response.body_iterator, ctx_tokens)
+    else:
         clear_request_context()
+
     response.headers[REQUEST_ID_HEADER] = request_id
     return response
 
