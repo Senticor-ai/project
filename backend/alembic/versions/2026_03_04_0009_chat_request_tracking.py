@@ -24,7 +24,7 @@ def upgrade() -> None:
     op.execute(
         """
         CREATE TABLE IF NOT EXISTS chat_requests (
-            request_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            request_id TEXT PRIMARY KEY,
             conversation_id UUID NOT NULL REFERENCES conversations(conversation_id),
             user_id UUID NOT NULL REFERENCES users(id),
             status TEXT NOT NULL DEFAULT 'accepted'
