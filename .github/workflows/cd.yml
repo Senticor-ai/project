@@ -357,8 +357,8 @@ jobs:
 
   update-manifests:
     permissions:
-      contents: write      # git push manifest changes to main
-      pull-requests: write  # fallback: create PR if direct push fails
+      contents: write      # push deploy branch
+      pull-requests: write  # create deploy PR (branch protection requires PRs)
       issues: write         # create deploy label if missing
     if: >-
       (github.event_name == 'workflow_dispatch') ||
@@ -419,27 +419,13 @@ jobs:
             git commit -m "deploy: update image tag to ${IMAGE_TAG} [skip ci]"
           }
 
-          # Try direct push to main (up to 3 attempts)
-          for attempt in 1 2 3; do
-            echo "=== Attempt ${attempt} ==="
-            git fetch origin main
-            git checkout origin/main
+          # Branch protection requires PRs — create a deploy PR.
+          git fetch origin main
+          git checkout origin/main
 
-            if ! apply_changes; then
-              exit 0
-            fi
-
-            if git push origin HEAD:main; then
-              echo "Push succeeded on attempt ${attempt}"
-              exit 0
-            fi
-
-            echo "Push failed on attempt ${attempt}, retrying..."
-            sleep 2
-          done
-
-          # Fallback: create a PR instead of failing
-          echo "Direct push failed after 3 attempts, falling back to PR..."
+          if ! apply_changes; then
+            exit 0
+          fi
 
           # Ensure the deploy label exists (idempotent)
           gh label create "deploy" --description "Automated deploy PRs" --color "1D76DB" 2>/dev/null || true
@@ -452,19 +438,19 @@ jobs:
           done
 
           BRANCH="deploy/image-tag-${IMAGE_TAG:0:12}"
-          git fetch origin main
-          git checkout -b "$BRANCH" origin/main
-          apply_changes
+          git checkout -b "$BRANCH"
           git push origin "$BRANCH"
 
           gh pr create \
             --title "deploy: update image tag to ${IMAGE_TAG:0:12}" \
-            --body "$(cat <<EOF
-          Automatic deploy PR — direct push to main failed after 3 attempts.
+            --body "$(cat <<PRBODY
+          Automatic deploy PR — updates production image tags for Flux.
 
           **Image tag:** \`${IMAGE_TAG}\`
           **Workflow run:** ${RUN_URL}
-          EOF
+
+          Merge this PR to trigger Flux reconciliation.
+          PRBODY
           )" \
             --label "deploy" \
             --base main \
