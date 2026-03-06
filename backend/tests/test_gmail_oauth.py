@@ -6,7 +6,12 @@ import httpx
 import pytest
 import respx
 
-from app.email.gmail_oauth import GOOGLE_REVOKE_URL, build_gmail_auth_url, refresh_gmail_token, revoke_google_token
+from app.email.gmail_oauth import (
+    GOOGLE_REVOKE_URL,
+    build_gmail_auth_url,
+    refresh_gmail_token,
+    revoke_google_token,
+)
 
 
 class _DummyCursor:
@@ -142,7 +147,9 @@ class TestRefreshGmailToken:
                 return f"enc:{plaintext}"
 
         monkeypatch.setattr("app.email.gmail_oauth.CryptoService", DummyCrypto)
-        monkeypatch.setattr("app.email.gmail_oauth.httpx.post", lambda *_a, **_k: _DummyHttpResponse())
+        monkeypatch.setattr(
+            "app.email.gmail_oauth.httpx.post", lambda *_a, **_k: _DummyHttpResponse()
+        )
 
         token = refresh_gmail_token("connection-1", "org-1")
         assert token == "new-access-token"

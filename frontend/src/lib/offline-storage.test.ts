@@ -6,8 +6,13 @@ vi.mock("idb-keyval", () => ({
   del: vi.fn(),
 }));
 
+vi.mock("./auth-cache", () => ({
+  clearCachedAuthUser: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { get, set, del } from "idb-keyval";
 import { createIdbPersister, clearAllLocalCaches } from "./offline-storage";
+import { clearCachedAuthUser } from "./auth-cache";
 import type { PersistedClient } from "@tanstack/react-query-persist-client";
 
 const mocked = {
@@ -128,6 +133,7 @@ describe("clearAllLocalCaches", () => {
     const result = await clearAllLocalCaches(qc);
 
     expect(mocked.del).toHaveBeenCalledWith("copilot-query-cache");
+    expect(clearCachedAuthUser).toHaveBeenCalled();
     expect(globalThis.caches.delete).toHaveBeenCalledWith("items-sync");
     expect(globalThis.caches.delete).toHaveBeenCalledWith("workbox-precache");
     expect(qc.clear).toHaveBeenCalledOnce();

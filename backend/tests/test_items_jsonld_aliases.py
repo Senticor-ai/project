@@ -306,9 +306,7 @@ class TestJsonLdAliases:
             ],
         }
         resp = auth_client.post("/items", json={"item": item, "source": "manual"})
-        assert resp.status_code == 201, (
-            f"ReviewAction rejected: {resp.status_code}: {resp.text}"
-        )
+        assert resp.status_code == 201, f"ReviewAction rejected: {resp.status_code}: {resp.text}"
         data = resp.json()
         assert data["item"]["@type"] == "ReviewAction"
         _assert_jsonld_aliases(data["item"], "POST /items (ReviewAction)")
