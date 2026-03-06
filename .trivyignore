@@ -6,6 +6,9 @@
 # Mitigations: non-root user, read-only root filesystem, capabilities dropped,
 #              seccomp RuntimeDefault, network policies.
 
+# ── dpkg ──────────────────────────────────────────────────────────────
+CVE-2026-2219   # dpkg-deb hang on malformed .deb archives (DoS) — no .deb processing at runtime
+
 # ── tar ────────────────────────────────────────────────────────────────
 CVE-2005-2541   # tar setuid/setgid extraction warning — not a vulnerability, informational
 TEMP-0290435-0B57B5  # tar rmt side effects — rmt not installed in containers

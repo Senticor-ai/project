@@ -56,7 +56,10 @@ export const test = base.extend<TestFixtures>({
     });
 
     // Dismiss the dev/demo environment disclaimer dialog if present.
-    const disclaimerBtn = page.getByRole("button", { name: "I understand" });
+    // Match both English and German (Playwright locale may be de-DE).
+    const disclaimerBtn = page.getByRole("button", {
+      name: /I understand|Ich verstehe/,
+    });
     if (await disclaimerBtn.isVisible({ timeout: 2_000 }).catch(() => false)) {
       await disclaimerBtn.click();
     }

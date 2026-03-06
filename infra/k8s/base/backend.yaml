@@ -92,6 +92,8 @@ spec:
           image: busybox:1.37
           imagePullPolicy: IfNotPresent
           securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]

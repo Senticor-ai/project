@@ -121,11 +121,19 @@ def initiate_upload(
     try:
         storage.ensure_dir(f"uploads/{upload_id}")
     except OSError as exc:
+        import os as _os
+
+        parent = settings.file_storage_path / "uploads"
         logger.exception(
             "initiate_upload.storage_error",
             upload_id=upload_id,
             storage_path=str(settings.file_storage_path),
+            target_dir=str(parent / upload_id),
+            parent_exists=parent.exists(),
+            parent_stat=str(parent.stat()) if parent.exists() else "N/A",
+            process_uid=_os.getuid(),
             error=str(exc),
+            errno=exc.errno,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

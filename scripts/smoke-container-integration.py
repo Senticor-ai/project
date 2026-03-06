@@ -176,6 +176,56 @@ def test_auth_flow(frontend: httpx.Client) -> dict:
 # ---------------------------------------------------------------------------
 
 
+def test_file_upload_flow(frontend: httpx.Client, org_id: str) -> None:
+    """Verify the full file upload flow works under non-root.
+
+    This catches permission bugs where storage directories are owned by root
+    but the backend runs as a non-root user (UID 1000).
+    """
+    headers = {"X-Org-Id": org_id}
+    content = b'[{"name": "smoke test item", "state": 0}]'
+
+    # 1. Initiate upload
+    init_resp = frontend.post(
+        "/api/files/initiate",
+        headers=headers,
+        json={
+            "filename": "smoke-test.json",
+            "content_type": "application/json",
+            "total_size": len(content),
+        },
+    )
+    init_data = _require_ok(init_resp, "file initiate")
+    _assert_fields(init_data, ["upload_id", "upload_url", "chunk_size", "chunk_total"], "initiate")
+
+    upload_id = init_data["upload_id"]
+    chunk_total = init_data["chunk_total"]
+
+    # 2. Upload single chunk
+    upload_resp = frontend.put(
+        f"/api/files/upload/{upload_id}",
+        headers={
+            **headers,
+            "X-Chunk-Index": "0",
+            "X-Chunk-Total": str(chunk_total),
+        },
+        content=content,
+    )
+    _require_ok(upload_resp, "file upload chunk")
+
+    # 3. Complete upload
+    complete_resp = frontend.post(
+        "/api/files/complete",
+        headers=headers,
+        json={"upload_id": upload_id},
+    )
+    complete_data = _require_ok(complete_resp, "file complete")
+    _assert_fields(complete_data, ["file_id", "original_name", "size_bytes", "sha256"], "complete")
+    assert complete_data["size_bytes"] == len(content), (
+        f"size mismatch: {complete_data['size_bytes']} != {len(content)}"
+    )
+
+
 def test_items_crud(frontend: httpx.Client, org_id: str) -> None:
     headers = {"X-Org-Id": org_id}
     canonical_id = f"urn:app:action:ci-smoke-{uuid.uuid4()}"
@@ -283,17 +333,21 @@ def main() -> None:
             print(f"  FAIL  auth_flow: {exc}")
             errors.append(f"auth_flow: {exc}")
 
-        # Tier 3: CRUD (requires auth)
+        # Tier 3: Authenticated operations (requires auth)
         org_id = str(auth_result.get("default_org_id", ""))
         if org_id:
-            try:
-                test_items_crud(frontend, org_id)
-                print("  PASS  items_crud")
-            except Exception as exc:
-                print(f"  FAIL  items_crud: {exc}")
-                errors.append(f"items_crud: {exc}")
+            for name, fn in [
+                ("file_upload_flow", lambda: test_file_upload_flow(frontend, org_id)),
+                ("items_crud", lambda: test_items_crud(frontend, org_id)),
+            ]:
+                try:
+                    fn()  # type: ignore[operator]
+                    print(f"  PASS  {name}")
+                except Exception as exc:
+                    print(f"  FAIL  {name}: {exc}")
+                    errors.append(f"{name}: {exc}")
         elif not errors:
-            print("  SKIP  items_crud (no org_id from auth)")
+            print("  SKIP  tier3 (no org_id from auth)")
 
     print()
     if errors:

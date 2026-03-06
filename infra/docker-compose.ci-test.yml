@@ -39,6 +39,9 @@ services:
     depends_on:
       db-init:
         condition: service_completed_successfully
+    # Run as non-root (UID 1000) to match production securityContext.
+    # Catches permission bugs like root-owned storage dirs.
+    user: "1000:1000"
     ports:
       - "8000:8000"
     environment:
@@ -54,6 +57,9 @@ services:
       SESSION_BIND_IP: "false"
       SESSION_BIND_USER_AGENT: "false"
       STORAGE_BACKEND: local
+      FILE_STORAGE_PATH: /data/storage
+    volumes:
+      - backend-storage:/data/storage
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
       interval: 3s
@@ -100,3 +106,8 @@ services:
     image: ${OPENCLAW_IMAGE}
     ports:
       - "18789:18789"
+
+volumes:
+  # tmpfs volume for file storage — owned by UID 1000 via backend user directive.
+  # Tests that file upload works under non-root, matching production securityContext.
+  backend-storage:
