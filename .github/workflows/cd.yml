@@ -359,6 +359,7 @@ jobs:
     permissions:
       contents: write      # git push manifest changes to main
       pull-requests: write  # fallback: create PR if direct push fails
+      issues: write         # create deploy label if missing
     if: >-
       (github.event_name == 'workflow_dispatch') ||
       (github.event.workflow_run.conclusion == 'success'
@@ -439,6 +440,9 @@ jobs:
 
           # Fallback: create a PR instead of failing
           echo "Direct push failed after 3 attempts, falling back to PR..."
+
+          # Ensure the deploy label exists (idempotent)
+          gh label create "deploy" --description "Automated deploy PRs" --color "1D76DB" 2>/dev/null || true
 
           # Close any stale deploy PRs (older image tags)
           EXISTING_PRS=$(gh pr list --label "deploy" --json number --jq '.[].number' 2>/dev/null || true)
