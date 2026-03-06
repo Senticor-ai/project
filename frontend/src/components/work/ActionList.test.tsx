@@ -1374,4 +1374,57 @@ describe("ActionList", () => {
       expect(screen.queryByText("Kein Typ")).not.toBeInTheDocument();
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Batch move-to-project: type-aware bucket
+  // ---------------------------------------------------------------------------
+
+  describe("batch move to project", () => {
+    it("moves DigitalDocument items to reference and regular items to next", async () => {
+      const user = userEvent.setup();
+      const onMove = vi.fn();
+      const projectId = "urn:app:project:p1" as CanonicalId;
+      const items = [
+        createActionItem({
+          name: "Tax statement",
+          bucket: "inbox",
+          schemaType: "DigitalDocument",
+        }),
+        createActionItem({
+          name: "Call accountant",
+          bucket: "inbox",
+        }),
+        createActionItem({
+          name: "Invoice email",
+          bucket: "inbox",
+          schemaType: "EmailMessage",
+        }),
+      ];
+
+      renderActionList({
+        bucket: "inbox",
+        items,
+        onMove,
+        projects: [{ id: projectId, name: "Tax 2025" }],
+      });
+
+      // Click first item to enter selection mode
+      await user.click(screen.getByText("Tax statement"));
+      // Select all
+      await user.click(screen.getByRole("button", { name: "Select all" }));
+      // Pick the project from the dropdown
+      await user.selectOptions(
+        screen.getByLabelText("Move batch to project"),
+        projectId,
+      );
+
+      expect(onMove).toHaveBeenCalledTimes(3);
+      // DigitalDocument → reference
+      expect(onMove).toHaveBeenCalledWith(items[0]!.id, "reference", projectId);
+      // Regular Action → next
+      expect(onMove).toHaveBeenCalledWith(items[1]!.id, "next", projectId);
+      // EmailMessage → reference
+      expect(onMove).toHaveBeenCalledWith(items[2]!.id, "reference", projectId);
+    });
+  });
 });

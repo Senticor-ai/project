@@ -801,7 +801,13 @@ export function ActionList({
                         : undefined;
                       if (pid) {
                         for (const id of selectedIds) {
-                          onMove(id, "next", pid);
+                          const item = items.find((i) => i.id === id);
+                          const targetBucket =
+                            item?.schemaType === "DigitalDocument" ||
+                            item?.schemaType === "EmailMessage"
+                              ? "reference"
+                              : "next";
+                          onMove(id, targetBucket, pid);
                         }
                         setSelectedIds(new Set());
                         lastSelectedIndexRef.current = null;
