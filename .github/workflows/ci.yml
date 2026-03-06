@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - 'infra/k8s/overlays/production/**'
+      - 'CHANGELOG.md'
   pull_request:
   workflow_dispatch:
 
