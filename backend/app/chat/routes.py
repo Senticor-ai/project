@@ -9,6 +9,7 @@ Supports two backends:
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import json
 from collections.abc import AsyncGenerator
 from contextlib import nullcontext
@@ -25,7 +26,7 @@ from ..container.memory_store import SOURCE_RUNTIME_SYNC, sync_workspace_memory_
 from ..db import db_conn
 from ..delegation import create_delegated_token
 from ..deps import get_current_org, get_current_user
-from ..observability import get_logger, request_context_headers
+from ..observability import get_logger, request_context_headers, wrap_with_context
 from ..routes.agent_settings import get_user_agent_backend, get_user_llm_config
 from .instrumentation import (
     ChatContext,
@@ -455,7 +456,8 @@ async def _stream_openclaw_after_startup(
             org_id=org_id,
             request_id=request_id,
             ctx=ctx,
-        )
+        ),
+        context=contextvars.copy_context(),
     )
     async for chunk in _stream_from_queue(queue):
         yield chunk
@@ -795,7 +797,8 @@ def _handle_chat_completions(
                     org_id=org_id,
                     request_id=ctx.request_id,
                     ctx=ctx,
-                )
+                ),
+                context=contextvars.copy_context(),
             )
             async for chunk in _stream_from_queue(queue):
                 yield chunk
@@ -907,13 +910,15 @@ def _handle_chat_completions(
         loop = asyncio.get_event_loop()
         loop.run_in_executor(
             None,
-            lambda: _run_haystack_sync(
-                haystack_queue,
-                agents_url,
-                agent_payload,
-                conversation_id,
-                ctx.request_id,
-                ctx,
+            wrap_with_context(
+                lambda: _run_haystack_sync(
+                    haystack_queue,
+                    agents_url,
+                    agent_payload,
+                    conversation_id,
+                    ctx.request_id,
+                    ctx,
+                )
             ),
         )
         async for chunk in _stream_from_queue(haystack_queue):

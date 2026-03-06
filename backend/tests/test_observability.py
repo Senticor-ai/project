@@ -1,3 +1,5 @@
+from concurrent.futures import ThreadPoolExecutor
+
 from app.observability import (
     TRAIL_ID_HEADER,
     USER_ID_HEADER,
@@ -7,6 +9,7 @@ from app.observability import (
     clear_request_context,
     get_request_context,
     request_context_headers,
+    wrap_with_context,
 )
 
 
@@ -47,3 +50,23 @@ def test_request_context_headers_include_trail_id() -> None:
 
     assert headers[USER_ID_HEADER] == "user-2"
     assert headers[TRAIL_ID_HEADER] == "trail-123"
+
+
+def test_wrap_with_context_preserves_contextvars_in_thread() -> None:
+    """wrap_with_context must capture contextvars at call-site, not in thread."""
+    import contextvars
+
+    test_var: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+        "test_var", default=None
+    )
+    test_var.set("captured-at-call-site")
+
+    wrapped = wrap_with_context(lambda: test_var.get())
+
+    # Clear in main thread to prove the wrapper uses the snapshot
+    test_var.set(None)
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        result = pool.submit(wrapped).result()
+
+    assert result == "captured-at-call-site"

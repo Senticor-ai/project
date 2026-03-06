@@ -187,3 +187,18 @@ def request_context_env(
 def run_in_context(func, *args, **kwargs):
     ctx = contextvars.copy_context()
     return ctx.run(func, *args, **kwargs)
+
+
+def wrap_with_context(func):
+    """Return a wrapper that runs *func* in a copy of the current context.
+
+    The context snapshot is taken when ``wrap_with_context`` is called
+    (not when the wrapper executes), so OTel span context and structlog
+    contextvars are preserved across thread/executor boundaries.
+    """
+    ctx = contextvars.copy_context()
+
+    def _wrapper(*args, **kwargs):
+        return ctx.run(func, *args, **kwargs)
+
+    return _wrapper
