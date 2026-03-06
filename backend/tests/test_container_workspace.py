@@ -50,7 +50,10 @@ def test_provision_workspace_populates_bootstrap_for_new_workspace(monkeypatch, 
     config = json.loads((workspace_dir / "openclaw.json").read_text())
     assert config["gateway"]["port"] == 18800
     assert config["gateway"]["auth"]["token"] == "gateway-token"
-    assert config["agents"]["defaults"]["model"]["primary"] == "openrouter/google/gemini-3-flash-preview"
+    assert (
+        config["agents"]["defaults"]["model"]["primary"]
+        == "openrouter/google/gemini-3-flash-preview"
+    )
     assert (
         config["agents"]["defaults"]["imageModel"]["primary"]
         == "openrouter/google/gemini-3-flash-preview"

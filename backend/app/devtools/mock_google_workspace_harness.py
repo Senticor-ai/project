@@ -362,9 +362,7 @@ def _build_app(state: _MockWorkspaceState, lock: threading.Lock) -> FastAPI:
         with lock:
             events = state.calendar_events.setdefault(calendar_id, [])
             remaining = [
-                copy.deepcopy(event)
-                for event in events
-                if str(event.get("id")) != event_id
+                copy.deepcopy(event) for event in events if str(event.get("id")) != event_id
             ]
             deleted = len(remaining) != len(events)
             state.calendar_events[calendar_id] = remaining
@@ -463,8 +461,7 @@ class MockGoogleWorkspaceHarness:
             "threadId": thread_id,
             "labelIds": label_ids or ["INBOX", "UNREAD"],
             "historyId": history_id,
-            "internalDate": internal_date_ms
-            or str(int(datetime.now(UTC).timestamp() * 1000)),
+            "internalDate": internal_date_ms or str(int(datetime.now(UTC).timestamp() * 1000)),
             "payload": {
                 "mimeType": "multipart/alternative",
                 "headers": [

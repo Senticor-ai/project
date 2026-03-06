@@ -33,7 +33,9 @@ class TestCreateEvent:
         assert result["id"] == "evt-123"
         mock_post.assert_called_once()
         call_kwargs = mock_post.call_args
-        assert call_kwargs.args[0] == "https://www.googleapis.com/calendar/v3/calendars/primary/events"
+        assert (
+            call_kwargs.args[0] == "https://www.googleapis.com/calendar/v3/calendars/primary/events"
+        )
         assert call_kwargs.kwargs["headers"]["Authorization"] == "Bearer token-123"
         assert call_kwargs.kwargs["json"] == body
 

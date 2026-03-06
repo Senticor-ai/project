@@ -19,7 +19,13 @@ import httpx
 import pytest
 
 from app.config import settings
-from app.container.manager import ensure_running, hard_refresh_container, stop_container
+from app.container.manager import (
+    ensure_running,
+    hard_refresh_container,
+    reconcile_stale_errors,
+    start_container,
+    stop_container,
+)
 from app.container.runtime import NoRuntimeError, detect_runtime
 from app.db import db_conn
 from app.email.crypto import CryptoService
@@ -323,3 +329,104 @@ def test_openclaw_isolates_containers_between_users(client, openclaw_integration
     finally:
         for user_id in user_ids:
             _cleanup_user(user_id)
+
+
+# ---------------------------------------------------------------------------
+# Issue #97: Startup timeout race & stale-state reconciliation
+# ---------------------------------------------------------------------------
+
+
+def test_container_recovers_from_timeout_error_via_reconciliation(
+    client, openclaw_integration_env, monkeypatch
+):
+    """A container that becomes healthy after a timeout error is auto-reconciled.
+
+    Simulates the race condition from issue #97: backend times out during health
+    check, but the container subsequently becomes healthy. reconcile_stale_errors()
+    should detect this and promote the container back to 'running'.
+    """
+    import dataclasses
+
+    from app.config import settings as real_settings
+
+    user_id, _org_id = _register_and_login(client)
+    try:
+        _set_user_openclaw_settings(
+            user_id=user_id,
+            provider=openclaw_integration_env["provider"],
+            api_key=openclaw_integration_env["api_key"],
+            model=openclaw_integration_env["model"],
+        )
+
+        # Force a very short timeout so start_container times out before ready
+        patched = dataclasses.replace(real_settings, openclaw_health_check_timeout=2)
+        monkeypatch.setattr("app.container.manager.settings", patched)
+
+        with pytest.raises(RuntimeError, match="timeout"):
+            start_container(user_id)
+
+        row = _container_row(user_id)
+        assert row["container_status"] == "error"
+        assert "timeout" in (row["container_error"] or "").lower()
+
+        # Restore normal timeout and wait for the container to actually become healthy
+        monkeypatch.setattr("app.container.manager.settings", real_settings)
+        container_url = row["container_url"]
+        assert container_url is not None
+
+        deadline = time.monotonic() + 120
+        while time.monotonic() < deadline:
+            try:
+                resp = httpx.get(f"{container_url}/health", timeout=2.0)
+                if resp.status_code == 200:
+                    break
+            except (httpx.ConnectError, httpx.TimeoutException):
+                pass
+            time.sleep(2.0)
+        else:
+            pytest.skip("Container did not become healthy within 120s — skip reconciliation test")
+
+        # Now reconcile should detect the healthy container
+        reconciled = reconcile_stale_errors()
+        assert reconciled >= 1
+
+        row = _container_row(user_id)
+        assert row["container_status"] == "running"
+        assert row["container_error"] is None
+    finally:
+        _cleanup_user(user_id)
+
+
+def test_startup_timeout_emits_structured_timing_logs(
+    client, openclaw_integration_env, monkeypatch, capfd
+):
+    """Health check timeout must emit structured log events with timing data."""
+    import dataclasses
+
+    from app.config import settings as real_settings
+
+    user_id, _org_id = _register_and_login(client)
+    try:
+        _set_user_openclaw_settings(
+            user_id=user_id,
+            provider=openclaw_integration_env["provider"],
+            api_key=openclaw_integration_env["api_key"],
+            model=openclaw_integration_env["model"],
+        )
+
+        # Very short timeout to trigger timeout quickly
+        patched = dataclasses.replace(real_settings, openclaw_health_check_timeout=3)
+        monkeypatch.setattr("app.container.manager.settings", patched)
+
+        with pytest.raises(RuntimeError, match="timeout"):
+            start_container(user_id)
+
+        # Structured logs go to stdout via structlog
+        captured = capfd.readouterr()
+        output = captured.out + captured.err
+
+        assert "health_check_started" in output
+        assert "health_check_timeout" in output
+    finally:
+        monkeypatch.setattr("app.container.manager.settings", real_settings)
+        _cleanup_user(user_id)
