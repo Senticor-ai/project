@@ -1,0 +1,102 @@
+# Container integration test stack for CI.
+# All images are pre-built and injected via environment variables.
+# Usage:
+#   BACKEND_IMAGE=... FRONTEND_IMAGE=... AGENTS_IMAGE=... \
+#   STORYBOOK_IMAGE=... OPENCLAW_IMAGE=... \
+#   docker compose -f infra/docker-compose.ci-test.yml up -d --wait
+#
+# Note: OpenClaw is included to verify the image starts, but has no health
+# endpoint — it only becomes fully functional when a user requests a chat
+# session. The smoke script checks it via `docker compose ps`.
+
+name: project-ci-test
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: project_ci
+      POSTGRES_USER: project
+      POSTGRES_PASSWORD: ci-test-password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U project -d project_ci"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  db-init:
+    image: ${BACKEND_IMAGE}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql://project:ci-test-password@postgres:5432/project_ci"
+      SECRETS_BACKEND: env
+    command: ["python", "-m", "app.db_init"]
+
+  backend:
+    image: ${BACKEND_IMAGE}
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: "postgresql://project:ci-test-password@postgres:5432/project_ci"
+      SECRETS_BACKEND: env
+      POSTGRES_PASSWORD: ci-test-password
+      JWT_SECRET: ci-test-jwt-secret-at-least-32-bytes!!
+      DELEGATION_JWT_SECRET: ci-test-jwt-secret-at-least-32-bytes!!
+      AGENTS_URL: "http://agents:8002"
+      CORS_ORIGINS: "http://localhost:8080,http://frontend:80"
+      CSRF_ENABLED: "false"
+      SESSION_COOKIE_SECURE: "false"
+      SESSION_BIND_IP: "false"
+      SESSION_BIND_USER_AGENT: "false"
+      STORAGE_BACKEND: local
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  agents:
+    image: ${AGENTS_IMAGE}
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "8002:8002"
+    environment:
+      SECRETS_BACKEND: env
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://localhost:8002/health"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  frontend:
+    image: ${FRONTEND_IMAGE}
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "8080:80"
+
+  storybook:
+    image: ${STORYBOOK_IMAGE}
+    ports:
+      - "6006:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:80/healthz || curl -sf http://localhost:80/healthz > /dev/null"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+      start_period: 3s
+
+  openclaw:
+    image: ${OPENCLAW_IMAGE}
+    ports:
+      - "18789:18789"
