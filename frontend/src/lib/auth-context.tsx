@@ -1,12 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import {
+  ApiError,
   AuthApi,
   refreshCsrfToken,
   setSessionExpiredHandler,
 } from "./api-client";
 import type { AuthUser } from "./api-client";
 import { AuthContext } from "./auth-types";
+import {
+  getCachedAuthUser,
+  setCachedAuthUser,
+  clearCachedAuthUser,
+} from "./auth-cache";
 import { setFaroUser } from "./faro";
 import { FirstLoginDisclaimerModal } from "@/components/auth/FirstLoginDisclaimerModal";
 
@@ -24,11 +30,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!controller.signal.aborted) {
           setUser(u);
           setFaroUser(u);
+          void setCachedAuthUser(u);
           return refreshCsrfToken();
         }
       })
-      .catch(() => {
-        // Not authenticated or aborted — that's fine
+      .catch(async (err) => {
+        if (controller.signal.aborted) return;
+        // Network error + browser offline → try cached user
+        const isNetworkError = err instanceof ApiError && err.status === 0;
+        if (isNetworkError && !navigator.onLine) {
+          const cached = await getCachedAuthUser();
+          if (cached && !controller.signal.aborted) {
+            setUser(cached);
+            setFaroUser(cached);
+          }
+        }
+        // Otherwise: not authenticated — that's fine
       })
       .finally(() => {
         if (!controller.signal.aborted) setIsLoading(false);
@@ -43,6 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSessionExpiredHandler(() => {
       setUser(null);
       setFaroUser(null);
+      void clearCachedAuthUser();
     });
     return () => setSessionExpiredHandler(null);
   }, []);
@@ -52,6 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const u = await AuthApi.login(email, password);
     setUser(u);
     setFaroUser(u);
+    void setCachedAuthUser(u);
   }, []);
 
   const register = useCallback(async (email: string, password: string) => {
@@ -66,6 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await AuthApi.logout();
     setUser(null);
     setFaroUser(null);
+    void clearCachedAuthUser();
     window.history.replaceState({}, "", "/");
   }, []);
 
