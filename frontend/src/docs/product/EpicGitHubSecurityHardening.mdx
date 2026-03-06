@@ -1,0 +1,167 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Product/Epics/GitHub Security Hardening" />
+
+# Epic: GitHub Security Hardening
+
+**Status:** In Progress
+**Priority:** Operational excellence — reduces supply-chain and CI/CD attack surface
+**Last updated:** 2026-03-06
+**Depends on:** None (infrastructure hardening)
+**Related:** [Engineering: Architecture](?path=/docs/engineering-architecture--docs), [Engineering: Deployment](?path=/docs/engineering-deployment--docs), [Engineering: Secrets Documentation](?path=/docs/engineering-secrets-documentation--docs), [Epic: OpenSSF Badge](?path=/docs/product-epics-openssf-best-practices-badge--docs)
+
+---
+
+## Context
+
+Prompted by recent supply-chain attacks (tj-actions/changed-files, Trivy campaign) and 33 open code
+scanning alerts on GitHub, this epic hardens the project's CI/CD pipeline, repository configuration,
+and Kubernetes infrastructure. The goal is 80/20 fixes that meaningfully reduce attack surface without
+over-engineering.
+
+### Threat model
+
+| Attack vector | Current exposure | Mitigation |
+|---------------|------------------|------------|
+| **Compromised Action tag** | All actions pinned by tag (`@v4`), attacker can retag | Pin by commit SHA |
+| **Workflow permissions over-broad** | CD workflow has `contents: write` on all jobs | Per-job least-privilege permissions |
+| **PR-based secret exfiltration** | `workflow_run` pattern can expose secrets to PR code | Guards in place (main-only, success-only), documented |
+| **Poisoned instruction files** | `CLAUDE.md`, `AGENTS.md` can be modified in PRs to hijack AI reviewers | CODEOWNERS with required review |
+| **Dependency supply chain** | npm/pip updates manually tracked | Dependabot for actions + deps, weekly |
+| **Container escape via writable rootfs** | Postgres container has writable root filesystem | `readOnlyRootFilesystem: true` + emptyDir mounts |
+| **Known CVE in dompurify** | Frontend uses dompurify 3.3.1 (CVE-2026-0540) | Upgrade to 3.3.2 |
+
+---
+
+## User Story
+
+> "As a project maintainer, I need hardened CI/CD pipelines and repository settings so that a
+> compromised dependency, malicious PR, or leaked token cannot escalate to production deployment
+> or data exfiltration."
+
+---
+
+## Goals
+
+1. Eliminate supply-chain risk from GitHub Actions by SHA-pinning all third-party actions.
+2. Apply least-privilege permissions to all workflow jobs.
+3. Protect security-sensitive files (workflows, AI instructions, infra, deps) via CODEOWNERS.
+4. Harden Kubernetes manifests per CIS benchmark recommendations.
+5. Fix known CVEs in application dependencies.
+6. Establish branch protection and environment gates for production deployments.
+
+---
+
+## Out of Scope
+
+- OIDC-based registry authentication (requires StackIT provider support investigation).
+- Signed commits enforcement (team workflow discussion needed).
+- Silver/Gold OpenSSF badge criteria (separate epic).
+- Migrating from `workflow_run` to `on: push` in CD (requires branch protection first).
+
+---
+
+## Delivery Plan
+
+### Phase 1: Code changes (completed 2026-03-06)
+
+- [x] **Pin all GitHub Actions by commit SHA** across 5 workflow files (ci, cd, security, e2e, ci-failure-tickets)
+- [x] **DOMPurify upgrade** 3.3.1 to 3.3.2 (CVE-2026-0540)
+- [x] **CD workflow: least-privilege permissions** — top-level `contents: read`, only `update-manifests` gets write
+- [x] **CD workflow: document `workflow_run` safety** — nosemgrep + safety analysis comment
+- [x] **CODEOWNERS** — protect `.github/workflows/`, `CLAUDE.md`, `AGENTS.md`, `infra/`, dependency manifests
+- [x] **Postgres K8s hardening** — `readOnlyRootFilesystem: true` + emptyDir volumes for `/var/run/postgresql` and `/tmp`
+- [x] **Dependabot: github-actions ecosystem** — auto-update SHA-pinned actions weekly
+- [x] **nosemgrep annotations** on safe parameterized SQL queries in production code (false positives)
+
+### Phase 2: Repository settings (manual, requires admin)
+
+- [ ] **Branch protection on `main`**
+  - Require status checks to pass (CI jobs: typecheck, unit tests, lint)
+  - Require at least 1 approving review
+  - Restrict who can push directly to main
+  - Require CODEOWNERS review for protected paths
+- [ ] **Tag/release protection**
+  - Restrict tag creation to maintainers
+  - Restrict release publishing to maintainers
+- [ ] **First-time contributor approval**
+  - Enable "Require approval for first-time contributors" in Settings > Actions > General
+  - Ensures external PRs don't run workflows with secrets access automatically
+
+### Phase 3: Environment gates
+
+- [ ] **Create `production` GitHub Environment**
+  - Required reviewers (at least 1 maintainer must approve)
+  - Wait timer (optional, e.g. 5 minutes for human abort window)
+  - Only accessible from `main` branch
+- [ ] **Migrate CD deploy jobs to use the environment**
+  - `update-manifests` job references `environment: production`
+  - Secrets scoped to environment rather than repo-level
+
+### Phase 4: Credential hygiene
+
+- [ ] **Rotate StackIT registry credentials** (`STACKIT_REGISTRY_USER`, `STACKIT_REGISTRY_PASSWORD`)
+- [ ] **Investigate StackIT OIDC support** for short-lived, keyless authentication
+  - If supported: implement `id-token: write` + OIDC exchange in CD workflow
+  - If not: document rotation schedule (quarterly) and set calendar reminder
+- [ ] **Audit all repository secrets** — remove unused, verify rotation dates
+- [ ] **Move secrets to environment-scoped** (production environment only)
+
+### Phase 5: Monitoring and response
+
+- [ ] **GitHub audit log review** — set up monthly review cadence for:
+  - Changes to `.github/workflows/*`
+  - Secret/variable creation or modification
+  - Token creation events
+  - Repository visibility or permission changes
+- [ ] **Alert on workflow file changes** — add a CI job that comments on PRs touching `.github/workflows/`
+- [ ] **Document incident response** for compromised credentials or supply-chain alerts
+
+---
+
+## Key Files
+
+| File | Change | Phase |
+|------|--------|-------|
+| `.github/workflows/ci.yml` | SHA-pinned actions | 1 |
+| `.github/workflows/cd.yml` | SHA-pinned + per-job permissions + nosemgrep | 1 |
+| `.github/workflows/security.yml` | SHA-pinned actions | 1 |
+| `.github/workflows/e2e.yml` | SHA-pinned actions | 1 |
+| `.github/workflows/ci-failure-tickets.yml` | SHA-pinned actions | 1 |
+| `.github/CODEOWNERS` | New file — review routing for sensitive paths | 1 |
+| `.github/dependabot.yml` | Added github-actions ecosystem | 1 |
+| `infra/k8s/base/postgres.yaml` | readOnlyRootFilesystem + emptyDir volumes | 1 |
+| `frontend/package.json` | DOMPurify 3.3.1 to 3.3.2 | 1 |
+| `backend/app/routes/items.py` | nosemgrep annotations | 1 |
+| `backend/app/routes/collaboration.py` | nosemgrep annotation | 1 |
+| `backend/app/email/routes.py` | nosemgrep annotation | 1 |
+| `backend/app/worker.py` | nosemgrep annotation | 1 |
+| `backend/app/routes/notifications.py` | nosemgrep annotation | 1 |
+| `backend/app/imports/router.py` | nosemgrep annotations | 1 |
+
+---
+
+## Acceptance Criteria
+
+- [x] All GitHub Actions pinned by commit SHA with version comment
+- [x] CD workflow uses least-privilege permissions (read default, write only where needed)
+- [x] CODEOWNERS protects workflows, AI instruction files, infra, and dependency manifests
+- [x] Postgres pod runs with `readOnlyRootFilesystem: true`
+- [x] DOMPurify CVE-2026-0540 resolved
+- [x] Dependabot configured for github-actions ecosystem
+- [x] All Semgrep false positives annotated with nosemgrep
+- [ ] Branch protection enabled on `main` with required checks and reviews
+- [ ] GitHub Environment `production` created with required reviewers
+- [ ] Registry credentials rotated
+- [ ] Incident response documented
+
+---
+
+## Definition of Done
+
+- [x] Phase 1 code changes merged
+- [ ] Phase 2 repository settings applied
+- [ ] Phase 3 environment gates configured
+- [ ] Phase 4 credentials rotated
+- [ ] GitHub code scanning alert count reduced (target: 0 actionable alerts)
+- [ ] `npm run preflight:local` passes

@@ -347,7 +347,7 @@ def load_settings() -> Settings:
             _get_env("OPENCLAW_IDLE_TIMEOUT_SECONDS", "1800") or "1800"
         ),
         openclaw_health_check_timeout=int(
-            _get_env("OPENCLAW_HEALTH_CHECK_TIMEOUT", "180") or "180"
+            _get_env("OPENCLAW_HEALTH_CHECK_TIMEOUT", "240") or "240"
         ),
         openclaw_project_mount_path=_get_env("OPENCLAW_PROJECT_MOUNT_PATH", str(ROOT_DIR)) or "",
         openclaw_k8s_api_url=_get_env("OPENCLAW_K8S_API_URL", "https://kubernetes.default.svc")

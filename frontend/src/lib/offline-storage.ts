@@ -4,6 +4,7 @@ import type {
   Persister,
 } from "@tanstack/react-query-persist-client";
 import type { QueryClient } from "@tanstack/react-query";
+import { clearCachedAuthUser } from "./auth-cache";
 
 export const IDB_KEY = "copilot-query-cache";
 
@@ -55,8 +56,9 @@ export async function clearAllLocalCaches(queryClient: QueryClient): Promise<{
     /* ignore */
   }
 
-  // Clear IDB persisted cache
+  // Clear IDB persisted cache and auth cache
   await del(IDB_KEY);
+  await clearCachedAuthUser();
 
   // Clear Workbox runtime caches
   const cachesCleared: string[] = [];
