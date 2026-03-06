@@ -180,56 +180,38 @@ jobs:
         if: steps.registry_auth.outputs.can_push != 'true'
         run: echo "Storybook image push skipped because registry authentication was unavailable."
 
-  push-agents:
-    if: >-
-      (github.event_name == 'workflow_dispatch') ||
-      (github.event.workflow_run.conclusion == 'success'
-       && github.event.workflow_run.head_branch == 'main'
-       && github.event.workflow_run.actor.login != 'github-actions[bot]')
-    runs-on: ubuntu-latest
-    outputs:
-      image_pushed: ${{ steps.push_agents.outcome == 'success' }}
-    steps:
-      # nosemgrep: yaml.github-actions.security.workflow-run-target-code-checkout.workflow-run-target-code-checkout
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-      - uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
-      - name: Authenticate to StackIT registry
-        id: registry_auth
-        env:
-          STACKIT_REGISTRY_USER: ${{ secrets.STACKIT_REGISTRY_USER }}
-          STACKIT_REGISTRY_PASSWORD: ${{ secrets.STACKIT_REGISTRY_PASSWORD }}
-        run: |
-          REGISTRY_USER="$(printf '%s' "${STACKIT_REGISTRY_USER:-}" | tr -d '\r\n')"
-          REGISTRY_PASSWORD="$(printf '%s' "${STACKIT_REGISTRY_PASSWORD:-}" | tr -d '\r\n')"
-
-          if [ -z "${REGISTRY_USER}" ] || [ -z "${REGISTRY_PASSWORD}" ]; then
-            echo "::warning::Missing StackIT registry credentials; skipping agents image push."
-            echo "can_push=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          if printf '%s' "${REGISTRY_PASSWORD}" | docker login "${STACKIT_REGISTRY}" --username "${REGISTRY_USER}" --password-stdin; then
-            echo "can_push=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          echo "::warning::StackIT registry authentication failed; skipping agents image push."
-          echo "can_push=false" >> "$GITHUB_OUTPUT"
-      - name: Build and push agents image
-        id: push_agents
-        if: steps.registry_auth.outputs.can_push == 'true'
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
-        with:
-          context: .
-          file: agents/Dockerfile
-          pull: true
-          push: true
-          tags: ${{ env.STACKIT_IMAGE_PREFIX }}/agents:${{ github.event.workflow_run.head_sha || github.sha }}
-      - name: Skip agents image push
-        if: steps.registry_auth.outputs.can_push != 'true'
-        run: echo "Agents image push skipped because registry authentication was unavailable."
+  # push-agents: commented out — replaced by openclaw
+  # push-agents:
+  #   if: >-
+  #     (github.event_name == 'workflow_dispatch') ||
+  #     (github.event.workflow_run.conclusion == 'success'
+  #      && github.event.workflow_run.head_branch == 'main'
+  #      && github.event.workflow_run.actor.login != 'github-actions[bot]')
+  #   runs-on: ubuntu-latest
+  #   outputs:
+  #     image_pushed: ${{ steps.push_agents.outcome == 'success' }}
+  #   steps:
+  #     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
+  #       with:
+  #         ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+  #     - uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+  #     - name: Authenticate to StackIT registry
+  #       id: registry_auth
+  #       env:
+  #         STACKIT_REGISTRY_USER: ${{ secrets.STACKIT_REGISTRY_USER }}
+  #         STACKIT_REGISTRY_PASSWORD: ${{ secrets.STACKIT_REGISTRY_PASSWORD }}
+  #       run: |
+  #         ...
+  #     - name: Build and push agents image
+  #       id: push_agents
+  #       if: steps.registry_auth.outputs.can_push == 'true'
+  #       uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
+  #       with:
+  #         context: .
+  #         file: agents/Dockerfile
+  #         pull: true
+  #         push: true
+  #         tags: ${{ env.STACKIT_IMAGE_PREFIX }}/agents:${{ github.event.workflow_run.head_sha || github.sha }}
 
   push-openclaw:
     if: >-
@@ -291,7 +273,7 @@ jobs:
     needs:
       - push-frontend
       - push-backend
-      - push-agents
+      # - push-agents  # agents replaced by openclaw
       - push-storybook
       - push-openclaw
     runs-on: ubuntu-latest
@@ -328,12 +310,12 @@ jobs:
         env:
           PUSHED_FRONTEND: ${{ needs.push-frontend.outputs.image_pushed }}
           PUSHED_BACKEND: ${{ needs.push-backend.outputs.image_pushed }}
-          PUSHED_AGENTS: ${{ needs.push-agents.outputs.image_pushed }}
+          # PUSHED_AGENTS: ${{ needs.push-agents.outputs.image_pushed }}  # agents replaced by openclaw
           PUSHED_STORYBOOK: ${{ needs.push-storybook.outputs.image_pushed }}
           PUSHED_OPENCLAW: ${{ needs.push-openclaw.outputs.image_pushed }}
         run: |
           all_pushed="true"
-          for svc in FRONTEND BACKEND AGENTS STORYBOOK OPENCLAW; do
+          for svc in FRONTEND BACKEND STORYBOOK OPENCLAW; do
             val=$(eval echo "\$PUSHED_${svc}")
             if [ "$val" != "true" ]; then
               echo "::warning::${svc} image was not pushed; skipping container integration tests."
@@ -346,7 +328,7 @@ jobs:
         env:
           BACKEND_IMAGE: ${{ env.STACKIT_IMAGE_PREFIX }}/backend:${{ github.event.workflow_run.head_sha || github.sha }}
           FRONTEND_IMAGE: ${{ env.STACKIT_IMAGE_PREFIX }}/frontend:${{ github.event.workflow_run.head_sha || github.sha }}
-          AGENTS_IMAGE: ${{ env.STACKIT_IMAGE_PREFIX }}/agents:${{ github.event.workflow_run.head_sha || github.sha }}
+          # AGENTS_IMAGE: not needed — agents replaced by openclaw
           STORYBOOK_IMAGE: ${{ env.STACKIT_IMAGE_PREFIX }}/storybook:${{ github.event.workflow_run.head_sha || github.sha }}
           OPENCLAW_IMAGE: ${{ env.STACKIT_IMAGE_PREFIX }}/openclaw:${{ github.event.workflow_run.head_sha || github.sha }}
         run: docker compose -f infra/docker-compose.ci-test.yml up -d --wait --wait-timeout 120
@@ -362,7 +344,6 @@ jobs:
         run: |
           python scripts/smoke-container-integration.py \
             --backend-url http://localhost:8000 \
-            --agents-url http://localhost:8002 \
             --frontend-url http://localhost:8080 \
             --storybook-url http://localhost:6006 \
             --compose-file infra/docker-compose.ci-test.yml \
@@ -410,7 +391,7 @@ jobs:
             sed -i "s|newName: .*/backend|newName: ${STACKIT_IMAGE_PREFIX}/backend|" "$KUST"
             sed -i "s|newName: .*/frontend|newName: ${STACKIT_IMAGE_PREFIX}/frontend|" "$KUST"
             sed -i "s|newName: .*/storybook|newName: ${STACKIT_IMAGE_PREFIX}/storybook|" "$KUST"
-            sed -i "s|newName: .*/agents|newName: ${STACKIT_IMAGE_PREFIX}/agents|" "$KUST"
+            # sed -i "s|newName: .*/agents|newName: ${STACKIT_IMAGE_PREFIX}/agents|" "$KUST"  # agents replaced by openclaw
             sed -i "s|newName: .*/openclaw|newName: ${STACKIT_IMAGE_PREFIX}/openclaw|" "$KUST"
             sed -i "s/newTag: .*/newTag: \"${IMAGE_TAG}\"/" "$KUST"
             sed -i "s|OPENCLAW_IMAGE: \".*\"|OPENCLAW_IMAGE: \"${STACKIT_IMAGE_PREFIX}/openclaw:${IMAGE_TAG}\"|" "$CONFIG"
