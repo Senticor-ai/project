@@ -85,3 +85,13 @@ export const Empty: Story = {
     events: [],
   },
 };
+
+/** Mobile viewport — shows calendar grid at iPhone 14 width. */
+export const MobileMonth: Story = {
+  globals: { viewport: { value: "iphone14", isRotated: false } },
+  args: {
+    onPatchEvent: async () => undefined,
+    onRsvpEvent: async () => undefined,
+    onDeleteEvent: async () => undefined,
+  },
+};

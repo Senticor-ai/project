@@ -1,9 +1,13 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement, type ReactNode } from "react";
 import { SettingsScreen } from "./SettingsScreen";
+import {
+  setMobileViewport,
+  restoreViewport,
+} from "@/test/mobile-viewport";
 
 vi.mock("@/hooks/use-pwa-storage-stats", () => ({
   usePwaStorageStats: vi.fn(() => ({
@@ -161,5 +165,34 @@ describe("SettingsScreen", () => {
 
     await user.click(screen.getByRole("button", { name: "Remove urgent" }));
     expect(screen.queryByText("urgent")).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Mobile layout
+// ---------------------------------------------------------------------------
+
+describe("SettingsScreen mobile layout", () => {
+  afterEach(restoreViewport);
+
+  it("renders horizontal tabs on mobile", () => {
+    setMobileViewport(true);
+    render(<SettingsScreen />);
+    const tablist = screen.getByRole("tablist");
+    expect(tablist).toHaveAttribute("aria-orientation", "horizontal");
+  });
+
+  it("renders vertical tabs on desktop", () => {
+    setMobileViewport(false);
+    render(<SettingsScreen />);
+    const tablist = screen.getByRole("tablist");
+    expect(tablist).toHaveAttribute("aria-orientation", "vertical");
+  });
+
+  it("does not apply sidebar width class on mobile", () => {
+    setMobileViewport(true);
+    render(<SettingsScreen />);
+    const tablist = screen.getByRole("tablist");
+    expect(tablist.className).not.toContain("w-56");
   });
 });

@@ -9,6 +9,7 @@ import { ItemEditor } from "./ItemEditor";
 import { EmailBodyViewer } from "./EmailBodyViewer";
 import { getDisplayName, isUrl } from "@/model/types";
 import { getMessage } from "@/lib/messages";
+import { useIsMobile } from "@/hooks/use-is-mobile";
 import type { ActionItem, Project, ItemEditableFields } from "@/model/types";
 import type { CanonicalId } from "@/model/canonical-id";
 
@@ -150,6 +151,7 @@ export function ActionRow({
   className,
   onSetType,
 }: ActionRowProps) {
+  const isMobile = useIsMobile();
   const [menuOpen, setMenuOpen] = useState(false);
   const [showMore, setShowMore] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -379,23 +381,25 @@ export function ActionRow({
         </div>
 
         {/* Subtitle for non-thought sources / ReadAction indicator */}
-        {subtitle &&
-          (isReadAction && onNavigateToReference && thing.objectRef ? (
-            <button
-              type="button"
-              onClick={() => onNavigateToReference(thing.objectRef!)}
-              aria-label="Go to reference"
-              className="flex shrink-0 items-center gap-1 text-xs text-text-muted transition-colors hover:text-blueprint-500"
-            >
-              {subtitleIcon && <Icon name={subtitleIcon} size={12} />}
-              {subtitle}
-            </button>
-          ) : (
+        {isReadAction && onNavigateToReference && thing.objectRef ? (
+          <button
+            type="button"
+            onClick={() => onNavigateToReference(thing.objectRef!)}
+            aria-label="Go to reference"
+            className="flex shrink-0 items-center gap-1 text-xs text-text-muted transition-colors hover:text-blueprint-500"
+          >
+            {subtitleIcon && <Icon name={subtitleIcon} size={12} />}
+            {!isMobile && subtitle}
+          </button>
+        ) : (
+          !isMobile &&
+          subtitle && (
             <span className="flex shrink-0 items-center gap-1 text-xs text-text-muted">
               {subtitleIcon && <Icon name={subtitleIcon} size={12} />}
               {subtitle}
             </span>
-          ))}
+          )
+        )}
 
         {/* Note indicator — only when expanded (collapsed shows text preview instead) */}
         {isExpanded && thing.description && (
@@ -411,7 +415,7 @@ export function ActionRow({
         )}
 
         {/* Tag chips */}
-        {thing.tags.length > 0 && (
+        {!isMobile && thing.tags.length > 0 && (
           <div className="flex shrink-0 gap-0.5">
             {thing.tags.map((tag) => (
               <span
@@ -425,7 +429,8 @@ export function ActionRow({
         )}
 
         {/* Project badge */}
-        {projects &&
+        {!isMobile &&
+          projects &&
           thing.projectIds[0] &&
           (() => {
             const proj = projects.find((p) => p.id === thing.projectIds[0]);
@@ -438,21 +443,21 @@ export function ActionRow({
           })()}
 
         {/* Schema type badge */}
-        {thing.schemaType && SUBTYPE_LABELS[thing.schemaType] && (
+        {!isMobile && thing.schemaType && SUBTYPE_LABELS[thing.schemaType] && (
           <span className="shrink-0 rounded-full bg-blueprint-50 px-1.5 py-0.5 text-[10px] font-medium text-blueprint-700">
             {SUBTYPE_LABELS[thing.schemaType]}
           </span>
         )}
 
         {/* Due date */}
-        {dueDateInfo && (
+        {!isMobile && dueDateInfo && (
           <span className={cn("shrink-0 text-xs", dueDateInfo.className)}>
             {dueDateInfo.text}
           </span>
         )}
 
         {/* Bucket badge */}
-        {showBucket && (
+        {!isMobile && showBucket && (
           <BucketBadge bucket={thing.bucket} className="shrink-0" />
         )}
 

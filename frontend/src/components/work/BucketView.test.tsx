@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { afterEach, describe, it, expect, vi, beforeEach } from "vitest";
 import {
   act,
   fireEvent,
@@ -19,6 +19,10 @@ import {
 import type { Bucket } from "@/model/types";
 import { ToastProvider } from "@/components/ui/ToastProvider";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  setMobileViewport,
+  restoreViewport,
+} from "@/test/mobile-viewport";
 
 function createWrapper() {
   const qc = new QueryClient({
@@ -663,5 +667,36 @@ describe("BucketView – type filter chips", () => {
       screen.getByRole("button", { name: /Filter by type: Kaufen/i }),
     );
     expect(screen.getByText("Brief schreiben")).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Mobile layout
+// ---------------------------------------------------------------------------
+
+describe("BucketView mobile layout", () => {
+  afterEach(restoreViewport);
+
+  it("disables drag handlers on mobile", () => {
+    setMobileViewport(true);
+    renderWithToast(<BucketView {...baseProps} />);
+    // On mobile, DndContext receives undefined handlers — drag does nothing
+    expect(capturedOnDragEnd).toBeUndefined();
+    expect(capturedOnDragStart).toBeUndefined();
+  });
+
+  it("enables drag handlers on desktop", () => {
+    setMobileViewport(false);
+    renderWithToast(<BucketView {...baseProps} />);
+    expect(capturedOnDragEnd).toBeDefined();
+    expect(capturedOnDragStart).toBeDefined();
+  });
+
+  it("still renders main content area on mobile", () => {
+    setMobileViewport(true);
+    renderWithToast(<BucketView {...baseProps} />);
+    expect(
+      screen.getByRole("main", { name: "Bucket content" }),
+    ).toBeInTheDocument();
   });
 });

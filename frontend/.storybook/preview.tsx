@@ -109,7 +109,7 @@ const preview: Preview = {
           "Flows",
           ["Collect to Engage", "Tax Prep", ["Overview", "*"]],
           "Design",
-          ["Philosophy", "Paperclip Principles", "Tokens"],
+          ["Philosophy", "Paperclip Principles", "Responsive Design", "Tokens"],
           "Engineering",
           [
             "Architecture",

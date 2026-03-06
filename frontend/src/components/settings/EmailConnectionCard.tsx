@@ -221,7 +221,7 @@ export function EmailConnectionCard({
         )}
 
       {/* Settings */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label htmlFor="email-sync-interval" className={labelClass}>
             <Icon name="timer" size={10} />
@@ -339,7 +339,7 @@ export function EmailConnectionCard({
       </div>
 
       {/* Actions */}
-      <div className="flex gap-2 border-t border-border pt-3">
+      <div className="flex flex-wrap gap-2 border-t border-border pt-3">
         {onReconnect && (connection.last_sync_error || calendarLoadError) && (
           <button
             type="button"

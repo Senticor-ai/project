@@ -67,4 +67,30 @@ describe("Tabs", () => {
     const tablist = screen.getByRole("tablist");
     expect(tablist).toHaveAttribute("aria-orientation", "horizontal");
   });
+
+  it("applies overflow-x-auto in horizontal mode for mobile scrolling", () => {
+    render(
+      <Tabs
+        tabs={sampleTabs}
+        activeTab="one"
+        onSelect={vi.fn()}
+        orientation="horizontal"
+      />,
+    );
+    const tablist = screen.getByRole("tablist");
+    expect(tablist.className).toContain("overflow-x-auto");
+  });
+
+  it("applies bottom border in horizontal mode", () => {
+    render(
+      <Tabs
+        tabs={sampleTabs}
+        activeTab="one"
+        onSelect={vi.fn()}
+        orientation="horizontal"
+      />,
+    );
+    const tablist = screen.getByRole("tablist");
+    expect(tablist.className).toContain("border-b");
+  });
 });

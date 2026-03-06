@@ -263,6 +263,19 @@ describe("EditableTitle", () => {
     const button = screen.getByText("Done task");
     expect(button.className).toContain("line-through");
   });
+
+  it("uses break-words instead of break-all to prevent vertical text on mobile", () => {
+    render(
+      <EditableTitle
+        title="Buchungsbestätigung Deutsche Bahn"
+        isEditing={false}
+        onToggleEdit={vi.fn()}
+      />,
+    );
+    const button = screen.getByText("Buchungsbestätigung Deutsche Bahn");
+    expect(button.className).toContain("break-words");
+    expect(button.className).not.toContain("break-all");
+  });
 });
 
 describe("EditableTitle (split mode)", () => {

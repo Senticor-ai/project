@@ -110,3 +110,19 @@ export const AddTag: Story = {
     await expect(args.onChange).toHaveBeenCalledWith({ tags: ["w-2"] });
   },
 };
+
+/** Mobile viewport — shows form field stacking on narrow screen. */
+export const MobileForm: Story = {
+  globals: { viewport: { value: "iphone14", isRotated: false } },
+  decorators: [
+    (Story) => (
+      <div className="p-4">
+        <Story />
+      </div>
+    ),
+  ],
+  args: {
+    values: withNotes,
+    projects: sampleProjects,
+  },
+};
