@@ -1542,4 +1542,20 @@ describe("ActionRow mobile viewport", () => {
     });
     expect(screen.getByText("urgent")).toBeInTheDocument();
   });
+
+  it("keeps reference navigation button accessible on mobile for ReadActions", () => {
+    setMobileViewport(true);
+    const onNavigateToReference = vi.fn();
+    renderRow({
+      thing: createActionItem({
+        name: "Read report",
+        bucket: "next",
+        schemaType: "ReadAction",
+        objectRef: "urn:app:reference:report-1" as import("@/model/canonical-id").CanonicalId,
+      }),
+      onNavigateToReference,
+    });
+    const navBtn = screen.getByLabelText("Go to reference");
+    expect(navBtn).toBeInTheDocument();
+  });
 });

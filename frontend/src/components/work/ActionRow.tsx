@@ -381,24 +381,25 @@ export function ActionRow({
         </div>
 
         {/* Subtitle for non-thought sources / ReadAction indicator */}
-        {!isMobile &&
-          subtitle &&
-          (isReadAction && onNavigateToReference && thing.objectRef ? (
-            <button
-              type="button"
-              onClick={() => onNavigateToReference(thing.objectRef!)}
-              aria-label="Go to reference"
-              className="flex shrink-0 items-center gap-1 text-xs text-text-muted transition-colors hover:text-blueprint-500"
-            >
-              {subtitleIcon && <Icon name={subtitleIcon} size={12} />}
-              {subtitle}
-            </button>
-          ) : (
+        {isReadAction && onNavigateToReference && thing.objectRef ? (
+          <button
+            type="button"
+            onClick={() => onNavigateToReference(thing.objectRef!)}
+            aria-label="Go to reference"
+            className="flex shrink-0 items-center gap-1 text-xs text-text-muted transition-colors hover:text-blueprint-500"
+          >
+            {subtitleIcon && <Icon name={subtitleIcon} size={12} />}
+            {!isMobile && subtitle}
+          </button>
+        ) : (
+          !isMobile &&
+          subtitle && (
             <span className="flex shrink-0 items-center gap-1 text-xs text-text-muted">
               {subtitleIcon && <Icon name={subtitleIcon} size={12} />}
               {subtitle}
             </span>
-          ))}
+          )
+        )}
 
         {/* Note indicator — only when expanded (collapsed shows text preview instead) */}
         {isExpanded && thing.description && (
