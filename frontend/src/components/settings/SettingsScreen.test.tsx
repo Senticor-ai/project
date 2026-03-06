@@ -4,6 +4,10 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement, type ReactNode } from "react";
 import { SettingsScreen } from "./SettingsScreen";
+import {
+  setMobileViewport,
+  restoreViewport,
+} from "@/test/mobile-viewport";
 
 vi.mock("@/hooks/use-pwa-storage-stats", () => ({
   usePwaStorageStats: vi.fn(() => ({
@@ -169,32 +173,7 @@ describe("SettingsScreen", () => {
 // ---------------------------------------------------------------------------
 
 describe("SettingsScreen mobile layout", () => {
-  const originalMatchMedia = Object.getOwnPropertyDescriptor(
-    window,
-    "matchMedia",
-  );
-
-  function setMobileViewport(matches: boolean) {
-    Object.defineProperty(window, "matchMedia", {
-      configurable: true,
-      value: vi.fn().mockReturnValue({
-        matches,
-        media: "(max-width: 767px)",
-        onchange: null,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-        addListener: vi.fn(),
-        removeListener: vi.fn(),
-        dispatchEvent: vi.fn(),
-      } satisfies MediaQueryList),
-    });
-  }
-
-  afterEach(() => {
-    if (originalMatchMedia) {
-      Object.defineProperty(window, "matchMedia", originalMatchMedia);
-    }
-  });
+  afterEach(restoreViewport);
 
   it("renders horizontal tabs on mobile", () => {
     setMobileViewport(true);

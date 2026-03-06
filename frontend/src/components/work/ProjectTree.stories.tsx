@@ -366,3 +366,30 @@ export const CreateProjectCancel: Story = {
     expect(args.onCreateProject).not.toHaveBeenCalled();
   },
 };
+
+/** Mobile viewport — shows how inline buttons and project actions render on narrow screens. */
+export const MobileNarrow: Story = {
+  globals: { viewport: { value: "iphone14", isRotated: false } },
+  decorators: [
+    (Story) => (
+      <div className="p-4">
+        <Story />
+      </div>
+    ),
+  ],
+  args: {
+    projects: sampleProjects,
+    actions: sampleActions,
+    onCreateProject: fn(),
+  },
+  play: async ({ canvas, userEvent }) => {
+    // Expand first project to show inline controls at narrow width
+    await userEvent.click(canvas.getByLabelText("Expand Website Redesign"));
+    await waitFor(
+      () => {
+        expect(canvas.getByText("Design homepage wireframes")).toBeTruthy();
+      },
+      { timeout: 5000 },
+    );
+  },
+};

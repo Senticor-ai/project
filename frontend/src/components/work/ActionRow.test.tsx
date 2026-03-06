@@ -5,6 +5,10 @@ import { ActionRow, type ActionRowProps } from "./ActionRow";
 import { createActionItem } from "@/model/factories";
 import { resetFactoryCounter } from "@/model/factories";
 import type { CanonicalId } from "@/model/canonical-id";
+import {
+  setMobileViewport,
+  restoreViewport,
+} from "@/test/mobile-viewport";
 
 // dnd-kit stub
 vi.mock("@dnd-kit/core", () => ({
@@ -1480,32 +1484,7 @@ describe("ActionRow – Typ ändern overflow menu", () => {
 // ---------------------------------------------------------------------------
 
 describe("ActionRow mobile viewport", () => {
-  const originalMatchMedia = Object.getOwnPropertyDescriptor(
-    window,
-    "matchMedia",
-  );
-
-  function setMobileViewport(matches: boolean) {
-    Object.defineProperty(window, "matchMedia", {
-      configurable: true,
-      value: vi.fn().mockReturnValue({
-        matches,
-        media: "(max-width: 767px)",
-        onchange: null,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-        addListener: vi.fn(),
-        removeListener: vi.fn(),
-        dispatchEvent: vi.fn(),
-      } satisfies MediaQueryList),
-    });
-  }
-
-  afterEach(() => {
-    if (originalMatchMedia) {
-      Object.defineProperty(window, "matchMedia", originalMatchMedia);
-    }
-  });
+  afterEach(restoreViewport);
 
   it("hides tag chips on mobile", () => {
     setMobileViewport(true);

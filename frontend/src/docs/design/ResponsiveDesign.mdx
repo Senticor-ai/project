@@ -1,0 +1,246 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Design/Responsive Design" />
+
+# Responsive Design
+
+This guide consolidates all mobile and responsive patterns used in the frontend.
+Use it as a checklist when building new components and as a reference for existing patterns.
+
+---
+
+## Breakpoints & Detection
+
+The app uses Tailwind v4 default breakpoints. The primary mobile breakpoint is `md` (768px).
+
+| Prefix | Min-width | Typical devices |
+| ------ | --------- | --------------- |
+| (none) | 0 px | All (mobile-first base) |
+| `sm:` | 640 px | Large phones landscape |
+| `md:` | 768 px | Tablets portrait, small laptops |
+| `lg:` | 1024 px | Tablets landscape, laptops |
+| `xl:` | 1280 px | Desktops |
+| `2xl:` | 1536 px | Large desktops |
+
+### `useIsMobile()` hook
+
+```typescript
+import { useIsMobile } from "@/hooks/use-is-mobile";
+
+const isMobile = useIsMobile(); // true when viewport < 768px
+```
+
+- Returns a reactive boolean via `useSyncExternalStore` + `matchMedia`
+- Re-renders only when crossing the 768px boundary
+- **When to use:** conditional rendering, disabling drag-and-drop, switching component variants
+- **When NOT to use:** pure styling changes &mdash; prefer Tailwind responsive classes instead
+
+### Unit testing mobile viewports
+
+Use the shared helper in `@/test/mobile-viewport`:
+
+```typescript
+import { setMobileViewport, restoreViewport } from "@/test/mobile-viewport";
+
+describe("mobile layout", () => {
+  afterEach(restoreViewport);
+
+  it("adapts for mobile", () => {
+    setMobileViewport(true);
+    render(<MyComponent />);
+    // Assert mobile-specific behavior
+  });
+});
+```
+
+This mocks `window.matchMedia` so `useIsMobile()` returns the desired value in jsdom.
+
+---
+
+## Safe-Area Insets
+
+The viewport meta tag includes `viewport-fit=cover` for notched devices:
+
+```html
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+```
+
+### Custom Tailwind utilities (`index.css`)
+
+| Utility | CSS |
+| ------- | --- |
+| `pb-safe` | `padding-bottom: env(safe-area-inset-bottom, 0px)` |
+| `pt-safe` | `padding-top: env(safe-area-inset-top, 0px)` |
+| `pl-safe` | `padding-left: env(safe-area-inset-left, 0px)` |
+| `pr-safe` | `padding-right: env(safe-area-inset-right, 0px)` |
+
+### Inline calc pattern
+
+For dynamic positioning (e.g. the FAB button):
+
+```typescript
+style={{ bottom: "calc(1rem + env(safe-area-inset-bottom, 0px))" }}
+```
+
+**Where used:** `App.tsx` (main wrapper + FAB), `CopilotChatPanel.tsx` (header padding-top).
+
+---
+
+## Touch Detection
+
+Custom Tailwind variants for input modality:
+
+```css
+@custom-variant pointer-coarse (@media (pointer: coarse));
+@custom-variant pointer-fine (@media (pointer: fine));
+```
+
+**Usage:**
+
+```html
+<button class="text-sm pointer-coarse:text-base pointer-coarse:min-h-11">
+```
+
+- `pointer-coarse:` &mdash; touch screens (phones, tablets)
+- `pointer-fine:` &mdash; mouse, trackpad
+- **Prefer over `useIsMobile()`** for touch-target sizing &mdash; a desktop touchscreen should get large targets too
+
+---
+
+## Touch Gestures
+
+### `useLongPress()` hook
+
+```typescript
+import { useLongPress } from "@/hooks/use-long-press";
+
+const handlers = useLongPress({
+  onLongPress: () => openContextMenu(),
+  delay: 500,         // ms (default)
+  moveThreshold: 10,  // px (default)
+});
+
+<div {...handlers}>Hold me</div>
+```
+
+Returns `onPointerDown`, `onPointerMove`, `onPointerUp`, `onPointerCancel` handlers.
+
+### `SwipeableRow` component
+
+```typescript
+import { SwipeableRow } from "@/components/work/SwipeableRow";
+
+<SwipeableRow
+  onSwipeRight={() => triageToNext()}
+  onSwipeLeft={() => triageToSomeday()}
+  rightIndicator={rightConfig}
+  leftIndicator={leftConfig}
+>
+  <ActionRow thing={item} ... />
+</SwipeableRow>
+```
+
+- **Commit threshold:** &plusmn;60px displacement
+- **Edge exclusion:** Leftmost 20px ignored (iOS Safari back gesture)
+- **Elasticity:** 30% spring resistance
+
+---
+
+## Layout Patterns
+
+### Responsive padding (App.tsx)
+
+```
+px-3 pb-3 pt-2 pl-safe pr-safe pb-safe md:px-6 md:pb-6 md:pt-3
+```
+
+Mobile gets compact 12px padding; desktop gets 24px. Safe-area utilities add notch insets.
+
+### Sidebar hide
+
+```
+<aside class="hidden md:sticky md:top-3 md:block md:max-h-[calc(100vh-1.5rem)]">
+```
+
+Sidebar is completely hidden below `md`. Navigation moves to the hamburger menu via `mobileBucketNav`.
+
+### Full-width &rarr; fixed-width
+
+```
+class="w-full md:w-[400px]"
+```
+
+Used by `CopilotChatPanel` &mdash; takes full viewport on mobile, fixed 400px sidebar on desktop.
+
+### Column stacking
+
+```
+class="flex-col md:flex-row"
+```
+
+Stacks vertically on mobile, goes horizontal on desktop. Used in login page, email viewer, settings.
+
+### Mobile navigation
+
+On mobile, `BucketView` passes a `mobileBucketNav` prop to `AppHeader`, which renders bucket items
+inside the hamburger menu instead of the sidebar.
+
+---
+
+## Component Checklist
+
+When building a new component, verify:
+
+- [ ] **Touch targets** &mdash; minimum 44&times;44px (WCAG AAA). Use `pointer-coarse:min-h-11`
+- [ ] **Viewport story** &mdash; add a `Mobile*` Storybook story with `globals: { viewport: { value: "iphone14", isRotated: false } }`
+- [ ] **Text overflow** &mdash; use `break-words` (not `break-all`) for URLs and long text; add `truncate` on bounded containers
+- [ ] **No `autoFocus`** &mdash; triggers eslint `set-state-in-effect`. Use `useEffect` + `ref` instead
+- [ ] **No hover-only interactions** &mdash; every `hover:` must have a touch equivalent (tap, long-press, or `pointer-coarse:` variant)
+- [ ] **Unit test** &mdash; add a `describe("mobile layout")` block using `setMobileViewport()` if the component uses `useIsMobile()`
+
+---
+
+## Testing Mobile in Storybook
+
+### Viewport presets
+
+| Name | Size | Type |
+| ---- | ---- | ---- |
+| `iphoneSE` | 375 &times; 667 | mobile |
+| `iphone14` | 390 &times; 844 | mobile |
+| `ipadMini` | 768 &times; 1024 | tablet |
+
+### Story viewport syntax
+
+```typescript
+export const MobileVariant: Story = {
+  globals: { viewport: { value: "iphone14", isRotated: false } },
+};
+```
+
+### Naming convention
+
+Suffix mobile stories with `Mobile` (e.g. `MobileOverflow`, `MobileNarrow`, `MobileLongNames`).
+Use a plain decorator (`<div className="p-4">`) instead of `max-w-lg` to show true mobile width.
+
+---
+
+## Known Gaps & Roadmap
+
+| Component | Issue | Severity |
+| --------- | ----- | -------- |
+| SettingsScreen tabs | 7 horizontal tabs overflow on landscape phones | Medium |
+| ContextFilterBar | Horizontal scroll without collapse indicator | Medium |
+| ProjectTree | Inline buttons crowd on narrow viewports | Medium |
+| CalendarView (month) | 2-column grid forces many rows on phones | Medium |
+| ItemEditor | Inline "Add" button wraps on very narrow screens | Low |
+| OrganizationsPanel | Long org names lack `truncate` | Low |
+
+---
+
+## Related Documentation
+
+- [Design Philosophy](?path=/docs/design-philosophy--docs) &mdash; touch targets, spacing scale, motion
+- [Design Tokens](?path=/docs/design-tokens--docs) &mdash; color, typography, elevation
+- [Mobile Polish & Resilience (Epic)](?path=/docs/product-completed-epics-mobile-polish-and-resilience--docs) &mdash; safe-area, URL formatting, login resilience
+- [PWA Readiness (Epic)](?path=/docs/product-completed-epics-pwa-readiness--docs) &mdash; touch audit, manifest, service worker

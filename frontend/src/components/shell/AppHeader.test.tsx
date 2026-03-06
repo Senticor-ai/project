@@ -1,7 +1,9 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { render, screen, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AppHeader } from "./AppHeader";
+import type { MobileBucketNav } from "./AppHeader";
+import { restoreViewport } from "@/test/mobile-viewport";
 
 const defaults = {
   username: "testuser",
@@ -208,5 +210,55 @@ describe("AppHeader chat toggle", () => {
 
     expect(screen.getByRole("tooltip")).toHaveTextContent("Chat mit Copilot");
     vi.useRealTimers();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Mobile bucket navigation
+// ---------------------------------------------------------------------------
+
+describe("AppHeader mobile bucket nav", () => {
+  afterEach(restoreViewport);
+
+  const mobileBucketNav: MobileBucketNav = {
+    activeBucket: "inbox",
+    items: [
+      { bucket: "inbox", label: "Inbox", icon: "inbox" },
+      { bucket: "next", label: "Next", icon: "bolt" },
+    ],
+    counts: { inbox: 3, next: 1 },
+    onBucketChange: vi.fn(),
+  };
+
+  it("shows bucket items in menu when mobileBucketNav is provided", async () => {
+    const user = userEvent.setup();
+    render(<AppHeader {...defaults} mobileBucketNav={mobileBucketNav} />);
+
+    await user.click(screen.getByRole("button", { name: "Main menu" }));
+    expect(screen.getByText("Inbox (3)")).toBeInTheDocument();
+    expect(screen.getByText("Next (1)")).toBeInTheDocument();
+  });
+
+  it("does not show bucket items when mobileBucketNav is omitted", async () => {
+    const user = userEvent.setup();
+    render(<AppHeader {...defaults} />);
+
+    await user.click(screen.getByRole("button", { name: "Main menu" }));
+    expect(screen.queryByText("Inbox (3)")).not.toBeInTheDocument();
+  });
+
+  it("calls onBucketChange when a bucket item is clicked", async () => {
+    const onBucketChange = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <AppHeader
+        {...defaults}
+        mobileBucketNav={{ ...mobileBucketNav, onBucketChange }}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Main menu" }));
+    await user.click(screen.getByText("Next (1)"));
+    expect(onBucketChange).toHaveBeenCalledWith("next");
   });
 });

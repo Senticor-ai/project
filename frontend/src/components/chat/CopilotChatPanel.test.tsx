@@ -1,8 +1,12 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CopilotChatPanel } from "./CopilotChatPanel";
 import type { ChatMessage } from "@/model/chat-types";
+import {
+  setMobileViewport,
+  restoreViewport,
+} from "@/test/mobile-viewport";
 
 describe("CopilotChatPanel", () => {
   it("renders nothing when closed", () => {
@@ -187,5 +191,39 @@ describe("CopilotChatPanel", () => {
     expect(
       screen.queryByRole("textbox", { name: "Nachricht an Copilot" }),
     ).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Mobile layout — panel takes full width via CSS, verify it renders correctly
+// ---------------------------------------------------------------------------
+
+describe("CopilotChatPanel mobile layout", () => {
+  afterEach(restoreViewport);
+
+  const panelProps = {
+    isOpen: true as const,
+    onClose: vi.fn(),
+    messages: [] as ChatMessage[],
+    isLoading: false,
+    onSend: vi.fn(),
+    onAcceptSuggestion: vi.fn(),
+    onDismissSuggestion: vi.fn(),
+  };
+
+  it("renders panel with w-full class (mobile-first)", () => {
+    setMobileViewport(true);
+    render(<CopilotChatPanel {...panelProps} />);
+    const panel = screen.getByRole("complementary", { name: "Copilot Chat" });
+    expect(panel.className).toContain("w-full");
+  });
+
+  it("renders panel on desktop with the same base classes", () => {
+    setMobileViewport(false);
+    render(<CopilotChatPanel {...panelProps} />);
+    const panel = screen.getByRole("complementary", { name: "Copilot Chat" });
+    expect(panel).toBeInTheDocument();
+    // md:w-[400px] is CSS-only; both viewports get the same DOM
+    expect(panel.className).toContain("w-full");
   });
 });

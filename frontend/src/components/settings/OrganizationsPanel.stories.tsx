@@ -84,3 +84,38 @@ export const CreateOrganization: Story = {
     await expect(args.onCreateOrg).toHaveBeenCalledWith("Steuerberater GmbH");
   },
 };
+
+/** Mobile viewport with long German organization names — tests text overflow. */
+export const MobileLongNames: Story = {
+  globals: { viewport: { value: "iphone14", isRotated: false } },
+  decorators: [
+    (Story) => (
+      <div className="p-4">
+        <Story />
+      </div>
+    ),
+  ],
+  args: {
+    organizations: [
+      {
+        id: "org-long-1",
+        name: "Bundesministerium für Digitales und Verkehr",
+        role: "owner",
+        created_at: "2025-01-15T10:00:00Z",
+      },
+      {
+        id: "org-long-2",
+        name: "Landesamt für Steuern und Finanzen Sachsen-Anhalt",
+        role: "member",
+        created_at: "2025-03-20T10:00:00Z",
+      },
+      {
+        id: "org-long-3",
+        name: "Verband der Automobilindustrie e.V. (VDA)",
+        role: "owner",
+        created_at: "2024-12-01T10:00:00Z",
+      },
+    ],
+    onCreateOrg: fn(),
+  },
+};

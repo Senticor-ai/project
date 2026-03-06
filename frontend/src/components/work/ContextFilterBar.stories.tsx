@@ -72,3 +72,38 @@ export const Interactive: Story = {
     await userEvent.click(computerChip);
   },
 };
+
+/** Many context chips at mobile width — demonstrates horizontal overflow. */
+export const MobileOverflow: Story = {
+  globals: { viewport: { value: "iphone14", isRotated: false } },
+  decorators: [
+    (Story) => (
+      <div className="p-4">
+        <Story />
+      </div>
+    ),
+  ],
+  args: {
+    contexts: [
+      "@phone",
+      "@computer",
+      "@errands",
+      "@office",
+      "@home",
+      "@waiting",
+      "@agenda",
+      "@read-review",
+    ],
+    selectedContexts: ["@phone"],
+    actionCounts: {
+      "@phone": 3,
+      "@computer": 7,
+      "@errands": 2,
+      "@office": 5,
+      "@home": 4,
+      "@waiting": 1,
+      "@agenda": 6,
+      "@read-review": 3,
+    },
+  },
+};
