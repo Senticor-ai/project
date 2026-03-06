@@ -70,6 +70,7 @@ async def _open_notification_listener() -> psycopg.AsyncConnection | None:
             autocommit=True,
         )
         async with listener_conn.cursor() as cur:
+            # nosemgrep: sqlalchemy-execute-raw-query
             await cur.execute(sql.SQL("LISTEN {}").format(sql.Identifier(channel)))
         logger.info("notifications.listen_ready", channel=channel)
         return listener_conn

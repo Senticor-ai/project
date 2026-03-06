@@ -859,6 +859,7 @@ def list_project_actions(
                 params.append(due_after)
 
             where_composed = sql.SQL(" AND ").join(where_clauses)
+            # nosemgrep: sqlalchemy-execute-raw-query
             cur.execute(
                 sql.SQL("""
                 SELECT

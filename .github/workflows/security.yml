@@ -24,9 +24,9 @@ jobs:
     continue-on-error: true
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.12'
 
@@ -41,7 +41,7 @@ jobs:
 
       - name: Upload Semgrep SARIF
         if: always()
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@dd677812177e0c29f9c970a6c58d8607ae1bfefd # v4
         with:
           sarif_file: semgrep.sarif
           category: semgrep
@@ -55,7 +55,7 @@ jobs:
 
       - name: Upload Bandit SARIF
         if: always()
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@dd677812177e0c29f9c970a6c58d8607ae1bfefd # v4
         with:
           sarif_file: bandit.sarif
           category: bandit
@@ -63,7 +63,7 @@ jobs:
 
       - name: Upload SAST artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: sast-reports
           path: |
@@ -77,12 +77,12 @@ jobs:
     continue-on-error: true
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
       # misconfig scanner excluded: k3s single-node deployment, KSV/DS rules
       # are not actionable. Dockerfile security is covered by Semgrep.
       - name: Run Trivy filesystem scan
-        uses: aquasecurity/trivy-action@0.34.2
+        uses: aquasecurity/trivy-action@97e0b3872f55f89b95b2f65b3dbab56962816478 # 0.34.2
         with:
           scan-type: fs
           scan-ref: .
@@ -93,7 +93,7 @@ jobs:
 
       - name: Upload Trivy SCA SARIF
         if: always()
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@dd677812177e0c29f9c970a6c58d8607ae1bfefd # v4
         with:
           sarif_file: trivy-fs.sarif
           category: trivy-sca
@@ -101,7 +101,7 @@ jobs:
 
       - name: Upload SCA artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: sca-reports
           path: trivy-fs.sarif
@@ -113,7 +113,7 @@ jobs:
     continue-on-error: true
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
       - name: Build backend image
         run: docker build --pull -t project-backend:scan -f backend/Dockerfile .
@@ -125,7 +125,7 @@ jobs:
         run: docker build --pull -t project-agents:scan -f agents/Dockerfile .
 
       - name: Scan backend image
-        uses: aquasecurity/trivy-action@0.34.2
+        uses: aquasecurity/trivy-action@97e0b3872f55f89b95b2f65b3dbab56962816478 # 0.34.2
         with:
           scan-type: image
           image-ref: project-backend:scan
@@ -134,7 +134,7 @@ jobs:
           output: trivy-image-backend.sarif
 
       - name: Scan frontend image
-        uses: aquasecurity/trivy-action@0.34.2
+        uses: aquasecurity/trivy-action@97e0b3872f55f89b95b2f65b3dbab56962816478 # 0.34.2
         with:
           scan-type: image
           image-ref: project-frontend:scan
@@ -143,7 +143,7 @@ jobs:
           output: trivy-image-frontend.sarif
 
       - name: Scan agents image
-        uses: aquasecurity/trivy-action@0.34.2
+        uses: aquasecurity/trivy-action@97e0b3872f55f89b95b2f65b3dbab56962816478 # 0.34.2
         with:
           scan-type: image
           image-ref: project-agents:scan
@@ -153,7 +153,7 @@ jobs:
 
       - name: Upload backend image SARIF
         if: always()
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@dd677812177e0c29f9c970a6c58d8607ae1bfefd # v4
         with:
           sarif_file: trivy-image-backend.sarif
           category: trivy-image-backend
@@ -161,7 +161,7 @@ jobs:
 
       - name: Upload frontend image SARIF
         if: always()
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@dd677812177e0c29f9c970a6c58d8607ae1bfefd # v4
         with:
           sarif_file: trivy-image-frontend.sarif
           category: trivy-image-frontend
@@ -169,7 +169,7 @@ jobs:
 
       - name: Upload agents image SARIF
         if: always()
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@dd677812177e0c29f9c970a6c58d8607ae1bfefd # v4
         with:
           sarif_file: trivy-image-agents.sarif
           category: trivy-image-agents
@@ -177,7 +177,7 @@ jobs:
 
       - name: Upload container scan artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: container-scan-reports
           path: |
@@ -192,7 +192,7 @@ jobs:
     continue-on-error: true
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           fetch-depth: 0
 
@@ -206,7 +206,7 @@ jobs:
 
       - name: Upload Gitleaks SARIF
         if: always()
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@dd677812177e0c29f9c970a6c58d8607ae1bfefd # v4
         with:
           sarif_file: gitleaks.sarif
           category: gitleaks
@@ -214,7 +214,7 @@ jobs:
 
       - name: Upload secrets artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: secrets-reports
           path: gitleaks.sarif
@@ -257,9 +257,9 @@ jobs:
       SESSION_BIND_USER_AGENT: 'false'
       TESTING: 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.12'
           cache: pip
@@ -269,14 +269,14 @@ jobs:
             agents/pyproject.toml
             agents/uv.lock
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version-file: .node-version
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
       - name: Cache uv downloads
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ${{ env.UV_CACHE_DIR }}
           key: ${{ runner.os }}-uv-security-${{ hashFiles('backend/uv.lock', 'agents/uv.lock') }}
@@ -333,7 +333,7 @@ jobs:
         run: curl -sf http://localhost:8000/openapi.json -o /tmp/openapi.json || echo "OpenAPI spec not available; ZAP will crawl only"
 
       - name: ZAP baseline scan (Frontend)
-        uses: zaproxy/action-baseline@v0.14.0
+        uses: zaproxy/action-baseline@2b5fc7f98d837319798ab7f128ea50b7d40563b6 # v0.14.0
         with:
           target: http://localhost:5173
           rules_file_name: ''
@@ -343,7 +343,7 @@ jobs:
         continue-on-error: true
 
       - name: ZAP baseline scan (API)
-        uses: zaproxy/action-baseline@v0.14.0
+        uses: zaproxy/action-baseline@2b5fc7f98d837319798ab7f128ea50b7d40563b6 # v0.14.0
         with:
           target: http://localhost:8000
           rules_file_name: ''
@@ -354,7 +354,7 @@ jobs:
 
       - name: Upload DAST artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: dast-reports
           path: |

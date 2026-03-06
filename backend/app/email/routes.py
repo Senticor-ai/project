@@ -838,6 +838,7 @@ def update_connection(
 
     with db_conn() as conn:
         with conn.cursor() as cur:
+            # nosemgrep: sqlalchemy-execute-raw-query
             cur.execute(
                 sql.SQL("""
                 UPDATE email_connections

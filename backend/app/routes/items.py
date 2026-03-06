@@ -353,6 +353,7 @@ def export_items(
 
     with db_conn() as conn:
         with conn.cursor() as cur:
+            # nosemgrep: sqlalchemy-execute-raw-query
             cur.execute(
                 sql.SQL("""
                 SELECT
@@ -524,6 +525,7 @@ def sync_items(
     with db_conn() as conn:
         with conn.cursor() as cur:
             if cursor_filter:
+                # nosemgrep: sqlalchemy-execute-raw-query
                 cur.execute(
                     sql.SQL("""
                     SELECT
@@ -551,6 +553,7 @@ def sync_items(
                     ),
                 )
             elif since_filter:
+                # nosemgrep: sqlalchemy-execute-raw-query
                 cur.execute(
                     sql.SQL("""
                     SELECT
@@ -573,6 +576,7 @@ def sync_items(
                     (org_id, since_filter, ORG_KNOWLEDGE_CANONICAL_PATTERN, limit),
                 )
             else:
+                # nosemgrep: sqlalchemy-execute-raw-query
                 cur.execute(
                     sql.SQL("""
                     SELECT

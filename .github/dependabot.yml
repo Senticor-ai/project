@@ -3,6 +3,22 @@
 
 version: 2
 updates:
+  # GitHub Actions — keep SHA-pinned actions up to date
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "03:00"
+      timezone: "Europe/Berlin"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "ci"
+    commit-message:
+      prefix: "deps(actions)"
+      include: "scope"
+
   # Backend Python dependencies (FastAPI, SQLAlchemy, etc.)
   - package-ecosystem: "pip"
     directory: "/backend"

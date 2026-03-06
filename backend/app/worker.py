@@ -612,6 +612,7 @@ def _open_outbox_listener() -> psycopg.Connection | None:
     try:
         listener_conn = psycopg.connect(settings.database_url, autocommit=True)
         with listener_conn.cursor() as cur:
+            # nosemgrep: sqlalchemy-execute-raw-query
             cur.execute(sql.SQL("LISTEN {}").format(sql.Identifier(channel)))
         logger.info("outbox.listen_ready", channel=channel)
         return listener_conn

@@ -39,6 +39,7 @@ spec:
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
           resources:
@@ -70,6 +71,10 @@ spec:
           volumeMounts:
             - name: postgres-data
               mountPath: /var/lib/postgresql/data
+            - name: postgres-run
+              mountPath: /var/run/postgresql
+            - name: postgres-tmp
+              mountPath: /tmp
           readinessProbe:
             exec:
               command: ["sh", "-c", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"]
@@ -80,6 +85,13 @@ spec:
               command: ["sh", "-c", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"]
             initialDelaySeconds: 20
             periodSeconds: 10
+      volumes:
+        - name: postgres-run
+          emptyDir:
+            sizeLimit: 10Mi
+        - name: postgres-tmp
+          emptyDir:
+            sizeLimit: 100Mi
   volumeClaimTemplates:
     - metadata:
         name: postgres-data

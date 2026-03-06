@@ -3,6 +3,8 @@ kind: Deployment
 metadata:
   name: backend
 spec:
+  strategy:
+    type: Recreate
   template:
     spec:
       serviceAccountName: backend-openclaw-runtime

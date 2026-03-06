@@ -3,6 +3,8 @@ kind: Deployment
 metadata:
   name: push-worker
 spec:
+  strategy:
+    type: Recreate
   template:
     spec:
       imagePullSecrets:

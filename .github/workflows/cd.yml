@@ -1,5 +1,10 @@
 name: CD
 
+# nosemgrep: yaml.github-actions.security.workflow-run-target-code-checkout
+# Safety analysis: This workflow uses workflow_run to deploy after CI passes.
+# Checkout uses the specific head_sha from the completed CI run (not PR code).
+# No untrusted inputs (head_ref, PR title) are interpolated into run: blocks.
+# All jobs are gated on head_branch == 'main' and conclusion == 'success'.
 on:
   workflow_run:
     workflows: [CI]
@@ -7,9 +12,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Default: read-only. Only update-manifests and smoke jobs get elevated permissions.
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 env:
   STACKIT_REGISTRY: registry.onstackit.cloud
@@ -30,10 +35,10 @@ jobs:
     outputs:
       image_pushed: ${{ steps.push_frontend.outcome == 'success' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
       - name: Authenticate to StackIT registry
         id: registry_auth
         env:
@@ -59,7 +64,7 @@ jobs:
       - name: Build and push frontend image
         id: push_frontend
         if: steps.registry_auth.outputs.can_push == 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           file: frontend/Dockerfile
@@ -80,10 +85,10 @@ jobs:
     outputs:
       image_pushed: ${{ steps.push_backend.outcome == 'success' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
       - name: Authenticate to StackIT registry
         id: registry_auth
         env:
@@ -109,7 +114,7 @@ jobs:
       - name: Build and push backend image
         id: push_backend
         if: steps.registry_auth.outputs.can_push == 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           file: backend/Dockerfile
@@ -130,10 +135,10 @@ jobs:
     outputs:
       image_pushed: ${{ steps.push_storybook.outcome == 'success' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
       - name: Authenticate to StackIT registry
         id: registry_auth
         env:
@@ -159,7 +164,7 @@ jobs:
       - name: Build and push storybook image
         id: push_storybook
         if: steps.registry_auth.outputs.can_push == 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           file: frontend/Dockerfile.storybook
@@ -182,10 +187,10 @@ jobs:
     outputs:
       image_pushed: ${{ steps.push_agents.outcome == 'success' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
       - name: Authenticate to StackIT registry
         id: registry_auth
         env:
@@ -211,7 +216,7 @@ jobs:
       - name: Build and push agents image
         id: push_agents
         if: steps.registry_auth.outputs.can_push == 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           file: agents/Dockerfile
@@ -232,10 +237,10 @@ jobs:
     outputs:
       image_pushed: ${{ steps.push_openclaw.outcome == 'success' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
       - name: Authenticate to StackIT registry
         id: registry_auth
         env:
@@ -261,7 +266,7 @@ jobs:
       - name: Build and push openclaw image
         id: push_openclaw
         if: steps.registry_auth.outputs.can_push == 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           file: openclaw/Dockerfile.alpha
@@ -273,6 +278,9 @@ jobs:
         run: echo "OpenClaw image push skipped because registry authentication was unavailable."
 
   update-manifests:
+    permissions:
+      contents: write      # git push manifest changes to main
+      pull-requests: write  # fallback: create PR if direct push fails
     if: >-
       (github.event_name == 'workflow_dispatch') ||
       (github.event.workflow_run.conclusion == 'success'
@@ -286,7 +294,7 @@ jobs:
       - push-openclaw
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           fetch-depth: 0
       - name: Update production image tags for Flux
@@ -398,10 +406,10 @@ jobs:
       - update-manifests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.12'
       - name: Install smoke dependencies

@@ -144,7 +144,6 @@ function ImportDialogContent({
               ref={fileInputRef}
               data-testid={config.fileTestId}
               type="file"
-              accept=".json,application/json"
               className="hidden"
               onChange={handleFileInput}
             />

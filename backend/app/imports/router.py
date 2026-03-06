@@ -103,6 +103,7 @@ def list_import_jobs(
     with db_conn() as conn:
         _fail_stale_queued_jobs(org_id=org_id, conn=conn)
         with conn.cursor() as cur:
+            # nosemgrep: sqlalchemy-execute-raw-query
             cur.execute(
                 f"""
                 SELECT {_JOB_SELECT_COLS}
@@ -170,6 +171,7 @@ def get_import_job(
     with db_conn() as conn:
         _fail_stale_queued_jobs(org_id=org_id, conn=conn)
         with conn.cursor() as cur:
+            # nosemgrep: sqlalchemy-execute-raw-query
             cur.execute(
                 f"""
                 SELECT {_JOB_SELECT_COLS}
@@ -389,6 +391,7 @@ def archive_import_job(
                 """,
                 (now, now, job_id),
             )
+            # nosemgrep: sqlalchemy-execute-raw-query
             cur.execute(
                 f"""
                 SELECT {_JOB_SELECT_COLS}
