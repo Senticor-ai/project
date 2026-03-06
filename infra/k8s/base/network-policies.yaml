@@ -36,6 +36,17 @@ spec:
       ports:
         - port: 8000
           protocol: TCP
+    # Allow Alloy in the observability namespace to scrape backend metrics.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
+          podSelector:
+            matchLabels:
+              app: alloy
+      ports:
+        - port: 8000
+          protocol: TCP
   egress:
     # Postgres
     - to:
