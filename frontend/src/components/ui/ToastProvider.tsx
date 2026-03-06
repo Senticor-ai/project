@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import type { ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { ApiError } from "@/lib/api-client";
 import { ToastContext } from "@/lib/toast-context";
 import type { Toast, ToastType, ToastAction } from "@/lib/toast-context";
 import { ToastContainer } from "./ToastContainer";
@@ -19,6 +20,12 @@ function MutationErrorBridge({
     const unsubscribe = cache.subscribe((event) => {
       if (event.type === "updated" && event.mutation.state.status === "error") {
         const err = event.mutation.state.error;
+
+        // Suppress network-error toasts when offline — OfflineBanner covers it
+        if (err instanceof ApiError && err.status === 0 && !navigator.onLine) {
+          return;
+        }
+
         const raw = err?.message;
         const message =
           typeof raw === "string" && raw.length > 0

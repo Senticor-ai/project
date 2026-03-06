@@ -206,10 +206,7 @@ def test_runtime_conversation_assets_roundtrip_survives_workspace_recreation(aut
     workspace = _workspace_dir(user_id)
     conversation_path = workspace / ".openclaw" / "conversations" / "session-1.jsonl"
     conversation_path.parent.mkdir(parents=True, exist_ok=True)
-    content = (
-        '{"role":"user","content":"hello"}\n'
-        '{"role":"assistant","content":"hi there"}\n'
-    )
+    content = '{"role":"user","content":"hello"}\n{"role":"assistant","content":"hi there"}\n'
     conversation_path.write_text(content)
 
     backup = sync_workspace_memory_to_db(user_id, org_id=org_id, source="runtime-sync")

@@ -1,0 +1,281 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Product/Epics/Offline Resilience" />
+
+# Epic: Offline Resilience & Airplane Mode
+
+**Status:** In Progress (Foundation shipped, persistence pending)
+**Priority:** Current
+**Last updated:** 2026-03-06
+**Depends on:** TanStack Query persistence, IDB-backed auth cache, Service Worker (vite-plugin-pwa)
+**Related:** [Architecture](?path=/docs/engineering-architecture--docs), [Data Retention](?path=/docs/engineering-data-retention--docs)
+
+---
+
+## Context
+
+Senticor targets Bundesbeamte (federal clerks) who frequently work in environments with
+limited or no connectivity — courtrooms, secure facilities, public transit, and airplane
+mode during business travel.
+
+Two critical failures were identified during airplane mode testing:
+
+1. **Capture fails offline.** The inbox capture (`useCaptureInbox`) performs an optimistic UI
+   update, but when `POST /items` throws `ApiError(status: 0)`, the `onError` handler rolls
+   back the optimistic record and a "Server is not reachable" error toast appears.
+
+2. **Logout on app restart.** The `AuthProvider` calls `GET /auth/me` on mount. When offline,
+   this fails silently, setting `user: null` and redirecting the user to the login page —
+   even though the HTTP-only JWT cookie is still valid and cached data is available in IDB.
+
+### What was shipped (Foundation — 2026-03-06)
+
+Three fixes landed as the offline foundation:
+
+| Fix | What | Files |
+|-----|------|-------|
+| **Auth resilience** | Persist last-known user to IDB; fall back when offline + `/auth/me` fails | `auth-cache.ts`, `auth-context.tsx`, `offline-storage.ts` |
+| **Toast suppression** | Suppress "Server is not reachable" toasts when offline (OfflineBanner already covers it) | `ToastProvider.tsx` |
+| **Mutation resilience** | Prevent optimistic rollback on offline captures; add `mutationKey` to all 6 create mutations | `use-mutations.ts` |
+
+**Test coverage:** 19 new unit/integration tests across 4 test files (1681 total).
+
+### What remains (this epic)
+
+The foundation keeps the app usable during a single session, but items captured offline are
+lost if the user closes the tab before reconnecting. Full offline support requires persistent
+mutation queues, Background Sync, and UI indicators for pending items.
+
+---
+
+## User Story
+
+> "Ich will im Flugzeug Gedanken und Aufgaben erfassen können. Wenn ich wieder online bin,
+> sollen sie automatisch synchronisiert werden — ohne dass ich etwas verliere oder nochmal
+> eingeben muss."
+
+---
+
+## Goals
+
+1. **Persistent offline mutation queue** — captures survive tab close and replay on reconnect.
+2. **Pending item indicator** — show a sync icon on items that haven't reached the server yet.
+3. **Background Sync** — use the Background Sync API (where available) to sync pending mutations
+   even after the tab is closed.
+4. **Reconnection sync** — automatically invalidate stale queries and replay queued mutations
+   when the browser comes back online.
+5. **Conflict resolution** — handle edge cases where offline mutations conflict with server state.
+
+---
+
+## Out of Scope
+
+- Full offline-first CRDT/event-sourcing architecture
+- Offline file uploads (binary uploads require connectivity)
+- Offline LLM inference (copilot requires the agents service)
+- Offline triage of AI-suggested items (requires server-side classification)
+- Offline access to other users' shared items
+
+---
+
+## MVP Scope
+
+### 1) Persistent mutation queue via IDB
+
+Serialize pending (failed-offline) mutations to IndexedDB so they survive tab close.
+
+**Approach:** TanStack Query v5 supports mutation dehydration. Configure the
+`PersistQueryClientProvider` to also persist mutations that have `mutationKey` set.
+On app restart, rehydrated mutations resume when online.
+
+**Key constraint:** Mutation variables must be JSON-serializable. All create mutations
+already pass JSON-LD objects — this is satisfied.
+
+**Implementation:**
+- Extend `createIdbPersister()` in `offline-storage.ts` to include mutation state
+- Add `dehydrateMutations: true` to `PersistQueryClientProvider` options
+- Add `resumePausedMutations` call on `online` event in `AppBootstrap.tsx`
+- Configure `shouldDehydrateMutation` to only persist mutations with a `mutationKey`
+
+### 2) Pending item indicator
+
+Optimistic items already have `item_id` starting with `"temp-"`. Use this as a visual marker.
+
+**Implementation:**
+- Add `isOptimisticItem(record: ItemRecord): boolean` helper to `model/types.ts`
+- In `ActionRow.tsx`, show a subtle cloud-upload icon (`cloud_upload`) when `isOptimisticItem`
+- Use `text-muted` color and pulse animation for the indicator
+- Hide indicator when item gets real `item_id` from server (on mutation success)
+
+### 3) Background Sync integration
+
+The `sync-manager.ts` already registers Background Sync tags. Wire it up to mutation failures.
+
+**Implementation:**
+- In `use-mutations.ts` `onError`, when offline: register a Background Sync tag
+- In the service worker (`sw.ts`), handle the `sync` event by reading pending mutations
+  from IDB and replaying them
+- Graceful degradation: Background Sync is only available on Chromium-based browsers;
+  on Safari/Firefox, rely on the in-tab `online` event replay
+
+### 4) Reconnection sync
+
+When the browser comes back online, automatically sync state.
+
+**Implementation:**
+- Add `useOfflineSync()` hook that listens to `window.addEventListener("online", ...)`
+- On reconnect:
+  1. Resume paused mutations via `queryClient.resumePausedMutations()`
+  2. Invalidate `ITEMS_QUERY_KEY` to refresh from server
+  3. Retry failed-offline mutations from the persistent queue
+- Show brief "Synchronisierung..." toast during replay
+
+### 5) Conflict resolution (lightweight)
+
+Offline-created items have pre-generated `@id` (canonical_id). The server uses these
+as idempotency keys. If a mutation is replayed after the server already processed it
+(e.g., via Background Sync), the server should return the existing record.
+
+**Implementation:**
+- Backend: Make `POST /items` idempotent on `@id` — if a record with the same `@id`
+  exists, return it instead of creating a duplicate
+- Frontend: `onSuccess` already replaces optimistic records by `canonical_id`, so
+  duplicate responses merge cleanly
+
+---
+
+## Product Behavior
+
+### Offline capture flow
+
+1. User types text in "Capture a thought..." input
+2. `useCaptureInbox` fires → optimistic record with `temp-xxx` id appears in inbox
+3. `POST /items` fails with network error
+4. `onError` detects offline → keeps optimistic record (no rollback)
+5. Toast suppressed (OfflineBanner visible)
+6. Pending mutation serialized to IDB
+7. Item shows cloud-upload indicator
+8. User can continue capturing more items — all queue in IDB
+
+### Reconnection flow
+
+1. Device comes back online → `online` event fires
+2. `useOfflineSync` resumes paused mutations
+3. Pending mutations replay sequentially (server creates items)
+4. `onSuccess` replaces `temp-xxx` records with real server records
+5. Cloud-upload indicators disappear
+6. Brief "Synchronisiert" success toast
+7. Query invalidation refreshes full item list
+
+### Auth during prolonged offline
+
+1. App starts offline → `AuthApi.me()` fails → cached user from IDB used
+2. User works normally with cached data
+3. On reconnect → `AuthApi.me()` succeeds → cached user updated
+4. If JWT expired during offline period → refresh token exchange occurs automatically
+5. If refresh token also expired → user prompted to re-login (clear message, no silent fail)
+
+---
+
+## Acceptance Criteria
+
+- [ ] Items captured offline appear immediately in the inbox with a pending indicator
+- [ ] Closing and reopening the tab offline preserves the captured items
+- [ ] Reconnecting automatically syncs pending items to the server
+- [ ] Pending indicator disappears after successful sync
+- [ ] "Synchronisiert" toast appears after successful reconnect sync
+- [ ] No duplicate items created when mutations replay (idempotent `@id`)
+- [ ] Auth state persists across app restarts in airplane mode
+- [ ] No error toasts appear for network errors while offline
+- [ ] Background Sync triggers item sync even after tab close (Chromium only)
+- [ ] Safari/Firefox gracefully degrade to in-tab sync on reconnect
+- [ ] All existing online behavior unchanged
+- [ ] `npm run preflight:local` passes
+
+---
+
+## Delivery Plan
+
+### Phase 1: Foundation (SHIPPED)
+
+- Auth resilience: IDB-backed user cache with offline fallback
+- Toast suppression for offline network errors
+- Mutation resilience: prevent optimistic rollback when offline
+- `mutationKey` added to all 6 create mutations
+- 19 new tests
+
+### Phase 2: Persistent mutation queue
+
+- Configure mutation dehydration in `PersistQueryClientProvider`
+- Add `shouldDehydrateMutation` filter for keyed mutations
+- Test: capture offline → close tab → reopen → items still in inbox
+- Test: reconnect → items sync to server
+
+### Phase 3: Pending item indicator
+
+- Add `isOptimisticItem()` helper
+- Show cloud-upload icon on `ActionRow` for temp items
+- Storybook story: `ActionRow` with pending indicator variant
+- Test: indicator appears for temp items, disappears after sync
+
+### Phase 4: Reconnection sync
+
+- Implement `useOfflineSync` hook with `online` event listener
+- Resume paused mutations, invalidate queries, show sync toast
+- Test: offline capture → toggle online → items sync automatically
+
+### Phase 5: Background Sync
+
+- Wire `sync-manager.ts` to mutation `onError`
+- Handle `sync` event in service worker
+- Test: capture offline → close tab → reopen online → items synced
+- Graceful degradation test on Safari
+
+### Phase 6: Conflict resolution
+
+- Backend: idempotent `POST /items` on `@id`
+- Frontend: verify deduplication on mutation replay
+- Test: replay same mutation twice → no duplicates
+
+---
+
+## Risks and Mitigations
+
+| Risk | Mitigation |
+|------|-----------|
+| IDB storage quota exceeded on mobile | Limit pending mutation queue to 100 items; show warning at 80 |
+| Mutation replay order matters (e.g., create then triage) | Replay mutations in FIFO order; each waits for previous to complete |
+| Background Sync not available on Safari/Firefox | Graceful degradation to in-tab `online` event sync; document limitation |
+| Stale auth cache used for too long offline | Set max age on cached user (24h); clear on explicit logout |
+| Conflict between offline capture and server-side changes | Idempotent `@id` prevents duplicates; last-write-wins for updates via ETag |
+| Large IDB mutations slow app startup | Lazy-load mutation queue; don't block render on rehydration |
+
+---
+
+## Key Files
+
+| File | Change |
+|------|--------|
+| `frontend/src/lib/offline-storage.ts` | Extend persister for mutation dehydration |
+| `frontend/src/lib/auth-cache.ts` | Already shipped — IDB auth user cache |
+| `frontend/src/lib/auth-context.tsx` | Already shipped — offline fallback |
+| `frontend/src/hooks/use-mutations.ts` | Already shipped — offline-resilient onError/onSettled |
+| `frontend/src/hooks/use-offline-sync.ts` | New — reconnection sync hook |
+| `frontend/src/components/ui/ToastProvider.tsx` | Already shipped — offline toast suppression |
+| `frontend/src/components/work/ActionRow.tsx` | Pending item indicator |
+| `frontend/src/lib/sync-manager.ts` | Wire Background Sync to mutation failures |
+| `frontend/src/components/shell/AppBootstrap.tsx` | Mutation dehydration config, online event handler |
+| `backend/app/routes/items.py` | Idempotent POST on `@id` |
+
+---
+
+## Definition of Done
+
+- [ ] All acceptance criteria pass
+- [ ] Offline capture → tab close → reopen → reconnect → items synced (manual test)
+- [ ] 60+ new tests across unit, integration layers
+- [ ] No regressions in existing 1681 tests
+- [ ] `npm run preflight:local` passes
+- [ ] `npm run preflight:local:strict` passes (backend contract)
+- [ ] Storybook stories for pending indicator and offline states
+- [ ] Tested on: Chrome Android, Safari iOS, Chrome Desktop, Firefox Desktop

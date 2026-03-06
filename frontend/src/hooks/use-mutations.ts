@@ -4,7 +4,7 @@ import {
   useQueryClient,
   type QueryClient,
 } from "@tanstack/react-query";
-import { ItemsApi } from "@/lib/api-client";
+import { ApiError, ItemsApi } from "@/lib/api-client";
 import type { ItemRecord } from "@/lib/api-client";
 import { getEtag, setEtag } from "@/lib/etag-store";
 import { uploadFile } from "@/lib/file-upload";
@@ -33,6 +33,10 @@ import { CALENDAR_EVENTS_QUERY_KEY } from "./use-calendar-events";
 
 const ACTIVE_KEY = [...ITEMS_QUERY_KEY, { completed: "false" }];
 const COMPLETED_KEY = [...ITEMS_QUERY_KEY, { completed: "true" }];
+
+function isOfflineNetworkError(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 0 && !navigator.onLine;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers: search both active + completed caches
@@ -374,6 +378,7 @@ export function useCaptureInbox() {
   // share the exact same object (same @id). This prevents the race condition
   // where optimistic records have a different canonical_id than the server.
   const mutation = useMutation({
+    mutationKey: ["capture-inbox"],
     mutationFn: async (jsonLd: Record<string, unknown>) => {
       return ItemsApi.create(jsonLd, "manual");
     },
@@ -399,9 +404,13 @@ export function useCaptureInbox() {
       );
     },
     onError: (_err, _vars, context) => {
+      // When offline, keep optimistic record visible (don't rollback)
+      if (isOfflineNetworkError(_err)) return;
       if (context?.prev) qc.setQueryData(ACTIVE_KEY, context.prev);
     },
-    onSettled: async () => {
+    onSettled: async (_data, error) => {
+      // Skip invalidation when offline — would clear the optimistic data
+      if (isOfflineNetworkError(error)) return;
       await qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
     },
   });
@@ -453,6 +462,7 @@ export function useCaptureFile() {
   };
 
   const mutation = useMutation({
+    mutationKey: ["capture-file"],
     mutationFn: async ({ file, jsonLd, options }: CaptureFileVars) => {
       // 1. Create the item (metadata-only)
       const itemRecord = await ItemsApi.create(jsonLd, "manual");
@@ -517,9 +527,11 @@ export function useCaptureFile() {
       );
     },
     onError: (_err, _vars, context) => {
+      if (isOfflineNetworkError(_err)) return;
       if (context?.prev) qc.setQueryData(ACTIVE_KEY, context.prev);
     },
-    onSettled: async () => {
+    onSettled: async (_data, error) => {
+      if (isOfflineNetworkError(error)) return;
       await qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
     },
   });
@@ -977,6 +989,7 @@ export function useAddAction() {
   const qc = useQueryClient();
 
   return useMutation({
+    mutationKey: ["add-action"],
     mutationFn: async ({
       title,
       bucket,
@@ -1003,9 +1016,11 @@ export function useAddAction() {
       return { prev };
     },
     onError: (_err, _vars, context) => {
+      if (isOfflineNetworkError(_err)) return;
       if (context?.prev) qc.setQueryData(ACTIVE_KEY, context.prev);
     },
-    onSettled: async () => {
+    onSettled: async (_data, error) => {
+      if (isOfflineNetworkError(error)) return;
       await qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
     },
   });
@@ -1019,6 +1034,7 @@ export function useAddReference() {
   const qc = useQueryClient();
 
   return useMutation({
+    mutationKey: ["add-reference"],
     mutationFn: async (title: string) => {
       const jsonLd = buildNewReferenceJsonLd(title);
       return ItemsApi.create(jsonLd, "manual");
@@ -1039,9 +1055,11 @@ export function useAddReference() {
       return { prev };
     },
     onError: (_err, _vars, context) => {
+      if (isOfflineNetworkError(_err)) return;
       if (context?.prev) qc.setQueryData(ACTIVE_KEY, context.prev);
     },
-    onSettled: async () => {
+    onSettled: async (_data, error) => {
+      if (isOfflineNetworkError(error)) return;
       await qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
     },
   });
@@ -1055,6 +1073,7 @@ export function useAddProjectAction() {
   const qc = useQueryClient();
 
   return useMutation({
+    mutationKey: ["add-project-action"],
     mutationFn: async ({
       projectId,
       title,
@@ -1081,9 +1100,11 @@ export function useAddProjectAction() {
       return { prev };
     },
     onError: (_err, _vars, context) => {
+      if (isOfflineNetworkError(_err)) return;
       if (context?.prev) qc.setQueryData(ACTIVE_KEY, context.prev);
     },
-    onSettled: async () => {
+    onSettled: async (_data, error) => {
+      if (isOfflineNetworkError(error)) return;
       await qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
     },
   });
@@ -1097,6 +1118,7 @@ export function useCreateProject() {
   const qc = useQueryClient();
 
   return useMutation({
+    mutationKey: ["create-project"],
     mutationFn: async ({
       name,
       desiredOutcome,
@@ -1123,9 +1145,11 @@ export function useCreateProject() {
       return { prev };
     },
     onError: (_err, _vars, context) => {
+      if (isOfflineNetworkError(_err)) return;
       if (context?.prev) qc.setQueryData(ACTIVE_KEY, context.prev);
     },
-    onSettled: async () => {
+    onSettled: async (_data, error) => {
+      if (isOfflineNetworkError(error)) return;
       await qc.invalidateQueries({ queryKey: ITEMS_QUERY_KEY });
     },
   });
