@@ -26,6 +26,7 @@ services:
 
   db-init:
     image: ${BACKEND_IMAGE}
+    user: "0:0" # Run as root for migrations + storage chown (backend image defaults to appuser)
     depends_on:
       postgres:
         condition: service_healthy
