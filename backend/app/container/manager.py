@@ -111,6 +111,18 @@ def _pull_policy() -> str:
     return OPENCLAW_PULL_NEVER
 
 
+_K8S_PULL_POLICY_MAP = {
+    OPENCLAW_PULL_ALWAYS: "Always",
+    OPENCLAW_PULL_IF_NOT_PRESENT: "IfNotPresent",
+    OPENCLAW_PULL_NEVER: "Never",
+}
+
+
+def _k8s_image_pull_policy(policy: str) -> str:
+    """Map local pull policy string to Kubernetes imagePullPolicy value."""
+    return _K8S_PULL_POLICY_MAP.get(policy, "Always")
+
+
 def _parse_memory_mib(k8s_mem: str) -> int:
     """Parse a K8s memory string (e.g. '2Gi', '512Mi') to MiB."""
     if k8s_mem.endswith("Gi"):
@@ -482,6 +494,7 @@ def _k8s_apply_resources(
 
     env_list = [{"name": name, "value": value} for name, value in env_vars.items()]
     user_subpath = user_id.replace("/", "-")
+    config_subpath = f"openclaw/{user_subpath}/openclaw.json"
     pod_spec: dict[str, object] = {
         "restartPolicy": "Always",
         "securityContext": {
@@ -491,11 +504,32 @@ def _k8s_apply_resources(
             "fsGroup": 1000,
             "seccompProfile": {"type": "RuntimeDefault"},
         },
+        "initContainers": [
+            {
+                "name": "fix-config-permissions",
+                "image": "busybox:1.37",
+                "command": [
+                    "sh",
+                    "-c",
+                    "touch /openclaw.json && chown 1000:1000 /openclaw.json",
+                ],
+                "volumeMounts": [
+                    {
+                        "name": "backend-files",
+                        "mountPath": "/openclaw.json",
+                        "subPath": config_subpath,
+                    },
+                ],
+                "securityContext": {
+                    "runAsUser": 0,
+                },
+            }
+        ],
         "containers": [
             {
                 "name": "openclaw",
                 "image": settings.openclaw_image,
-                "imagePullPolicy": "Always",
+                "imagePullPolicy": _k8s_image_pull_policy(_pull_policy()),
                 "ports": [{"containerPort": port, "name": "http"}],
                 "env": env_list,
                 "volumeMounts": [
@@ -509,7 +543,7 @@ def _k8s_apply_resources(
                         # saves.  Backend regenerates on every start.
                         "name": "backend-files",
                         "mountPath": "/openclaw.json",
-                        "subPath": f"openclaw/{user_subpath}/openclaw.json",
+                        "subPath": config_subpath,
                     },
                     {
                         "name": "backend-files",
@@ -756,14 +790,47 @@ def start_container(user_id: str) -> ContainerInfo:
 
 def _wait_for_healthy(user_id: str, url: str) -> None:
     """Poll OpenClaw readiness endpoints until ready or timeout."""
-    deadline = time.monotonic() + settings.openclaw_health_check_timeout
+    timeout = settings.openclaw_health_check_timeout
+    start = time.monotonic()
+    deadline = start + timeout
+    attempts = 0
+
+    logger.info(
+        "container.health_check_started",
+        user_id=user_id,
+        timeout_seconds=timeout,
+    )
+
     while time.monotonic() < deadline:
+        attempts += 1
         if _is_container_ready(url):
+            elapsed = round(time.monotonic() - start, 1)
+            logger.info(
+                "container.health_check_passed",
+                user_id=user_id,
+                elapsed_seconds=elapsed,
+                attempts=attempts,
+            )
             _mark_running(user_id)
             return
+        if attempts % 10 == 0:
+            elapsed = round(time.monotonic() - start, 1)
+            logger.info(
+                "container.health_check_waiting",
+                user_id=user_id,
+                elapsed_seconds=elapsed,
+                attempts=attempts,
+            )
         time.sleep(1.0)
 
-    _mark_error(user_id, f"Health check timeout after {settings.openclaw_health_check_timeout}s")
+    elapsed = round(time.monotonic() - start, 1)
+    logger.warning(
+        "container.health_check_timeout",
+        user_id=user_id,
+        elapsed_seconds=elapsed,
+        attempts=attempts,
+    )
+    _mark_error(user_id, f"Health check timeout after {timeout}s")
     raise RuntimeError(f"Container health check timeout for user {user_id}")
 
 
@@ -1070,6 +1137,54 @@ def get_identity_name(user_id: str) -> str | None:
             return None
         return value
     return None
+
+
+# ---------------------------------------------------------------------------
+# Stale error-state reconciliation
+# ---------------------------------------------------------------------------
+
+
+def reconcile_stale_errors() -> int:
+    """Re-check containers stuck in error state due to a timeout race.
+
+    If a container timed out during health check but later became healthy,
+    promote it back to 'running'. Returns the number of reconciled containers.
+    """
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT user_id::text, container_url, container_error
+                FROM user_agent_settings
+                WHERE container_status = 'error'
+                  AND container_error LIKE %s
+                  AND container_url IS NOT NULL
+                """,
+                ("%timeout%",),
+            )
+            rows = cur.fetchall()
+
+    reconciled = 0
+    for row in rows:
+        user_id = row["user_id"]
+        url = row["container_url"]
+        try:
+            if _is_container_ready(url):
+                _mark_running(user_id)
+                reconciled += 1
+                logger.info(
+                    "container.stale_error_reconciled",
+                    user_id=user_id,
+                    previous_error=row["container_error"],
+                )
+        except Exception:
+            logger.debug(
+                "container.reconcile_health_check_failed",
+                user_id=user_id,
+                exc_info=True,
+            )
+
+    return reconciled
 
 
 # ---------------------------------------------------------------------------

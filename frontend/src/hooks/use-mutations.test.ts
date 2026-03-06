@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
-import { ItemsApi } from "@/lib/api-client";
+import { ItemsApi, ApiError } from "@/lib/api-client";
 import type { ItemRecord, ApiResponse } from "@/lib/api-client";
 import {
   useCaptureInbox,
@@ -23,16 +23,20 @@ import type { CanonicalId } from "@/model/canonical-id";
 import { createInboxItem } from "@/model/factories";
 import { uploadFile } from "@/lib/file-upload";
 
-vi.mock("@/lib/api-client", () => ({
-  ItemsApi: {
-    sync: vi.fn(),
-    list: vi.fn(),
-    get: vi.fn(),
-    create: vi.fn(),
-    update: vi.fn(),
-    archive: vi.fn(),
-  },
-}));
+vi.mock("@/lib/api-client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api-client")>();
+  return {
+    ...actual,
+    ItemsApi: {
+      sync: vi.fn(),
+      list: vi.fn(),
+      get: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      archive: vi.fn(),
+    },
+  };
+});
 
 vi.mock("@/lib/etag-store", () => ({
   getEtag: vi.fn(() => undefined),
@@ -152,8 +156,21 @@ function createWrapperWithClient(
   return { qc, wrapper };
 }
 
+function setOnlineStatus(online: boolean) {
+  Object.defineProperty(navigator, "onLine", {
+    value: online,
+    writable: true,
+    configurable: true,
+  });
+}
+
 beforeEach(() => {
   vi.resetAllMocks();
+  setOnlineStatus(true);
+});
+
+afterEach(() => {
+  setOnlineStatus(true);
 });
 
 // ---------------------------------------------------------------------------
@@ -1883,5 +1900,74 @@ describe("useTriageItem split-on-triage", () => {
     expect(mocked.update).toHaveBeenCalledTimes(1);
     const [, patch] = mocked.update.mock.calls[0]!;
     expect(patch["@type"]).toBe("Action");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Offline mutation resilience
+// ---------------------------------------------------------------------------
+
+describe("offline mutation resilience", () => {
+  it("useCaptureInbox keeps optimistic record when offline and mutation fails with network error", async () => {
+    setOnlineStatus(false);
+    mocked.create.mockRejectedValue(
+      new ApiError({
+        message: "Server is not reachable",
+        status: 0,
+      }),
+    );
+
+    const { qc, wrapper } = createWrapperWithClient([]);
+    const { result } = renderHook(() => useCaptureInbox(), { wrapper });
+
+    act(() => result.current.mutate("Offline thought"));
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+
+    // Optimistic record should NOT be rolled back
+    const active = qc.getQueryData<ItemRecord[]>(ACTIVE_KEY);
+    expect(active).toHaveLength(1);
+    expect(active![0]!.item_id).toMatch(/^temp-/);
+  });
+
+  it("useCaptureInbox rolls back optimistic record when online and mutation fails", async () => {
+    setOnlineStatus(true);
+    mocked.create.mockRejectedValue(
+      new ApiError({
+        message: "Internal server error",
+        status: 500,
+      }),
+    );
+
+    const { qc, wrapper } = createWrapperWithClient([]);
+    const { result } = renderHook(() => useCaptureInbox(), { wrapper });
+
+    act(() => result.current.mutate("Will fail"));
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+
+    // Optimistic record should be rolled back
+    const active = qc.getQueryData<ItemRecord[]>(ACTIVE_KEY);
+    expect(active).toHaveLength(0);
+  });
+
+  it("useCaptureInbox has mutationKey set for persistence", () => {
+    const { qc, wrapper } = createWrapperWithClient();
+    const { result } = renderHook(() => useCaptureInbox(), { wrapper });
+
+    // Check mutation cache has our mutation registered with the correct key
+    // The mutation is not in cache until triggered, so check via options on the hook
+    // useCaptureInbox spreads internal mutation — verify via the underlying mutation's options
+    // TanStack Query stores mutationKey on the MutationObserver's options
+    const observer = result.current;
+    // The spread copies all enumerable props from the internal mutation
+    // mutationKey is on options but observer may not expose it directly.
+    // Instead, verify by triggering and checking the mutation cache.
+    mocked.create.mockResolvedValue(makeRecord({ item: {} }));
+    act(() => observer.mutate("test"));
+
+    const cached = qc.getMutationCache().getAll();
+    expect(cached.length).toBeGreaterThan(0);
+    expect(cached[0]!.options.mutationKey).toEqual(["capture-inbox"]);
   });
 });

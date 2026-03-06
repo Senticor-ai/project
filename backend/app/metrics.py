@@ -371,9 +371,7 @@ def refresh_queue_metrics() -> None:
                 except psycopg_errors.UndefinedTable:
                     APP_CONNECTOR_LAST_SYNC_AGE_SECONDS.labels(connector="gmail").set(0.0)
                     APP_CONNECTOR_ERROR_CONNECTIONS.labels(connector="gmail").set(0.0)
-                    APP_CONNECTOR_LAST_SYNC_AGE_SECONDS.labels(connector="google_calendar").set(
-                        0.0
-                    )
+                    APP_CONNECTOR_LAST_SYNC_AGE_SECONDS.labels(connector="google_calendar").set(0.0)
                     APP_CONNECTOR_ERROR_CONNECTIONS.labels(connector="google_calendar").set(0.0)
     except Exception:
         logger.exception("metrics.queue_refresh_failed")

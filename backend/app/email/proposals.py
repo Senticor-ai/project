@@ -361,8 +361,7 @@ def _build_schedule_payload(
         "to": email_raw.get("from") or "",
         "reply_subject": f"Re: {email_schema.get('name') or 'Update'}",
         "reply_body": (
-            "Thanks for your note. I found the next available 15-minute slot and "
-            "scheduled it."
+            "Thanks for your note. I found the next available 15-minute slot and scheduled it."
         ),
         "event_summary": summary,
         "event_start": _iso_z(start_dt),
@@ -496,11 +495,7 @@ def _emit_proposal_notification(
     kind = "proposal_urgent_created" if is_urgent else "proposal_created"
 
     if proposal_type == "Proposal.RescheduleMeeting":
-        title = (
-            "Urgent meeting reschedule request"
-            if is_urgent
-            else "Meeting reschedule request"
-        )
+        title = "Urgent meeting reschedule request" if is_urgent else "Meeting reschedule request"
     elif proposal_type == "Proposal.PersonalRequest":
         title = "Urgent personal request" if is_urgent else "Personal request"
     else:
