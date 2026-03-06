@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -161,5 +161,59 @@ describe("SettingsScreen", () => {
 
     await user.click(screen.getByRole("button", { name: "Remove urgent" }));
     expect(screen.queryByText("urgent")).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Mobile layout
+// ---------------------------------------------------------------------------
+
+describe("SettingsScreen mobile layout", () => {
+  const originalMatchMedia = Object.getOwnPropertyDescriptor(
+    window,
+    "matchMedia",
+  );
+
+  function setMobileViewport(matches: boolean) {
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: vi.fn().mockReturnValue({
+        matches,
+        media: "(max-width: 767px)",
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      } satisfies MediaQueryList),
+    });
+  }
+
+  afterEach(() => {
+    if (originalMatchMedia) {
+      Object.defineProperty(window, "matchMedia", originalMatchMedia);
+    }
+  });
+
+  it("renders horizontal tabs on mobile", () => {
+    setMobileViewport(true);
+    render(<SettingsScreen />);
+    const tablist = screen.getByRole("tablist");
+    expect(tablist).toHaveAttribute("aria-orientation", "horizontal");
+  });
+
+  it("renders vertical tabs on desktop", () => {
+    setMobileViewport(false);
+    render(<SettingsScreen />);
+    const tablist = screen.getByRole("tablist");
+    expect(tablist).toHaveAttribute("aria-orientation", "vertical");
+  });
+
+  it("does not apply sidebar width class on mobile", () => {
+    setMobileViewport(true);
+    render(<SettingsScreen />);
+    const tablist = screen.getByRole("tablist");
+    expect(tablist.className).not.toContain("w-56");
   });
 });

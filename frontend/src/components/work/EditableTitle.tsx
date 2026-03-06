@@ -163,7 +163,7 @@ function InlineEditableTitle({
         onDoubleClick={onDoubleClick}
         aria-expanded={ariaExpanded}
         className={cn(
-          "flex-1 whitespace-pre-wrap break-all text-left text-sm text-text",
+          "flex-1 whitespace-pre-wrap break-words text-left text-sm text-text",
           completed
             ? "font-normal text-text-muted line-through"
             : "font-medium",

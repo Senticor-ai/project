@@ -27,7 +27,9 @@ export function Tabs({
       role="tablist"
       aria-orientation={orientation}
       className={cn(
-        orientation === "vertical" ? "space-y-0.5" : "flex gap-1",
+        orientation === "vertical"
+          ? "space-y-0.5"
+          : "flex gap-1 overflow-x-auto border-b border-border pb-2",
         className,
       )}
     >
@@ -42,7 +44,7 @@ export function Tabs({
             className={cn(
               "flex min-h-11 items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm",
               "transition-colors duration-[var(--duration-fast)]",
-              orientation === "vertical" && "w-full",
+              orientation === "vertical" ? "w-full" : "shrink-0 whitespace-nowrap",
               isActive
                 ? "bg-blueprint-50 font-medium text-blueprint-700"
                 : "text-text-muted hover:bg-paper-100 hover:text-text",

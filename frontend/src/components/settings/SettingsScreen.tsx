@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Tabs, type TabItem } from "@/components/ui/Tabs";
+import { useIsMobile } from "@/hooks/use-is-mobile";
 import { AgentSetupPanel } from "./AgentSetupPanel";
 import { DeveloperPanel } from "./DeveloperPanel";
 import { EmailPanel } from "./EmailPanel";
@@ -139,6 +140,7 @@ export function SettingsScreen({
   onInstall,
   className,
 }: SettingsScreenProps) {
+  const isMobile = useIsMobile();
   const [internalTab, setInternalTab] = useState<SettingsTab>(initialTab);
   const activeTab = controlledTab ?? internalTab;
   const handleTabChange = (tab: SettingsTab) => {
@@ -159,12 +161,18 @@ export function SettingsScreen({
   const [preferences, setPreferences] = useState(DEFAULT_PREFERENCES);
 
   return (
-    <div className={cn("flex gap-6", className)}>
+    <div
+      className={cn(
+        isMobile ? "flex flex-col gap-4" : "flex flex-row gap-6",
+        className,
+      )}
+    >
       <Tabs
         tabs={settingsTabs}
         activeTab={activeTab}
         onSelect={(id) => handleTabChange(id as SettingsTab)}
-        className="w-56 shrink-0"
+        orientation={isMobile ? "horizontal" : "vertical"}
+        className={isMobile ? undefined : "w-56 shrink-0"}
       />
 
       <main className="min-w-0 flex-1" aria-label="Settings content">

@@ -399,4 +399,23 @@ describe("EmailConnectionCard", () => {
       screen.getByRole("button", { name: /neu verbinden/i }),
     ).toBeInTheDocument();
   });
+
+  it("uses responsive grid for settings (stacks on small screens)", () => {
+    const { container } = render(
+      <EmailConnectionCard connection={baseConnection} />,
+    );
+    const settingsGrid = container.querySelector(".grid");
+    expect(settingsGrid).not.toBeNull();
+    expect(settingsGrid!.className).toContain("sm:grid-cols-2");
+    expect(settingsGrid!.className).toContain("grid-cols-1");
+  });
+
+  it("wraps action buttons with flex-wrap", () => {
+    render(<EmailConnectionCard connection={baseConnection} />);
+    const syncButton = screen.getByRole("button", {
+      name: /jetzt synchronisieren/i,
+    });
+    const actionsContainer = syncButton.parentElement!;
+    expect(actionsContainer.className).toContain("flex-wrap");
+  });
 });

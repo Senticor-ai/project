@@ -131,6 +131,68 @@ export const DeveloperTab: Story = {
 };
 
 // ---------------------------------------------------------------------------
+// Mobile viewport stories
+// ---------------------------------------------------------------------------
+
+export const EmailTabConnectedMobile: Story = {
+  globals: { viewport: { value: "iphone14", isRotated: false } },
+  args: {
+    initialTab: "email",
+    emailConnections: [
+      {
+        connection_id: "conn-1",
+        email_address: "wolfgang.ihloff@senticor.ai",
+        display_name: "Gmail (wolfgang.ihloff@senticor.ai)",
+        auth_method: "oauth2" as const,
+        oauth_provider: "gmail" as const,
+        sync_interval_minutes: 15,
+        sync_mark_read: false,
+        calendar_sync_enabled: true,
+        calendar_selected_ids: ["primary"],
+        last_sync_at: "2026-03-06T06:32:00Z",
+        last_sync_error: null,
+        last_calendar_sync_error:
+          "Google Calendar permission missing. Disconnect and reconnect Google to grant calendar access.",
+        last_sync_message_count: 0,
+        is_active: true,
+        watch_active: true,
+        watch_expires_at: "2026-03-13T06:32:00Z",
+        created_at: "2026-02-01T08:00:00Z",
+      },
+    ],
+    onReconnectGmail: () => {},
+    emailCalendarsErrorByConnectionId: {
+      "conn-1": "Google Calendar permission missing.",
+    },
+  },
+};
+
+export const AgentSetupMobile: Story = {
+  globals: { viewport: { value: "iphone14", isRotated: false } },
+  args: {
+    initialTab: "agent-setup",
+    agentSettings: {
+      agentBackend: "openclaw",
+      provider: "openrouter",
+      hasApiKey: true,
+      model: "google/gemini-3-flash-preview",
+      containerStatus: null,
+      containerError: null,
+      validationStatus: "ok",
+      validationMessage: "OpenRouter key is valid and model is available.",
+      lastValidatedAt: "2026-03-01T13:44:31Z",
+    },
+  },
+};
+
+export const PreferencesMobile: Story = {
+  globals: { viewport: { value: "iphone14", isRotated: false } },
+  args: {
+    initialTab: "preferences",
+  },
+};
+
+// ---------------------------------------------------------------------------
 // Interactive — navigate through all tabs
 // ---------------------------------------------------------------------------
 

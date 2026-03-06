@@ -1474,3 +1474,93 @@ describe("ActionRow – Typ ändern overflow menu", () => {
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Mobile viewport — hide secondary metadata
+// ---------------------------------------------------------------------------
+
+describe("ActionRow mobile viewport", () => {
+  const originalMatchMedia = Object.getOwnPropertyDescriptor(
+    window,
+    "matchMedia",
+  );
+
+  function setMobileViewport(matches: boolean) {
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: vi.fn().mockReturnValue({
+        matches,
+        media: "(max-width: 767px)",
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      } satisfies MediaQueryList),
+    });
+  }
+
+  afterEach(() => {
+    if (originalMatchMedia) {
+      Object.defineProperty(window, "matchMedia", originalMatchMedia);
+    }
+  });
+
+  it("hides tag chips on mobile", () => {
+    setMobileViewport(true);
+    renderRow({
+      thing: createActionItem({
+        name: "Tagged task",
+        bucket: "next",
+        tags: ["urgent"],
+      }),
+    });
+    expect(screen.queryByText("urgent")).not.toBeInTheDocument();
+  });
+
+  it("hides subtitle text on mobile", () => {
+    setMobileViewport(true);
+    renderRow({
+      thing: createActionItem({
+        name: "Follow-up",
+        captureSource: { kind: "import", source: "nirvana" },
+      }),
+    });
+    expect(screen.queryByText("via import")).not.toBeInTheDocument();
+  });
+
+  it("hides due date on mobile", () => {
+    setMobileViewport(true);
+    renderRow({
+      thing: createActionItem({
+        name: "Task",
+        bucket: "next",
+        dueDate: "2099-12-31",
+      }),
+    });
+    expect(screen.queryByText("2099-12-31")).not.toBeInTheDocument();
+  });
+
+  it("still shows title, checkbox and star on mobile", () => {
+    setMobileViewport(true);
+    renderRow({
+      thing: createActionItem({ name: "Mobile task", bucket: "next" }),
+    });
+    expect(screen.getByText("Mobile task")).toBeInTheDocument();
+    expect(screen.getByLabelText("Complete Mobile task")).toBeInTheDocument();
+    expect(screen.getByLabelText("Focus Mobile task")).toBeInTheDocument();
+  });
+
+  it("shows tags on desktop viewport", () => {
+    setMobileViewport(false);
+    renderRow({
+      thing: createActionItem({
+        name: "Tagged task",
+        bucket: "next",
+        tags: ["urgent"],
+      }),
+    });
+    expect(screen.getByText("urgent")).toBeInTheDocument();
+  });
+});

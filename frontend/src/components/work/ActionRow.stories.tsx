@@ -569,3 +569,27 @@ export const MobileTouchControls: StoryObj<typeof meta> = {
     onToggleExpand: fn(),
   },
 };
+
+/** Mobile viewport — inbox email item with long title (no vertical text). */
+export const MobileInboxEmail: StoryObj<typeof meta> = {
+  globals: { viewport: { value: "iphone14", isRotated: false } },
+  args: {
+    thing: createActionItem({
+      name: "Buchungsbestätigung Deutsche Bahn (Auftrag ABCDEF)",
+      bucket: "inbox",
+      captureSource: {
+        kind: "email",
+        subject: "Buchungsbestätigung Deutsche Bahn",
+        from: "noreply@deutschebahn.com",
+      },
+      tags: ["reise"],
+      dueDate: "2026-03-15",
+    }),
+    isExpanded: false,
+    onComplete: fn(),
+    onToggleFocus: fn(),
+    onMove: fn(),
+    onArchive: fn(),
+    onToggleExpand: fn(),
+  },
+};
