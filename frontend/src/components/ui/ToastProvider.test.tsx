@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-query";
 import { ToastProvider } from "./ToastProvider";
 import { useToast } from "@/lib/use-toast";
+import { ApiError } from "@/lib/api-client";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -54,6 +55,28 @@ function MutationTrigger() {
   return <button onClick={() => mutation.mutate()}>Trigger mutation</button>;
 }
 
+function setOnlineStatus(online: boolean) {
+  Object.defineProperty(navigator, "onLine", {
+    value: online,
+    writable: true,
+    configurable: true,
+  });
+}
+
+function NetworkErrorTrigger({ status = 0 }: { status?: number }) {
+  const mutation = useMutation({
+    mutationFn: async () => {
+      throw new ApiError({
+        message: "Server is not reachable",
+        status,
+      });
+    },
+  });
+  return (
+    <button onClick={() => mutation.mutate()}>Trigger network error</button>
+  );
+}
+
 function renderWithProviders(ui: React.ReactElement) {
   const queryClient = createTestQueryClient();
   return render(
@@ -74,6 +97,7 @@ describe("ToastProvider", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    setOnlineStatus(true);
   });
 
   it("shows a toast when toast() is called", async () => {
@@ -166,6 +190,51 @@ describe("ToastProvider", () => {
       const alert = screen.getByRole("alert");
       expect(alert.textContent).not.toContain("[object Object]");
       expect(alert).toHaveTextContent("An operation failed");
+    });
+  });
+
+  it("suppresses toast when offline and error is network error (status 0)", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    setOnlineStatus(false);
+
+    renderWithProviders(<NetworkErrorTrigger status={0} />);
+    await user.click(screen.getByText("Trigger network error"));
+
+    // Wait a tick then verify no toast appeared
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("shows toast when online even for network error (status 0)", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    setOnlineStatus(true);
+
+    renderWithProviders(<NetworkErrorTrigger status={0} />);
+    await user.click(screen.getByText("Trigger network error"));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Server is not reachable",
+      );
+    });
+  });
+
+  it("shows toast when offline for non-network errors (status 500)", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    setOnlineStatus(false);
+
+    renderWithProviders(<NetworkErrorTrigger status={500} />);
+    await user.click(screen.getByText("Trigger network error"));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Server is not reachable",
+      );
     });
   });
 });

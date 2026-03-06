@@ -15,6 +15,7 @@ from app.container.manager import (
     _k8s_apply_resources,
     _k8s_labels,
     _parse_memory_mib,
+    _wait_for_healthy,
     ensure_running,
     get_identity_name,
     hard_refresh_container,
@@ -1050,3 +1051,415 @@ def test_k8s_pod_spec_includes_pod_security_context(monkeypatch, tmp_path):
     assert pod_sec["runAsGroup"] == 1000
     assert pod_sec["fsGroup"] == 1000
     assert pod_sec["seccompProfile"] == {"type": "RuntimeDefault"}
+
+
+# ---------------------------------------------------------------------------
+# Feature 1: Configurable startup timeout (180s → 240s)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_default_health_check_timeout_is_240():
+    """Default timeout should be 240s to exceed typical cold-start times."""
+    assert settings.openclaw_health_check_timeout == 240
+
+
+@pytest.mark.unit
+def test_wait_for_healthy_uses_configured_timeout(monkeypatch):
+    """_wait_for_healthy must honour the configured timeout value."""
+    _patch_settings(monkeypatch, openclaw_health_check_timeout=2)
+    marked: list[str] = []
+    monkeypatch.setattr("app.container.manager._is_container_ready", lambda _url: False)
+    monkeypatch.setattr("app.container.manager._mark_error", lambda _uid, msg: marked.append(msg))
+
+    with pytest.raises(RuntimeError, match="timeout"):
+        _wait_for_healthy("test-user", "http://localhost:9999")
+
+    assert len(marked) == 1
+    assert "2s" in marked[0]
+
+
+@pytest.mark.unit
+def test_k8s_startup_probe_budget_exceeds_health_check_timeout(monkeypatch):
+    """K8s startupProbe total budget must exceed backend health check timeout."""
+    captured_manifests: list[dict] = []
+
+    def _fake_k8s_request(method, path, *, json_body=None, ok_statuses=None):
+        if json_body:
+            captured_manifests.append(json_body)
+        return SimpleNamespace(status_code=200)
+
+    monkeypatch.setattr("app.container.manager._k8s_request", _fake_k8s_request)
+    monkeypatch.setattr("app.container.manager._k8s_delete_if_exists", lambda _kind, _name: None)
+    _patch_settings(
+        monkeypatch,
+        openclaw_runtime="k8s",
+        openclaw_k8s_namespace="project",
+        openclaw_k8s_gateway_port=18789,
+        openclaw_k8s_image_pull_secret="",
+    )
+
+    _k8s_apply_resources(
+        user_id="user-123",
+        container_name="openclaw-user-123",
+        port=18789,
+        env_vars={"FOO": "bar"},
+    )
+
+    pod_manifest = captured_manifests[1]
+    container_spec = pod_manifest["spec"]["containers"][0]
+    probe = container_spec["startupProbe"]
+    probe_budget = probe["periodSeconds"] * probe["failureThreshold"]
+
+    assert probe_budget > settings.openclaw_health_check_timeout, (
+        f"K8s startup probe budget ({probe_budget}s) must exceed "
+        f"health check timeout ({settings.openclaw_health_check_timeout}s)"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Feature 5: Startup phase observability (structured timing logs)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_wait_for_healthy_logs_timing_on_success(monkeypatch):
+    """Successful health check emits structured log with elapsed time and attempts."""
+    _patch_settings(monkeypatch, openclaw_health_check_timeout=10)
+    call_count = {"n": 0}
+
+    def _ready_after_2(_url):
+        call_count["n"] += 1
+        return call_count["n"] >= 2
+
+    monkeypatch.setattr("app.container.manager._is_container_ready", _ready_after_2)
+    monkeypatch.setattr("app.container.manager._mark_running", lambda _uid: None)
+    monkeypatch.setattr("app.container.manager.time.sleep", lambda _s: None)
+
+    logged: list[tuple[str, dict]] = []
+    original_logger = __import__("app.container.manager", fromlist=["logger"]).logger
+
+    class _CapturingLogger:
+        def info(self, event, **kw):
+            logged.append((event, kw))
+
+        def warning(self, event, **kw):
+            logged.append((event, kw))
+
+        def __getattr__(self, name):
+            return original_logger.__getattribute__(name)
+
+    monkeypatch.setattr("app.container.manager.logger", _CapturingLogger())
+
+    _wait_for_healthy("test-user", "http://localhost:9999")
+
+    events = [e[0] for e in logged]
+    assert "container.health_check_started" in events
+    assert "container.health_check_passed" in events
+
+    passed = next(kw for ev, kw in logged if ev == "container.health_check_passed")
+    assert "elapsed_seconds" in passed
+    assert "attempts" in passed
+    assert passed["attempts"] == 2
+
+
+@pytest.mark.unit
+def test_wait_for_healthy_logs_timing_on_timeout(monkeypatch):
+    """Timed-out health check emits warning log with elapsed time."""
+    _patch_settings(monkeypatch, openclaw_health_check_timeout=2)
+    monkeypatch.setattr("app.container.manager._is_container_ready", lambda _url: False)
+    monkeypatch.setattr("app.container.manager._mark_error", lambda _uid, _msg: None)
+    monkeypatch.setattr("app.container.manager.time.sleep", lambda _s: None)
+
+    logged: list[tuple[str, dict]] = []
+
+    class _CapturingLogger:
+        def info(self, event, **kw):
+            logged.append((event, kw))
+
+        def warning(self, event, **kw):
+            logged.append((event, kw))
+
+    monkeypatch.setattr("app.container.manager.logger", _CapturingLogger())
+
+    with pytest.raises(RuntimeError):
+        _wait_for_healthy("test-user", "http://localhost:9999")
+
+    events = [e[0] for e in logged]
+    assert "container.health_check_started" in events
+    assert "container.health_check_timeout" in events
+
+    timeout_kw = next(kw for ev, kw in logged if ev == "container.health_check_timeout")
+    assert "elapsed_seconds" in timeout_kw
+    assert "attempts" in timeout_kw
+
+
+# ---------------------------------------------------------------------------
+# Feature 3: K8s image pull policy
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "policy,expected",
+    [
+        ("always", "Always"),
+        ("if-not-present", "IfNotPresent"),
+        ("never", "Never"),
+    ],
+)
+def test_k8s_image_pull_policy_mapping(policy, expected):
+    from app.container.manager import _k8s_image_pull_policy
+
+    assert _k8s_image_pull_policy(policy) == expected
+
+
+@pytest.mark.unit
+def test_k8s_pod_spec_uses_configured_pull_policy(monkeypatch):
+    """K8s pod spec must use the configured pull policy, not hardcoded Always."""
+    captured_manifests: list[dict] = []
+
+    def _fake_k8s_request(method, path, *, json_body=None, ok_statuses=None):
+        if json_body:
+            captured_manifests.append(json_body)
+        return SimpleNamespace(status_code=200)
+
+    monkeypatch.setattr("app.container.manager._k8s_request", _fake_k8s_request)
+    monkeypatch.setattr("app.container.manager._k8s_delete_if_exists", lambda _kind, _name: None)
+    _patch_settings(
+        monkeypatch,
+        openclaw_runtime="k8s",
+        openclaw_k8s_namespace="project",
+        openclaw_k8s_gateway_port=18789,
+        openclaw_k8s_image_pull_secret="",
+        openclaw_pull_policy="if-not-present",
+    )
+
+    _k8s_apply_resources(
+        user_id="user-123",
+        container_name="openclaw-user-123",
+        port=18789,
+        env_vars={"FOO": "bar"},
+    )
+
+    pod_manifest = captured_manifests[1]
+    container_spec = pod_manifest["spec"]["containers"][0]
+    assert container_spec["imagePullPolicy"] == "IfNotPresent"
+
+
+# ---------------------------------------------------------------------------
+# Feature 4: Fix /openclaw.json write permissions via initContainer
+# ---------------------------------------------------------------------------
+
+
+def _capture_k8s_pod_spec(monkeypatch) -> list[dict]:
+    """Helper: patch K8s calls and return captured manifests."""
+    captured: list[dict] = []
+
+    def _fake_k8s_request(method, path, *, json_body=None, ok_statuses=None):
+        if json_body:
+            captured.append(json_body)
+        return SimpleNamespace(status_code=200)
+
+    monkeypatch.setattr("app.container.manager._k8s_request", _fake_k8s_request)
+    monkeypatch.setattr("app.container.manager._k8s_delete_if_exists", lambda _kind, _name: None)
+    _patch_settings(
+        monkeypatch,
+        openclaw_runtime="k8s",
+        openclaw_k8s_namespace="project",
+        openclaw_k8s_gateway_port=18789,
+        openclaw_k8s_image_pull_secret="",
+    )
+    return captured
+
+
+@pytest.mark.unit
+def test_k8s_pod_spec_includes_init_container(monkeypatch):
+    """Pod spec must include an initContainer to fix /openclaw.json permissions."""
+    captured = _capture_k8s_pod_spec(monkeypatch)
+
+    _k8s_apply_resources(
+        user_id="user-123",
+        container_name="openclaw-user-123",
+        port=18789,
+        env_vars={"FOO": "bar"},
+    )
+
+    pod_manifest = captured[1]
+    init_containers = pod_manifest["spec"].get("initContainers", [])
+    assert len(init_containers) >= 1
+
+    init = init_containers[0]
+    assert init["name"] == "fix-config-permissions"
+    # Must touch and chown the config file
+    cmd = " ".join(init.get("command", []))
+    assert "openclaw.json" in cmd
+    assert "1000" in cmd
+
+
+@pytest.mark.unit
+def test_init_container_mounts_match_main_container(monkeypatch):
+    """initContainer must mount the same openclaw.json subPath as the main container."""
+    captured = _capture_k8s_pod_spec(monkeypatch)
+
+    _k8s_apply_resources(
+        user_id="user-123",
+        container_name="openclaw-user-123",
+        port=18789,
+        env_vars={"FOO": "bar"},
+    )
+
+    pod_manifest = captured[1]
+    init_containers = pod_manifest["spec"]["initContainers"]
+    main_containers = pod_manifest["spec"]["containers"]
+
+    # Find the openclaw.json mount in main container
+    main_mounts = main_containers[0]["volumeMounts"]
+    main_config_mount = next(m for m in main_mounts if m["mountPath"] == "/openclaw.json")
+
+    # initContainer must have a matching mount
+    init_mounts = init_containers[0]["volumeMounts"]
+    init_config_mount = next(m for m in init_mounts if m["mountPath"] == "/openclaw.json")
+
+    assert init_config_mount["subPath"] == main_config_mount["subPath"]
+    assert init_config_mount["name"] == main_config_mount["name"]
+
+
+# ---------------------------------------------------------------------------
+# Feature 2: Stale error-state reconciliation
+# ---------------------------------------------------------------------------
+
+
+class _ReconcileRowsCursor:
+    """Fake cursor returning configurable rows for reconcile_stale_errors tests."""
+
+    def __init__(self, rows: list[dict]):
+        self._rows = rows
+        self.executed: list[tuple[str, tuple]] = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def execute(self, query, params=None):
+        self.executed.append((query, params))
+
+    def fetchall(self):
+        return self._rows
+
+
+class _ReconcileConn:
+    def __init__(self, rows: list[dict]):
+        self._cursor = _ReconcileRowsCursor(rows)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def cursor(self):
+        return self._cursor
+
+    def commit(self):
+        return None
+
+
+@pytest.mark.unit
+def test_reconcile_stale_errors_marks_healthy_container_running(monkeypatch):
+    """Containers in error state with timeout message should be promoted if healthy."""
+    from app.container.manager import reconcile_stale_errors
+
+    rows = [
+        {
+            "user_id": "user-a",
+            "container_url": "http://localhost:18800",
+            "container_error": "Health check timeout after 240s",
+        }
+    ]
+    monkeypatch.setattr("app.container.manager.db_conn", lambda: _ReconcileConn(rows))
+    monkeypatch.setattr("app.container.manager._is_container_ready", lambda _url: True)
+
+    marked: list[str] = []
+    monkeypatch.setattr("app.container.manager._mark_running", lambda uid: marked.append(uid))
+
+    result = reconcile_stale_errors()
+
+    assert result == 1
+    assert marked == ["user-a"]
+
+
+@pytest.mark.unit
+def test_reconcile_stale_errors_ignores_non_timeout_errors(monkeypatch):
+    """Non-timeout errors (e.g. image pull failures) should not be reconciled."""
+    from app.container.manager import reconcile_stale_errors
+
+    # The query filters by LIKE '%timeout%', so non-timeout rows won't appear
+    rows: list[dict] = []
+    monkeypatch.setattr("app.container.manager.db_conn", lambda: _ReconcileConn(rows))
+
+    ready_called = {"count": 0}
+
+    def _track_ready(_url):
+        ready_called["count"] += 1
+        return True
+
+    monkeypatch.setattr("app.container.manager._is_container_ready", _track_ready)
+    monkeypatch.setattr("app.container.manager._mark_running", lambda _uid: None)
+
+    result = reconcile_stale_errors()
+
+    assert result == 0
+    assert ready_called["count"] == 0
+
+
+@pytest.mark.unit
+def test_reconcile_stale_errors_skips_unreachable_containers(monkeypatch):
+    """Containers still unhealthy should stay in error state."""
+    from app.container.manager import reconcile_stale_errors
+
+    rows = [
+        {
+            "user_id": "user-b",
+            "container_url": "http://localhost:18801",
+            "container_error": "Health check timeout after 240s",
+        }
+    ]
+    monkeypatch.setattr("app.container.manager.db_conn", lambda: _ReconcileConn(rows))
+    monkeypatch.setattr("app.container.manager._is_container_ready", lambda _url: False)
+
+    marked: list[str] = []
+    monkeypatch.setattr("app.container.manager._mark_running", lambda uid: marked.append(uid))
+
+    result = reconcile_stale_errors()
+
+    assert result == 0
+    assert marked == []
+
+
+@pytest.mark.unit
+def test_reconcile_stale_errors_handles_health_check_exception(monkeypatch):
+    """Health check exceptions must not crash the reconciliation loop."""
+    import httpx
+
+    from app.container.manager import reconcile_stale_errors
+
+    rows = [
+        {
+            "user_id": "user-c",
+            "container_url": "http://localhost:18802",
+            "container_error": "Health check timeout after 240s",
+        }
+    ]
+    monkeypatch.setattr("app.container.manager.db_conn", lambda: _ReconcileConn(rows))
+
+    def _exploding_ready(_url):
+        raise httpx.ConnectError("connection refused")
+
+    monkeypatch.setattr("app.container.manager._is_container_ready", _exploding_ready)
+    monkeypatch.setattr("app.container.manager._mark_running", lambda _uid: None)
+
+    result = reconcile_stale_errors()
+    assert result == 0

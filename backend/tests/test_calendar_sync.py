@@ -188,8 +188,12 @@ def test_backfill_normalizes_datetime_to_utc_and_preserves_all_day_dates(
             tz_item = tz_row["schema_jsonld"]
             assert tz_item["startDate"] == "2026-03-01T09:00:00Z"
             assert tz_item["endDate"] == "2026-03-01T10:30:00Z"
-            assert tz_item["sourceMetadata"]["raw"]["start"]["dateTime"] == "2026-03-01T10:00:00+01:00"
-            assert tz_item["sourceMetadata"]["raw"]["end"]["dateTime"] == "2026-03-01T11:30:00+01:00"
+            assert (
+                tz_item["sourceMetadata"]["raw"]["start"]["dateTime"] == "2026-03-01T10:00:00+01:00"
+            )
+            assert (
+                tz_item["sourceMetadata"]["raw"]["end"]["dateTime"] == "2026-03-01T11:30:00+01:00"
+            )
 
             cur.execute(
                 """
