@@ -359,6 +359,7 @@ jobs:
     permissions:
       contents: write      # git push manifest changes to main
       pull-requests: write  # fallback: create PR if direct push fails
+      issues: write         # create deploy label if missing
     if: >-
       (github.event_name == 'workflow_dispatch') ||
       (github.event.workflow_run.conclusion == 'success'
