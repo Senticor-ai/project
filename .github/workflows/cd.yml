@@ -64,7 +64,7 @@ jobs:
       - name: Build and push frontend image
         id: push_frontend
         if: steps.registry_auth.outputs.can_push == 'true'
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
           context: .
           file: frontend/Dockerfile
@@ -114,7 +114,7 @@ jobs:
       - name: Build and push backend image
         id: push_backend
         if: steps.registry_auth.outputs.can_push == 'true'
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
           context: .
           file: backend/Dockerfile
@@ -164,7 +164,7 @@ jobs:
       - name: Build and push storybook image
         id: push_storybook
         if: steps.registry_auth.outputs.can_push == 'true'
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
           context: .
           file: frontend/Dockerfile.storybook
@@ -216,7 +216,7 @@ jobs:
       - name: Build and push agents image
         id: push_agents
         if: steps.registry_auth.outputs.can_push == 'true'
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
           context: .
           file: agents/Dockerfile
@@ -266,7 +266,7 @@ jobs:
       - name: Build and push openclaw image
         id: push_openclaw
         if: steps.registry_auth.outputs.can_push == 'true'
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
           context: .
           file: openclaw/Dockerfile.alpha
