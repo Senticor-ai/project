@@ -346,7 +346,7 @@ jobs:
             --backend-url http://localhost:8000 \
             --frontend-url http://localhost:8080 \
             --storybook-url http://localhost:6006 \
-            --compose-file infra/docker-compose.ci-test.yml \
+            --compose-project project-ci-test \
             --wait-seconds 120
       - name: Dump container logs on failure
         if: failure()

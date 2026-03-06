@@ -26,13 +26,19 @@ services:
 
   db-init:
     image: ${BACKEND_IMAGE}
+    user: "0:0" # Run as root for migrations + storage chown (backend image defaults to appuser)
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       DATABASE_URL: "postgresql://project:ci-test-password@postgres:5432/project_ci"
       SECRETS_BACKEND: env
-    command: ["python", "-m", "app.db_init"]
+    volumes:
+      - backend-storage:/data/storage
+    command:
+      - bash
+      - -c
+      - "chown 1000:1000 /data/storage && python -m app.db_init"
 
   backend:
     image: ${BACKEND_IMAGE}
@@ -104,6 +110,6 @@ services:
       - "18789:18789"
 
 volumes:
-  # tmpfs volume for file storage — owned by UID 1000 via backend user directive.
+  # File storage volume — ownership set to UID 1000 by db-init service.
   # Tests that file upload works under non-root, matching production securityContext.
   backend-storage:
