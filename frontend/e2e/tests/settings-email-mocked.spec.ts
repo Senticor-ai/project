@@ -264,9 +264,9 @@ test.describe("Settings — Email (mocked)", () => {
     await page.reload();
     await syncResponse;
 
-    // Dismiss the dev/demo disclaimer if it appears (German locale)
+    // Dismiss the dev/demo disclaimer if it appears
     const disclaimerBtn = page.getByRole("button", {
-      name: /I understand|Ich verstehe/i,
+      name: "I understand",
     });
     if (await disclaimerBtn.isVisible({ timeout: 2_000 }).catch(() => false)) {
       await disclaimerBtn.click();

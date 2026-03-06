@@ -25,23 +25,32 @@ export const test = base.extend<TestFixtures>({
 
     // Register + login via API through the Vite proxy (shares cookie jar).
     // Retry on 429 (rate limit) — the backend throttles rapid registrations.
+    // Backend rate-limits registration to 5/minute per IP.
+    // With many tests sharing one worker, later tests may hit the limit.
+    // Retry with exponential backoff: 3s, 6s, 12s, 24s (enough to outlast the 60s window).
     for (let attempt = 0; attempt < 5; attempt++) {
       const regResp = await page.request.post("/api/auth/register", {
         data: { email, username, password },
       });
       if (regResp.ok()) break;
       if (regResp.status() === 429 && attempt < 4) {
-        await page.waitForTimeout(1_000 * (attempt + 1));
+        await page.waitForTimeout(3_000 * 2 ** attempt);
         continue;
       }
       throw new Error(
         `Registration failed (${regResp.status()}): ${await regResp.text()}`,
       );
     }
-    const loginResp = await page.request.post("/api/auth/login", {
-      data: { email, password },
-    });
-    if (!loginResp.ok()) {
+    // Retry on transient 5xx errors (mirrors registration retry pattern above).
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const loginResp = await page.request.post("/api/auth/login", {
+        data: { email, password },
+      });
+      if (loginResp.ok()) break;
+      if (loginResp.status() >= 500 && attempt < 2) {
+        await page.waitForTimeout(1_000 * (attempt + 1));
+        continue;
+      }
       throw new Error(
         `Login failed (${loginResp.status()}): ${await loginResp.text()}`,
       );

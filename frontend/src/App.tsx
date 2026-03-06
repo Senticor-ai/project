@@ -379,14 +379,18 @@ function AuthenticatedApp({
       return;
     }
 
-    // Fallback: ensure parent refreshes shortly after popup closes.
+    // Fallback: refresh connection data after popup closes (regardless of outcome).
+    // Navigation is NOT triggered here — only the postMessage/localStorage handlers
+    // signal a confirmed success and call handleGmailConnected().
     const pollId = window.setInterval(() => {
       if (!popup.closed) return;
       window.clearInterval(pollId);
-      handleGmailConnected();
+      void queryClient.invalidateQueries({
+        queryKey: EMAIL_CONNECTIONS_QUERY_KEY,
+      });
     }, 500);
     window.setTimeout(() => window.clearInterval(pollId), 5 * 60_000);
-  }, [handleGmailConnected]);
+  }, [queryClient]);
 
   const handleReconnectGmail = useCallback(async (emailHint: string) => {
     const returnUrl = `${window.location.origin}/settings/email`;
