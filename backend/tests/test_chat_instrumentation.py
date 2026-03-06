@@ -295,6 +295,101 @@ class TestSpanPersistHistory:
 
 
 @pytest.mark.unit
+class TestSpanParenting:
+    """Verify that span context managers produce a proper parent-child tree."""
+
+    @pytest.fixture(autouse=True)
+    def _tracing(self, monkeypatch):
+        """Set up an in-memory tracing provider for each test."""
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export import (
+            SimpleSpanProcessor,
+            SpanExporter,
+            SpanExportResult,
+        )
+
+        self.collected: list = []
+        exporter_ref = self
+
+        class _InMemoryExporter(SpanExporter):
+            def export(self, spans):
+                exporter_ref.collected.extend(spans)
+                return SpanExportResult.SUCCESS
+
+            def shutdown(self):
+                pass
+
+        provider = TracerProvider()
+        provider.add_span_processor(SimpleSpanProcessor(_InMemoryExporter()))
+        tracer = provider.get_tracer("chat", "0.1.0")
+
+        monkeypatch.setattr(
+            "app.chat.instrumentation._get_tracer", lambda: tracer
+        )
+        yield
+        provider.shutdown()
+
+    def test_nested_spans_share_trace_id(self):
+        """span_db_setup and span_ensure_running inside span_chat_completions
+        must share the same trace_id and be children of the parent."""
+        ctx = _make_ctx()
+        with span_chat_completions(ctx):
+            with span_db_setup(ctx):
+                pass
+            with span_ensure_running(ctx):
+                pass
+
+        spans = self.collected
+        assert len(spans) == 3
+
+        trace_ids = {s.context.trace_id for s in spans}
+        assert len(trace_ids) == 1, f"Expected 1 trace, got {len(trace_ids)}"
+
+        by_name = {s.name: s for s in spans}
+        parent = by_name["backend.chat.completions"]
+        db = by_name["backend.chat.db_setup"]
+        ensure = by_name["backend.openclaw.ensure_running"]
+
+        assert db.parent is not None
+        assert db.parent.span_id == parent.context.span_id
+        assert ensure.parent is not None
+        assert ensure.parent.span_id == parent.context.span_id
+
+    def test_deeply_nested_spans(self):
+        """Spans nested three levels deep should form a proper chain."""
+        ctx = _make_ctx()
+        with span_chat_completions(ctx):
+            with span_db_setup(ctx):
+                with span_persist_history(ctx):
+                    pass
+
+        spans = self.collected
+        assert len(spans) == 3
+
+        trace_ids = {s.context.trace_id for s in spans}
+        assert len(trace_ids) == 1
+
+        by_name = {s.name: s for s in spans}
+        root = by_name["backend.chat.completions"]
+        mid = by_name["backend.chat.db_setup"]
+        leaf = by_name["backend.persistence.write_history"]
+
+        assert mid.parent.span_id == root.context.span_id
+        assert leaf.parent.span_id == mid.context.span_id
+
+    def test_graceful_without_otel(self, monkeypatch):
+        """When OTel tracer is unavailable, span functions yield None."""
+        monkeypatch.setattr(
+            "app.chat.instrumentation._get_tracer", lambda: None
+        )
+        ctx = _make_ctx()
+        with span_chat_completions(ctx) as s:
+            assert s is None
+            with span_db_setup(ctx) as s2:
+                assert s2 is None
+
+
+@pytest.mark.unit
 class TestSpanPersistOpenclawMemory:
     def test_does_not_raise_on_success(self):
         ctx = _make_ctx(agent_backend="openclaw")

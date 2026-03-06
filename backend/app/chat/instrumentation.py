@@ -38,16 +38,29 @@ def _get_tracer():
         return None
 
 
-def _start_span(name: str):
+@contextmanager
+def _span(name: str):
+    """Yield an OTel span that is a child of the current active span.
+
+    When the SDK is absent or tracing is disabled, yields ``None``.
+    """
     tracer = _get_tracer()
     if tracer is None:
-        return None
-    return tracer.start_span(name)
+        yield None
+        return
+    with tracer.start_as_current_span(name) as span:
+        yield span
 
 
-def _end_span(span) -> None:
-    if span is not None:
-        span.end()
+@asynccontextmanager
+async def _aspan(name: str):
+    """Async variant of :func:`_span`."""
+    tracer = _get_tracer()
+    if tracer is None:
+        yield None
+        return
+    with tracer.start_as_current_span(name) as span:
+        yield span
 
 
 def _fail_span(span, exc: Exception) -> None:
@@ -144,129 +157,117 @@ def _set_span_attrs(span, ctx: ChatContext) -> None:
 @contextmanager
 def span_chat_completions(ctx: ChatContext):
     """Top-level span wrapping the entire ``/chat/completions`` handler."""
-    span = _start_span("backend.chat.completions")
-    _set_span_attrs(span, ctx)
     start = time.monotonic()
     status = "success"
-    try:
-        yield span
-    except Exception as exc:
-        status = "error"
-        _fail_span(span, exc)
-        raise
-    finally:
-        duration = time.monotonic() - start
-        CHAT_REQUESTS_TOTAL.labels(backend=ctx.agent_backend, status=status).inc()
-        CHAT_REQUEST_DURATION_SECONDS.labels(backend=ctx.agent_backend, status=status).observe(
-            duration
-        )
-        _end_span(span)
-        logger.info(
-            "chat.completions.finished",
-            conversation_id=ctx.conversation_id,
-            request_id=ctx.request_id,
-            backend=ctx.agent_backend,
-            status=status,
-            duration_seconds=round(duration, 3),
-        )
+    with _span("backend.chat.completions") as span:
+        _set_span_attrs(span, ctx)
+        try:
+            yield span
+        except Exception as exc:
+            status = "error"
+            _fail_span(span, exc)
+            raise
+        finally:
+            duration = time.monotonic() - start
+            CHAT_REQUESTS_TOTAL.labels(backend=ctx.agent_backend, status=status).inc()
+            CHAT_REQUEST_DURATION_SECONDS.labels(backend=ctx.agent_backend, status=status).observe(
+                duration
+            )
+            logger.info(
+                "chat.completions.finished",
+                conversation_id=ctx.conversation_id,
+                request_id=ctx.request_id,
+                backend=ctx.agent_backend,
+                status=status,
+                duration_seconds=round(duration, 3),
+            )
 
 
 @contextmanager
 def span_db_setup(ctx: ChatContext):
     """Span for DB setup: conversation lookup, user message persist, history fetch."""
-    span = _start_span("backend.chat.db_setup")
-    _set_span_attrs(span, ctx)
-    try:
-        yield span
-    except Exception as exc:
-        _fail_span(span, exc)
-        raise
-    finally:
-        _end_span(span)
+    with _span("backend.chat.db_setup") as span:
+        _set_span_attrs(span, ctx)
+        try:
+            yield span
+        except Exception as exc:
+            _fail_span(span, exc)
+            raise
 
 
 @contextmanager
 def span_ensure_running(ctx: ChatContext):
     """Span for OpenClaw ``ensure_running()``."""
-    span = _start_span("backend.openclaw.ensure_running")
-    _set_span_attrs(span, ctx)
     start = time.monotonic()
     outcome = "success"
-    try:
-        yield span
-    except Exception as exc:
-        outcome = "failure"
-        _fail_span(span, exc)
-        raise
-    finally:
-        duration = time.monotonic() - start
-        CHAT_OPENCLAW_ENSURE_RUNNING_TOTAL.labels(outcome=outcome).inc()
-        CHAT_OPENCLAW_ENSURE_RUNNING_DURATION_SECONDS.labels(outcome=outcome).observe(duration)
-        if span is not None and span.is_recording():
-            span.set_attribute("openclaw.outcome", outcome)
-        _end_span(span)
-        logger.info(
-            "chat.openclaw.ensure_running",
-            conversation_id=ctx.conversation_id,
-            outcome=outcome,
-            duration_seconds=round(duration, 3),
-        )
+    with _span("backend.openclaw.ensure_running") as span:
+        _set_span_attrs(span, ctx)
+        try:
+            yield span
+        except Exception as exc:
+            outcome = "failure"
+            _fail_span(span, exc)
+            raise
+        finally:
+            duration = time.monotonic() - start
+            CHAT_OPENCLAW_ENSURE_RUNNING_TOTAL.labels(outcome=outcome).inc()
+            CHAT_OPENCLAW_ENSURE_RUNNING_DURATION_SECONDS.labels(outcome=outcome).observe(duration)
+            if span is not None and span.is_recording():
+                span.set_attribute("openclaw.outcome", outcome)
+            logger.info(
+                "chat.openclaw.ensure_running",
+                conversation_id=ctx.conversation_id,
+                outcome=outcome,
+                duration_seconds=round(duration, 3),
+            )
 
 
 @contextmanager
 def span_openrouter_request(ctx: ChatContext):
     """Span for the upstream request to the agents/Haystack service."""
-    span = _start_span("backend.openrouter.request")
-    _set_span_attrs(span, ctx)
-    try:
-        yield span
-    except Exception as exc:
-        _fail_span(span, exc)
-        raise
-    finally:
-        _end_span(span)
+    with _span("backend.openrouter.request") as span:
+        _set_span_attrs(span, ctx)
+        try:
+            yield span
+        except Exception as exc:
+            _fail_span(span, exc)
+            raise
 
 
 @asynccontextmanager
 async def span_openclaw_exec(ctx: ChatContext):
     """Span for the OpenClaw SSE streaming call."""
-    span = _start_span("backend.openclaw.exec")
-    _set_span_attrs(span, ctx)
-    try:
-        yield span
-    except Exception as exc:
-        _fail_span(span, exc)
-        raise
-    finally:
-        _end_span(span)
+    async with _aspan("backend.openclaw.exec") as span:
+        _set_span_attrs(span, ctx)
+        try:
+            yield span
+        except Exception as exc:
+            _fail_span(span, exc)
+            raise
 
 
 @contextmanager
 def span_persist_history(ctx: ChatContext):
     """Span for persisting the assistant message to chat_messages."""
-    span = _start_span("backend.persistence.write_history")
-    _set_span_attrs(span, ctx)
-    try:
-        yield span
-    except Exception as exc:
-        _fail_span(span, exc)
-        raise
-    finally:
-        _end_span(span)
+    with _span("backend.persistence.write_history") as span:
+        _set_span_attrs(span, ctx)
+        try:
+            yield span
+        except Exception as exc:
+            _fail_span(span, exc)
+            raise
 
 
 @contextmanager
 def span_persist_openclaw_memory(ctx: ChatContext):
     """Span for syncing OpenClaw workspace memory to DB."""
-    span = _start_span("backend.persistence.write_openclaw_memory")
-    _set_span_attrs(span, ctx)
-    try:
-        yield span
-    except Exception as exc:
-        _fail_span(span, exc)
-        raise
-    finally:
-        _end_span(span)
+    with _span("backend.persistence.write_openclaw_memory") as span:
+        _set_span_attrs(span, ctx)
+        try:
+            yield span
+        except Exception as exc:
+            _fail_span(span, exc)
+            raise
 
 
 # ---------------------------------------------------------------------------
