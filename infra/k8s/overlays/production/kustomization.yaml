@@ -11,20 +11,20 @@ resources:
 images:
   - name: project-backend
     newName: registry.onstackit.cloud/senticor/project/backend
-    newTag: "45bdbb05e7ea6f23f15da608f680acc0b14ea337"
+    newTag: "740884f717e5c3e1013c20c673c0cca032f04a4c"
   - name: project-frontend
     newName: registry.onstackit.cloud/senticor/project/frontend
-    newTag: "45bdbb05e7ea6f23f15da608f680acc0b14ea337"
+    newTag: "740884f717e5c3e1013c20c673c0cca032f04a4c"
   - name: project-storybook
     newName: registry.onstackit.cloud/senticor/project/storybook
-    newTag: "45bdbb05e7ea6f23f15da608f680acc0b14ea337"
+    newTag: "740884f717e5c3e1013c20c673c0cca032f04a4c"
   # project-agents disabled — Copilot/Haystack not in use, OpenClaw is active
   # - name: project-agents
   #   newName: registry.onstackit.cloud/senticor/project/agents
-  #   newTag: "45bdbb05e7ea6f23f15da608f680acc0b14ea337"
+  #   newTag: "740884f717e5c3e1013c20c673c0cca032f04a4c"
   - name: project-openclaw
     newName: registry.onstackit.cloud/senticor/project/openclaw
-    newTag: "45bdbb05e7ea6f23f15da608f680acc0b14ea337"
+    newTag: "740884f717e5c3e1013c20c673c0cca032f04a4c"
 
 patches:
   - path: patches/backend.yaml
