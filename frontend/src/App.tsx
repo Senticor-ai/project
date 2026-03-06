@@ -379,7 +379,9 @@ function AuthenticatedApp({
       return;
     }
 
-    // Fallback: ensure parent refreshes shortly after popup closes.
+    // Fallback: refresh connection data after popup closes (regardless of outcome).
+    // Navigation is NOT triggered here — only the postMessage/localStorage handlers
+    // signal a confirmed success and call handleGmailConnected().
     const pollId = window.setInterval(() => {
       if (!popup.closed) return;
       window.clearInterval(pollId);
@@ -417,8 +419,8 @@ function AuthenticatedApp({
     } catch {
       // ignore
     }
-    window.close();
     handleGmailConnected();
+    window.close();
 
     params.delete("gmail");
     const clean =

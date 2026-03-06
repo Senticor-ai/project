@@ -12,7 +12,7 @@ export default defineConfig({
     : [["html", { open: "on-failure" }]],
   use: {
     baseURL: process.env.E2E_BASE_URL ?? "http://project.localhost:5173",
-    locale: "de-DE",
+    locale: "en",
     ignoreHTTPSErrors: true,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
