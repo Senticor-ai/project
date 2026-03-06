@@ -2,7 +2,7 @@
 """Container integration smoke tests for CI.
 
 Validates that the just-built container images can:
-1. Start and serve health endpoints (all 5 services)
+1. Start and serve health endpoints (backend, frontend, storybook, openclaw)
 2. Proxy API requests through nginx
 3. Handle user registration/login flows
 4. Perform basic CRUD operations with correct response shapes
@@ -83,11 +83,6 @@ def test_backend_schema_health(backend: httpx.Client) -> None:
             f"backend /health/schema degraded: missing={data.get('missing_tables')}, "
             f"warnings={data.get('warnings')}"
         )
-
-
-def test_agents_health(agents: httpx.Client) -> None:
-    data = _require_ok(agents.get("/health"), "agents /health")
-    assert data.get("status") == "ok", f"agents /health status: {data}"
 
 
 def test_frontend_serves(frontend: httpx.Client) -> None:
@@ -265,7 +260,6 @@ COMPOSE_FILE = "infra/docker-compose.ci-test.yml"
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--backend-url", default="http://localhost:8000")
-    parser.add_argument("--agents-url", default="http://localhost:8002")
     parser.add_argument("--frontend-url", default="http://localhost:8080")
     parser.add_argument("--storybook-url", default="http://localhost:6006")
     parser.add_argument("--compose-file", default=COMPOSE_FILE)
@@ -276,7 +270,6 @@ def main() -> None:
 
     with (
         httpx.Client(base_url=args.backend_url, timeout=30) as backend,
-        httpx.Client(base_url=args.agents_url, timeout=30) as agents,
         httpx.Client(base_url=args.frontend_url, timeout=30) as frontend,
         httpx.Client(base_url=args.storybook_url, timeout=30) as storybook,
     ):
@@ -284,7 +277,6 @@ def main() -> None:
         print("Waiting for services to become ready...")
         waits = [
             (backend, "/health"),
-            (agents, "/health"),
             (frontend, "/"),
             (storybook, "/healthz"),
         ]
@@ -304,7 +296,6 @@ def main() -> None:
         tier1: list[tuple[str, object]] = [
             ("backend_health", lambda: test_backend_health(backend)),
             ("backend_schema_health", lambda: test_backend_schema_health(backend)),
-            ("agents_health", lambda: test_agents_health(agents)),
             ("frontend_serves", lambda: test_frontend_serves(frontend)),
             ("storybook_health", lambda: test_storybook_health(storybook)),
             ("openclaw_running", lambda: test_openclaw_running(args.compose_file)),

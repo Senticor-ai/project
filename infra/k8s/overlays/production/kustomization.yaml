@@ -18,9 +18,10 @@ images:
   - name: project-storybook
     newName: registry.onstackit.cloud/senticor/project/storybook
     newTag: "45bdbb05e7ea6f23f15da608f680acc0b14ea337"
-  - name: project-agents
-    newName: registry.onstackit.cloud/senticor/project/agents
-    newTag: "45bdbb05e7ea6f23f15da608f680acc0b14ea337"
+  # project-agents disabled — Copilot/Haystack not in use, OpenClaw is active
+  # - name: project-agents
+  #   newName: registry.onstackit.cloud/senticor/project/agents
+  #   newTag: "45bdbb05e7ea6f23f15da608f680acc0b14ea337"
   - name: project-openclaw
     newName: registry.onstackit.cloud/senticor/project/openclaw
     newTag: "45bdbb05e7ea6f23f15da608f680acc0b14ea337"

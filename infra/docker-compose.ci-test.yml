@@ -50,7 +50,7 @@ services:
       POSTGRES_PASSWORD: ci-test-password
       JWT_SECRET: ci-test-jwt-secret-at-least-32-bytes!!
       DELEGATION_JWT_SECRET: ci-test-jwt-secret-at-least-32-bytes!!
-      AGENTS_URL: "http://agents:8002"
+      # AGENTS_URL: "http://agents:8002"  # agents container commented out
       CORS_ORIGINS: "http://localhost:8080,http://frontend:80"
       CSRF_ENABLED: "false"
       SESSION_COOKIE_SECURE: "false"
@@ -67,21 +67,21 @@ services:
       retries: 10
       start_period: 5s
 
-  agents:
-    image: ${AGENTS_IMAGE}
-    depends_on:
-      backend:
-        condition: service_healthy
-    ports:
-      - "8002:8002"
-    environment:
-      SECRETS_BACKEND: env
-    healthcheck:
-      test: ["CMD", "wget", "-qO", "/dev/null", "http://localhost:8002/health"]
-      interval: 3s
-      timeout: 3s
-      retries: 10
-      start_period: 5s
+  # agents: commented out — replaced by openclaw
+  #   image: ${AGENTS_IMAGE}
+  #   depends_on:
+  #     backend:
+  #       condition: service_healthy
+  #   ports:
+  #     - "8002:8002"
+  #   environment:
+  #     SECRETS_BACKEND: env
+  #   healthcheck:
+  #     test: ["CMD", "wget", "-qO", "/dev/null", "http://localhost:8002/health"]
+  #     interval: 3s
+  #     timeout: 3s
+  #     retries: 10
+  #     start_period: 5s
 
   frontend:
     image: ${FRONTEND_IMAGE}
@@ -95,12 +95,8 @@ services:
     image: ${STORYBOOK_IMAGE}
     ports:
       - "6006:80"
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:80/healthz || curl -sf http://localhost:80/healthz > /dev/null"]
-      interval: 3s
-      timeout: 3s
-      retries: 10
-      start_period: 3s
+    # Healthcheck removed: minimal Alpine image has no wget/curl.
+    # Readiness is verified externally by smoke-container-integration.py.
 
   openclaw:
     image: ${OPENCLAW_IMAGE}
