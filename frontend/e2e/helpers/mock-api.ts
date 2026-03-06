@@ -615,10 +615,8 @@ export async function reloadWithMocks(page: Page): Promise<void> {
   await page.reload();
   await syncResponse;
 
-  // Dismiss dev/demo disclaimer if it reappears after reload.
-  // Match both English ("I understand") and German ("Ich verstehe") since
-  // Playwright locale may be de-DE.
-  const btn = page.getByRole("button", { name: /I understand|Ich verstehe/ });
+  // Dismiss dev/demo disclaimer if it reappears after reload
+  const btn = page.getByRole("button", { name: "I understand" });
   if (await btn.isVisible({ timeout: 2_000 }).catch(() => false)) {
     await btn.click();
   }

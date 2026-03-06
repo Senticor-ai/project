@@ -383,12 +383,10 @@ function AuthenticatedApp({
     const pollId = window.setInterval(() => {
       if (!popup.closed) return;
       window.clearInterval(pollId);
-      void queryClient.invalidateQueries({
-        queryKey: EMAIL_CONNECTIONS_QUERY_KEY,
-      });
+      handleGmailConnected();
     }, 500);
     window.setTimeout(() => window.clearInterval(pollId), 5 * 60_000);
-  }, [queryClient]);
+  }, [handleGmailConnected]);
 
   const handleReconnectGmail = useCallback(async (emailHint: string) => {
     const returnUrl = `${window.location.origin}/settings/email`;
@@ -417,8 +415,8 @@ function AuthenticatedApp({
     } catch {
       // ignore
     }
-    window.close();
     handleGmailConnected();
+    window.close();
 
     params.delete("gmail");
     const clean =
