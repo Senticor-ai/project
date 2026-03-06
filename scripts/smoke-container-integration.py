@@ -95,30 +95,31 @@ def test_storybook_health(storybook: httpx.Client) -> None:
     assert r.status_code == 200, f"storybook /healthz returned {r.status_code}"
 
 
-def test_openclaw_running(compose_file: str) -> None:
+def test_openclaw_running(compose_project: str) -> None:
     """Verify the OpenClaw container started and is still running.
 
     OpenClaw only becomes fully functional when a user requests a chat
     session, so we can't hit an HTTP endpoint. Instead we check that the
     container process didn't crash on startup.
+
+    Uses ``docker ps --filter`` instead of ``docker compose ps`` to avoid
+    needing the image environment variables that the compose file requires.
     """
     result = subprocess.run(
         [
             "docker",
-            "compose",
-            "-f",
-            compose_file,
             "ps",
+            "--filter",
+            f"name={compose_project}-openclaw",
             "--format",
             "json",
-            "openclaw",
         ],
         capture_output=True,
         text=True,
         check=False,
     )
     if result.returncode != 0:
-        raise AssertionError(f"docker compose ps failed: {result.stderr}")
+        raise AssertionError(f"docker ps failed: {result.stderr}")
     output = result.stdout.strip()
     if not output:
         raise AssertionError("openclaw container not found in compose stack")
@@ -234,6 +235,9 @@ def test_items_crud(frontend: httpx.Client, org_id: str) -> None:
                 "@id": canonical_id,
                 "@type": "Action",
                 "name": "CI smoke test item",
+                "additionalProperty": [
+                    {"propertyID": "app:bucket", "value": "inbox"},
+                ],
             },
         },
     )
@@ -254,7 +258,7 @@ def test_items_crud(frontend: httpx.Client, org_id: str) -> None:
 # Runner
 # ---------------------------------------------------------------------------
 
-COMPOSE_FILE = "infra/docker-compose.ci-test.yml"
+COMPOSE_PROJECT = "project-ci-test"
 
 
 def main() -> None:
@@ -262,7 +266,7 @@ def main() -> None:
     parser.add_argument("--backend-url", default="http://localhost:8000")
     parser.add_argument("--frontend-url", default="http://localhost:8080")
     parser.add_argument("--storybook-url", default="http://localhost:6006")
-    parser.add_argument("--compose-file", default=COMPOSE_FILE)
+    parser.add_argument("--compose-project", default=COMPOSE_PROJECT)
     parser.add_argument("--wait-seconds", type=int, default=120)
     args = parser.parse_args()
 
@@ -298,7 +302,7 @@ def main() -> None:
             ("backend_schema_health", lambda: test_backend_schema_health(backend)),
             ("frontend_serves", lambda: test_frontend_serves(frontend)),
             ("storybook_health", lambda: test_storybook_health(storybook)),
-            ("openclaw_running", lambda: test_openclaw_running(args.compose_file)),
+            ("openclaw_running", lambda: test_openclaw_running(args.compose_project)),
         ]
         for name, fn in tier1:
             try:
