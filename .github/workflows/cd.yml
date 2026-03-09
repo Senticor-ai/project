@@ -280,7 +280,7 @@ jobs:
     timeout-minutes: 8
     steps:
       # nosemgrep: yaml.github-actions.security.workflow-run-target-code-checkout.workflow-run-target-code-checkout
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - name: Authenticate to StackIT registry
