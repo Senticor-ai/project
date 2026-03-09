@@ -333,7 +333,7 @@ jobs:
         run: curl -sf http://localhost:8000/openapi.json -o /tmp/openapi.json || echo "OpenAPI spec not available; ZAP will crawl only"
 
       - name: ZAP baseline scan (Frontend)
-        uses: zaproxy/action-baseline@2b5fc7f98d837319798ab7f128ea50b7d40563b6 # v0.14.0
+        uses: zaproxy/action-baseline@7c4deb10e6261301961c86d65d54a516394f9aed # v0.14.0
         with:
           target: http://localhost:5173
           rules_file_name: ''
@@ -343,7 +343,7 @@ jobs:
         continue-on-error: true
 
       - name: ZAP baseline scan (API)
-        uses: zaproxy/action-baseline@2b5fc7f98d837319798ab7f128ea50b7d40563b6 # v0.14.0
+        uses: zaproxy/action-baseline@7c4deb10e6261301961c86d65d54a516394f9aed # v0.14.0
         with:
           target: http://localhost:8000
           rules_file_name: ''
