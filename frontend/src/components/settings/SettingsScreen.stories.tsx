@@ -13,6 +13,9 @@ const meta = {
       </div>
     ),
   ],
+  args: {
+    email: "beamte@bundesamt.de",
+  },
 } satisfies Meta<typeof SettingsScreen>;
 
 export default meta;
@@ -32,7 +35,7 @@ export const Default: Story = {
 
 export const EmailTab: Story = {
   args: {
-    initialTab: "email",
+    initialTab: "sync",
   },
 };
 
@@ -42,7 +45,7 @@ export const EmailTab: Story = {
 
 export const EmailTabConnected: Story = {
   args: {
-    initialTab: "email",
+    initialTab: "sync",
     emailConnections: [
       {
         connection_id: "conn-1",
@@ -137,7 +140,7 @@ export const DeveloperTab: Story = {
 export const EmailTabConnectedMobile: Story = {
   globals: { viewport: { value: "iphone14", isRotated: false } },
   args: {
-    initialTab: "email",
+    initialTab: "sync",
     emailConnections: [
       {
         connection_id: "conn-1",

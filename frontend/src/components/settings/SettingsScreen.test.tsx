@@ -4,10 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement, type ReactNode } from "react";
 import { SettingsScreen } from "./SettingsScreen";
-import {
-  setMobileViewport,
-  restoreViewport,
-} from "@/test/mobile-viewport";
+import { setMobileViewport, restoreViewport } from "@/test/mobile-viewport";
 
 vi.mock("@/hooks/use-pwa-storage-stats", () => ({
   usePwaStorageStats: vi.fn(() => ({
@@ -39,7 +36,7 @@ function createWrapper() {
 
 describe("SettingsScreen", () => {
   it("renders with Import / Export tab active by default", () => {
-    render(<SettingsScreen />);
+    render(<SettingsScreen email="test@example.com" />);
     // ImportExportPanel has Import and Export section headings
     expect(
       screen.getByRole("button", { name: "Import from Nirvana" }),
@@ -53,7 +50,7 @@ describe("SettingsScreen", () => {
   });
 
   it("renders all tab labels", () => {
-    render(<SettingsScreen />);
+    render(<SettingsScreen email="test@example.com" />);
     expect(screen.getByText("Import / Export")).toBeInTheDocument();
     expect(screen.getByText("3rd Party Sync")).toBeInTheDocument();
     expect(screen.getByText("Labels & Contexts")).toBeInTheDocument();
@@ -62,7 +59,7 @@ describe("SettingsScreen", () => {
 
   it("switches to Labels tab when clicked", async () => {
     const user = userEvent.setup();
-    render(<SettingsScreen />);
+    render(<SettingsScreen email="test@example.com" />);
     await user.click(screen.getByText("Labels & Contexts"));
 
     const labelsTab = screen.getByText("Labels & Contexts").closest("button")!;
@@ -72,7 +69,7 @@ describe("SettingsScreen", () => {
 
   it("switches to Preferences tab when clicked", async () => {
     const user = userEvent.setup();
-    render(<SettingsScreen />);
+    render(<SettingsScreen email="test@example.com" />);
     await user.click(screen.getByText("Preferences"));
 
     const prefsTab = screen.getByText("Preferences").closest("button")!;
@@ -81,14 +78,16 @@ describe("SettingsScreen", () => {
   });
 
   it("renders with initialTab=labels", () => {
-    render(<SettingsScreen initialTab="labels" />);
+    render(<SettingsScreen initialTab="labels" email="test@example.com" />);
     const labelsTab = screen.getByText("Labels & Contexts").closest("button")!;
     expect(labelsTab).toHaveAttribute("aria-selected", "true");
     expect(screen.getByText("Context Labels")).toBeInTheDocument();
   });
 
   it("renders with initialTab=preferences", () => {
-    render(<SettingsScreen initialTab="preferences" />);
+    render(
+      <SettingsScreen initialTab="preferences" email="test@example.com" />,
+    );
     const prefsTab = screen.getByText("Preferences").closest("button")!;
     expect(prefsTab).toHaveAttribute("aria-selected", "true");
     expect(screen.getByText("Language & Regional")).toBeInTheDocument();
@@ -96,7 +95,9 @@ describe("SettingsScreen", () => {
 
   it("switches to Developer tab when clicked", async () => {
     const user = userEvent.setup();
-    render(<SettingsScreen />, { wrapper: createWrapper() });
+    render(<SettingsScreen email="test@example.com" />, {
+      wrapper: createWrapper(),
+    });
     await user.click(screen.getByText("Developer"));
 
     const devTab = screen.getByText("Developer").closest("button")!;
@@ -106,9 +107,16 @@ describe("SettingsScreen", () => {
   it("works in controlled mode with activeTab and onTabChange", async () => {
     const onTabChange = vi.fn();
     const user = userEvent.setup();
-    render(<SettingsScreen activeTab="labels" onTabChange={onTabChange} />, {
-      wrapper: createWrapper(),
-    });
+    render(
+      <SettingsScreen
+        activeTab="labels"
+        onTabChange={onTabChange}
+        email="test@example.com"
+      />,
+      {
+        wrapper: createWrapper(),
+      },
+    );
 
     expect(screen.getByText("Context Labels")).toBeInTheDocument();
 
@@ -117,7 +125,7 @@ describe("SettingsScreen", () => {
   });
 
   it("renders all five tab labels including 3rd Party Sync and Developer", () => {
-    render(<SettingsScreen />);
+    render(<SettingsScreen email="test@example.com" />);
     expect(screen.getByText("Import / Export")).toBeInTheDocument();
     expect(screen.getByText("3rd Party Sync")).toBeInTheDocument();
     expect(screen.getByText("Labels & Contexts")).toBeInTheDocument();
@@ -127,7 +135,7 @@ describe("SettingsScreen", () => {
 
   it("switches to Email tab when clicked", async () => {
     const user = userEvent.setup();
-    render(<SettingsScreen />);
+    render(<SettingsScreen email="test@example.com" />);
     await user.click(screen.getByText("3rd Party Sync"));
 
     const emailTab = screen.getByRole("tab", { name: "3rd Party Sync" });
@@ -139,7 +147,7 @@ describe("SettingsScreen", () => {
 
   it("can add and remove contexts in the Labels tab", async () => {
     const user = userEvent.setup();
-    render(<SettingsScreen initialTab="labels" />);
+    render(<SettingsScreen initialTab="labels" email="test@example.com" />);
 
     expect(screen.getByText("@Buero")).toBeInTheDocument();
 
@@ -155,7 +163,7 @@ describe("SettingsScreen", () => {
 
   it("can add and remove tags in the Labels tab", async () => {
     const user = userEvent.setup();
-    render(<SettingsScreen initialTab="labels" />);
+    render(<SettingsScreen initialTab="labels" email="test@example.com" />);
 
     const tagInput = screen.getByPlaceholderText("New tag...");
     await user.type(tagInput, "urgent");
@@ -177,21 +185,21 @@ describe("SettingsScreen mobile layout", () => {
 
   it("renders horizontal tabs on mobile", () => {
     setMobileViewport(true);
-    render(<SettingsScreen />);
+    render(<SettingsScreen email="test@example.com" />);
     const tablist = screen.getByRole("tablist");
     expect(tablist).toHaveAttribute("aria-orientation", "horizontal");
   });
 
   it("renders vertical tabs on desktop", () => {
     setMobileViewport(false);
-    render(<SettingsScreen />);
+    render(<SettingsScreen email="test@example.com" />);
     const tablist = screen.getByRole("tablist");
     expect(tablist).toHaveAttribute("aria-orientation", "vertical");
   });
 
   it("does not apply sidebar width class on mobile", () => {
     setMobileViewport(true);
-    render(<SettingsScreen />);
+    render(<SettingsScreen email="test@example.com" />);
     const tablist = screen.getByRole("tablist");
     expect(tablist.className).not.toContain("w-56");
   });

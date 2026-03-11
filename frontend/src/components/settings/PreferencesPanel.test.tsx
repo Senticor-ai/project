@@ -5,9 +5,25 @@ import { PreferencesPanel } from "./PreferencesPanel";
 import { DEFAULT_PREFERENCES } from "@/model/settings-types";
 
 describe("PreferencesPanel", () => {
+  it("displays the user email in the Account section", () => {
+    render(
+      <PreferencesPanel
+        preferences={DEFAULT_PREFERENCES}
+        onChange={vi.fn()}
+        email="user@example.com"
+      />,
+    );
+    expect(screen.getByText("user@example.com")).toBeInTheDocument();
+    expect(screen.getByText("Account")).toBeInTheDocument();
+  });
+
   it("renders language select with current value", () => {
     render(
-      <PreferencesPanel preferences={DEFAULT_PREFERENCES} onChange={vi.fn()} />,
+      <PreferencesPanel
+        preferences={DEFAULT_PREFERENCES}
+        onChange={vi.fn()}
+        email="test@example.com"
+      />,
     );
     const select = screen.getByLabelText("Language");
     expect(select).toHaveValue("de");
@@ -20,6 +36,7 @@ describe("PreferencesPanel", () => {
       <PreferencesPanel
         preferences={DEFAULT_PREFERENCES}
         onChange={onChange}
+        email="test@example.com"
       />,
     );
     await user.selectOptions(screen.getByLabelText("Language"), "en");
@@ -28,7 +45,11 @@ describe("PreferencesPanel", () => {
 
   it("renders time format button group with active selection", () => {
     render(
-      <PreferencesPanel preferences={DEFAULT_PREFERENCES} onChange={vi.fn()} />,
+      <PreferencesPanel
+        preferences={DEFAULT_PREFERENCES}
+        onChange={vi.fn()}
+        email="test@example.com"
+      />,
     );
     const btn24 = screen.getByRole("button", { name: "24h" });
     const btn12 = screen.getByRole("button", { name: "12h" });
@@ -43,6 +64,7 @@ describe("PreferencesPanel", () => {
       <PreferencesPanel
         preferences={DEFAULT_PREFERENCES}
         onChange={onChange}
+        email="test@example.com"
       />,
     );
     await user.click(screen.getByRole("button", { name: "12h" }));
@@ -51,28 +73,44 @@ describe("PreferencesPanel", () => {
 
   it("renders date format select", () => {
     render(
-      <PreferencesPanel preferences={DEFAULT_PREFERENCES} onChange={vi.fn()} />,
+      <PreferencesPanel
+        preferences={DEFAULT_PREFERENCES}
+        onChange={vi.fn()}
+        email="test@example.com"
+      />,
     );
     expect(screen.getByLabelText("Date format")).toHaveValue("DD.MM.YYYY");
   });
 
   it("renders week start select", () => {
     render(
-      <PreferencesPanel preferences={DEFAULT_PREFERENCES} onChange={vi.fn()} />,
+      <PreferencesPanel
+        preferences={DEFAULT_PREFERENCES}
+        onChange={vi.fn()}
+        email="test@example.com"
+      />,
     );
     expect(screen.getByLabelText("Week start")).toHaveValue("monday");
   });
 
   it("renders default bucket select", () => {
     render(
-      <PreferencesPanel preferences={DEFAULT_PREFERENCES} onChange={vi.fn()} />,
+      <PreferencesPanel
+        preferences={DEFAULT_PREFERENCES}
+        onChange={vi.fn()}
+        email="test@example.com"
+      />,
     );
     expect(screen.getByLabelText("Default view")).toHaveValue("inbox");
   });
 
   it("renders theme button group", () => {
     render(
-      <PreferencesPanel preferences={DEFAULT_PREFERENCES} onChange={vi.fn()} />,
+      <PreferencesPanel
+        preferences={DEFAULT_PREFERENCES}
+        onChange={vi.fn()}
+        email="test@example.com"
+      />,
     );
     expect(screen.getByRole("button", { name: "Light" })).toHaveAttribute(
       "aria-pressed",
@@ -95,6 +133,7 @@ describe("PreferencesPanel", () => {
       <PreferencesPanel
         preferences={DEFAULT_PREFERENCES}
         onChange={onChange}
+        email="test@example.com"
       />,
     );
     // review day should be hidden when review is disabled
@@ -110,6 +149,7 @@ describe("PreferencesPanel", () => {
       <PreferencesPanel
         preferences={{ ...DEFAULT_PREFERENCES, weeklyReviewEnabled: true }}
         onChange={vi.fn()}
+        email="test@example.com"
       />,
     );
     expect(screen.getByLabelText("Review day")).toBeInTheDocument();
@@ -122,6 +162,7 @@ describe("PreferencesPanel", () => {
       <PreferencesPanel
         preferences={DEFAULT_PREFERENCES}
         onChange={onChange}
+        email="test@example.com"
       />,
     );
     await user.selectOptions(
@@ -138,6 +179,7 @@ describe("PreferencesPanel", () => {
       <PreferencesPanel
         preferences={DEFAULT_PREFERENCES}
         onChange={onChange}
+        email="test@example.com"
       />,
     );
     await user.selectOptions(screen.getByLabelText("Week start"), "sunday");
@@ -151,6 +193,7 @@ describe("PreferencesPanel", () => {
       <PreferencesPanel
         preferences={DEFAULT_PREFERENCES}
         onChange={onChange}
+        email="test@example.com"
       />,
     );
     await user.selectOptions(screen.getByLabelText("Default view"), "next");
@@ -164,6 +207,7 @@ describe("PreferencesPanel", () => {
       <PreferencesPanel
         preferences={DEFAULT_PREFERENCES}
         onChange={onChange}
+        email="test@example.com"
       />,
     );
     await user.click(screen.getByRole("button", { name: "Dark" }));
@@ -177,6 +221,7 @@ describe("PreferencesPanel", () => {
       <PreferencesPanel
         preferences={{ ...DEFAULT_PREFERENCES, weeklyReviewEnabled: true }}
         onChange={onChange}
+        email="test@example.com"
       />,
     );
     await user.selectOptions(screen.getByLabelText("Review day"), "friday");

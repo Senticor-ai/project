@@ -75,6 +75,7 @@ export function ItemEditor({
           ref={notesRef}
           aria-label="Notes"
           submitOnEnter={false}
+          rows={2}
           defaultValue={values.description ?? ""}
           onBlur={(e) => {
             const val = e.currentTarget.value;
@@ -83,7 +84,7 @@ export function ItemEditor({
             }
           }}
           placeholder="Add notes..."
-          className="w-full rounded-[var(--radius-sm)] border border-border bg-surface px-2 py-1 text-xs"
+          className="w-full max-h-48 overflow-y-auto rounded-[var(--radius-sm)] border border-border bg-surface px-2 py-1 text-xs"
         />
       </div>
 

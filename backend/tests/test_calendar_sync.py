@@ -100,7 +100,8 @@ def test_backfill_creates_calendar_items_and_persists_sync_token(
 
     assert mock_events_list.call_count == 1
     call_kwargs = mock_events_list.call_args.kwargs
-    assert call_kwargs.get("calendar_id") == "primary"
+    # "primary" is resolved to the connection email at sync time
+    assert call_kwargs.get("calendar_id") == "calendar-sync@example.com"
     time_min = call_kwargs.get("time_min")
     time_max = call_kwargs.get("time_max")
     assert isinstance(time_min, str)
@@ -125,14 +126,18 @@ def test_backfill_creates_calendar_items_and_persists_sync_token(
 
             cur.execute(
                 """
-                SELECT calendar_sync_token, last_calendar_sync_event_count, last_calendar_sync_error
+                SELECT calendar_sync_token, calendar_sync_tokens,
+                       last_calendar_sync_event_count, last_calendar_sync_error
                 FROM email_connections
                 WHERE connection_id = %s
                 """,
                 (conn_id,),
             )
             state_row = cur.fetchone()
-            assert state_row["calendar_sync_token"] == "sync-token-1"
+            # "primary" resolved to email, so the token is under the email key
+            assert state_row["calendar_sync_tokens"] == {
+                "calendar-sync@example.com": "sync-token-1",
+            }
             assert state_row["last_calendar_sync_event_count"] == 2
             assert state_row["last_calendar_sync_error"] is None
 
@@ -347,9 +352,13 @@ def test_syncs_only_opted_in_calendars_and_persists_per_calendar_tokens(
             )
         conn.commit()
 
+    # "primary" is resolved to the connection email_address at runtime,
+    # so the API call uses "calendar-sync@example.com" instead of "primary".
+    resolved_email = "calendar-sync@example.com"
+
     def _events_side_effect(_access_token, **kwargs):
         calendar_id = kwargs.get("calendar_id")
-        if calendar_id == "primary":
+        if calendar_id == resolved_email:
             return {
                 "items": [_make_event("evt_primary_1", summary="Primary Meeting")],
                 "nextSyncToken": "tok-primary",
@@ -376,7 +385,7 @@ def test_syncs_only_opted_in_calendars_and_persists_per_calendar_tokens(
     called_calendar_ids = {
         call.kwargs.get("calendar_id") for call in mock_events_list.call_args_list
     }
-    assert called_calendar_ids == {"primary", "team@group.calendar.google.com"}
+    assert called_calendar_ids == {resolved_email, "team@group.calendar.google.com"}
 
     with db_conn() as conn:
         with conn.cursor() as cur:
@@ -387,9 +396,9 @@ def test_syncs_only_opted_in_calendars_and_persists_per_calendar_tokens(
                 WHERE org_id = %s
                   AND source = 'google_calendar'
                   AND schema_jsonld -> 'sourceMetadata' -> 'raw' ->> 'calendarId'
-                    IN ('primary', 'team@group.calendar.google.com')
+                    IN (%s, 'team@group.calendar.google.com')
                 """,
-                (org_id,),
+                (org_id, resolved_email),
             )
             row = cur.fetchone()
             assert row["cnt"] == 2
@@ -404,9 +413,55 @@ def test_syncs_only_opted_in_calendars_and_persists_per_calendar_tokens(
             )
             state = cur.fetchone()
             assert state["calendar_sync_tokens"] == {
-                "primary": "tok-primary",
+                resolved_email: "tok-primary",
                 "team@group.calendar.google.com": "tok-team",
             }
+
+
+@patch("app.email.calendar_sync.google_calendar_api.events_list")
+def test_primary_is_resolved_to_email_preventing_duplicate_canonical_ids(
+    mock_events_list,
+    calendar_connection,
+):
+    """When calendar_selected_ids contains 'primary', the sync should resolve
+    it to the connection email_address so that canonical IDs are stable and
+    the same event is not duplicated under two different canonical IDs."""
+    conn_id, org_id, user_id = calendar_connection
+
+    mock_events_list.return_value = {
+        "items": [_make_event("evt_resolve_1", summary="Resolved Event")],
+        "nextSyncToken": "tok-resolved",
+    }
+
+    result = run_calendar_sync(
+        connection_id=conn_id,
+        org_id=org_id,
+        user_id=user_id,
+        access_token="test-access-token",
+    )
+    assert result.created == 1
+
+    # The API should be called with the resolved email, not "primary"
+    call_kwargs = mock_events_list.call_args.kwargs
+    assert call_kwargs.get("calendar_id") == "calendar-sync@example.com"
+
+    # The canonical_id should use the email, not "primary"
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT canonical_id
+                FROM items
+                WHERE org_id = %s
+                  AND source = 'google_calendar'
+                  AND schema_jsonld -> 'sourceMetadata' -> 'raw' ->> 'eventId' = 'evt_resolve_1'
+                """,
+                (org_id,),
+            )
+            row = cur.fetchone()
+            assert row is not None
+            assert "calendar-sync@example.com" in row["canonical_id"]
+            assert "primary" not in row["canonical_id"]
 
 
 @patch("app.email.calendar_sync.google_calendar_api.events_list")

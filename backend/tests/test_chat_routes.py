@@ -249,10 +249,10 @@ class TestChatCompletions:
                     "timezone": "Europe/Berlin",
                     "locale": "de-DE",
                     "localTime": "2026-02-24T14:00:00+01:00",
-                    "currentPath": "/settings/email",
-                    "currentUrl": "http://project.localhost:5173/settings/email",
+                    "currentPath": "/settings/sync",
+                    "currentUrl": "http://project.localhost:5173/settings/sync",
                     "appView": "settings",
-                    "appSubView": "email",
+                    "appSubView": "sync",
                     "activeBucket": None,
                     "visibleErrors": ["OAuth token expired"],
                     "visibleWorkspaceSnapshot": {
@@ -273,9 +273,9 @@ class TestChatCompletions:
         assert response.status_code == 200
         assert len(captured_payloads) == 1
         user_context = captured_payloads[0]["userContext"]
-        assert user_context["currentPath"] == "/settings/email"
+        assert user_context["currentPath"] == "/settings/sync"
         assert user_context["appView"] == "settings"
-        assert user_context["appSubView"] == "email"
+        assert user_context["appSubView"] == "sync"
         assert user_context["visibleErrors"] == ["OAuth token expired"]
         assert user_context["visibleWorkspaceSnapshot"]["activeBucket"] == "next"
         assert (

@@ -297,8 +297,16 @@ def _build_app(state: _MockWorkspaceState, lock: threading.Lock) -> FastAPI:
     @app.get("/calendar/v3/calendars/{calendar_id}/events")
     async def calendar_events(calendar_id: str) -> dict[str, Any]:
         with lock:
-            items = copy.deepcopy(state.calendar_events.get(calendar_id, []))
-            token = state.calendar_next_sync_tokens.get(calendar_id, "sync-default")
+            # Google Calendar API treats "primary" and the user's email as
+            # aliases for the same calendar.  Mirror this: if the requested
+            # calendar_id isn't stored directly, fall back to "primary".
+            items = state.calendar_events.get(calendar_id)
+            if items is None and calendar_id != "primary":
+                items = state.calendar_events.get("primary", [])
+            items = copy.deepcopy(items or [])
+            token = state.calendar_next_sync_tokens.get(
+                calendar_id
+            ) or state.calendar_next_sync_tokens.get("primary", "sync-default")
         return {"items": items, "nextSyncToken": token}
 
     @app.post("/calendar/v3/calendars/{calendar_id}/events")

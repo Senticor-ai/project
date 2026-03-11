@@ -170,7 +170,7 @@ class TestGmailCallback:
 
         auth_url_res = auth_client.get(
             "/email/oauth/gmail/authorize",
-            params={"return_url": "https://frontend.test/settings/email"},
+            params={"return_url": "https://frontend.test/settings/sync"},
         )
         assert auth_url_res.status_code == 200
         oauth_url = auth_url_res.json()["url"]
@@ -184,7 +184,7 @@ class TestGmailCallback:
         assert callback_res.status_code == 303
         assert (
             callback_res.headers["location"]
-            == "https://frontend.test/settings/email?gmail=connected"
+            == "https://frontend.test/settings/sync?gmail=connected"
         )
 
         list_res = auth_client.get("/email/connections")

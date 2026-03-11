@@ -3,7 +3,7 @@ import type { Page, Locator } from "@playwright/test";
 // Tab labels must match SettingsScreen tab definitions in SettingsScreen.tsx
 const TAB_LABELS: Record<string, string> = {
   "import-export": "Import / Export",
-  email: "3rd Party Sync",
+  sync: "3rd Party Sync",
   labels: "Labels & Contexts",
   organizations: "Organizations",
   preferences: "Preferences",
@@ -38,7 +38,7 @@ export class SettingsPage {
   async navigateToTab(
     tab:
       | "import-export"
-      | "email"
+      | "sync"
       | "labels"
       | "organizations"
       | "preferences"

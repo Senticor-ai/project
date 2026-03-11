@@ -23,7 +23,7 @@ import type { AgentSettings } from "./AgentSetupPanel";
 
 export type SettingsTab =
   | "import-export"
-  | "email"
+  | "sync"
   | "labels"
   | "organizations"
   | "preferences"
@@ -32,7 +32,7 @@ export type SettingsTab =
 
 const settingsTabs: TabItem[] = [
   { id: "import-export", label: "Import / Export", icon: "swap_horiz" },
-  { id: "email", label: "3rd Party Sync", icon: "sync" },
+  { id: "sync", label: "3rd Party Sync", icon: "sync" },
   { id: "labels", label: "Labels & Contexts", icon: "label" },
   { id: "organizations", label: "Organizations", icon: "apartment" },
   { id: "preferences", label: "Preferences", icon: "tune" },
@@ -94,6 +94,7 @@ export interface SettingsScreenProps {
   isContainerActionPending?: boolean;
   canInstall?: boolean;
   onInstall?: () => void;
+  email: string;
   className?: string;
 }
 
@@ -138,6 +139,7 @@ export function SettingsScreen({
   isContainerActionPending,
   canInstall,
   onInstall,
+  email,
   className,
 }: SettingsScreenProps) {
   const isMobile = useIsMobile();
@@ -188,7 +190,7 @@ export function SettingsScreen({
               retryingJobId={retryingJobId}
             />
           )}
-          {activeTab === "email" && (
+          {activeTab === "sync" && (
             <EmailPanel
               connections={emailConnections}
               calendarsByConnectionId={emailCalendarsByConnectionId}
@@ -241,6 +243,7 @@ export function SettingsScreen({
               onChange={(update) =>
                 setPreferences((prev) => ({ ...prev, ...update }))
               }
+              email={email}
             />
           )}
           {activeTab === "agent-setup" && agentSettings && (

@@ -158,7 +158,7 @@ function AuthenticatedApp({
   const disconnectEmail = useDisconnectEmail();
   const updateEmailConnection = useUpdateEmailConnection();
   const shouldLoadEmailCalendars =
-    location.view === "settings" && location.sub === "email";
+    location.view === "settings" && location.sub === "sync";
   const emailCalendarQueries = useQueries({
     queries: (emailConnections ?? []).map((connection) => ({
       queryKey: [
@@ -228,7 +228,7 @@ function AuthenticatedApp({
       queryKey: EMAIL_CONNECTIONS_QUERY_KEY,
       type: "active",
     });
-    navigate("settings", "email");
+    navigate("settings", "sync");
   }, [queryClient, navigate]);
 
   // Organizations
@@ -245,7 +245,7 @@ function AuthenticatedApp({
   const chatContext = useMemo<Partial<ChatClientContext>>(() => {
     const rawErrors: string[] = [];
 
-    if (location.view === "settings" && location.sub === "email") {
+    if (location.view === "settings" && location.sub === "sync") {
       const emailQueryError = getMutationErrorMessage(
         emailConnectionsQuery.error,
       );
@@ -369,7 +369,7 @@ function AuthenticatedApp({
     const left = window.screenX + (window.outerWidth - w) / 2;
     const top = window.screenY + (window.outerHeight - h) / 2;
     const popupFeatures = `width=${w},height=${h},left=${left},top=${top}`;
-    const returnUrl = `${window.location.origin}/settings/email`;
+    const returnUrl = `${window.location.origin}/settings/sync`;
     const authorizeUrl = EmailApi.getGmailAuthRedirectUrl(returnUrl);
 
     // Open consent flow directly to reduce extension warnings on about:blank popups.
@@ -393,7 +393,7 @@ function AuthenticatedApp({
   }, [queryClient]);
 
   const handleReconnectGmail = useCallback(async (emailHint: string) => {
-    const returnUrl = `${window.location.origin}/settings/email`;
+    const returnUrl = `${window.location.origin}/settings/sync`;
     const { url } = await EmailApi.getGmailAuthUrl(returnUrl, emailHint);
     window.location.assign(url);
   }, []);
@@ -650,6 +650,7 @@ function AuthenticatedApp({
               }
               canInstall={canInstall}
               onInstall={promptInstall}
+              email={user.email}
             />
           </Suspense>
         )}

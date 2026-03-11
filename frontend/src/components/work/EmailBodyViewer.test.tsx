@@ -252,6 +252,111 @@ describe("EmailBodyViewer – Phase 2: copy to clipboard", () => {
   });
 });
 
+describe("EmailBodyViewer – Phase 4: marketing email normalization", () => {
+  it("strips inline font-size from elements", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <EmailBodyViewer htmlBody='<h1 style="font-size: 36px; color: #333">Title</h1>' />,
+    );
+    await expandBody(user);
+    const h1 = container.querySelector("h1");
+    expect(h1?.getAttribute("style") ?? "").not.toMatch(/font-size/);
+    expect(h1?.getAttribute("style") ?? "").toMatch(/color/);
+  });
+
+  it("strips font-size with non-px units (pt, em, rem, %)", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <EmailBodyViewer htmlBody='<p style="font-size: 14pt">A</p><p style="font-size: 1.5em">B</p><p style="font-size: 120%">C</p>' />,
+    );
+    await expandBody(user);
+    const paragraphs = container.querySelectorAll(".prose p");
+    for (const p of paragraphs) {
+      expect(p.getAttribute("style") ?? "").not.toMatch(/font-size/);
+    }
+  });
+
+  it("strips inline height from elements", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <EmailBodyViewer htmlBody='<div style="height: 500px; color: red">Content</div>' />,
+    );
+    await expandBody(user);
+    const div = container.querySelector(".prose div");
+    expect(div?.getAttribute("style") ?? "").not.toMatch(/height/);
+    expect(div?.getAttribute("style") ?? "").toMatch(/color/);
+  });
+
+  it("strips inline max-height from elements", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <EmailBodyViewer htmlBody='<div style="max-height: 800px">Content</div>' />,
+    );
+    await expandBody(user);
+    const div = container.querySelector(".prose div");
+    expect(div?.getAttribute("style") ?? "").not.toMatch(/max-height/);
+  });
+
+  it("strips inline max-width from elements", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <EmailBodyViewer htmlBody='<div style="max-width: 600px; padding: 10px">Content</div>' />,
+    );
+    await expandBody(user);
+    const div = container.querySelector(".prose div");
+    expect(div?.getAttribute("style") ?? "").not.toMatch(/max-width/);
+    expect(div?.getAttribute("style") ?? "").toMatch(/padding/);
+  });
+
+  it("strips inline line-height from elements", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <EmailBodyViewer htmlBody='<p style="line-height: 48px">Text</p>' />,
+    );
+    await expandBody(user);
+    const p = container.querySelector(".prose p");
+    expect(p?.getAttribute("style") ?? "").not.toMatch(/line-height/);
+  });
+
+  it("preserves safe inline styles (color, padding, background)", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <EmailBodyViewer htmlBody='<div style="color: red; padding: 10px; background: #f0f0f0; font-size: 36px; height: 400px">Text</div>' />,
+    );
+    await expandBody(user);
+    const div = container.querySelector(".prose div");
+    const style = div?.getAttribute("style") ?? "";
+    expect(style).toMatch(/color/);
+    expect(style).toMatch(/padding/);
+    expect(style).toMatch(/background/);
+    expect(style).not.toMatch(/font-size/);
+    expect(style).not.toMatch(/height/);
+  });
+
+  it("strips multiple problematic properties from a single style attribute", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <EmailBodyViewer htmlBody='<div style="font-size: 36px; height: 400px; line-height: 48px; color: #333">Text</div>' />,
+    );
+    await expandBody(user);
+    const div = container.querySelector(".prose div");
+    const style = div?.getAttribute("style") ?? "";
+    expect(style).not.toMatch(/font-size/);
+    expect(style).not.toMatch(/height/);
+    expect(style).not.toMatch(/line-height/);
+    expect(style).toMatch(/color/);
+  });
+
+  it("email body container has max-width constraint (not max-w-none)", () => {
+    const { container } = render(
+      <EmailBodyViewer htmlBody="<p>Content</p>" defaultExpanded />,
+    );
+    const proseDiv = container.querySelector(".prose");
+    expect(proseDiv?.className).not.toMatch(/max-w-none/);
+    expect(proseDiv?.className).toMatch(/max-w-2xl/);
+  });
+});
+
 describe("EmailBodyViewer – Phase 3: archive from preview", () => {
   it("archive button is not shown when onArchive is not provided", async () => {
     const user = userEvent.setup();

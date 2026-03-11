@@ -56,7 +56,7 @@ export const Default: Story = {
           className="mb-6"
         />
         {view === "workspace" && <ConnectedWorkspace />}
-        {view === "settings" && <SettingsScreen />}
+        {view === "settings" && <SettingsScreen email="wolfgang@senticor.ai" />}
       </div>
     );
   },
@@ -91,7 +91,7 @@ export const SwitchToSettings: Story = {
           className="mb-6"
         />
         {view === "workspace" && <ConnectedWorkspace />}
-        {view === "settings" && <SettingsScreen />}
+        {view === "settings" && <SettingsScreen email="wolfgang@senticor.ai" />}
       </div>
     );
   },
@@ -154,7 +154,7 @@ export const StartInSettings: Story = {
           className="mb-6"
         />
         {view === "workspace" && <ConnectedWorkspace />}
-        {view === "settings" && <SettingsScreen />}
+        {view === "settings" && <SettingsScreen email="wolfgang@senticor.ai" />}
       </div>
     );
   },
@@ -195,7 +195,7 @@ export const MobileWithBucketNav: Story = {
             onBucketChange={setBucket}
           />
         )}
-        {view === "settings" && <SettingsScreen />}
+        {view === "settings" && <SettingsScreen email="wolfgang@senticor.ai" />}
       </div>
     );
   },

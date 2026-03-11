@@ -3,7 +3,7 @@ import type { Bucket } from "@/model/types";
 export type AppView = "workspace" | "settings";
 export type SettingsTab =
   | "import-export"
-  | "email"
+  | "sync"
   | "labels"
   | "organizations"
   | "preferences"
@@ -28,7 +28,7 @@ const VALID_BUCKETS = new Set<string>([
 
 const VALID_SETTINGS_TABS = new Set<string>([
   "import-export",
-  "email",
+  "sync",
   "labels",
   "organizations",
   "preferences",

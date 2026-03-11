@@ -77,8 +77,11 @@ export function EmailBodyViewer({
       ],
       ALLOWED_ATTR: ["href", "target", "rel", "src", "alt", "style", "class"],
     });
-    // Strip fixed inline widths that cause overflow on mobile
-    html = html.replace(/\s*(min-)?width\s*:\s*\d+px/gi, "");
+    // Strip inline sizing/typography styles that cause oversized rendering
+    html = html.replace(
+      /\s*(?:(?:min-|max-)?(?:width|height)|font-size|line-height)\s*:\s*[^;"]*;?/gi,
+      "",
+    );
     return html;
   }, [htmlBody]);
 
@@ -170,11 +173,11 @@ export function EmailBodyViewer({
             // explicit allowlist of safe tags/attributes (see useMemo above).
             // This is the standard React pattern for rendering sanitized HTML.
             <div
-              className="prose prose-sm max-w-none text-xs text-text-primary
+              className="prose prose-sm max-w-2xl text-xs text-text-primary
                 overflow-x-auto break-words
                 [&_table]:max-w-full [&_table]:w-full [&_table]:table-fixed
                 [&_td]:break-words [&_th]:break-words
-                [&_img]:max-w-full [&_img]:h-auto
+                [&_img]:max-w-full [&_img]:!h-auto
                 [&_a]:text-blueprint-600 [&_a]:underline"
               dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
             />

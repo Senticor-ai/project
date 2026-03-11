@@ -42,9 +42,9 @@ def test_system_prompt_includes_user_context():
             "timezone": "Europe/Berlin",
             "locale": "de-DE",
             "localTime": "2026-02-13T15:30:00+01:00",
-            "currentPath": "/settings/email",
+            "currentPath": "/settings/sync",
             "appView": "settings",
-            "appSubView": "email",
+            "appSubView": "sync",
             "visibleErrors": ["OAuth token expired"],
         }
     )
@@ -52,7 +52,7 @@ def test_system_prompt_includes_user_context():
     assert "Europe/Berlin" in prompt
     assert "de-DE" in prompt
     assert "2026-02-13T15:30:00+01:00" in prompt
-    assert "/settings/email" in prompt
+    assert "/settings/sync" in prompt
     assert "OAuth token expired" in prompt
 
 

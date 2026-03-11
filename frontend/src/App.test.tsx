@@ -309,7 +309,7 @@ describe("App", () => {
   });
 
   it("fetches calendars in email settings", async () => {
-    window.history.replaceState({}, "", "/settings/email");
+    window.history.replaceState({}, "", "/settings/sync");
 
     vi.spyOn(EmailApi, "listConnections").mockResolvedValue([
       {
