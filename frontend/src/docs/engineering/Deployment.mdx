@@ -241,6 +241,8 @@ OTEL tracing is initialised at app startup via `app/tracing.py`. The SDK auto-re
 
 FastAPI routes are auto-instrumented — every inbound request creates a span with method, route, and status. Traces are exported via `BatchSpanProcessor` to the Alloy collector, which forwards to Tempo.
 
+For read-only incident access through MCP clients, see [Grafana MCP for Project](?path=/docs/engineering-grafana-mcp-for-project--docs).
+
 **Local development:** When `OTEL_EXPORTER_OTLP_ENDPOINT` is not set, tracing is silently disabled. The app logs `tracing.disabled` and runs without any OTEL overhead.
 
 ---

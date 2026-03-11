@@ -6,6 +6,7 @@ import { ChatInput } from "./ChatInput";
 import { ConversationList } from "./ConversationList";
 import { ChatApi } from "@/hooks/use-copilot-api";
 import type { ChatMessage, ConversationSummary } from "@/model/chat-types";
+import { conversationMessagesToChatMessages } from "@/lib/chat-history";
 
 export interface CopilotChatPanelProps {
   isOpen: boolean;
@@ -67,14 +68,8 @@ export function CopilotChatPanel({
       if (!onLoadConversation) return;
       try {
         const msgs = await ChatApi.getConversationMessages(conversationId);
-        // Convert backend messages to ChatMessage format
-        const chatMessages: ChatMessage[] = msgs.map((m) => ({
-          id: m.messageId,
-          role: m.role === "user" ? ("user" as const) : ("copilot" as const),
-          kind: "text" as const,
-          content: m.content,
-          timestamp: m.createdAt,
-        }));
+        const chatMessages: ChatMessage[] =
+          conversationMessagesToChatMessages(msgs);
         onLoadConversation(conversationId, chatMessages);
         setShowHistory(false);
       } catch {

@@ -615,6 +615,120 @@ describe("useChatState", () => {
       expect(mockOnItemsChanged).toHaveBeenCalledTimes(1);
     });
 
+    it("replaces provisional chat state with recovered conversation messages", async () => {
+      mockSendMessageStreaming.mockImplementationOnce(
+        (
+          _message: string,
+          _conversationId: string,
+          onEvent: (event: StreamEvent) => void,
+        ) => {
+          onEvent({
+            type: "conversation_reloaded",
+            conversationId: "conv-recovered",
+            messages: [
+              {
+                messageId: "msg-user",
+                role: "user",
+                content: "Hallo",
+                createdAt: "2026-03-11T10:00:00.000Z",
+              },
+              {
+                messageId: "msg-assistant",
+                role: "assistant",
+                content: "Recovered answer",
+                toolCalls: [
+                  {
+                    name: "create_action",
+                    arguments: {
+                      name: "Follow up",
+                      bucket: "next",
+                    },
+                  },
+                ],
+                createdAt: "2026-03-11T10:01:00.000Z",
+              },
+            ],
+          });
+          return Promise.resolve();
+        },
+      );
+
+      const hook = renderHook(() => useChatState());
+
+      await sendAndWait(hook, "Test");
+
+      expect(hook.result.current.conversationId).toBe("conv-recovered");
+      expect(findByKind(hook.result.current.messages, "thinking")).toHaveLength(
+        0,
+      );
+
+      const textMessages = findByKind(hook.result.current.messages, "text");
+      expect(textMessages.map((message) => message.content)).toEqual([
+        "Hallo",
+        "Recovered answer",
+      ]);
+
+      const suggestions = findByKind(hook.result.current.messages, "suggestion");
+      expect(suggestions).toHaveLength(1);
+      expect(suggestions[0]!.suggestion).toEqual(
+        expect.objectContaining({
+          type: "create_action",
+          name: "Follow up",
+          bucket: "next",
+        }),
+      );
+      expect(suggestions[0]!.status).toBe("historical");
+    });
+
+    it("does not allow accepting historical suggestions restored from conversation history", async () => {
+      mockSendMessageStreaming.mockImplementationOnce(
+        (
+          _message: string,
+          _conversationId: string,
+          onEvent: (event: StreamEvent) => void,
+        ) => {
+          onEvent({
+            type: "conversation_reloaded",
+            conversationId: "conv-recovered",
+            messages: [
+              {
+                messageId: "msg-assistant",
+                role: "assistant",
+                content: "",
+                toolCalls: [
+                  {
+                    name: "create_action",
+                    arguments: {
+                      name: "Follow up",
+                      bucket: "next",
+                    },
+                  },
+                ],
+                createdAt: "2026-03-11T10:01:00.000Z",
+              },
+            ],
+          });
+          return Promise.resolve();
+        },
+      );
+
+      const hook = renderHook(() => useChatState());
+
+      await sendAndWait(hook, "Test");
+
+      const suggestion = findByKind(
+        hook.result.current.messages,
+        "suggestion",
+      )[0];
+      expect(suggestion?.status).toBe("historical");
+
+      await act(async () => {
+        await hook.result.current.acceptSuggestion(suggestion!.id);
+      });
+
+      expect(mockExecuteSuggestion).not.toHaveBeenCalled();
+    });
+
     it("removes thinking indicator if no events arrive", async () => {
       // sendMessageStreaming resolves without calling onEvent at all
       mockSendMessageStreaming.mockImplementationOnce(() => Promise.resolve());

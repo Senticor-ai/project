@@ -39,7 +39,12 @@ export interface CopilotThinkingMessage extends ChatMessageBase {
   kind: "thinking";
 }
 
-export type SuggestionStatus = "pending" | "accepted" | "dismissed" | "editing";
+export type SuggestionStatus =
+  | "pending"
+  | "accepted"
+  | "dismissed"
+  | "editing"
+  | "historical";
 
 export interface CopilotSuggestionMessage extends ChatMessageBase {
   role: "copilot";
@@ -205,6 +210,11 @@ export type StreamEvent =
       detail: string;
       phase?: "startup" | "ready";
       elapsedSeconds?: number;
+    }
+  | {
+      type: "conversation_reloaded";
+      conversationId: string;
+      messages: ConversationMessageResponse[];
     }
   | { type: "items_changed" }
   | { type: "done"; text: string }

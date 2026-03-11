@@ -1,0 +1,200 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Engineering/Grafana MCP for Project" />
+
+# Grafana MCP for Project
+
+This runbook documents the supported, read-only `mcp-grafana` setup for the `project` app.
+
+Use it when you need incident triage access to `project` logs, metrics, and traces without broad human admin credentials.
+
+## Grafana Instance
+
+- URL: `https://grafana.senticor.runs.onstackit.cloud`
+- Stack: `senticor000`
+- Scope: `project` backend, frontend, and `openclaw` observability
+
+## Authentication
+
+Use a dedicated Grafana service account token.
+
+- Environment variable: `GRAFANA_SERVICE_ACCOUNT_TOKEN`
+- Do not use the legacy `GRAFANA_API_KEY`
+- Prefer one token per engineer, agent, or team for auditability and revocation
+- Keep the role read-only
+
+References:
+
+- Upstream `mcp-grafana` README: `https://github.com/grafana/mcp-grafana`
+- Grafana service accounts: `https://grafana.com/docs/grafana/latest/administration/service-accounts/`
+
+## Read-Only Baseline
+
+```bash
+docker run --rm -i \
+  -e GRAFANA_URL=https://grafana.senticor.runs.onstackit.cloud \
+  -e GRAFANA_SERVICE_ACCOUNT_TOKEN=<token> \
+  grafana/mcp-grafana \
+  -t stdio \
+  --disable-write \
+  --enabled-tools search,dashboard,datasource,prometheus,loki,navigation,searchlogs
+```
+
+Notes:
+
+- `searchlogs` is disabled by default upstream and must be enabled explicitly.
+- Leave admin and write tools disabled.
+- `runpanelquery` stays off unless the team explicitly needs dashboard panel execution.
+
+## Codex Setup
+
+Validated on 2026-03-11 against local `codex-cli 0.108.0-alpha.12` using:
+
+```bash
+codex mcp add grafana-project-readonly \
+  --env GRAFANA_SERVICE_ACCOUNT_TOKEN=<token> \
+  -- docker run --rm -i \
+  -e GRAFANA_URL=https://grafana.senticor.runs.onstackit.cloud \
+  -e GRAFANA_SERVICE_ACCOUNT_TOKEN \
+  grafana/mcp-grafana \
+  -t stdio \
+  --disable-write \
+  --enabled-tools search,dashboard,datasource,prometheus,loki,navigation,searchlogs
+```
+
+This is the supported Codex path. Codex does not use the JSON `mcpServers` shape used by some other MCP clients.
+
+Codex references:
+
+- MCP: `https://developers.openai.com/codex/mcp`
+- `AGENTS.md`: `https://developers.openai.com/codex/guides/agents-md`
+
+### Verify the Codex config
+
+```bash
+codex mcp list
+```
+
+```bash
+codex mcp get grafana-project-readonly
+```
+
+Expected result:
+
+- transport is `stdio`
+- command is `docker`
+- the server name is `grafana-project-readonly`
+- `GRAFANA_SERVICE_ACCOUNT_TOKEN` is present as an environment variable
+
+### Equivalent `~/.codex/config.toml`
+
+Codex writes the following shape to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.grafana-project-readonly]
+command = "docker"
+args = ["run", "--rm", "-i", "-e", "GRAFANA_URL=https://grafana.senticor.runs.onstackit.cloud", "-e", "GRAFANA_SERVICE_ACCOUNT_TOKEN", "grafana/mcp-grafana", "-t", "stdio", "--disable-write", "--enabled-tools", "search,dashboard,datasource,prometheus,loki,navigation,searchlogs"]
+
+[mcp_servers.grafana-project-readonly.env]
+GRAFANA_SERVICE_ACCOUNT_TOKEN = "<token>"
+```
+
+### Runtime prerequisites
+
+- Docker must be installed and the daemon must be reachable.
+- The Grafana service account token must be valid for the target Grafana instance.
+- The first run may need to pull `grafana/mcp-grafana`.
+
+### Recommended Codex prompt
+
+After the server is configured, a direct verification prompt is:
+
+```text
+Use the grafana-project-readonly MCP server. Run a Loki query for {namespace="project", app="backend"} over the last 15 minutes and tell me whether logs are reachable.
+```
+
+## First Queries
+
+### Loki
+
+Namespace and app filters:
+
+```logql
+{namespace="project", app="backend"}
+```
+
+```logql
+{namespace="project", app="frontend"}
+```
+
+```logql
+{namespace="project", app="openclaw"}
+```
+
+Correlation fields to search for:
+
+- `request_id`
+- `conversation_id`
+- `trail_id`
+
+Example incident query:
+
+```logql
+{namespace="project", app="backend"} |= "request_id=\"ops-validate-fixed-1772817488\""
+```
+
+### Prometheus
+
+Useful chat and container metrics:
+
+```promql
+chat_requests_total{namespace="project"}
+```
+
+```promql
+rate(chat_request_duration_seconds_sum{namespace="project"}[5m])
+/
+rate(chat_request_duration_seconds_count{namespace="project"}[5m])
+```
+
+```promql
+chat_stream_first_token_seconds_count{namespace="project"}
+```
+
+```promql
+chat_persistence_total{namespace="project"}
+```
+
+```promql
+chat_openclaw_ensure_running_total{namespace="project"}
+```
+
+```promql
+up{job="prometheus.scrape.app_metrics",namespace="project",app="backend"}
+```
+
+### Tempo / Trace Lookup
+
+Start with:
+
+- `service.name=project-backend`
+- `chat.request_id=<request_id>`
+- `chat.conversation_id=<conversation_id>`
+
+Example lookup flow:
+
+1. Find a `request_id` in Loki.
+2. Search Tempo for `service.name=project-backend` plus that request ID.
+3. Open the resulting trace in the Grafana UI for full tree inspection.
+
+## Suggested Incident Flow
+
+1. Query Loki for `request_id` or `conversation_id`.
+2. Confirm backend completion/error events such as `chat.completions.finished` or `chat.persistence`.
+3. Check Prometheus for request volume, duration, and `openclaw` startup failures.
+4. Jump to Tempo using the same `request_id`.
+
+## Caveats
+
+- `mcp-grafana` is strong for Grafana resources, Loki, and Prometheus queries.
+- Deep trace analysis is still easier in the Grafana UI once you have the right trace or request ID.

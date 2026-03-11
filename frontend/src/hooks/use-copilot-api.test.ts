@@ -1,13 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook } from "@testing-library/react";
-import { useCopilotApi, readNdjsonStream } from "./use-copilot-api";
-import type { StreamEvent } from "@/model/chat-types";
 
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
-const { mockGetOrRefreshCsrfToken, mockRefreshCsrfToken } = vi.hoisted(() => ({
+const {
+  mockGetOrRefreshCsrfToken,
+  mockRefreshCsrfToken,
+  mockWithFaroActiveSpan,
+  mockSpanSetAttribute,
+  mockSpanRecordError,
+} = vi.hoisted(() => ({
   mockGetOrRefreshCsrfToken: vi.fn(),
   mockRefreshCsrfToken: vi.fn(),
+  mockWithFaroActiveSpan: vi.fn(),
+  mockSpanSetAttribute: vi.fn(),
+  mockSpanRecordError: vi.fn(),
 }));
 
 vi.mock("@/lib/api-client", () => ({
@@ -15,10 +22,31 @@ vi.mock("@/lib/api-client", () => ({
   refreshCsrfToken: mockRefreshCsrfToken,
 }));
 
+vi.mock("@/lib/faro", () => ({
+  withFaroActiveSpan: mockWithFaroActiveSpan,
+}));
+
+import { useCopilotApi, readNdjsonStream } from "./use-copilot-api";
+import type { StreamEvent } from "@/model/chat-types";
+
 beforeEach(() => {
   vi.resetAllMocks();
   mockGetOrRefreshCsrfToken.mockResolvedValue("csrf-test-token");
   mockRefreshCsrfToken.mockResolvedValue("csrf-refreshed-token");
+  mockWithFaroActiveSpan.mockImplementation(
+    async (
+      _name: string,
+      _attributes: Record<string, unknown>,
+      run: (span: {
+        setAttribute: typeof mockSpanSetAttribute;
+        recordError: typeof mockSpanRecordError;
+      }) => Promise<unknown>,
+    ) =>
+      run({
+        setAttribute: mockSpanSetAttribute,
+        recordError: mockSpanRecordError,
+      }),
+  );
   document.body.innerHTML = "";
   window.history.pushState({}, "", "/");
 });
@@ -169,8 +197,18 @@ describe("useCopilotApi", () => {
     expect(opts.method).toBe("POST");
     expect(opts.headers["Content-Type"]).toBe("application/json");
     expect(opts.headers["X-CSRF-Token"]).toBe("csrf-test-token");
+    expect(opts.headers["X-Request-ID"]).toEqual(expect.any(String));
     expect(opts.credentials).toBe("include");
     expect(mockGetOrRefreshCsrfToken).toHaveBeenCalledOnce();
+    expect(mockWithFaroActiveSpan).toHaveBeenCalledWith(
+      "ui.chat.submit",
+      expect.objectContaining({
+        "chat.conversation_id": "conv-123",
+        "chat.request_id": expect.any(String),
+        "chat.timeout_ms": 120_000,
+      }),
+      expect.any(Function),
+    );
     const body = JSON.parse(opts.body as string);
     expect(body.message).toBe("Hallo");
     expect(body.conversationId).toBe("conv-123");
@@ -323,6 +361,24 @@ describe("useCopilotApi", () => {
     ).toHaveLength(1);
   });
 
+  it("annotates the ui.chat.submit span with response status and accepted request ID", async () => {
+    mockFetch.mockReturnValue(
+      streamResponse([
+        { type: "accepted", requestId: "req-accepted-1" },
+        { type: "done", text: "Hello world" },
+      ]),
+    );
+    const { result } = renderHook(() => useCopilotApi());
+
+    await result.current.sendMessageStreaming("Test", "conv-1", () => {});
+
+    expect(mockSpanSetAttribute).toHaveBeenCalledWith("http.status_code", 200);
+    expect(mockSpanSetAttribute).toHaveBeenCalledWith(
+      "chat.request_id",
+      "req-accepted-1",
+    );
+  });
+
   it("throws on non-ok response with status code", async () => {
     mockFetch.mockReturnValue(
       Promise.resolve({ ok: false, status: 500, body: null }),
@@ -361,6 +417,7 @@ describe("useCopilotApi", () => {
     const secondHeaders = mockFetch.mock.calls[1]?.[1]?.headers;
     expect(firstHeaders["X-CSRF-Token"]).toBe("csrf-stale-token");
     expect(secondHeaders["X-CSRF-Token"]).toBe("csrf-fresh-token");
+    expect(firstHeaders["X-Request-ID"]).toBe(secondHeaders["X-Request-ID"]);
     expect(events).toEqual([{ type: "done", text: "OK after retry" }]);
   });
 
@@ -447,28 +504,209 @@ describe("useCopilotApi", () => {
   });
 
   it("aborts request after timeout deadline", async () => {
-    // The AbortController in sendMessageStreaming uses setTimeout(120s).
-    // Instead of fake timers, verify the signal is passed to fetch
-    // and that an AbortError is translated to a user-friendly message.
-    mockFetch.mockImplementation(
-      (_url: string, opts: { signal?: AbortSignal }) => {
-        // Immediately abort to simulate timeout firing
-        if (opts?.signal) {
-          const abortError = new DOMException(
-            "The operation was aborted.",
-            "AbortError",
-          );
-          return Promise.reject(abortError);
-        }
-        return Promise.reject(new Error("No signal provided"));
-      },
-    );
+    vi.useFakeTimers();
+    try {
+      mockFetch
+        .mockImplementationOnce(
+          (_url: string, opts: { signal?: AbortSignal }) =>
+            new Promise((_resolve, reject) => {
+              opts.signal?.addEventListener("abort", () => {
+                reject(
+                  new DOMException("The operation was aborted.", "AbortError"),
+                );
+              });
+            }),
+        )
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 404,
+        });
 
-    const { result } = renderHook(() => useCopilotApi());
+      const { result } = renderHook(() => useCopilotApi());
+      const promise = result.current.sendMessageStreaming(
+        "Test",
+        "conv-timeout",
+        () => {},
+      );
+      const assertion = expect(promise).rejects.toThrow("Chat request timed out");
 
-    await expect(
-      result.current.sendMessageStreaming("Test", "conv-timeout", () => {}),
-    ).rejects.toThrow("Chat request timed out");
+      await vi.advanceTimersByTimeAsync(125_000);
+
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("reloads persisted conversation messages when timeout recovery completes", async () => {
+    vi.useFakeTimers();
+    const randomUuid = vi
+      .spyOn(globalThis.crypto, "randomUUID")
+      .mockReturnValue("22222222-2222-4222-8222-222222222222");
+
+    try {
+      const abortError = new DOMException(
+        "The operation was aborted.",
+        "AbortError",
+      );
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.error(abortError);
+        },
+      });
+
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          body,
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            requestId: "22222222-2222-4222-8222-222222222222",
+            conversationId: "db-conv-1",
+            status: "completed",
+            createdAt: "2026-03-11T10:00:00.000Z",
+            updatedAt: "2026-03-11T10:01:00.000Z",
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => [
+            {
+              messageId: "msg-1",
+              role: "user",
+              content: "Hallo",
+              createdAt: "2026-03-11T10:00:00.000Z",
+            },
+            {
+              messageId: "msg-2",
+              role: "assistant",
+              content: "Recovered answer",
+              createdAt: "2026-03-11T10:01:00.000Z",
+            },
+          ],
+        });
+
+      const { result } = renderHook(() => useCopilotApi());
+      const events: StreamEvent[] = [];
+
+      const promise = result.current.sendMessageStreaming(
+        "Test",
+        "conv-timeout",
+        (event) => events.push(event),
+      );
+
+      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(5_000);
+      await promise;
+
+      expect(events).toEqual([
+        {
+          type: "conversation_reloaded",
+          conversationId: "db-conv-1",
+          messages: [
+            {
+              messageId: "msg-1",
+              role: "user",
+              content: "Hallo",
+              createdAt: "2026-03-11T10:00:00.000Z",
+            },
+            {
+              messageId: "msg-2",
+              role: "assistant",
+              content: "Recovered answer",
+              createdAt: "2026-03-11T10:01:00.000Z",
+            },
+          ],
+        },
+        { type: "items_changed" },
+      ]);
+
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+      expect(mockFetch.mock.calls[1]?.[0]).toContain(
+        "/chat/requests/22222222-2222-4222-8222-222222222222/status",
+      );
+      expect(mockFetch.mock.calls[2]?.[0]).toContain(
+        "/chat/conversations/db-conv-1/messages",
+      );
+    } finally {
+      randomUuid.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  it("polls by the client request ID when the accepted event is lost", async () => {
+    vi.useFakeTimers();
+    const randomUuid = vi
+      .spyOn(globalThis.crypto, "randomUUID")
+      .mockReturnValue("11111111-1111-4111-8111-111111111111");
+
+    try {
+      const abortError = new DOMException(
+        "The operation was aborted.",
+        "AbortError",
+      );
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.error(abortError);
+        },
+      });
+
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          body,
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            requestId: "req-client-1",
+            conversationId: "db-conv-2",
+            status: "completed",
+            createdAt: "2026-03-11T10:00:00.000Z",
+            updatedAt: "2026-03-11T10:01:00.000Z",
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => [
+            {
+              messageId: "msg-1",
+              role: "assistant",
+              content: "Recovered answer",
+              createdAt: "2026-03-11T10:01:00.000Z",
+            },
+          ],
+        });
+
+      const { result } = renderHook(() => useCopilotApi());
+      const promise = result.current.sendMessageStreaming(
+        "Test",
+        "conv-timeout",
+        () => {},
+      );
+
+      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(5_000);
+      await promise;
+
+      expect(mockFetch.mock.calls[0]?.[1]?.headers["X-Request-ID"]).toBe(
+        "11111111-1111-4111-8111-111111111111",
+      );
+      expect(mockFetch.mock.calls[1]?.[0]).toContain(
+        "/chat/requests/11111111-1111-4111-8111-111111111111/status",
+      );
+    } finally {
+      randomUuid.mockRestore();
+      vi.useRealTimers();
+    }
   });
 });
 

@@ -171,7 +171,7 @@ describe("EmailBodyViewer – Phase 1: responsive reformatting", () => {
       <EmailBodyViewer htmlBody='<div style="min-width: 300px">Content</div>' />,
     );
     await user.click(screen.getByRole("button", { name: /E-Mail anzeigen/i }));
-    const div = container.querySelector(".prose div");
+    const div = container.querySelector(".email-body-content div");
     expect(div?.getAttribute("style") ?? "").not.toMatch(
       /min-width\s*:\s*\d+px/,
     );
@@ -188,6 +188,33 @@ describe("EmailBodyViewer – Phase 1: responsive reformatting", () => {
     // but our post-processing should not alter non-style attributes
     // We just verify the rendered HTML doesn't contain style-based fixed width
     expect(table?.style?.width ?? "").not.toMatch(/\d+px/);
+  });
+
+  it("clamps oversized inline font sizes for preview readability", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <EmailBodyViewer htmlBody='<div style="font-size: 32px; line-height: 40px">Oversized copy</div>' />,
+    );
+    await user.click(screen.getByRole("button", { name: /E-Mail anzeigen/i }));
+    const div = container.querySelector(".email-body-content div");
+    expect(div?.getAttribute("style") ?? "").toContain("font-size: 15px");
+    expect(div?.getAttribute("style") ?? "").toContain("line-height: 24px");
+  });
+
+  it("compacts CTA-like blocks instead of keeping landing-page spacing", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <EmailBodyViewer
+        htmlBody={
+          '<a style="display: inline-block; background: #111; color: #fff; font-size: 24px; padding: 20px 40px; border-radius: 20px">Get the app</a>'
+        }
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: /E-Mail anzeigen/i }));
+    const cta = container.querySelector(".inline-email-cta");
+    expect(cta).toBeTruthy();
+    expect(cta).toHaveClass("inline-email-cta");
+    expect(cta).toHaveTextContent("Get the app");
   });
 });
 

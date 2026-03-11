@@ -12,6 +12,7 @@ import type {
   CreatedItemRef,
   StreamEvent,
 } from "@/model/chat-types";
+import { conversationMessagesToChatMessages } from "@/lib/chat-history";
 import { getMessage } from "@/lib/messages";
 import { useCopilotApi } from "./use-copilot-api";
 import { useCopilotActions } from "./use-copilot-actions";
@@ -190,6 +191,14 @@ export function useChatState(options: ChatStateOptions = {}) {
               break;
             }
 
+            case "conversation_reloaded": {
+              streamingMsgId = null;
+              statusMsgId = null;
+              setConversationId(event.conversationId);
+              setMessages(conversationMessagesToChatMessages(event.messages));
+              break;
+            }
+
             case "done": {
               // Finalize: mark streaming as done, ensure text is complete
               if (streamingMsgId) {
@@ -312,7 +321,7 @@ export function useChatState(options: ChatStateOptions = {}) {
         (m) => m.id === messageId && m.kind === "suggestion",
       ) as CopilotSuggestionMessage | undefined;
 
-      if (!suggestionMsg) return;
+      if (!suggestionMsg || suggestionMsg.status !== "pending") return;
 
       // Mark as accepted optimistically
       setMessages((prev) =>
@@ -357,7 +366,9 @@ export function useChatState(options: ChatStateOptions = {}) {
   const dismissSuggestion = useCallback((messageId: string) => {
     setMessages((prev) =>
       prev.map((m) =>
-        m.id === messageId && m.kind === "suggestion"
+        m.id === messageId &&
+        m.kind === "suggestion" &&
+        m.status === "pending"
           ? { ...m, status: "dismissed" as const }
           : m,
       ),
