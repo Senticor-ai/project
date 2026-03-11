@@ -619,6 +619,7 @@ async def _run_openclaw_background(
                 error_detail="empty response from OpenClaw",
                 error_type="empty_response",
             )
+            return
 
         # Persist assistant response (text only, no tool_calls)
         with span_persist_history(ctx) if ctx else nullcontext():
