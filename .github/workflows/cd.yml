@@ -332,7 +332,7 @@ jobs:
           STORYBOOK_IMAGE: ${{ env.STACKIT_IMAGE_PREFIX }}/storybook:${{ github.event.workflow_run.head_sha || github.sha }}
           OPENCLAW_IMAGE: ${{ env.STACKIT_IMAGE_PREFIX }}/openclaw:${{ github.event.workflow_run.head_sha || github.sha }}
         run: docker compose -f infra/docker-compose.ci-test.yml up -d --wait --wait-timeout 120
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         if: steps.registry_auth.outputs.can_test == 'true' && steps.check_images.outputs.all_pushed == 'true'
         with:
           python-version: '3.12'
@@ -471,7 +471,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.12'
       - name: Install smoke dependencies
