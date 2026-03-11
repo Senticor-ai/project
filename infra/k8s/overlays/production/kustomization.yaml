@@ -38,3 +38,10 @@ patches:
   - path: patches/backend-pubsub.yaml
   - path: patches/worker-pubsub.yaml
   - path: patches/watch-worker-pubsub.yaml
+  # JSON 6902 patch: appends kube-apiserver egress rule to backend-netpol (#123)
+  - target:
+      group: networking.k8s.io
+      version: v1
+      kind: NetworkPolicy
+      name: backend-netpol
+    path: patches/backend-netpol.yaml
