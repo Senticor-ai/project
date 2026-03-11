@@ -119,7 +119,7 @@ jobs:
             backend/pyproject.toml
             backend/uv.lock
       - name: Cache backend uv downloads
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ${{ env.UV_CACHE_DIR }}
           key: ${{ runner.os }}-uv-backend-${{ hashFiles('backend/uv.lock') }}
@@ -145,7 +145,7 @@ jobs:
             backend/pyproject.toml
             backend/uv.lock
       - name: Cache backend uv downloads
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ${{ env.UV_CACHE_DIR }}
           key: ${{ runner.os }}-uv-backend-${{ hashFiles('backend/uv.lock') }}
@@ -235,7 +235,7 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - name: Cache Playwright browsers
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
           key: ${{ runner.os }}-playwright-${{ hashFiles('frontend/package-lock.json') }}
@@ -276,7 +276,7 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - name: Cache Playwright browsers
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
           key: ${{ runner.os }}-playwright-${{ hashFiles('frontend/package-lock.json') }}
@@ -307,7 +307,7 @@ jobs:
             backend/pyproject.toml
             backend/uv.lock
       - name: Cache backend uv downloads
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ${{ env.UV_CACHE_DIR }}
           key: ${{ runner.os }}-uv-backend-${{ hashFiles('backend/uv.lock') }}
@@ -358,7 +358,7 @@ jobs:
             backend/pyproject.toml
             backend/uv.lock
       - name: Cache backend uv downloads
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ${{ env.UV_CACHE_DIR }}
           key: ${{ runner.os }}-uv-backend-${{ hashFiles('backend/uv.lock') }}
@@ -398,7 +398,7 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - name: Cache backend uv downloads
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ${{ env.UV_CACHE_DIR }}
           key: ${{ runner.os }}-uv-backend-${{ hashFiles('backend/uv.lock') }}
