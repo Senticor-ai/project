@@ -564,13 +564,24 @@ async def _run_openclaw_background(
                 )
                 return
             except httpx.HTTPStatusError as exc:
-                detail = f"OpenClaw error: {exc.response.status_code}"
+                # Extract upstream error detail from the response body
+                body_detail = ""
+                try:
+                    payload = exc.response.json()
+                    err_obj = payload.get("error")
+                    if isinstance(err_obj, dict):
+                        body_detail = err_obj.get("message", "")
+                    elif isinstance(err_obj, str):
+                        body_detail = err_obj
+                except Exception:
+                    pass
+                detail = body_detail or f"OpenClaw error: {exc.response.status_code}"
                 err = build_error_event(detail, ctx, exc)
                 queue.put_nowait(_encode_ndjson_event(err))
                 _safe_update_request_status(
                     request_id,
                     "failed",
-                    error_detail=detail,
+                    error_detail=detail[:200],
                     error_type="container_error",
                 )
                 return
@@ -587,6 +598,27 @@ async def _run_openclaw_background(
                     error_type="backend_error",
                 )
                 return
+
+        # If the stream ended without producing any content or an explicit error,
+        # emit a fallback error so the frontend doesn't hang silently.
+        if not translator.full_text and not translator.tool_calls and not translator.had_error:
+            logger.warning(
+                "chat.openclaw_empty_response",
+                user_id=user_id,
+                conversation_id=conversation_id,
+            )
+            err = build_error_event(
+                "OpenClaw did not return a response. "
+                "Check your API key and credit balance in Settings → Agent Setup.",
+                ctx,
+            )
+            queue.put_nowait(_encode_ndjson_event(err))
+            _safe_update_request_status(
+                request_id,
+                "failed",
+                error_detail="empty response from OpenClaw",
+                error_type="empty_response",
+            )
 
         # Persist assistant response (text only, no tool_calls)
         with span_persist_history(ctx) if ctx else nullcontext():

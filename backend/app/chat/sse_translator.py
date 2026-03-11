@@ -26,6 +26,7 @@ class SseToNdjsonTranslator:
 
     full_text: str = ""
     tool_calls: list[dict] | None = None
+    had_error: bool = False
     _tool_accumulators: dict[int, _ToolCallAccumulator] = field(default_factory=dict)
 
     def feed(self, line: str) -> list[dict]:
@@ -50,6 +51,12 @@ class SseToNdjsonTranslator:
         events: list[dict] = []
         choices = chunk.get("choices", [])
         if not choices:
+            # Detect upstream error payloads (e.g. OpenRouter 402 via OpenClaw)
+            error = chunk.get("error")
+            if error:
+                detail = error.get("message", str(error)) if isinstance(error, dict) else str(error)
+                self.had_error = True
+                return [{"type": "error", "detail": detail}]
             return events
 
         choice = choices[0]

@@ -1296,6 +1296,15 @@ def test_k8s_pod_spec_includes_init_container(monkeypatch):
     assert "openclaw.json" in cmd
     assert "1000" in cmd
 
+    # Must have resource requests/limits for quota compliance (#123)
+    resources = init.get("resources", {})
+    assert "requests" in resources, "init container must specify resource requests"
+    assert "limits" in resources, "init container must specify resource limits"
+    assert "cpu" in resources["requests"]
+    assert "memory" in resources["requests"]
+    assert "cpu" in resources["limits"]
+    assert "memory" in resources["limits"]
+
 
 @pytest.mark.unit
 def test_init_container_mounts_match_main_container(monkeypatch):

@@ -523,6 +523,10 @@ def _k8s_apply_resources(
                 "securityContext": {
                     "runAsUser": 0,
                 },
+                "resources": {
+                    "requests": {"cpu": "10m", "memory": "16Mi"},
+                    "limits": {"cpu": "50m", "memory": "32Mi"},
+                },
             }
         ],
         "containers": [
