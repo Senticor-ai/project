@@ -1,0 +1,21 @@
+# Production-only: allow backend egress to kube-apiserver on post-DNAT port.
+#
+# Backend manages OpenClaw runtime pods via the Kubernetes API.  The base
+# network policy already permits generic HTTPS (:443), but kube-router
+# evaluates egress rules against the post-DNAT tuple.  On senticor000 the
+# API server VIP (kubernetes.default.svc:443) DNATs to 100.126.36.13:6443,
+# so a dedicated rule is required.
+#
+# Uses JSON 6902 patch (not strategic merge) because NetworkPolicy egress
+# lists have no merge key — a strategic merge patch replaces the entire list.
+#
+# Related: #123
+- op: add
+  path: /spec/egress/-
+  value:
+    to:
+      - ipBlock:
+          cidr: 100.126.36.13/32
+    ports:
+      - port: 6443
+        protocol: TCP
