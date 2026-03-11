@@ -321,7 +321,7 @@ export function useChatState(options: ChatStateOptions = {}) {
         (m) => m.id === messageId && m.kind === "suggestion",
       ) as CopilotSuggestionMessage | undefined;
 
-      if (!suggestionMsg) return;
+      if (!suggestionMsg || suggestionMsg.status !== "pending") return;
 
       // Mark as accepted optimistically
       setMessages((prev) =>
@@ -366,7 +366,9 @@ export function useChatState(options: ChatStateOptions = {}) {
   const dismissSuggestion = useCallback((messageId: string) => {
     setMessages((prev) =>
       prev.map((m) =>
-        m.id === messageId && m.kind === "suggestion"
+        m.id === messageId &&
+        m.kind === "suggestion" &&
+        m.status === "pending"
           ? { ...m, status: "dismissed" as const }
           : m,
       ),

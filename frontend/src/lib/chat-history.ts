@@ -85,7 +85,7 @@ export function conversationMessagesToChatMessages(
         role: "copilot",
         kind: "suggestion",
         suggestion: toolCall.arguments,
-        status: "pending",
+        status: "historical",
         timestamp: message.createdAt,
       };
       chatMessages.push(suggestionMessage);

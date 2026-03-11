@@ -251,6 +251,35 @@ export function CopilotSuggestionCard({
   onDismiss,
   className,
 }: CopilotSuggestionCardProps) {
+  if (status === "historical") {
+    return (
+      <div className={cn("flex items-start gap-2", className)}>
+        <div className="ml-9 max-w-[85%] rounded-xl border border-paper-300 bg-paper-50 px-4 py-3">
+          {suggestion.type === "create_project_with_actions" && (
+            <ProjectSuggestionContent suggestion={suggestion} />
+          )}
+          {suggestion.type === "create_action" && (
+            <ActionSuggestionContent suggestion={suggestion} />
+          )}
+          {suggestion.type === "create_reference" && (
+            <ReferenceSuggestionContent suggestion={suggestion} />
+          )}
+          {suggestion.type === "render_cv" && (
+            <RenderCvSuggestionContent suggestion={suggestion} />
+          )}
+          {suggestion.type === "copilot_cli" && (
+            <CopilotCliSuggestionContent suggestion={suggestion} />
+          )}
+
+          <div className="mt-3 flex items-center gap-1 border-t border-paper-200 pt-3 text-xs font-medium text-text-muted">
+            <Icon name="history" size={14} />
+            Aus Verlauf
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (status === "dismissed") {
     return (
       <div className={cn("flex items-start gap-2", className)}>

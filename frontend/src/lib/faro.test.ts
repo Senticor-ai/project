@@ -95,6 +95,36 @@ describe("initFaro()", () => {
     );
   });
 
+  it("limits ignored tracing URLs to the collector path instead of the whole origin", async () => {
+    vi.stubEnv(
+      "VITE_FARO_COLLECTOR_URL",
+      "https://app.example.com/otel/collector",
+    );
+    vi.stubEnv("VITE_API_BASE_URL", "https://app.example.com/api");
+
+    const { TracingInstrumentation } =
+      await import("@grafana/faro-web-tracing");
+    const { initFaro } = await loadFaroModule();
+
+    initFaro();
+
+    expect(TracingInstrumentation).toHaveBeenCalledOnce();
+    const options = vi.mocked(TracingInstrumentation).mock.calls[0]?.[0] as {
+      instrumentationOptions?: {
+        ignoreUrls?: Array<string | RegExp>;
+      };
+    };
+    const ignorePattern = options.instrumentationOptions?.ignoreUrls?.[0];
+
+    expect(ignorePattern).toBeInstanceOf(RegExp);
+    expect(
+      (ignorePattern as RegExp).test("https://app.example.com/otel/collector"),
+    ).toBe(true);
+    expect(
+      (ignorePattern as RegExp).test("https://app.example.com/api/chat"),
+    ).toBe(false);
+  });
+
   it("pushes app_bootstrapped event on init", async () => {
     vi.stubEnv("VITE_FARO_COLLECTOR_URL", "http://collector:4318");
     const { initFaro } = await loadFaroModule();

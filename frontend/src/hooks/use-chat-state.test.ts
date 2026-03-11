@@ -677,7 +677,56 @@ describe("useChatState", () => {
           bucket: "next",
         }),
       );
-      expect(suggestions[0]!.status).toBe("pending");
+      expect(suggestions[0]!.status).toBe("historical");
+    });
+
+    it("does not allow accepting historical suggestions restored from conversation history", async () => {
+      mockSendMessageStreaming.mockImplementationOnce(
+        (
+          _message: string,
+          _conversationId: string,
+          onEvent: (event: StreamEvent) => void,
+        ) => {
+          onEvent({
+            type: "conversation_reloaded",
+            conversationId: "conv-recovered",
+            messages: [
+              {
+                messageId: "msg-assistant",
+                role: "assistant",
+                content: "",
+                toolCalls: [
+                  {
+                    name: "create_action",
+                    arguments: {
+                      name: "Follow up",
+                      bucket: "next",
+                    },
+                  },
+                ],
+                createdAt: "2026-03-11T10:01:00.000Z",
+              },
+            ],
+          });
+          return Promise.resolve();
+        },
+      );
+
+      const hook = renderHook(() => useChatState());
+
+      await sendAndWait(hook, "Test");
+
+      const suggestion = findByKind(
+        hook.result.current.messages,
+        "suggestion",
+      )[0];
+      expect(suggestion?.status).toBe("historical");
+
+      await act(async () => {
+        await hook.result.current.acceptSuggestion(suggestion!.id);
+      });
+
+      expect(mockExecuteSuggestion).not.toHaveBeenCalled();
     });
 
     it("removes thinking indicator if no events arrive", async () => {

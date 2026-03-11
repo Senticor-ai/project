@@ -65,21 +65,37 @@ function getAbsoluteOrigin(url: string): string | null {
   }
 }
 
+function getAbsoluteUrl(url: string): URL | null {
+  if (!/^https?:\/\//i.test(url)) {
+    return null;
+  }
+  try {
+    return new URL(url);
+  } catch {
+    return null;
+  }
+}
+
+function buildUrlPrefixPattern(url: URL): RegExp {
+  const normalizedPathname =
+    url.pathname.length > 1 ? url.pathname.replace(/\/+$/, "") : url.pathname;
+  const base = `${url.origin}${normalizedPathname}`;
+  return new RegExp(`^${escapeRegExp(base)}(?:[/?#]|$)`);
+}
+
 function buildTracingInstrumentation(): TracingInstrumentation {
   const tracingApiOrigin = getAbsoluteOrigin(
     import.meta.env.VITE_API_BASE_URL ?? "/api",
   );
-  const collectorOrigin = getAbsoluteOrigin(COLLECTOR_URL);
+  const collectorUrl = getAbsoluteUrl(COLLECTOR_URL);
 
   const instrumentationOptions: {
     ignoreUrls?: Array<string | RegExp>;
     propagateTraceHeaderCorsUrls?: Array<string | RegExp>;
   } = {};
 
-  if (collectorOrigin) {
-    instrumentationOptions.ignoreUrls = [
-      new RegExp(`^${escapeRegExp(collectorOrigin)}`),
-    ];
+  if (collectorUrl) {
+    instrumentationOptions.ignoreUrls = [buildUrlPrefixPattern(collectorUrl)];
   }
 
   if (tracingApiOrigin) {

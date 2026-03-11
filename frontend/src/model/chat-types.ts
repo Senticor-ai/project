@@ -39,7 +39,12 @@ export interface CopilotThinkingMessage extends ChatMessageBase {
   kind: "thinking";
 }
 
-export type SuggestionStatus = "pending" | "accepted" | "dismissed" | "editing";
+export type SuggestionStatus =
+  | "pending"
+  | "accepted"
+  | "dismissed"
+  | "editing"
+  | "historical";
 
 export interface CopilotSuggestionMessage extends ChatMessageBase {
   role: "copilot";
