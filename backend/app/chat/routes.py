@@ -32,6 +32,8 @@ from .instrumentation import (
     ChatContext,
     FirstTokenTracker,
     build_error_event,
+    classify_error,
+    mark_chat_completion_failed,
     record_persistence_outcome,
     span_chat_completions,
     span_db_setup,
@@ -342,6 +344,38 @@ def _build_openclaw_startup_error_detail(user_id: str, exc: Exception) -> str:
     return "Failed to start OpenClaw container"
 
 
+def _classify_openclaw_startup_error(
+    exc: Exception,
+    *,
+    state: str | None,
+    state_error: str,
+) -> str:
+    """Classify startup failures that may arrive as wrapped RuntimeError values."""
+    classified = classify_error(exc, "openclaw")
+    if classified != "backend_error":
+        return classified
+
+    detail = " ".join(part for part in (state_error, str(exc)) if part).lower()
+    if "timeout" in detail or "timed out" in detail:
+        return "container_timeout"
+    if any(
+        marker in detail
+        for marker in (
+            "connection refused",
+            "connection reset",
+            "connecterror",
+            "no route to host",
+            "name or service not known",
+            "temporary failure in name resolution",
+            "unreachable",
+        )
+    ):
+        return "container_unreachable"
+    if state == "error" or state_error:
+        return "container_error"
+    return "backend_error"
+
+
 async def _stream_openclaw_after_startup(
     *,
     user_id: str,
@@ -377,6 +411,7 @@ async def _stream_openclaw_after_startup(
                 build_error_event(
                     "OpenClaw container startup timed out. Please try again.",
                     ctx,
+                    error_type="container_timeout",
                 )
             )
             _safe_update_request_status(
@@ -398,7 +433,9 @@ async def _stream_openclaw_after_startup(
                 "Bitte öffne die Einstellungen → Copilot-Einrichtung "
                 "und hinterlege einen API-Schlüssel."
             )
-            yield _encode_ndjson_event(build_error_event(detail, ctx))
+            yield _encode_ndjson_event(
+                build_error_event(detail, ctx, error_type="client_error")
+            )
             _safe_update_request_status(
                 request_id,
                 "failed",
@@ -407,7 +444,7 @@ async def _stream_openclaw_after_startup(
             )
             return
         except Exception as exc:
-            state, _state_error = _get_openclaw_container_state(user_id)
+            state, state_error = _get_openclaw_container_state(user_id)
             if state == "starting":
                 elapsed_seconds = int(timeout_seconds - (deadline - loop.time()))
                 if elapsed_seconds >= next_progress_emit:
@@ -426,12 +463,17 @@ async def _stream_openclaw_after_startup(
                 continue
 
             detail = _build_openclaw_startup_error_detail(user_id, exc)
-            yield _encode_ndjson_event(build_error_event(detail, ctx, exc))
+            error_type = _classify_openclaw_startup_error(
+                exc,
+                state=state,
+                state_error=state_error,
+            )
+            yield _encode_ndjson_event(build_error_event(detail, ctx, exc, error_type=error_type))
             _safe_update_request_status(
                 request_id,
                 "failed",
                 error_detail=detail[:200],
-                error_type="container_error",
+                error_type=error_type,
             )
             return
 
@@ -731,8 +773,14 @@ def _handle_chat_completions(
             user_id=user_id,
             conversation_external_id=req.conversationId,
         )
+        detail = "Chat service temporarily unavailable. Please try again."
+        mark_chat_completion_failed(
+            ctx,
+            error_type="backend_error",
+            detail=detail,
+        )
         err = json.dumps(
-            build_error_event("Chat service temporarily unavailable. Please try again.", ctx)
+            build_error_event(detail, ctx, error_type="backend_error")
         )
 
         async def _db_error_stream() -> AsyncGenerator[bytes, None]:
@@ -771,7 +819,18 @@ def _handle_chat_completions(
                 "Bitte öffne die Einstellungen → Copilot-Einrichtung "
                 "und hinterlege einen API-Schlüssel."
             )
-            err = json.dumps(build_error_event(detail, ctx, exc))
+            mark_chat_completion_failed(
+                ctx,
+                error_type="client_error",
+                detail=detail,
+            )
+            _safe_update_request_status(
+                ctx.request_id,
+                "failed",
+                error_detail="Agent not configured",
+                error_type="client_error",
+            )
+            err = json.dumps(build_error_event(detail, ctx, exc, error_type="client_error"))
 
             async def _config_error_stream() -> AsyncGenerator[bytes, None]:
                 yield (err + "\n").encode()
@@ -782,7 +841,7 @@ def _handle_chat_completions(
             )
         except Exception as exc:
             logger.exception("container.ensure_running_failed", user_id=user_id)
-            state, _state_error = _get_openclaw_container_state(user_id)
+            state, state_error = _get_openclaw_container_state(user_id)
             if state == "starting":
                 detail = (
                     "OpenClaw container is starting. "
@@ -804,7 +863,23 @@ def _handle_chat_completions(
                     media_type="application/x-ndjson",
                 )
             detail = _build_openclaw_startup_error_detail(user_id, exc)
-            err = json.dumps(build_error_event(detail, ctx, exc))
+            error_type = _classify_openclaw_startup_error(
+                exc,
+                state=state,
+                state_error=state_error,
+            )
+            mark_chat_completion_failed(
+                ctx,
+                error_type=error_type,
+                detail=detail,
+            )
+            _safe_update_request_status(
+                ctx.request_id,
+                "failed",
+                error_detail=detail[:200],
+                error_type=error_type,
+            )
+            err = json.dumps(build_error_event(detail, ctx, exc, error_type=error_type))
 
             async def _error_stream() -> AsyncGenerator[bytes, None]:
                 yield (err + "\n").encode()
@@ -851,7 +926,18 @@ def _handle_chat_completions(
             "Copilot ist noch nicht eingerichtet. "
             "Bitte öffne Einstellungen → Agent Setup und hinterlege einen API-Schlüssel."
         )
-        err = json.dumps(build_error_event(detail, ctx))
+        mark_chat_completion_failed(
+            ctx,
+            error_type="client_error",
+            detail=detail,
+        )
+        _safe_update_request_status(
+            ctx.request_id,
+            "failed",
+            error_detail="Agent not configured",
+            error_type="client_error",
+        )
+        err = json.dumps(build_error_event(detail, ctx, error_type="client_error"))
 
         async def _config_error_stream() -> AsyncGenerator[bytes, None]:
             yield (err + "\n").encode()
@@ -865,7 +951,18 @@ def _handle_chat_completions(
             "Copilot unterstützt nur OpenRouter- oder OpenAI-Schlüssel. "
             "Bitte aktualisiere den Provider in Einstellungen → Agent Setup."
         )
-        err = json.dumps(build_error_event(detail, ctx))
+        mark_chat_completion_failed(
+            ctx,
+            error_type="client_error",
+            detail=detail,
+        )
+        _safe_update_request_status(
+            ctx.request_id,
+            "failed",
+            error_detail="Unsupported Copilot provider",
+            error_type="client_error",
+        )
+        err = json.dumps(build_error_event(detail, ctx, error_type="client_error"))
 
         async def _provider_error_stream() -> AsyncGenerator[bytes, None]:
             yield (err + "\n").encode()

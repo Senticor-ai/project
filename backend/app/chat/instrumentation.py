@@ -76,6 +76,30 @@ def _fail_span(span, exc: Exception) -> None:
         pass
 
 
+def mark_chat_completion_failed(
+    ctx: ChatContext,
+    *,
+    error_type: str = "backend_error",
+    detail: str | None = None,
+) -> None:
+    """Mark a handled chat failure on the active span and request metrics."""
+    ctx.completion_status = "error"
+    ctx.completion_error_type = error_type
+
+    try:
+        from opentelemetry import trace
+        from opentelemetry.trace import StatusCode
+
+        span = trace.get_current_span()
+    except Exception:  # noqa: BLE001
+        return
+
+    if span is None or not span.is_recording():
+        return
+    span.set_attribute("error.type", error_type)
+    span.set_status(StatusCode.ERROR, (detail or error_type)[:200])
+
+
 # ---------------------------------------------------------------------------
 # Prometheus metrics
 # ---------------------------------------------------------------------------
@@ -135,6 +159,8 @@ class ChatContext:
     org_id: str
     agent_backend: str = "unknown"
     model: str | None = None
+    completion_status: str = "success"
+    completion_error_type: str | None = None
 
 
 def _set_span_attrs(span, ctx: ChatContext) -> None:
@@ -158,27 +184,34 @@ def _set_span_attrs(span, ctx: ChatContext) -> None:
 def span_chat_completions(ctx: ChatContext):
     """Top-level span wrapping the entire ``/chat/completions`` handler."""
     start = time.monotonic()
-    status = "success"
     with _span("backend.chat.completions") as span:
         _set_span_attrs(span, ctx)
         try:
             yield span
         except Exception as exc:
-            status = "error"
+            mark_chat_completion_failed(
+                ctx,
+                error_type=type(exc).__name__,
+                detail=str(exc),
+            )
             _fail_span(span, exc)
             raise
         finally:
             duration = time.monotonic() - start
-            CHAT_REQUESTS_TOTAL.labels(backend=ctx.agent_backend, status=status).inc()
-            CHAT_REQUEST_DURATION_SECONDS.labels(backend=ctx.agent_backend, status=status).observe(
-                duration
-            )
+            CHAT_REQUESTS_TOTAL.labels(
+                backend=ctx.agent_backend,
+                status=ctx.completion_status,
+            ).inc()
+            CHAT_REQUEST_DURATION_SECONDS.labels(
+                backend=ctx.agent_backend,
+                status=ctx.completion_status,
+            ).observe(duration)
             logger.info(
                 "chat.completions.finished",
                 conversation_id=ctx.conversation_id,
                 request_id=ctx.request_id,
                 backend=ctx.agent_backend,
-                status=status,
+                status=ctx.completion_status,
                 duration_seconds=round(duration, 3),
             )
 
@@ -332,15 +365,25 @@ def classify_error(exc: Exception, backend: str) -> str:
     Returns a short string such as ``"provider_timeout"`` or
     ``"container_unreachable"``.
     """
-    if isinstance(exc, httpx.TimeoutException):
-        return "container_timeout" if backend == "openclaw" else "provider_timeout"
-    if isinstance(exc, httpx.ConnectError):
-        return "container_unreachable" if backend == "openclaw" else "provider_unreachable"
-    if isinstance(exc, httpx.HTTPStatusError):
-        status = exc.response.status_code
-        if 500 <= status < 600:
-            return "container_error" if backend == "openclaw" else "provider_error"
-        return "client_error"
+    seen: set[int] = set()
+    current: Exception | None = exc
+
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(current, httpx.TimeoutException):
+            return "container_timeout" if backend == "openclaw" else "provider_timeout"
+        if isinstance(current, httpx.ConnectError):
+            return "container_unreachable" if backend == "openclaw" else "provider_unreachable"
+        if isinstance(current, httpx.HTTPStatusError):
+            status = current.response.status_code
+            if 500 <= status < 600:
+                return "container_error" if backend == "openclaw" else "provider_error"
+            return "client_error"
+        next_exc = current.__cause__
+        if not isinstance(next_exc, Exception):
+            next_exc = current.__context__
+        current = next_exc if isinstance(next_exc, Exception) else None
+
     return "backend_error"
 
 
@@ -348,6 +391,7 @@ def build_error_event(
     detail: str,
     ctx: ChatContext | None = None,
     exc: Exception | None = None,
+    error_type: str | None = None,
 ) -> dict:
     """Build a NDJSON error event dict with optional observability fields.
 
@@ -357,5 +401,7 @@ def build_error_event(
     event: dict = {"type": "error", "detail": detail}
     if ctx is not None:
         event["requestId"] = ctx.request_id
-        event["errorType"] = classify_error(exc, ctx.agent_backend) if exc else "backend_error"
+        event["errorType"] = error_type or (
+            classify_error(exc, ctx.agent_backend) if exc else "backend_error"
+        )
     return event

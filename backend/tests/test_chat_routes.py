@@ -506,7 +506,14 @@ class TestChatCompletions:
         error_events = [e for e in parsed if e["type"] == "error"]
         assert len(error_events) == 1
         assert "timed out" in error_events[0]["detail"].lower()
+        assert error_events[0]["errorType"] == "container_timeout"
         assert streamed["called"] is False
+
+        request_id = response.headers["X-Request-Id"]
+        status_response = auth_client.get(f"/chat/requests/{request_id}/status")
+        assert status_response.status_code == 200
+        assert status_response.json()["status"] == "timed_out"
+        assert status_response.json()["errorType"] == "container_timeout"
 
     def test_openclaw_streams_status_error_detail_from_container_state(
         self, auth_client, monkeypatch
@@ -532,6 +539,66 @@ class TestChatCompletions:
         error_events = [e for e in parsed if e["type"] == "error"]
         assert len(error_events) == 1
         assert "health check timeout" in error_events[0]["detail"].lower()
+        assert error_events[0]["errorType"] == "container_timeout"
+
+        request_id = response.headers["X-Request-Id"]
+        status_response = auth_client.get(f"/chat/requests/{request_id}/status")
+        assert status_response.status_code == 200
+        assert status_response.json()["status"] == "failed"
+        assert status_response.json()["errorType"] == "container_timeout"
+
+    def test_openclaw_startup_connection_refused_is_classified_and_tracked(
+        self, auth_client, monkeypatch
+    ):
+        from app.chat.instrumentation import CHAT_REQUESTS_TOTAL
+
+        _patch_settings(monkeypatch, agents_url="http://localhost:8002")
+        monkeypatch.setattr("app.chat.routes.get_user_agent_backend", lambda _user_id: "openclaw")
+        monkeypatch.setattr(
+            "app.chat.routes.ensure_running",
+            lambda _user_id: (_ for _ in ()).throw(
+                RuntimeError("Kubernetes start failed: [Errno 111] Connection refused")
+            ),
+        )
+        monkeypatch.setattr(
+            "app.chat.routes.get_container_status",
+            lambda _user_id: {
+                "status": "error",
+                "error": "Kubernetes start failed: [Errno 111] Connection refused",
+            },
+        )
+
+        before_error = CHAT_REQUESTS_TOTAL.labels(backend="openclaw", status="error")._value.get()
+        before_success = CHAT_REQUESTS_TOTAL.labels(
+            backend="openclaw",
+            status="success",
+        )._value.get()
+
+        response = auth_client.post(
+            "/chat/completions",
+            json={"message": "Hallo", "conversationId": "conv-openclaw-refused"},
+        )
+        assert response.status_code == 200
+
+        parsed = _parse_ndjson(response)
+        error_events = [e for e in parsed if e["type"] == "error"]
+        assert len(error_events) == 1
+        assert error_events[0]["errorType"] == "container_unreachable"
+        assert "connection refused" in error_events[0]["detail"].lower()
+
+        request_id = response.headers["X-Request-Id"]
+        status_response = auth_client.get(f"/chat/requests/{request_id}/status")
+        assert status_response.status_code == 200
+        assert status_response.json()["status"] == "failed"
+        assert status_response.json()["errorType"] == "container_unreachable"
+
+        after_error = CHAT_REQUESTS_TOTAL.labels(backend="openclaw", status="error")._value.get()
+        after_success = CHAT_REQUESTS_TOTAL.labels(
+            backend="openclaw",
+            status="success",
+        )._value.get()
+        assert after_error == before_error + 1
+        assert after_success == before_success
 
     def test_db_error_in_get_user_agent_backend_returns_ndjson_error(
         self, auth_client, monkeypatch

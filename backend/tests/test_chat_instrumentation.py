@@ -16,6 +16,7 @@ from app.chat.instrumentation import (
     FirstTokenTracker,
     build_error_event,
     classify_error,
+    mark_chat_completion_failed,
     record_persistence_outcome,
     span_chat_completions,
     span_db_setup,
@@ -142,6 +143,16 @@ class TestBuildErrorEvent:
         event = build_error_event("Agents unreachable", ctx=ctx, exc=exc)
         assert event["errorType"] == "provider_unreachable"
 
+    def test_explicit_error_type_override(self):
+        ctx = _make_ctx(agent_backend="openclaw")
+        event = build_error_event(
+            "OpenClaw startup failed",
+            ctx=ctx,
+            exc=RuntimeError("wrapped"),
+            error_type="container_unreachable",
+        )
+        assert event["errorType"] == "container_unreachable"
+
 
 # ---------------------------------------------------------------------------
 # FirstTokenTracker
@@ -214,6 +225,18 @@ class TestSpanChatCompletions:
             with span_chat_completions(ctx):
                 raise ValueError("test error")
         after = CHAT_REQUESTS_TOTAL.labels(backend="haystack", status="error")._value.get()
+        assert after == before + 1
+
+    def test_increments_error_counter_on_handled_failure(self):
+        ctx = _make_ctx(agent_backend="openclaw")
+        before = CHAT_REQUESTS_TOTAL.labels(backend="openclaw", status="error")._value.get()
+        with span_chat_completions(ctx):
+            mark_chat_completion_failed(
+                ctx,
+                error_type="container_unreachable",
+                detail="OpenClaw startup failed",
+            )
+        after = CHAT_REQUESTS_TOTAL.labels(backend="openclaw", status="error")._value.get()
         assert after == before + 1
 
 
