@@ -190,6 +190,49 @@ class TestToolCallStreaming:
         assert t.full_text == "Ich erstelle das."
 
 
+class TestErrorPayloads:
+    def test_openai_error_object(self):
+        """Error payload with {"error": {"message": "...", "code": 402}} is surfaced."""
+        t = SseToNdjsonTranslator()
+        events = t.feed(
+            _sse(
+                {
+                    "error": {
+                        "message": "This request requires more credits",
+                        "code": 402,
+                    }
+                }
+            )
+        )
+        assert len(events) == 1
+        assert events[0]["type"] == "error"
+        assert "credits" in events[0]["detail"]
+        assert t.had_error is True
+
+    def test_error_string(self):
+        """Error payload with {"error": "some string"} is surfaced."""
+        t = SseToNdjsonTranslator()
+        events = t.feed(_sse({"error": "rate limit exceeded"}))
+        assert len(events) == 1
+        assert events[0]["type"] == "error"
+        assert events[0]["detail"] == "rate limit exceeded"
+        assert t.had_error is True
+
+    def test_error_object_without_message_falls_back(self):
+        """Error dict without 'message' key uses str() fallback."""
+        t = SseToNdjsonTranslator()
+        events = t.feed(_sse({"error": {"code": 500, "type": "server_error"}}))
+        assert len(events) == 1
+        assert events[0]["type"] == "error"
+        assert "500" in events[0]["detail"]
+
+    def test_had_error_false_by_default(self):
+        t = SseToNdjsonTranslator()
+        assert t.had_error is False
+        t.feed(_sse(_chunk({"content": "Hi"})))
+        assert t.had_error is False
+
+
 class TestEdgeCases:
     def test_blank_lines_ignored(self):
         t = SseToNdjsonTranslator()

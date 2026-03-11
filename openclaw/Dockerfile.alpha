@@ -27,4 +27,5 @@ ENV OPENCLAW_PREFER_PNPM=1
 USER node
 WORKDIR /workspace
 
-CMD ["openclaw", "gateway", "run", "--allow-unconfigured", "--bind", "lan"]
+# Since OpenClaw 2026.3.8: non-loopback bind requires controlUi origin config.
+CMD ["bash", "-c", "openclaw config set gateway.controlUi.dangerouslyAllowHostHeaderOriginFallback true && exec openclaw gateway run --allow-unconfigured --bind lan"]

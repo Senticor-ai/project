@@ -1491,3 +1491,140 @@ class TestAcceptedEvent:
         accepted_events = [e for e in parsed if e["type"] == "accepted"]
         assert len(accepted_events) == 1
         assert "requestId" in accepted_events[0]
+
+
+class TestOpenclawEmptyStreamFallback:
+    """When OpenClaw returns an empty stream the user should see an error."""
+
+    def test_empty_sse_stream_emits_fallback_error(self, auth_client, monkeypatch):
+        from contextlib import asynccontextmanager
+
+        _patch_settings(monkeypatch, default_agent_backend="openclaw")
+        monkeypatch.setattr("app.chat.routes.get_user_agent_backend", lambda uid: "openclaw")
+        monkeypatch.setattr(
+            "app.chat.routes.ensure_running",
+            lambda uid: ("http://fake-openclaw:8080", "tok"),
+        )
+        monkeypatch.setattr("app.chat.routes.write_token_file", lambda uid, tok: None)
+        monkeypatch.setattr(
+            "app.chat.routes.create_delegated_token",
+            lambda **kw: "fake-delegated-token",
+        )
+        monkeypatch.setattr(
+            "app.chat.routes.sync_workspace_memory_to_db",
+            lambda **kw: None,
+        )
+
+        import app.chat.routes as routes_mod
+
+        # Empty SSE stream — no content, no [DONE]
+        class FakeSSEResponse:
+            status_code = 200
+
+            def raise_for_status(self):
+                pass
+
+            async def aiter_lines(self):
+                return
+                yield  # noqa: RUF027 — makes this an async generator
+
+        class FakeAsyncClient:
+            def __init__(self, **kw):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *a):
+                pass
+
+            def stream(self, *a, **kw):
+                @asynccontextmanager
+                async def _ctx():
+                    yield FakeSSEResponse()
+
+                return _ctx()
+
+        monkeypatch.setattr(routes_mod.httpx, "AsyncClient", FakeAsyncClient)
+
+        response = auth_client.post(
+            "/chat/completions",
+            json={
+                "message": "Test",
+                "conversationId": f"conv-empty-{uuid.uuid4().hex[:8]}",
+            },
+        )
+        assert response.status_code == 200
+        parsed = _parse_ndjson(response)
+        error_events = [e for e in parsed if e["type"] == "error"]
+        assert len(error_events) >= 1
+        assert "did not return a response" in error_events[0]["detail"].lower()
+
+    def test_sse_error_payload_surfaces_to_user(self, auth_client, monkeypatch):
+        """When OpenClaw forwards an upstream error (e.g. 402), it shows in chat."""
+        from contextlib import asynccontextmanager
+
+        _patch_settings(monkeypatch, default_agent_backend="openclaw")
+        monkeypatch.setattr("app.chat.routes.get_user_agent_backend", lambda uid: "openclaw")
+        monkeypatch.setattr(
+            "app.chat.routes.ensure_running",
+            lambda uid: ("http://fake-openclaw:8080", "tok"),
+        )
+        monkeypatch.setattr("app.chat.routes.write_token_file", lambda uid, tok: None)
+        monkeypatch.setattr(
+            "app.chat.routes.create_delegated_token",
+            lambda **kw: "fake-delegated-token",
+        )
+        monkeypatch.setattr(
+            "app.chat.routes.sync_workspace_memory_to_db",
+            lambda **kw: None,
+        )
+
+        import app.chat.routes as routes_mod
+
+        # SSE stream with an error payload (OpenRouter 402)
+        sse_lines = [
+            'data: {"error":{"message":"This request requires more credits","code":402}}',
+        ]
+
+        class FakeSSEResponse:
+            status_code = 200
+
+            def raise_for_status(self):
+                pass
+
+            async def aiter_lines(self):
+                for line in sse_lines:
+                    yield line
+
+        class FakeAsyncClient:
+            def __init__(self, **kw):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *a):
+                pass
+
+            def stream(self, *a, **kw):
+                @asynccontextmanager
+                async def _ctx():
+                    yield FakeSSEResponse()
+
+                return _ctx()
+
+        monkeypatch.setattr(routes_mod.httpx, "AsyncClient", FakeAsyncClient)
+
+        response = auth_client.post(
+            "/chat/completions",
+            json={
+                "message": "Test",
+                "conversationId": f"conv-402-{uuid.uuid4().hex[:8]}",
+            },
+        )
+        assert response.status_code == 200
+        parsed = _parse_ndjson(response)
+        error_events = [e for e in parsed if e["type"] == "error"]
+        assert len(error_events) >= 1
+        assert "credits" in error_events[0]["detail"].lower()

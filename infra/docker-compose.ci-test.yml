@@ -108,6 +108,17 @@ services:
     image: ${OPENCLAW_IMAGE}
     ports:
       - "18789:18789"
+    # No health endpoint — gateway only responds after user initiates a chat.
+    # Log the version at startup so failures show the installed CLI version.
+    # Since 2026.3.8: non-loopback bind requires controlUi origin config.
+    command: >-
+      bash -c '
+        echo "--- OpenClaw container starting ---";
+        openclaw --version 2>&1 || true;
+        openclaw config set gateway.controlUi.dangerouslyAllowHostHeaderOriginFallback true;
+        echo "--- Launching gateway ---";
+        exec openclaw gateway run --allow-unconfigured --bind lan
+      '
 
 volumes:
   # File storage volume — ownership set to UID 1000 by db-init service.
