@@ -82,7 +82,7 @@ jobs:
       # misconfig scanner excluded: k3s single-node deployment, KSV/DS rules
       # are not actionable. Dockerfile security is covered by Semgrep.
       - name: Run Trivy filesystem scan
-        uses: aquasecurity/trivy-action@97e0b3872f55f89b95b2f65b3dbab56962816478 # 0.34.2
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         with:
           scan-type: fs
           scan-ref: .
@@ -125,7 +125,7 @@ jobs:
         run: docker build --pull -t project-agents:scan -f agents/Dockerfile .
 
       - name: Scan backend image
-        uses: aquasecurity/trivy-action@97e0b3872f55f89b95b2f65b3dbab56962816478 # 0.34.2
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         with:
           scan-type: image
           image-ref: project-backend:scan
@@ -134,7 +134,7 @@ jobs:
           output: trivy-image-backend.sarif
 
       - name: Scan frontend image
-        uses: aquasecurity/trivy-action@97e0b3872f55f89b95b2f65b3dbab56962816478 # 0.34.2
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         with:
           scan-type: image
           image-ref: project-frontend:scan
@@ -143,7 +143,7 @@ jobs:
           output: trivy-image-frontend.sarif
 
       - name: Scan agents image
-        uses: aquasecurity/trivy-action@97e0b3872f55f89b95b2f65b3dbab56962816478 # 0.34.2
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         with:
           scan-type: image
           image-ref: project-agents:scan
