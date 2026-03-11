@@ -304,3 +304,41 @@ export const WithArchiveAction: Story = {
     ).toBeInTheDocument();
   },
 };
+
+export const MarketingEmailCompactPreview: Story = {
+  args: {
+    htmlBody: `
+      <div style="font-family: Arial, sans-serif; font-size: 28px; line-height: 36px; text-align: center;">
+        <p style="font-size: 32px; line-height: 40px;">You unsubscribed from JCal from All In.</p>
+        <p style="font-size: 26px; line-height: 34px;">Was this a mistake? If so, you can re-subscribe here.</p>
+        <div style="margin-top: 24px;">
+          <a
+            href="https://example.com/app"
+            style="display: inline-block; background: #111; color: #fff; font-size: 24px; line-height: 28px; padding: 20px 40px; border-radius: 20px; text-decoration: none;"
+          >
+            Get the app
+          </a>
+        </div>
+        <div style="margin-top: 16px;">
+          <a
+            href="https://example.com/start"
+            style="display: inline-block; background: #fff7ef; color: #ff6a00; font-size: 22px; line-height: 28px; padding: 18px 36px; border: 2px solid #ffd5b0; border-radius: 18px; text-decoration: none;"
+          >
+            Start writing
+          </a>
+        </div>
+      </div>
+    `,
+    senderEmail: "jcalfromallin@substack.com",
+    sourceUrl: "https://mail.google.com/mail/u/0/#inbox/jcal-example",
+  },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(
+      canvas.getByRole("button", { name: /E-Mail anzeigen/i }),
+    );
+    expect(
+      canvas.getByText(/You unsubscribed from JCal from All In./i),
+    ).toBeInTheDocument();
+    expect(canvas.getByText(/Get the app/i)).toBeInTheDocument();
+  },
+};

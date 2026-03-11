@@ -206,6 +206,11 @@ export type StreamEvent =
       phase?: "startup" | "ready";
       elapsedSeconds?: number;
     }
+  | {
+      type: "conversation_reloaded";
+      conversationId: string;
+      messages: ConversationMessageResponse[];
+    }
   | { type: "items_changed" }
   | { type: "done"; text: string }
   | { type: "error"; detail: string; requestId?: string; errorType?: string };

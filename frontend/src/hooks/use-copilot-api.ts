@@ -10,6 +10,7 @@ import type {
 } from "@/model/chat-types";
 import { isValidBucket, parsePathname } from "@/lib/route-utils";
 import { getOrRefreshCsrfToken, refreshCsrfToken } from "@/lib/api-client";
+import { withFaroActiveSpan } from "@/lib/faro";
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "/api").replace(
   /\/+$/,
@@ -281,9 +282,54 @@ function isLikelyInvalidCsrf(status: number, detail: string | null): boolean {
 const CHAT_TIMEOUT_MS = 120_000;
 const POLL_INTERVAL_MS = 5_000;
 const POLL_MAX_ATTEMPTS = 12;
+const REQUEST_ID_HEADER = "X-Request-ID";
+
+class ChatRequestError extends Error {
+  status?: number;
+  errorType?: string;
+  requestId?: string;
+
+  constructor(
+    message: string,
+    options: {
+      status?: number;
+      errorType?: string;
+      requestId?: string;
+    } = {},
+  ) {
+    super(message);
+    this.name = "ChatRequestError";
+    this.status = options.status;
+    this.errorType = options.errorType;
+    this.requestId = options.requestId;
+  }
+}
+
+function createChatRequestId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function getResponseHeader(
+  response: { headers?: Headers | Record<string, string> | null },
+  name: string,
+): string | null {
+  const { headers } = response;
+  if (!headers) return null;
+  if (headers instanceof Headers) {
+    return headers.get(name);
+  }
+
+  const lowerName = name.toLowerCase();
+  const record = headers as Record<string, string | undefined>;
+  return record[name] ?? record[lowerName] ?? null;
+}
 
 async function postChatCompletions(
   payload: Record<string, unknown>,
+  requestId: string,
   signal?: AbortSignal,
 ): Promise<Response> {
   let csrfToken = await getOrRefreshCsrfToken();
@@ -292,6 +338,7 @@ async function postChatCompletions(
     headers: {
       "Content-Type": "application/json",
       "X-CSRF-Token": csrfToken,
+      [REQUEST_ID_HEADER]: requestId,
     },
     credentials: "include",
     body: JSON.stringify(payload),
@@ -304,7 +351,16 @@ async function postChatCompletions(
     response as ChatErrorResponse,
   );
   if (!isLikelyInvalidCsrf(response.status, firstDetail)) {
-    throw new Error(firstDetail ?? `Chat request failed: ${response.status}`);
+    throw new ChatRequestError(
+      firstDetail ?? `Chat request failed: ${response.status}`,
+      {
+        status: response.status,
+        errorType: "http_error",
+        requestId:
+          getResponseHeader(response as Response, REQUEST_ID_HEADER) ??
+          requestId,
+      },
+    );
   }
 
   csrfToken = await refreshCsrfToken();
@@ -313,6 +369,7 @@ async function postChatCompletions(
     headers: {
       "Content-Type": "application/json",
       "X-CSRF-Token": csrfToken,
+      [REQUEST_ID_HEADER]: requestId,
     },
     credentials: "include",
     body: JSON.stringify(payload),
@@ -321,7 +378,16 @@ async function postChatCompletions(
 
   if (!response.ok) {
     const detail = await extractChatErrorDetail(response as ChatErrorResponse);
-    throw new Error(detail ?? `Chat request failed: ${response.status}`);
+    throw new ChatRequestError(
+      detail ?? `Chat request failed: ${response.status}`,
+      {
+        status: response.status,
+        errorType: "http_error",
+        requestId:
+          getResponseHeader(response as Response, REQUEST_ID_HEADER) ??
+          requestId,
+      },
+    );
   }
 
   return response;
@@ -346,7 +412,11 @@ async function awaitRequestCompletion(
   for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt++) {
     await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
     const status = await pollRequestStatus(requestId);
-    if (status.status === "completed" || status.status === "failed" || status.status === "timed_out") {
+    if (
+      status.status === "completed" ||
+      status.status === "failed" ||
+      status.status === "timed_out"
+    ) {
       return status;
     }
   }
@@ -361,75 +431,177 @@ export function useCopilotApi() {
       onEvent: (event: StreamEvent) => void,
       extraContext?: Partial<ChatClientContext>,
     ): Promise<void> => {
-      const controller = new AbortController();
-      let capturedRequestId: string | undefined;
-      let activityTimer = setTimeout(
-        () => controller.abort(),
-        CHAT_TIMEOUT_MS,
-      );
+      const clientRequestId = createChatRequestId();
 
-      const resetTimer = () => {
-        clearTimeout(activityTimer);
-        activityTimer = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS);
-      };
+      return withFaroActiveSpan(
+        "ui.chat.submit",
+        {
+          "chat.conversation_id": conversationId,
+          "chat.request_id": clientRequestId,
+          "chat.timeout_ms": CHAT_TIMEOUT_MS,
+        },
+        async (span) => {
+          const controller = new AbortController();
+          let capturedRequestId: string | undefined = clientRequestId;
+          let activityTimer = setTimeout(
+            () => controller.abort(),
+            CHAT_TIMEOUT_MS,
+          );
 
-      const wrappedOnEvent = (event: StreamEvent) => {
-        resetTimer(); // reset timeout on every received event
-        if (event.type === "accepted") {
-          capturedRequestId = event.requestId;
-        }
-        onEvent(event);
-      };
+          const resetTimer = () => {
+            clearTimeout(activityTimer);
+            activityTimer = setTimeout(
+              () => controller.abort(),
+              CHAT_TIMEOUT_MS,
+            );
+          };
 
-      try {
-        const res = await postChatCompletions(
-          {
-            message,
-            conversationId,
-            context: getClientContext(extraContext),
-          },
-          controller.signal,
-        );
+          const wrappedOnEvent = (event: StreamEvent) => {
+            resetTimer(); // reset timeout on every received event
 
-        if (!res.body) {
-          throw new Error("No response body for streaming");
-        }
-
-        await readNdjsonStream(res.body, wrappedOnEvent);
-      } catch (err) {
-        if (err instanceof DOMException && err.name === "AbortError") {
-          // Stream timed out — attempt recovery via polling
-          if (capturedRequestId) {
-            try {
-              const status = await awaitRequestCompletion(capturedRequestId);
-              if (status.status === "completed") {
-                // Backend completed; UI should reload messages
-                onEvent({
-                  type: "done",
-                  text: "",
-                });
-                onEvent({ type: "items_changed" });
-                return;
-              }
-              // Backend failed or timed out
-              onEvent({
-                type: "error",
-                detail: status.errorDetail ?? "Chat request failed",
-                requestId: capturedRequestId,
-                errorType: status.errorType ?? "backend_error",
-              });
-              return;
-            } catch {
-              // Polling also failed
-              throw new Error("Chat request timed out");
+            if (event.type === "accepted") {
+              capturedRequestId = event.requestId;
+              span.setAttribute("chat.request_id", event.requestId);
             }
+
+            if (event.type === "error") {
+              span.setAttribute(
+                "error.type",
+                event.errorType ?? "chat_stream_error",
+              );
+              span.recordError(
+                new ChatRequestError(event.detail, {
+                  errorType: event.errorType,
+                  requestId: event.requestId ?? capturedRequestId,
+                }),
+              );
+            }
+
+            onEvent(event);
+          };
+
+          try {
+            const res = await postChatCompletions(
+              {
+                message,
+                conversationId,
+                context: getClientContext(extraContext),
+              },
+              clientRequestId,
+              controller.signal,
+            );
+            span.setAttribute("http.status_code", res.status);
+
+            if (!res.body) {
+              throw new Error("No response body for streaming");
+            }
+
+            await readNdjsonStream(res.body, wrappedOnEvent);
+          } catch (err) {
+            if (err instanceof DOMException && err.name === "AbortError") {
+              // Stream timed out — attempt recovery via polling
+              if (capturedRequestId) {
+                try {
+                  const status =
+                    await awaitRequestCompletion(capturedRequestId);
+                  if (status.status === "completed") {
+                    try {
+                      const recoveredMessages =
+                        await ChatApi.getConversationMessages(
+                          status.conversationId,
+                        );
+                      span.setAttribute("chat.request_id", capturedRequestId);
+                      span.setAttribute("chat.recovered_after_timeout", true);
+                      onEvent({
+                        type: "conversation_reloaded",
+                        conversationId: status.conversationId,
+                        messages: recoveredMessages,
+                      });
+                      onEvent({ type: "items_changed" });
+                    } catch {
+                      span.setAttribute(
+                        "error.type",
+                        "conversation_reload_failed",
+                      );
+                      span.recordError(
+                        new ChatRequestError(
+                          "The chat finished, but the saved response could not be reloaded automatically.",
+                          {
+                            errorType: "conversation_reload_failed",
+                            requestId: capturedRequestId,
+                          },
+                        ),
+                      );
+                      onEvent({
+                        type: "error",
+                        detail:
+                          "The chat finished, but the saved response could not be reloaded automatically.",
+                        requestId: capturedRequestId,
+                        errorType: "conversation_reload_failed",
+                      });
+                    }
+                    return;
+                  }
+
+                  span.setAttribute("chat.request_id", capturedRequestId);
+                  span.setAttribute(
+                    "error.type",
+                    status.errorType ?? "backend_error",
+                  );
+                  span.recordError(
+                    new ChatRequestError(
+                      status.errorDetail ?? "Chat request failed",
+                      {
+                        errorType: status.errorType ?? "backend_error",
+                        requestId: capturedRequestId,
+                      },
+                    ),
+                  );
+
+                  // Backend failed or timed out
+                  onEvent({
+                    type: "error",
+                    detail: status.errorDetail ?? "Chat request failed",
+                    requestId: capturedRequestId,
+                    errorType: status.errorType ?? "backend_error",
+                  });
+                  return;
+                } catch {
+                  // Polling also failed
+                  span.setAttribute("chat.request_id", capturedRequestId);
+                  span.setAttribute("error.type", "frontend_timeout");
+                  throw new ChatRequestError("Chat request timed out", {
+                    errorType: "frontend_timeout",
+                    requestId: capturedRequestId,
+                  });
+                }
+              }
+
+              span.setAttribute("error.type", "frontend_timeout");
+              throw new ChatRequestError("Chat request timed out", {
+                errorType: "frontend_timeout",
+                requestId: clientRequestId,
+              });
+            }
+
+            if (err instanceof ChatRequestError) {
+              if (err.status !== undefined) {
+                span.setAttribute("http.status_code", err.status);
+              }
+              if (err.requestId) {
+                span.setAttribute("chat.request_id", err.requestId);
+              }
+              if (err.errorType) {
+                span.setAttribute("error.type", err.errorType);
+              }
+            }
+
+            throw err;
+          } finally {
+            clearTimeout(activityTimer);
           }
-          throw new Error("Chat request timed out");
-        }
-        throw err;
-      } finally {
-        clearTimeout(activityTimer);
-      }
+        },
+      );
     },
     [],
   );

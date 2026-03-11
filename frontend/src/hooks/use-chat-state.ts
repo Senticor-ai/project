@@ -12,6 +12,7 @@ import type {
   CreatedItemRef,
   StreamEvent,
 } from "@/model/chat-types";
+import { conversationMessagesToChatMessages } from "@/lib/chat-history";
 import { getMessage } from "@/lib/messages";
 import { useCopilotApi } from "./use-copilot-api";
 import { useCopilotActions } from "./use-copilot-actions";
@@ -187,6 +188,14 @@ export function useChatState(options: ChatStateOptions = {}) {
                   ),
                 );
               }
+              break;
+            }
+
+            case "conversation_reloaded": {
+              streamingMsgId = null;
+              statusMsgId = null;
+              setConversationId(event.conversationId);
+              setMessages(conversationMessagesToChatMessages(event.messages));
               break;
             }
 

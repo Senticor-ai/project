@@ -3,6 +3,7 @@ import {
   getWebInstrumentations,
   type Faro,
 } from "@grafana/faro-web-sdk";
+import { TracingInstrumentation } from "@grafana/faro-web-tracing";
 import type { AuthUser } from "./api-client";
 
 const COLLECTOR_URL = import.meta.env.VITE_FARO_COLLECTOR_URL ?? "";
@@ -10,6 +11,87 @@ const APP_NAME = import.meta.env.VITE_FARO_APP_NAME ?? "copilot-frontend";
 const ENVIRONMENT = import.meta.env.VITE_FARO_ENVIRONMENT ?? "development";
 
 let faro: Faro | null = null;
+
+type FaroSpanAttribute = string | number | boolean;
+type FaroSpanAttributes = Record<string, FaroSpanAttribute | undefined>;
+
+export type FaroSpanHandle = {
+  setAttribute: (name: string, value: FaroSpanAttribute | undefined) => void;
+  recordError: (error: unknown) => void;
+};
+
+const noopSpanHandle: FaroSpanHandle = {
+  setAttribute: () => {},
+  recordError: () => {},
+};
+
+function normalizeErrorType(error: unknown): string {
+  if (
+    error &&
+    typeof error === "object" &&
+    "errorType" in error &&
+    typeof (error as { errorType?: unknown }).errorType === "string"
+  ) {
+    return (error as { errorType: string }).errorType;
+  }
+  if (error instanceof Error && error.name) {
+    return error.name;
+  }
+  return "unknown_error";
+}
+
+function setSpanAttributes(
+  span: { setAttribute: (name: string, value: FaroSpanAttribute) => void },
+  attributes: FaroSpanAttributes,
+): void {
+  for (const [name, value] of Object.entries(attributes)) {
+    if (value === undefined) continue;
+    span.setAttribute(name, value);
+  }
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function getAbsoluteOrigin(url: string): string | null {
+  if (!/^https?:\/\//i.test(url)) {
+    return null;
+  }
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
+  }
+}
+
+function buildTracingInstrumentation(): TracingInstrumentation {
+  const tracingApiOrigin = getAbsoluteOrigin(
+    import.meta.env.VITE_API_BASE_URL ?? "/api",
+  );
+  const collectorOrigin = getAbsoluteOrigin(COLLECTOR_URL);
+
+  const instrumentationOptions: {
+    ignoreUrls?: Array<string | RegExp>;
+    propagateTraceHeaderCorsUrls?: Array<string | RegExp>;
+  } = {};
+
+  if (collectorOrigin) {
+    instrumentationOptions.ignoreUrls = [
+      new RegExp(`^${escapeRegExp(collectorOrigin)}`),
+    ];
+  }
+
+  if (tracingApiOrigin) {
+    instrumentationOptions.propagateTraceHeaderCorsUrls = [
+      new RegExp(`^${escapeRegExp(tracingApiOrigin)}`),
+    ];
+  }
+
+  return new TracingInstrumentation({
+    instrumentationOptions,
+  });
+}
 
 /**
  * Initialize the Grafana Faro Web SDK.
@@ -34,7 +116,10 @@ export function initFaro(): Faro | null {
         name: APP_NAME,
         environment: ENVIRONMENT,
       },
-      instrumentations: [...getWebInstrumentations()],
+      instrumentations: [
+        ...getWebInstrumentations(),
+        buildTracingInstrumentation(),
+      ],
     });
 
     faro.api.pushEvent("app_bootstrapped", {
@@ -55,6 +140,48 @@ export function initFaro(): Faro | null {
 /** Return the current Faro instance (or `null` if not initialized). */
 export function getFaro(): Faro | null {
   return faro;
+}
+
+export async function withFaroActiveSpan<T>(
+  name: string,
+  attributes: FaroSpanAttributes,
+  run: (span: FaroSpanHandle) => Promise<T>,
+): Promise<T> {
+  const otel = faro?.api.getOTEL();
+  if (!otel) {
+    return run(noopSpanHandle);
+  }
+
+  const tracer = otel.trace.getTracer(APP_NAME);
+  return tracer.startActiveSpan(name, async (span) => {
+    setSpanAttributes(span, attributes);
+
+    const handle: FaroSpanHandle = {
+      setAttribute: (attributeName, value) => {
+        if (value === undefined) return;
+        span.setAttribute(attributeName, value);
+      },
+      recordError: (error) => {
+        if (typeof span.recordException === "function") {
+          if (error instanceof Error || typeof error === "string") {
+            span.recordException(error);
+          } else {
+            span.recordException(new Error(normalizeErrorType(error)));
+          }
+        }
+        span.setAttribute("error.type", normalizeErrorType(error));
+      },
+    };
+
+    try {
+      return await run(handle);
+    } catch (error) {
+      handle.recordError(error);
+      throw error;
+    } finally {
+      span.end();
+    }
+  });
 }
 
 /**
