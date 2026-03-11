@@ -455,7 +455,19 @@ def list_calendar_events(
         events.append(event)
 
     events.sort(key=lambda ev: (ev.start_date or "", ev.updated_at, ev.canonical_id))
-    return events
+
+    # Deduplicate by event_id — the same Google Calendar event can exist under
+    # different canonical IDs when the calendar_id alias differs (e.g. "primary"
+    # vs the actual email address).  Keep the first (earliest) occurrence.
+    seen_event_ids: set[str] = set()
+    deduped: list[CalendarEventResponse] = []
+    for ev in events:
+        if ev.event_id:
+            if ev.event_id in seen_event_ids:
+                continue
+            seen_event_ids.add(ev.event_id)
+        deduped.append(ev)
+    return deduped
 
 
 @router.post(

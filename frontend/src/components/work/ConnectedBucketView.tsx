@@ -28,9 +28,7 @@ import {
   useCreateProject,
 } from "@/hooks/use-mutations";
 import { Icon } from "@/components/ui/Icon";
-import {
-  CollaborationApi,
-} from "@/lib/api-client";
+import { CollaborationApi } from "@/lib/api-client";
 import { buildItemEditPatch } from "@/lib/item-serializer";
 import type {
   ActionItemBucket,
@@ -80,7 +78,13 @@ export function ConnectedBucketView({
   const updateItemMutation = useUpdateItem();
   const addProjectActionMutation = useAddProjectAction();
   const createProjectMutation = useCreateProject();
-  const calendarEventsQuery = useCalendarEvents(activeBucket === "calendar");
+  const todayIso = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }, []);
+  const calendarEventsQuery = useCalendarEvents(activeBucket === "calendar", {
+    dateFrom: todayIso,
+  });
   const patchCalendarEvent = usePatchCalendarEvent();
   const rsvpCalendarEvent = useSetCalendarEventRsvp();
   const deleteCalendarEvent = useDeleteCalendarEvent();
@@ -157,7 +161,9 @@ export function ConnectedBucketView({
         return;
       }
       const memberships = await Promise.allSettled(
-        projects.map((project) => CollaborationApi.listProjectMembers(project.id)),
+        projects.map((project) =>
+          CollaborationApi.listProjectMembers(project.id),
+        ),
       );
       if (canceled) return;
       const shared = memberships
@@ -320,7 +326,8 @@ export function ConnectedBucketView({
   const renderProjectWorkspace = useCallback(
     (project: Project) => {
       const projectActions = (actionItemsQuery.data ?? []).filter(
-        (item) => item.bucket !== "inbox" && item.projectIds.includes(project.id),
+        (item) =>
+          item.bucket !== "inbox" && item.projectIds.includes(project.id),
       );
       return (
         <ProjectCollaborationWorkspace

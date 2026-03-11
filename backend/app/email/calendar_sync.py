@@ -393,7 +393,26 @@ def run_calendar_sync(
 
     token = access_token or get_valid_gmail_token(connection, org_id)
     selected_calendar_ids = _selected_calendar_ids(connection)
+
+    # Resolve the "primary" alias to the actual email so that canonical IDs
+    # are stable regardless of whether the user later selects the real calendar
+    # ID in settings.  Without this, the same event gets two canonical IDs
+    # (one with "primary", one with the email) and appears as a duplicate.
+    if "primary" in selected_calendar_ids:
+        email = (connection.get("email_address") or "").strip()
+        if email:
+            selected_calendar_ids = [
+                email if cid == "primary" else cid for cid in selected_calendar_ids
+            ]
+
     existing_sync_tokens = _existing_sync_tokens(connection)
+    # Carry forward the sync token stored under "primary" when we resolved it
+    # to the actual email above, so incremental sync still works.
+    _primary_token = existing_sync_tokens.get("primary")
+    if _primary_token:
+        for cid in selected_calendar_ids:
+            if cid != "primary" and cid not in existing_sync_tokens:
+                existing_sync_tokens[cid] = _primary_token
     next_sync_tokens = {
         calendar_id: existing_sync_tokens[calendar_id]
         for calendar_id in selected_calendar_ids

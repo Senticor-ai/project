@@ -633,6 +633,69 @@ def test_delete_writable_event_calls_google_delete(auth_client, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
+def test_list_calendar_events_deduplicates_by_event_id(auth_client, monkeypatch):
+    """Events stored under both 'primary' and the real email calendar ID
+    should appear only once in the response."""
+    org_id = auth_client.headers["X-Org-Id"]
+    me = auth_client.get("/auth/me")
+    assert me.status_code == 200
+    user_id = me.json()["id"]
+
+    _seed_connection(org_id=org_id, user_id=user_id)
+
+    # Seed the SAME Google event under two different canonical IDs
+    event_id = f"evt-dedup-{uuid.uuid4().hex[:8]}"
+    cid_primary = f"urn:app:event:gcal:primary:{event_id}"
+    cid_email = f"urn:app:event:gcal:me@example.com:{event_id}"
+
+    def _seed_with_event_id(canonical_id: str, evt_id: str) -> str:
+        item_id = str(uuid.uuid4())
+        schema = {
+            "@context": "https://schema.org",
+            "@id": canonical_id,
+            "@type": "Event",
+            "name": "Duplicated Event",
+            "startDate": "2026-03-01T10:00:00Z",
+            "additionalProperty": [
+                {"@type": "PropertyValue", "propertyID": "app:bucket", "value": "calendar"},
+            ],
+            "sourceMetadata": {
+                "provider": "google_calendar",
+                "raw": {"calendarId": "primary", "eventId": evt_id},
+            },
+        }
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO items
+                        (item_id, org_id, created_by_user_id, canonical_id,
+                         schema_jsonld, source, content_hash, created_at, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, now(), now())
+                    """,
+                    (item_id, org_id, user_id, canonical_id, jsonb(schema),
+                     "google_calendar", f"hash-{item_id}"),
+                )
+            conn.commit()
+        return item_id
+
+    _seed_with_event_id(cid_primary, event_id)
+    _seed_with_event_id(cid_email, event_id)
+
+    monkeypatch.setattr("app.routes.calendar.get_valid_gmail_token", lambda *_a, **_k: "token")
+    monkeypatch.setattr(
+        "app.routes.calendar.google_calendar_api.calendar_list",
+        lambda *_a, **_k: {"items": []},
+    )
+
+    response = auth_client.get("/calendar/events")
+    assert response.status_code == 200
+    payload = response.json()
+
+    matches = [ev for ev in payload if ev["event_id"] == event_id]
+    assert len(matches) == 1, f"Expected 1 event but got {len(matches)} for event_id={event_id}"
+
+
 def test_idempotency_key_conflict_returns_409(auth_client):
     """Same idempotency key with different payload returns 409."""
     idem_key = f"idem-conflict-{uuid.uuid4()}"
