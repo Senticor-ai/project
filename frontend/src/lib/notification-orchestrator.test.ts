@@ -22,7 +22,7 @@ function createEvent(
     severity: "critical",
     title: "Urgent: meeting update",
     body: "Alex requested moving your 4:00 PM meeting.",
-    url: "/settings/email?proposal=123",
+    url: "/settings/sync?proposal=123",
     created_at: new Date().toISOString(),
     ...overrides,
   };

@@ -13,6 +13,7 @@ import type { Bucket } from "@/model/types";
 export interface PreferencesPanelProps {
   preferences: UserPreferences;
   onChange: (update: Partial<UserPreferences>) => void;
+  email: string;
   className?: string;
 }
 
@@ -54,10 +55,23 @@ function ToggleGroup<T extends string>({
 export function PreferencesPanel({
   preferences,
   onChange,
+  email,
   className,
 }: PreferencesPanelProps) {
   return (
     <div className={cn("space-y-6", className)}>
+      {/* Account */}
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium text-text-primary">Account</h2>
+        <div>
+          <span className={labelClass}>
+            <Icon name="mail" size={10} />
+            E-Mail
+          </span>
+          <p className="text-xs text-text-primary">{email}</p>
+        </div>
+      </section>
+
       {/* Language & Regional */}
       <section className="space-y-3">
         <h2 className="text-sm font-medium text-text-primary">

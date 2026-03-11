@@ -67,7 +67,7 @@ export class NotificationOrchestrator {
                       this.options.onUrgentProposal(event);
                       return;
                     }
-                    window.location.assign(event.url || "/settings/email");
+                    window.location.assign(event.url || "/settings/sync");
                   },
                 }
               : undefined,

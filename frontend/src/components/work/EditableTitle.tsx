@@ -86,11 +86,17 @@ function InlineEditableTitle({
 
   const displayTitle = optimistic ?? title;
 
+  const grow = useCallback((el: HTMLTextAreaElement) => {
+    el.style.height = "auto";
+    el.style.height = el.scrollHeight + "px";
+  }, []);
+
   useEffect(() => {
-    if (isEditing) {
-      inputRef.current?.focus();
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      grow(inputRef.current);
     }
-  }, [isEditing]);
+  }, [isEditing, grow]);
 
   const saveIfChanged = () => {
     const trimmed = inputRef.current?.value.trim();
@@ -109,11 +115,6 @@ function InlineEditableTitle({
     saveIfChanged();
     onToggleEdit();
   };
-
-  const grow = useCallback((el: HTMLTextAreaElement) => {
-    el.style.height = "auto";
-    el.style.height = el.scrollHeight + "px";
-  }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey && !e.altKey) {

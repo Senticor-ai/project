@@ -122,4 +122,28 @@ describe("AutoGrowTextarea", () => {
     );
     expect(screen.getByPlaceholderText("Type here...")).toBeInTheDocument();
   });
+
+  it("allows callers to override rows", () => {
+    render(<AutoGrowTextarea aria-label="Test input" rows={3} />);
+    expect(screen.getByRole("textbox", { name: "Test input" })).toHaveAttribute(
+      "rows",
+      "3",
+    );
+  });
+
+  it("calls grow on mount when defaultValue is set", () => {
+    render(
+      <AutoGrowTextarea
+        aria-label="Test input"
+        defaultValue={"line1\nline2\nline3"}
+      />,
+    );
+    const textarea = screen.getByRole("textbox", {
+      name: "Test input",
+    }) as HTMLTextAreaElement;
+    // In jsdom scrollHeight is 0, so grow sets height to "0px".
+    // The key assertion is that style.height was set at all (not left blank).
+    expect(textarea.style.height).toBeDefined();
+    expect(textarea.style.height).not.toBe("");
+  });
 });

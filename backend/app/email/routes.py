@@ -487,7 +487,7 @@ def gmail_callback(
         org_id = uuid.UUID(org_id_str)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Invalid IDs in state") from exc
-    return_url = payload.get("return_url") or f"{settings.frontend_base_url}/settings/email"
+    return_url = payload.get("return_url") or f"{settings.frontend_base_url}/settings/sync"
 
     # Exchange code for tokens
     try:

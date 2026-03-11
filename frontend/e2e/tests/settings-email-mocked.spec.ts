@@ -36,7 +36,7 @@ async function setupEmailPanel(
 
   const settings = new SettingsPage(page);
   await settings.openSettings();
-  await settings.navigateToTab("email");
+  await settings.navigateToTab("sync");
 }
 
 test.describe("Settings — Email (mocked)", () => {
@@ -149,7 +149,7 @@ test.describe("Settings — Email (mocked)", () => {
     expect(url.searchParams.get("return_url")).toBeTruthy();
   });
 
-  test("popup OAuth connect refreshes data and stays on settings/email", async ({
+  test("popup OAuth connect refreshes data and stays on settings/sync", async ({
     authenticatedPage: page,
   }) => {
     // Dynamic connection list — starts empty, updated after "OAuth"
@@ -274,7 +274,7 @@ test.describe("Settings — Email (mocked)", () => {
 
     const settings = new SettingsPage(page);
     await settings.openSettings();
-    await settings.navigateToTab("email");
+    await settings.navigateToTab("sync");
 
     // Verify empty state
     await expect(
@@ -292,8 +292,8 @@ test.describe("Settings — Email (mocked)", () => {
     // Wait for popup to close (popup's ?gmail=connected handler calls window.close())
     await popup.waitForEvent("close", { timeout: 30_000 });
 
-    // ASSERT 1: Parent stays on settings/email (not inbox)
-    await expect(page).toHaveURL(/\/settings\/email/);
+    // ASSERT 1: Parent stays on settings/sync (not inbox)
+    await expect(page).toHaveURL(/\/settings\/sync/);
 
     // ASSERT 2: New connection card appears (data was refetched)
     await expect(page.getByText("new@bundesamt.de")).toBeVisible({

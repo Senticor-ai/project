@@ -24,6 +24,8 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+const DEFAULT_EMAIL = "beamte@bundesamt.de";
+
 // ---------------------------------------------------------------------------
 // Default — German defaults
 // ---------------------------------------------------------------------------
@@ -32,6 +34,7 @@ export const Default: Story = {
   args: {
     preferences: DEFAULT_PREFERENCES,
     onChange: () => {},
+    email: DEFAULT_EMAIL,
   },
 };
 
@@ -49,6 +52,7 @@ export const EnglishUser: Story = {
       weekStart: "sunday",
     },
     onChange: () => {},
+    email: DEFAULT_EMAIL,
   },
 };
 
@@ -62,6 +66,7 @@ function InteractivePreferences() {
     <PreferencesPanel
       preferences={prefs}
       onChange={(update) => setPrefs((prev) => ({ ...prev, ...update }))}
+      email={DEFAULT_EMAIL}
     />
   );
 }
@@ -70,6 +75,7 @@ export const ChangePreferences: Story = {
   args: {
     preferences: DEFAULT_PREFERENCES,
     onChange: () => {},
+    email: DEFAULT_EMAIL,
   },
   render: () => <InteractivePreferences />,
   play: async ({ canvas, userEvent, step }) => {

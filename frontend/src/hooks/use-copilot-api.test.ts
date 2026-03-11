@@ -189,7 +189,7 @@ describe("useCopilotApi", () => {
   });
 
   it("includes page and visible error context from current UI", async () => {
-    window.history.pushState({}, "", "/settings/email?tab=sync");
+    window.history.pushState({}, "", "/settings/sync?tab=sync");
     document.body.innerHTML = `
       <p class="text-status-error">OAuth token expired. Please reconnect.</p>
       <div role="alert">Email sync failed for this connection.</div>
@@ -206,9 +206,9 @@ describe("useCopilotApi", () => {
     const [, opts] = mockFetch.mock.calls[0]!;
     const body = JSON.parse(opts.body as string);
     expect(body.context.appView).toBe("settings");
-    expect(body.context.appSubView).toBe("email");
+    expect(body.context.appSubView).toBe("sync");
     expect(body.context.activeBucket).toBeNull();
-    expect(body.context.currentPath).toContain("/settings/email");
+    expect(body.context.currentPath).toContain("/settings/sync");
     expect(body.context.visibleErrors).toEqual(
       expect.arrayContaining([
         "OAuth token expired. Please reconnect.",

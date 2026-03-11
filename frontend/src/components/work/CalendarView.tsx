@@ -440,7 +440,7 @@ export function CalendarView({
             <span>{syncError}</span>
           </div>
           <a
-            href="/settings/email"
+            href="/settings/sync"
             className="mt-2 inline-block text-xs font-medium text-red-700 underline"
           >
             Settings

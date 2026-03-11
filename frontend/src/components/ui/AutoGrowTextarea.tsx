@@ -15,7 +15,15 @@ export const AutoGrowTextarea = forwardRef<
   HTMLTextAreaElement,
   AutoGrowTextareaProps
 >(function AutoGrowTextarea(
-  { submitOnEnter = true, onSubmit, className, onInput, onKeyDown, ...props },
+  {
+    submitOnEnter = true,
+    onSubmit,
+    className,
+    onInput,
+    onKeyDown,
+    rows = 1,
+    ...props
+  },
   ref,
 ) {
   const internalRef = useRef<HTMLTextAreaElement>(null);
@@ -25,6 +33,17 @@ export const AutoGrowTextarea = forwardRef<
     el.style.height = "auto";
     el.style.height = el.scrollHeight + "px";
   }, []);
+
+  // Grow on mount so pre-existing content (defaultValue/value) is fully visible.
+  const setNodeRef = useCallback(
+    (node: HTMLTextAreaElement | null) => {
+      (
+        internalRef as React.MutableRefObject<HTMLTextAreaElement | null>
+      ).current = node;
+      if (node) grow(node);
+    },
+    [grow],
+  );
 
   const handleInput = useCallback(
     (e: React.InputEvent<HTMLTextAreaElement>) => {
@@ -47,8 +66,8 @@ export const AutoGrowTextarea = forwardRef<
 
   return (
     <textarea
-      ref={internalRef}
-      rows={1}
+      ref={setNodeRef}
+      rows={rows}
       {...props}
       className={cn("resize-none", className)}
       onInput={handleInput}

@@ -19,7 +19,7 @@ def test_send_notification_persists_event_and_push_outbox(auth_client):
             "kind": "proposal_urgent_created",
             "title": "Urgent reschedule",
             "body": "Meeting starts soon. Review proposal.",
-            "url": "/settings/email?proposal=abc",
+            "url": "/settings/sync?proposal=abc",
             "payload": {"proposal_id": "abc"},
         },
     )
@@ -70,7 +70,7 @@ def test_notification_stream_emits_sse_event(auth_client):
             "kind": "proposal_urgent_created",
             "title": "Urgent proposal",
             "body": "Please confirm the reschedule request.",
-            "url": "/settings/email?proposal=xyz",
+            "url": "/settings/sync?proposal=xyz",
             "payload": {"proposal_id": "xyz"},
         },
     )

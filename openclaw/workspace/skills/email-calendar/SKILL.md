@@ -7,7 +7,7 @@ user-invocable: false
 # E-Mail & Kalender Integration
 
 Senticor Project hat eine Gmail- und Google-Calendar-Integration.
-Nutzer verbinden ihr Google-Konto unter **Einstellungen > E-Mail** (`/settings/email`).
+Nutzer verbinden ihr Google-Konto unter **Einstellungen > 3rd Party Sync** (`/settings/sync`).
 
 ## Funktionsumfang
 

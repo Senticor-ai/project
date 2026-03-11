@@ -158,7 +158,7 @@ describe("useProposalNotificationStream", () => {
       kind: "proposal_urgent_created",
       title: "Urgent reschedule request",
       body: "Meeting starts soon.",
-      url: "/settings/email?proposal=1",
+      url: "/settings/sync?proposal=1",
       payload: { proposal_id: "1" },
       created_at: "2026-02-25T18:00:00Z",
     });
@@ -188,7 +188,7 @@ describe("useProposalNotificationStream", () => {
       kind: "proposal_urgent_created",
       title: "Urgent callback",
       body: "Open copilot.",
-      url: "/settings/email?proposal=callback",
+      url: "/settings/sync?proposal=callback",
       payload: { proposal_id: "callback" },
       created_at: "2026-02-25T18:00:00Z",
     });
@@ -211,7 +211,7 @@ describe("useProposalNotificationStream", () => {
       kind: "proposal_urgent_created",
       title: "Urgent reschedule request",
       body: "Meeting starts soon.",
-      url: "/settings/email?proposal=named",
+      url: "/settings/sync?proposal=named",
       payload: { proposal_id: "named" },
       created_at: "2026-02-25T18:00:00Z",
     });
@@ -240,7 +240,7 @@ describe("useProposalNotificationStream", () => {
       kind: "proposal_urgent_created",
       title: "Urgent personal request",
       body: "Pick up kids early.",
-      url: "/settings/email?proposal=2",
+      url: "/settings/sync?proposal=2",
       payload: { proposal_id: "2" },
       created_at: "2026-02-25T18:01:00Z",
     };
@@ -265,7 +265,7 @@ describe("useProposalNotificationStream", () => {
       kind: "proposal_urgent_created",
       title: "Urgent proposal",
       body: "Review now.",
-      url: "/settings/email?proposal=3",
+      url: "/settings/sync?proposal=3",
       payload: { proposal_id: "3" },
       created_at: "2026-02-25T18:02:00Z",
     });
@@ -289,7 +289,7 @@ describe("useProposalNotificationStream", () => {
       kind: "proposal_urgent_created",
       title: "Urgent proposal",
       body: "Review now.",
-      url: "/settings/email?proposal=4",
+      url: "/settings/sync?proposal=4",
       payload: { proposal_id: "4" },
       created_at: "2026-02-25T18:03:00Z",
     });
