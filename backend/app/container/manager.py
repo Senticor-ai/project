@@ -502,33 +502,9 @@ def _k8s_apply_resources(
             "runAsUser": 1000,
             "runAsGroup": 1000,
             "fsGroup": 1000,
+            "fsGroupChangePolicy": "OnRootMismatch",
             "seccompProfile": {"type": "RuntimeDefault"},
         },
-        "initContainers": [
-            {
-                "name": "fix-config-permissions",
-                "image": "busybox:1.37",
-                "command": [
-                    "sh",
-                    "-c",
-                    "touch /openclaw.json && chown 1000:1000 /openclaw.json",
-                ],
-                "volumeMounts": [
-                    {
-                        "name": "backend-files",
-                        "mountPath": "/openclaw.json",
-                        "subPath": config_subpath,
-                    },
-                ],
-                "securityContext": {
-                    "runAsUser": 0,
-                },
-                "resources": {
-                    "requests": {"cpu": "10m", "memory": "16Mi"},
-                    "limits": {"cpu": "50m", "memory": "32Mi"},
-                },
-            }
-        ],
         "containers": [
             {
                 "name": "openclaw",

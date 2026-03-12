@@ -1050,6 +1050,7 @@ def test_k8s_pod_spec_includes_pod_security_context(monkeypatch, tmp_path):
     assert pod_sec["runAsUser"] == 1000
     assert pod_sec["runAsGroup"] == 1000
     assert pod_sec["fsGroup"] == 1000
+    assert pod_sec["fsGroupChangePolicy"] == "OnRootMismatch"
     assert pod_sec["seccompProfile"] == {"type": "RuntimeDefault"}
 
 
@@ -1248,7 +1249,7 @@ def test_k8s_pod_spec_uses_configured_pull_policy(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Feature 4: Fix /openclaw.json write permissions via initContainer
+# Feature 4: K8s runtime must stay non-root compatible
 # ---------------------------------------------------------------------------
 
 
@@ -1274,8 +1275,8 @@ def _capture_k8s_pod_spec(monkeypatch) -> list[dict]:
 
 
 @pytest.mark.unit
-def test_k8s_pod_spec_includes_init_container(monkeypatch):
-    """Pod spec must include an initContainer to fix /openclaw.json permissions."""
+def test_k8s_pod_spec_omits_root_init_container(monkeypatch):
+    """OpenClaw pods must not rely on root-only init containers."""
     captured = _capture_k8s_pod_spec(monkeypatch)
 
     _k8s_apply_resources(
@@ -1286,29 +1287,12 @@ def test_k8s_pod_spec_includes_init_container(monkeypatch):
     )
 
     pod_manifest = captured[1]
-    init_containers = pod_manifest["spec"].get("initContainers", [])
-    assert len(init_containers) >= 1
-
-    init = init_containers[0]
-    assert init["name"] == "fix-config-permissions"
-    # Must touch and chown the config file
-    cmd = " ".join(init.get("command", []))
-    assert "openclaw.json" in cmd
-    assert "1000" in cmd
-
-    # Must have resource requests/limits for quota compliance (#123)
-    resources = init.get("resources", {})
-    assert "requests" in resources, "init container must specify resource requests"
-    assert "limits" in resources, "init container must specify resource limits"
-    assert "cpu" in resources["requests"]
-    assert "memory" in resources["requests"]
-    assert "cpu" in resources["limits"]
-    assert "memory" in resources["limits"]
+    assert pod_manifest["spec"].get("initContainers") in (None, [])
 
 
 @pytest.mark.unit
-def test_init_container_mounts_match_main_container(monkeypatch):
-    """initContainer must mount the same openclaw.json subPath as the main container."""
+def test_main_container_mounts_openclaw_config_subpath(monkeypatch):
+    """Main container must mount the provisioned openclaw.json from the user workspace."""
     captured = _capture_k8s_pod_spec(monkeypatch)
 
     _k8s_apply_resources(
@@ -1319,19 +1303,13 @@ def test_init_container_mounts_match_main_container(monkeypatch):
     )
 
     pod_manifest = captured[1]
-    init_containers = pod_manifest["spec"]["initContainers"]
     main_containers = pod_manifest["spec"]["containers"]
 
-    # Find the openclaw.json mount in main container
     main_mounts = main_containers[0]["volumeMounts"]
     main_config_mount = next(m for m in main_mounts if m["mountPath"] == "/openclaw.json")
 
-    # initContainer must have a matching mount
-    init_mounts = init_containers[0]["volumeMounts"]
-    init_config_mount = next(m for m in init_mounts if m["mountPath"] == "/openclaw.json")
-
-    assert init_config_mount["subPath"] == main_config_mount["subPath"]
-    assert init_config_mount["name"] == main_config_mount["name"]
+    assert main_config_mount["subPath"] == "openclaw/user-123/openclaw.json"
+    assert main_config_mount["name"] == "backend-files"
 
 
 # ---------------------------------------------------------------------------
