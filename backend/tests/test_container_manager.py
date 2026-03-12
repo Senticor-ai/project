@@ -581,6 +581,66 @@ def test_ensure_running_recovers_stale_k8s_starting_row_when_resources_are_missi
 
 
 @pytest.mark.unit
+def test_ensure_running_recreates_k8s_error_row(monkeypatch):
+    user_id = "702a4639-e654-46b8-a4fa-83ecc2bcd06c"
+    row = {
+        "container_url": "http://openclaw-user.project.svc.cluster.local:18789",
+        "container_status": "error",
+        "container_name": "openclaw-user",
+        "container_error": "Health check timeout after 240s",
+    }
+
+    _patch_settings(monkeypatch, openclaw_runtime="k8s")
+    monkeypatch.setattr("app.container.manager.db_conn", lambda: _FakeConn(row))
+    monkeypatch.setattr("app.container.manager._is_container_ready", lambda _url: False)
+    monkeypatch.setattr(
+        "app.container.manager._k8s_runtime_resources_exist",
+        lambda _name: True,
+    )
+
+    stop_calls: list[str] = []
+    monkeypatch.setattr("app.container.manager.stop_container", lambda uid: stop_calls.append(uid))
+    monkeypatch.setattr(
+        "app.container.manager.start_container",
+        lambda _uid: SimpleNamespace(url="http://fresh-runtime", token="fresh-token"),
+    )
+
+    url, token = ensure_running(user_id)
+
+    assert url == "http://fresh-runtime"
+    assert token == "fresh-token"
+    assert stop_calls == [user_id]
+
+
+@pytest.mark.unit
+def test_ensure_running_preserves_non_k8s_error_row(monkeypatch):
+    user_id = "702a4639-e654-46b8-a4fa-83ecc2bcd06c"
+    row = {
+        "container_url": "http://localhost:18800",
+        "container_status": "error",
+        "container_name": f"openclaw-{user_id}",
+        "container_error": "Health check timeout after 240s",
+    }
+
+    monkeypatch.setattr("app.container.manager.db_conn", lambda: _FakeConn(row))
+    monkeypatch.setattr("app.container.manager._is_container_ready", lambda _url: False)
+
+    stop_calls: list[str] = []
+    start_calls: list[str] = []
+    monkeypatch.setattr("app.container.manager.stop_container", lambda uid: stop_calls.append(uid))
+    monkeypatch.setattr(
+        "app.container.manager.start_container",
+        lambda uid: start_calls.append(uid),
+    )
+
+    with pytest.raises(RuntimeError, match="Health check timeout after 240s"):
+        ensure_running(user_id)
+
+    assert stop_calls == []
+    assert start_calls == []
+
+
+@pytest.mark.unit
 def test_reap_orphaned_k8s_resources_deletes_untracked_objects(monkeypatch):
     _patch_settings(monkeypatch, openclaw_runtime="k8s")
 
