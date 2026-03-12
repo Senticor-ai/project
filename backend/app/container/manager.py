@@ -1074,6 +1074,19 @@ def ensure_running(user_id: str) -> tuple[str, str]:
         if row["container_status"] == "starting":
             raise RuntimeError("OpenClaw container is still starting")
 
+        if row["container_status"] == "error" and _use_k8s_runtime():
+            # K8s error rows can survive a backend deploy even when the stored
+            # runtime is no longer a good source of truth. Recreate on demand.
+            logger.info(
+                "container.k8s_runtime_recreating_errored_state",
+                user_id=user_id,
+                container_name=row["container_name"],
+                previous_error=row["container_error"],
+            )
+            stop_container(user_id)
+            info = start_container(user_id)
+            return info.url, info.token
+
         if row["container_error"]:
             raise RuntimeError(str(row["container_error"]))
 
